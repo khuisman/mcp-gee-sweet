@@ -220,18 +220,25 @@ bold "status".
   `Image` (`bold`, `italic`, `underline`, `strikethrough`, `background_color`, `baseline_offset`,
   `font_family`), from the same state a `Run` is styled from (`_character_style`). A bare
   top-level `<img>`, wrapped only in inline tags, has no block whose state they raised, so it
-  reads the same mapping from the open-element stack (`_bare_character_style`).
+  reads its style from the open-element stack (`_bare_character_style`), through
+  `_INLINE_CHARACTER_STYLES`, the one tag-to-field mapping the inline tag sets are derived
+  from, so a new tag can't style a run and miss a bare image (PR #1508 QA round 1).
 - **Emitter.** The image's style request, and its fallback text's, name every field in
   `_IMAGE_TEXT_STYLE_FIELDS`, setting the ones the image's own span gives it and clearing the
   rest. `weightedFontFamily` is among them, since the one font a run sets on the write side is a
   code span's Courier New; cleared, the text takes its paragraph's font. `fontSize` and
   `foregroundColor` aren't: no run sets them on the write side, so fallback text keeps reading
   like its paragraph (#1099).
+- **Linked underline (#1504).** Docs gives text that a request links the link color and an
+  underline, as it does an ordinary link, unless the same request names `underline`: #1334's
+  clearing request did, so linked fallback text showed the color alone. A linked image's request
+  leaves `underline` out (`_LINKED_IMAGE_TEXT_STYLE_FIELDS`) unless its own span underlines it,
+  and an unlinked one still clears an underline from the run before it (confirmed live).
 - **List markers.** A style request that covers a list paragraph's whole text restyles its
   bullet marker too (#1383), so `- **![logo](x.png)**` bolded the marker (confirmed live). A
   styled image in a `BulletItem`'s own text, and its fallback text, are styled behind a
-  throwaway character, inserted at the range's end and deleted after, as
-  `_item_run_style_requests` does for a run (`_image_style_requests`). A request that only
+  throwaway character, inserted at the range's end and deleted after, the same wrapper
+  `_item_run_style_requests` uses for a run (`_marker_guarded`). A request that only
   clears needs none. `ConvertedContent.list_item_image_ids` tells `ImageFallbacks` which
   fallback texts need it.
 

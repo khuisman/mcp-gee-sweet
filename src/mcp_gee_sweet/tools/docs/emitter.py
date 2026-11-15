@@ -196,7 +196,7 @@ class CellImages:
         position = insert["insertInlineImage"]["location"]["index"]
         del self._pending[id(insert)]
         self.uris.pop(id(image), None)
-        drop_image_style_requests(requests, index, styles)
+        index = drop_image_style_requests(requests, index, styles)
         requests[index : index + 1] = self.fallbacks.requests(image, position)
         self._on_dropped(image, error)
         return index
@@ -2209,40 +2209,61 @@ def _image_style_requests(image: Image, start: int, end: int, in_list_item: bool
     and then it restyles the bullet marker too (confirmed live; #1383). So when it
     sets anything, a throwaway character holds the paragraph open past the range while
     it's styled, as _item_run_style_requests does for a run. A request that only
-    clears needs none, since the marker is plain already. The guard goes in and out
-    at `end`, after every position the requests still to come in the
-    descending-position pass use, so it moves none of them."""
+    clears needs none, since the marker is plain already (_marker_guarded).
+
+    A linked image's request leaves `underline` out of its fields unless its own span
+    underlines it: Docs gives text a link sets its link color and underline, as it
+    does an ordinary text link, but clearing `underline` in the same request took the
+    underline away, so linked fallback text showed the color alone (#1504)."""
     text_style, _ = _character_text_style(image)
+    fields = _IMAGE_TEXT_STYLE_FIELDS
+    if "link" in text_style and "underline" not in text_style:
+        fields = _LINKED_IMAGE_TEXT_STYLE_FIELDS
     style = {
         "updateTextStyle": {
             "range": {"startIndex": start, "endIndex": end},
             "textStyle": text_style,
-            "fields": _IMAGE_TEXT_STYLE_FIELDS,
+            "fields": fields,
         }
     }
     if not (in_list_item and text_style):
         return [style]
+    return _marker_guarded([style], end)
+
+
+def _marker_guarded(style: list[dict], end: int) -> list[dict]:
+    """`style`, requests styling a list paragraph's text up to `end`, wrapped so they
+    don't restyle its marker: an updateTextStyle covering all of a list paragraph's
+    text restyles the marker too (confirmed live, #1383), so a throwaway character
+    holds the paragraph open past `end` while they run, and goes after. It goes in and
+    out at `end`, so it moves no position before it. Used for a BulletItem's run
+    (_item_run_style_requests) and for an image or its fallback text in one
+    (_image_style_requests)."""
     return [
         {"insertText": {"location": {"index": end}, "text": _MARKER_GUARD}},
-        style,
+        *style,
         {"deleteContentRange": {"range": {"startIndex": end, "endIndex": end + 1}}},
     ]
 
 
-def drop_image_style_requests(requests: list[dict], index: int, styles: list[dict]) -> None:
+def drop_image_style_requests(requests: list[dict], index: int, styles: list[dict]) -> int:
     """Remove `styles`, the style requests of the image insert at `requests[index]`
     (_image_style_requests), before that insert is replaced by fallback text or
-    dropped. _image_insert_requests puts them right after their insert, and no split
-    separates them (a split cuts before an image insert, never inside its requests),
-    so they're looked up there; the identity scan is only a backstop."""
+    dropped, and return the insert's index afterwards. _image_insert_requests puts
+    them right after their insert, and no split separates them (a split cuts before an
+    image insert, never inside its requests), so they're looked up there and the
+    index is unchanged. The identity scan is only a backstop, and returns the index
+    the insert moved to, so a caller never replaces the wrong request."""
     following = requests[index + 1 : index + 1 + len(styles)]
     if len(following) == len(styles) and all(
         a is b for a, b in zip(following, styles, strict=True)
     ):
         del requests[index + 1 : index + 1 + len(styles)]
-    else:
-        ids = {id(r) for r in styles}
-        requests[:] = [r for r in requests if id(r) not in ids]
+        return index
+    insert = requests[index]
+    ids = {id(r) for r in styles}
+    requests[:] = [r for r in requests if id(r) not in ids]
+    return next(i for i, r in enumerate(requests) if r is insert)
 
 
 def image_fallback_text(image: Image) -> str:
@@ -2278,6 +2299,11 @@ def image_fallback_text(image: Image) -> str:
 _IMAGE_TEXT_STYLE_FIELDS = (
     "bold,italic,underline,strikethrough,baselineOffset,smallCaps,backgroundColor,"
     "weightedFontFamily,link"
+)
+# The same, less underline, for an image with a link whose own span doesn't underline
+# it: Docs underlines text a link sets, and naming underline cleared that (#1504).
+_LINKED_IMAGE_TEXT_STYLE_FIELDS = ",".join(
+    f for f in _IMAGE_TEXT_STYLE_FIELDS.split(",") if f != "underline"
 )
 
 
@@ -2353,11 +2379,7 @@ def _item_run_style_requests(
         if not style:
             return []
         if (start, end) == (para_start, para_end):
-            requests.append({"insertText": {"location": {"index": doc_end}, "text": _MARKER_GUARD}})
-            requests.extend(style)
-            requests.append(
-                {"deleteContentRange": {"range": {"startIndex": doc_end, "endIndex": doc_end + 1}}}
-            )
+            requests.extend(_marker_guarded(style, doc_end))
         else:
             requests.extend(style)
     return requests

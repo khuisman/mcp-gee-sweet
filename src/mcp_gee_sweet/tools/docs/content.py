@@ -1414,7 +1414,9 @@ async def _apply_doc_content(
                     # Left in place, the image's style would land on whatever
                     # character now sits at its position. Matched by identity: the
                     # list holds the same dict objects ast_to_requests recorded.
-                    drop_image_style_requests(requests, bad_index, image_styles[id(bad_request)])
+                    bad_index = drop_image_style_requests(
+                        requests, bad_index, image_styles[id(bad_request)]
+                    )
                     img_id = request_id_to_img_id.get(id(bad_request))
                     if img_id is None or img_id in converted.heading_image_ids:
                         requests.pop(bad_index)

@@ -17,7 +17,7 @@ from mcp_gee_sweet.tools.docs.ast import (
 )
 from mcp_gee_sweet.tools.docs.content import _html_to_doc_requests, _to_doc_requests
 from mcp_gee_sweet.tools.docs.emitter import (
-    _IMAGE_TEXT_STYLE_FIELDS,
+    _LINKED_IMAGE_TEXT_STYLE_FIELDS,
     CellImages,
     _apply_merges,
     _ast_cell_to_doc_cell,
@@ -1557,7 +1557,7 @@ class TestCellImageFill:
         assert batch[i + 1]["updateTextStyle"] == {
             "range": {"startIndex": position, "endIndex": position + 1},
             "textStyle": {"link": {"url": "https://x.com"}},
-            "fields": _IMAGE_TEXT_STYLE_FIELDS,
+            "fields": _LINKED_IMAGE_TEXT_STYLE_FIELDS,
         }
 
     async def test_unfetchable_linked_image_replaced_by_linked_fallback_text(self):
@@ -1581,7 +1581,7 @@ class TestCellImageFill:
         assert retry[i + 1]["updateTextStyle"] == {
             "range": {"startIndex": position, "endIndex": position + 1},
             "textStyle": {"link": {"url": "https://x.com"}},
-            "fields": _IMAGE_TEXT_STYLE_FIELDS,
+            "fields": _LINKED_IMAGE_TEXT_STYLE_FIELDS,
         }
         assert not any("insertInlineImage" in r and "uri-bad" in str(r) for r in retry)
         links = [r for r in retry if "link" in r.get("updateTextStyle", {}).get("textStyle", {})]

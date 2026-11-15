@@ -44,6 +44,7 @@ from mcp_gee_sweet.tools.docs.content import (
 )
 from mcp_gee_sweet.tools.docs.emitter import (
     _IMAGE_TEXT_STYLE_FIELDS,
+    _LINKED_IMAGE_TEXT_STYLE_FIELDS,
     ImageFallbacks,
     ast_to_requests,
     extract_images,
@@ -2894,7 +2895,7 @@ class TestCreateDocImages:
                 "updateTextStyle": {
                     "range": {"startIndex": bad_position, "endIndex": bad_position + 3},
                     "textStyle": {"link": {"url": "https://link/bad"}},
-                    "fields": _IMAGE_TEXT_STYLE_FIELDS,
+                    "fields": _LINKED_IMAGE_TEXT_STYLE_FIELDS,
                 }
             },
         ]
@@ -6252,7 +6253,7 @@ class TestImageFallbackText:
         assert style["updateTextStyle"] == {
             "range": {"startIndex": 5, "endIndex": 10},
             "textStyle": {"link": {"url": "https://ci"}},
-            "fields": _IMAGE_TEXT_STYLE_FIELDS,
+            "fields": _LINKED_IMAGE_TEXT_STYLE_FIELDS,
         }
 
     def test_unlinked_fallback_clears_an_inherited_link(self):

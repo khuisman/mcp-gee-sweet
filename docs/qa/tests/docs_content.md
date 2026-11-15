@@ -7577,7 +7577,7 @@ Raw read: `First line\vSecond linestruck` (struck) + ` mid ` + `bold\n` (bold), 
 - S3: the image's `textStyle` is `{"bold": true}`
 - S4: the image's `textStyle` has the yellow `backgroundColor`. `struck` is `strikethrough`
 - S5: `codealt` has `weightedFontFamily` Courier New, like `c `
-- Each of the four list items is bulleted, and each item's `bullet.textStyle` has no `bold`. The first item's image is bold, the second item's `badge` is bold, and the third item's `linked` has the link. 🔍 Every marker is a plain bullet
+- Each of the four list items is bulleted, and each item's `bullet.textStyle` has no `bold`. The first item's image is bold, the second item's `badge` is bold, and the third item's `linked` has the link, the link color and `underline: true`, as an ordinary link does (#1504). 🔍 Every marker is a plain bullet
 - The table cell's `cellalt` is bold and ` tail` isn't
 
 **Cleanup:** `delete_file` the doc

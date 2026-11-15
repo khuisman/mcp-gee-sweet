@@ -6,6 +6,7 @@ import pytest
 from mcp_gee_sweet.tools.docs.ast import BulletItem, Image, Paragraph, RGBColor, Run
 from mcp_gee_sweet.tools.docs.emitter import (
     _IMAGE_TEXT_STYLE_FIELDS,
+    _LINKED_IMAGE_TEXT_STYLE_FIELDS,
     CellImages,
     ImageFallbacks,
     _image_insert_requests,
@@ -15,7 +16,7 @@ from mcp_gee_sweet.tools.docs.emitter import (
     image_fallback_requests,
     list_item_image_ids,
 )
-from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
+from mcp_gee_sweet.tools.docs.html_parser import _INLINE_CHARACTER_STYLES, html_to_ast
 from mcp_gee_sweet.tools.docs.md_to_html import _md_to_html
 
 _PNG = "https://x/a.png"
@@ -50,6 +51,63 @@ class TestFieldList:
     def test_size_and_color_stay_the_paragraphs(self, kept):
         # Deliberately not named, so a fallback reads like the text around it (#1099).
         assert kept not in _IMAGE_TEXT_STYLE_FIELDS.split(",")
+
+    def test_linked_pinned(self):
+        assert _LINKED_IMAGE_TEXT_STYLE_FIELDS == (
+            "bold,italic,strikethrough,baselineOffset,smallCaps,backgroundColor,"
+            "weightedFontFamily,link"
+        )
+
+
+class TestLinkedUnderline:
+    """Docs underlines text a link sets; clearing underline in the same request took
+    that away from linked fallback text (#1504)."""
+
+    def test_linked_fallback_leaves_underline_to_docs(self):
+        image = Image(src="https://x/bad.svg", alt="lfb", link_url="https://ci")
+        [_insert, style] = image_fallback_requests(image, 3)
+        assert "underline" not in _fields(style["updateTextStyle"])
+        assert style["updateTextStyle"]["textStyle"] == {"link": {"url": "https://ci"}}
+
+    def test_linked_image_leaves_underline_to_docs(self):
+        image = Image(src=_PNG, link_url="https://ci")
+        [_insert, style] = _image_insert_requests(image, _PNG, 3)
+        assert "underline" not in _fields(style["updateTextStyle"])
+
+    def test_underlined_span_sets_it(self):
+        image = Image(src="https://x/bad.svg", alt="u", link_url="https://ci", underline=True)
+        [_insert, style] = image_fallback_requests(image, 3)
+        assert style["updateTextStyle"]["textStyle"]["underline"] is True
+        assert "underline" in _fields(style["updateTextStyle"])
+
+    @pytest.mark.parametrize("link_url", [None, "./relative.md"])
+    def test_unlinked_still_clears_it(self, link_url):
+        # An unstorable link is no link: an underline from the run before is cleared.
+        image = Image(src="https://x/bad.svg", alt="p", link_url=link_url)
+        [_insert, style] = image_fallback_requests(image, 3)
+        assert "underline" in _fields(style["updateTextStyle"])
+        assert style["updateTextStyle"]["textStyle"] == {}
+
+
+class TestOneInlineStyleMapping:
+    """A bare top-level <img> reads its style from _INLINE_CHARACTER_STYLES, the mapping
+    the tag sets handle_starttag uses are derived from, so every inline style tag must
+    style it, an <img> in a block, and text the same way."""
+
+    @pytest.mark.parametrize("tag", sorted(_INLINE_CHARACTER_STYLES))
+    def test_bare_and_in_block_image_and_text_agree(self, tag):
+        field_name, value = _INLINE_CHARACTER_STYLES[tag]
+        [bare] = _images(f'<{tag}><img src="{_PNG}"></{tag}>', "html")
+        nodes = html_to_ast(f'<p><{tag}>t<img src="{_PNG}"></{tag}></p>')
+        [paragraph] = nodes
+        [run, in_block] = paragraph.runs
+        assert getattr(bare, field_name) == value
+        assert getattr(in_block, field_name) == value
+        assert getattr(run, field_name) == value
+
+    def test_bare_image_doesnt_share_the_mappings_color(self):
+        [a] = _images(f'<mark><img src="{_PNG}"></mark>', "html")
+        assert a.background_color is not _INLINE_CHARACTER_STYLES["mark"][1]
 
 
 class TestParserRecordsTheEnclosingStyle:
@@ -255,8 +313,22 @@ class TestDropImageStyleRequests:
     def test_falls_back_to_identity_when_not_adjacent(self):
         insert, style, between = {"insertInlineImage": {}}, {"updateTextStyle": {}}, {"x": 1}
         requests = [insert, between, style]
-        drop_image_style_requests(requests, 0, [style])
+        assert drop_image_style_requests(requests, 0, [style]) == 0
         assert requests == [insert, between]
+
+    def test_adjacent_returns_the_same_index(self):
+        insert, style = {"insertInlineImage": {}}, {"updateTextStyle": {}}
+        requests = [{"x": 1}, insert, style]
+        assert drop_image_style_requests(requests, 1, [style]) == 1
+
+    def test_backstop_returns_where_the_insert_moved(self):
+        # A style request ahead of its insert shifts it left; the caller then replaces
+        # the insert itself, not the request after it.
+        insert, style, after = {"insertInlineImage": {}}, {"updateTextStyle": {}}, {"x": 1}
+        requests = [style, insert, after]
+        index = drop_image_style_requests(requests, 1, [style])
+        assert requests[index] is insert
+        assert requests == [insert, after]
 
     def test_an_equal_looking_request_isnt_dropped(self):
         insert, style = {"insertInlineImage": {}}, {"updateTextStyle": {}}

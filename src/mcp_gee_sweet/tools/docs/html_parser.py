@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import html as html_module
 import re
 from dataclasses import dataclass, field, replace
@@ -205,15 +206,43 @@ class _OpenElement:
     container_text: bool = False
 
 
-_INLINE_BOLD = {"b", "strong"}
-_INLINE_ITALIC = {"i", "em"}
-_INLINE_UNDERLINE = {"u"}
-_INLINE_STRIKE = {"s", "strike", "del"}  # <del> strikes too (#1077)
-# <sub>/<sup> set the run's baselineOffset; the innermost open one wins (#1119).
-_INLINE_BASELINE = {"sub": "SUBSCRIPT", "sup": "SUPERSCRIPT"}
 # <mark> highlights its text in yellow, a browser's default <mark> color (#1119).
-_INLINE_MARK = "mark"
 _MARK_RGB = (1.0, 1.0, 0.0)
+# Every inline tag that styles its text: the Run/Image field it sets and the value.
+# The one mapping: the tag sets below, which handle_starttag/handle_endtag use, are
+# derived from it, and so is a bare top-level <img>'s style (_bare_character_style,
+# #1475), so a tag added here styles both. <del> strikes too (#1077). <sub>/<sup> set
+# baselineOffset, and the innermost open one wins (#1119). <code> is code-styled
+# outside <pre>.
+_INLINE_CHARACTER_STYLES: dict[str, tuple[str, object]] = {
+    "b": ("bold", True),
+    "strong": ("bold", True),
+    "i": ("italic", True),
+    "em": ("italic", True),
+    "u": ("underline", True),
+    "s": ("strikethrough", True),
+    "strike": ("strikethrough", True),
+    "del": ("strikethrough", True),
+    "sub": ("baseline_offset", "SUBSCRIPT"),
+    "sup": ("baseline_offset", "SUPERSCRIPT"),
+    "mark": ("background_color", RGBColor(*_MARK_RGB)),
+    "code": ("font_family", "Courier New"),
+}
+
+
+def _inline_tags(field_name: str) -> set[str]:
+    return {tag for tag, (name, _) in _INLINE_CHARACTER_STYLES.items() if name == field_name}
+
+
+_INLINE_BOLD = _inline_tags("bold")
+_INLINE_ITALIC = _inline_tags("italic")
+_INLINE_UNDERLINE = _inline_tags("underline")
+_INLINE_STRIKE = _inline_tags("strikethrough")
+_INLINE_BASELINE = {
+    tag: str(_INLINE_CHARACTER_STYLES[tag][1]) for tag in _inline_tags("baseline_offset")
+}
+_INLINE_MARK = _inline_tags("background_color")
+_INLINE_CODE = _inline_tags("font_family")
 # HTML void elements: never get a matching close tag from Python's stdlib
 # HTMLParser unless the source text itself self-closes them ("<img ... />"),
 # since HTMLParser has no built-in HTML5 void-element awareness. Excluded from
@@ -800,18 +829,15 @@ class _AstParser(HTMLParser):
         """_character_style for a bare top-level <img>, wrapped only in inline tags
         (`<b><img></b>`). No block was open when those tags started, so they raised no
         style depth; read the same mapping from the open-element stack instead, as the
-        bare link is kept apart (_bare_link_url)."""
-        tags = [element.tag for element in self._open_elements if not element.inert]
-        baseline = [_INLINE_BASELINE[tag] for tag in tags if tag in _INLINE_BASELINE]
-        return {
-            "bold": True if _INLINE_BOLD.intersection(tags) else None,
-            "italic": True if _INLINE_ITALIC.intersection(tags) else None,
-            "underline": True if _INLINE_UNDERLINE.intersection(tags) else None,
-            "strikethrough": True if _INLINE_STRIKE.intersection(tags) else None,
-            "background_color": RGBColor(*_MARK_RGB) if _INLINE_MARK in tags else None,
-            "baseline_offset": baseline[-1] if baseline else None,
-            "font_family": "Courier New" if "code" in tags else None,
-        }
+        bare link is kept apart (_bare_link_url). Outermost first, so the innermost
+        open <sub>/<sup> wins, as in a block."""
+        style: dict = dict.fromkeys(self._character_style())
+        for element in self._open_elements:
+            if not element.inert and element.tag in _INLINE_CHARACTER_STYLES:
+                field_name, value = _INLINE_CHARACTER_STYLES[element.tag]
+                # A copy, so no two nodes share the one RGBColor in the mapping.
+                style[field_name] = copy.copy(value)
+        return style
 
     def _character_style(self) -> dict:
         """The character style of the inline tags open right now, as the Run/Image
@@ -1736,14 +1762,14 @@ class _AstParser(HTMLParser):
                 self._strike_depth += 1
             elif tag in _INLINE_BASELINE:
                 self._baseline_stack.append(_INLINE_BASELINE[tag])
-            elif tag == _INLINE_MARK:
+            elif tag in _INLINE_MARK:
                 self._mark_depth += 1
             elif tag == "a":
                 href = attr_dict.get("href", "")
                 if href:
                     self._link_url.append(href)
                 self._anchor_pushes.append("block" if href else None)
-            elif tag == "code" and not self._in_pre:
+            elif tag in _INLINE_CODE and not self._in_pre:
                 self._code_depth += 1
             elif tag == "pre":
                 # Only reachable in a table cell: a body <pre> is handled above.
@@ -2028,11 +2054,11 @@ class _AstParser(HTMLParser):
                 self._strike_depth = max(0, self._strike_depth - 1)
             elif tag in _INLINE_BASELINE:
                 self._close_baseline(_INLINE_BASELINE[tag])
-            elif tag == _INLINE_MARK:
+            elif tag in _INLINE_MARK:
                 self._mark_depth = max(0, self._mark_depth - 1)
             elif tag == "a":
                 self._close_anchor()
-            elif tag == "code" and not self._in_pre:
+            elif tag in _INLINE_CODE and not self._in_pre:
                 self._code_depth = max(0, self._code_depth - 1)
             elif tag == "pre":
                 self._cell_pre_depth = max(0, self._cell_pre_depth - 1)

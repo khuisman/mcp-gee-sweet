@@ -25,6 +25,7 @@ from mcp_gee_sweet.tools.docs.content import (
 )
 from mcp_gee_sweet.tools.docs.emitter import (
     _IMAGE_TEXT_STYLE_FIELDS,
+    _LINKED_IMAGE_TEXT_STYLE_FIELDS,
     CellImages,
     _build_blank_para_before_table_collapses,
     _build_cell_style_requests,
@@ -3718,7 +3719,7 @@ class TestImageLinks:
             "updateTextStyle": {
                 "range": {"startIndex": 8, "endIndex": 9},
                 "textStyle": {"link": {"url": "https://t"}},
-                "fields": _IMAGE_TEXT_STYLE_FIELDS,
+                "fields": _LINKED_IMAGE_TEXT_STYLE_FIELDS,
             }
         }
 
