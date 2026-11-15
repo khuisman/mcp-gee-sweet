@@ -2373,6 +2373,34 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#cache-invalidation-for-cancelled-writes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cache invalidation for cancelled writes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cache invalidation for cancelled writes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-cal85-a-calendar-write-cancelled-while-in-flight-still-lands-and-the-calendar-cache-is-invalidated-on-the-cancel-and-again-once-it-lands-1265-requires-oauth-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-CAL85: A Calendar write cancelled while in flight still lands, and the calendar cache is invalidated on the cancel and again once it lands (#1265) ⚠️ requires-oauth ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -4050,6 +4078,26 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 <p><strong>Round 2 fixes not covered by a live test case above:</strong>
 - The calendar-list fetch backing <code>summary_by_id</code> (<code>calendar.py</code>, before <code>_fetch_one</code>) had no try/except and could abort the whole batch on a transient failure even when <code>calendar_ids</code> was given explicitly (so the fetch was only needed for display names). Now caught: with explicit <code>calendar_ids</code>, the call proceeds using the bare IDs as display names; with no <code>calendar_ids</code> (so there's no other way to know what to query), it returns a single top-level <code>{"error": ...}</code> instead of raising. Forcing a live <code>calendarList().list()</code> failure isn't something QA can safely trigger against a real account — covered by <code>test_calendar_list_fetch_failure_with_explicit_calendar_ids_does_not_abort</code> and <code>test_calendar_list_fetch_failure_without_calendar_ids_returns_top_level_error</code> in <code>tests/test_calendar.py</code> only. Documented scoping decision, not an oversight.
 - <code>time_min</code>'s default (<code>datetime.now(timezone.utc)</code>) was computed independently inside each concurrent per-calendar task, so calendars in the same call could query against slightly different "now" instants under real contention. Now computed once before the fan-out and reused by every task. Not distinguishable via a single live call's response (there's no observable difference unless an event's start time falls in the microseconds-wide window between two independent <code>datetime.now()</code> calls) — covered by <code>test_default_time_min_is_computed_once_for_the_whole_batch</code> in <code>tests/test_calendar.py</code> only.</p>
+<hr />
+<h2 id="cache-invalidation-for-cancelled-writes">Cache invalidation for cancelled writes<a class="headerlink" href="#cache-invalidation-for-cancelled-writes" title="Permanent link">&para;</a></h2>
+<h3 id="tc-cal85-a-calendar-write-cancelled-while-in-flight-still-lands-and-the-calendar-cache-is-invalidated-on-the-cancel-and-again-once-it-lands-1265-requires-oauth-destructive">TC-CAL85: A Calendar write cancelled while in flight still lands, and the calendar cache is invalidated on the cancel and again once it lands (#1265) ⚠️ requires-oauth ⚠️ destructive<a class="headerlink" href="#tc-cal85-a-calendar-write-cancelled-while-in-flight-still-lands-and-the-calendar-cache-is-invalidated-on-the-cancel-and-again-once-it-lands-1265-requires-oauth-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Same mechanism as <code>drive_files.md</code>'s TC-D301. <code>scripts/qa_cancel_inflight_write.py</code> runs the checkout's own tool against the real API and cancels it while its write request is held on its worker thread. The thread can't be stopped, so the calendar's description changes after the cancellation. Every calendar write marks every calendar entry dirty (<code>primary</code> and the calendar's address are two cache entries for one calendar), and the script prints that as <code>calendar cache: every calendar marked dirty</code> with <code>(write landed: yes|no)</code>, then waits for the held write to finish. Event writes don't invalidate the calendar cache, which holds no event data. Run it from the checkout under test with that checkout's OAuth token (<code>TOKEN_PATH</code>), on an OAuth identity that owns <code>{CALENDAR_ID}</code> (see the identity note at the top of this file). Round 1's Result below ran an earlier version of this case that cancelled <code>create_event</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>(none — script-driven; the steps below are shell commands plus tool calls)</p>
+</blockquote>
+<p><strong>Steps</strong>
+1. <code>get_calendar(calendar_id={CALENDAR_ID})</code>. Record its <code>description</code> as <code>{ORIGINAL_DESCRIPTION}</code> (it may be <code>null</code>)
+2. <code>uv run python scripts/qa_cancel_inflight_write.py update_calendar --calendar-id {CALENDAR_ID}</code>
+3. <code>refresh_cache(calendar_id={CALENDAR_ID})</code>, then <code>get_calendar(calendar_id={CALENDAR_ID})</code>. The script's cache is its own stand-in, so the server's cache still holds step 1's entry until this refresh</p>
+<p><strong>Checks</strong>
+- Step 2 prints <code>cancelled update_calendar while its write was in flight; the tool returned nothing</code> and ends with <code>writes sent: 1; landed: 1</code>
+- Step 2 prints <code>calendar cache: every calendar marked dirty (write landed: no)</code>, then the same line with <code>(write landed: yes)</code>. Before #1265, neither line was printed
+- Step 3 returns <code>description</code> <code>TC-1265 description</code> (the cancelled write landed)
+- If step 2 shows only a <code>(write landed: yes)</code> line, the write finished before the cancel reached the tool; re-run it</p>
+<p><strong>Cleanup:</strong> <code>update_calendar(calendar_id={CALENDAR_ID}, description={ORIGINAL_DESCRIPTION})</code>, or <code>description=""</code> if step 1 recorded <code>null</code>.</p>
+<p><strong>Result (2026-11-14) ✅ PASS — PR #1492 round 1 (Kit) @ 520a3830, OAuth on <code>mcp-gee-sweet-kit</code></strong> — step 1 printed <code>calendar cache marked dirty for {CALENDAR_ID} (write landed: no)</code>, <code>cancelled create_event while its write was in flight; the tool returned nothing</code>, then <code>(write landed: yes)</code> and <code>writes sent: 1; landed: 1</code>, all on the first run. Step 2: <code>list_events</code> returned <code>TC-1265 event</code> (all-day, 2030-01-01). Event deleted.</p>
+<p><strong>Result (2026-11-14) ✅ PASS — PR #1492 round 2 (Kit) @ 29d6297c, OAuth on <code>mcp-gee-sweet-kit</code>, the <code>update_calendar</code> version of this case</strong> — step 1: <code>description</code> = <code>QA fixture calendar for mcp-gee-sweet integration tests. Do not delete.</code> Step 2 printed <code>calendar cache: every calendar marked dirty (write landed: no)</code>, <code>cancelled update_calendar while its write was in flight; the tool returned nothing</code>, then <code>(write landed: yes)</code> and <code>writes sent: 1; landed: 1</code>, on the first run. Step 3: <code>description</code> = <code>TC-1265 description</code>. Cleanup restored the original description. Extra live probes on the same server: (a) <code>get_calendar("primary")</code>, then <code>update_calendar(calendar_id=&lt;primary address&gt;, description=…)</code>, then <code>get_calendar("primary")</code> showed the new description with no <code>refresh_cache</code>; (b) <code>update_calendar({CALENDAR_ID}, description=…, color_id="999")</code> returned the 400 <code>Invalid color.</code> error, and the next <code>get_calendar</code> showed the description that landed, not the cached one. Both descriptions restored.</p>
 
 
 
