@@ -194,23 +194,80 @@ class TestSelection:
         by_group = Selection.from_entries(("docs", "new_tool"), renamed)
         assert by_group.aliases_for("new_tool") == []
 
-    def test_describe_default(self):
-        line = Selection.from_entries(()).describe({"a", "b", "c"})
-        assert line.startswith("Tools: this server loads the default tool group, out of 3.")
-        assert "local-files" in line and "or all." in line
+    def test_a_selection_is_hashable_and_keeps_its_own_rename_map(self):
+        renamed = {"old_tool": Renamed("new_tool", "v1.0")}
+        selection = Selection.from_entries(("old_tool",), renamed)
+        hash(selection)
+        renamed["other_old"] = Renamed("other_new", "v1.0")
+        assert set(selection.renamed) == {"old_tool"}
+        assert not selection.selects("other_new", frozenset())
 
-    def test_describe_groups_and_names(self):
-        line = Selection.from_entries(("docs", "gmail", "list_events", "bogus")).describe(
-            {"list_events", "x"}
+
+class TestDescribe:
+    """`instructions` reports what registered, never what was merely listed
+    (PR #1501 QA round 1)."""
+
+    SHEETS = frozenset({"sheets"})
+    SHEETS_DEFAULT = frozenset({"sheets", "default"})
+
+    def test_default(self):
+        line = Selection.from_entries(()).describe({"get_sheet_data": self.SHEETS_DEFAULT}, 3)
+        assert line.startswith(
+            "Tools: this server loads 1 of 3 tools (the default tool group). To add more,"
+        )
+        assert "local-files" in line and line.endswith(", or all.")
+
+    def test_a_group_that_registered_nothing_isnt_named(self):
+        # LOCAL_FILE_ACCESS=off with local-files: nothing from the group registered.
+        line = Selection.from_entries(("local-files", "get_sheet_data")).describe(
+            {"get_sheet_data": self.SHEETS_DEFAULT}, 143
         )
         assert line.startswith(
-            "Tools: this server loads the docs, gmail tool groups plus 1 individually "
-            "named tool, out of 2."
+            "Tools: this server loads 1 of 143 tools (1 individually named tool)."
+        )
+        assert "local-files tool group" not in line
+
+    def test_nothing_registered(self):
+        line = Selection.from_entries(("local-files",)).describe({}, 143)
+        assert line.startswith("Tools: this server loads 0 of 143 tools. To add more,")
+
+    def test_a_name_a_listed_group_already_covers_isnt_counted(self):
+        line = Selection.from_entries(("default", "get_sheet_data")).describe(
+            {"get_sheet_data": self.SHEETS_DEFAULT, "list_events": frozenset({"default"})}, 9
+        )
+        assert line.startswith("Tools: this server loads 2 of 9 tools (the default tool group).")
+
+    def test_groups_and_names(self):
+        line = Selection.from_entries(("docs", "gmail", "list_events", "bogus")).describe(
+            {
+                "create_doc": frozenset({"docs"}),
+                "list_messages": frozenset({"gmail"}),
+                "list_events": frozenset({"calendar"}),
+            },
+            10,
+        )
+        assert line.startswith(
+            "Tools: this server loads 3 of 10 tools (the docs, gmail tool groups plus 1 "
+            "individually named tool)."
         )
 
-    def test_describe_all(self):
-        line = Selection.from_entries(("all",)).describe({"a", "b"})
+    def test_all_with_everything_registered(self):
+        line = Selection.from_entries(("all",)).describe({"a": self.SHEETS, "b": self.SHEETS}, 2)
         assert line == "Tools: every tool is loaded (2), because ENABLED_TOOLS includes all."
+
+    def test_all_with_some_left_out_by_the_policy(self):
+        line = Selection.from_entries(("all",)).describe({"a": self.SHEETS}, 2)
+        assert line == (
+            "Tools: this server loads 1 of 2 tools. ENABLED_TOOLS includes all, and the "
+            "local-file policy (LOCAL_FILE_ACCESS) leaves out the rest."
+        )
+
+    def test_aliases_are_counted_apart(self):
+        line = Selection.from_entries(("all",)).describe({"a": self.SHEETS}, 1, aliases=2)
+        assert line == (
+            "Tools: every tool is loaded (1, plus 2 deprecated aliases), because "
+            "ENABLED_TOOLS includes all."
+        )
 
 
 class TestAliasRegistration:
@@ -223,6 +280,8 @@ class TestAliasRegistration:
         monkeypatch.setattr(server, "mcp", fresh)
         monkeypatch.setattr(server, "_known_tools", {})
         monkeypatch.setattr(server, "_registered_tool_modules", set())
+        monkeypatch.setattr(server, "_registered_tools", {})
+        monkeypatch.setattr(server, "_registered_aliases", [])
         return fresh
 
     @staticmethod
@@ -243,6 +302,8 @@ class TestAliasRegistration:
         server.tool()(self._new_tool())
         tools = {t.name: t for t in fresh_mcp._tool_manager.list_tools()}
         assert set(tools) == {"new_tool", "old_tool"}
+        assert set(server._registered_tools) == {"new_tool"}
+        assert server._registered_aliases == ["old_tool"]
         assert tools["old_tool"].description.startswith(
             "Deprecated: use `new_tool`. Removed in v1.0."
         )
@@ -272,6 +333,13 @@ class TestAliasRegistration:
             "new_tool",
             "old_tool",
         }
+
+    def test_the_startup_line_counts_aliases_apart(self, monkeypatch, fresh_mcp):
+        self._select(monkeypatch, "all")
+        server.tool()(self._new_tool())
+        assert server._startup_tools_line(server.SELECTION) == (
+            "Registered 1 of 1 tools plus 1 deprecated aliases from ENABLED_TOOLS=all."
+        )
 
     def test_an_old_name_warns_once(self, monkeypatch):
         warning = MagicMock()
@@ -346,7 +414,9 @@ class TestLaunch:
         names, gmail, instructions, _ = _launch({})
         assert set(names) == DEFAULT_SNAPSHOT
         assert gmail is True
-        assert instructions.startswith("Tools: this server loads the default tool group")
+        assert instructions.startswith(
+            f"Tools: this server loads 38 of {len(_registrations())} tools (the default tool group)."
+        )
 
     def test_empty_is_unset(self):
         names, *_ = _launch({"ENABLED_TOOLS": ""})
@@ -362,6 +432,20 @@ class TestLaunch:
         assert set(names) == _members("docs") | {"list_events"}
         assert gmail is False
         assert "ENABLED_TOOLS: ignoring" not in stderr
+
+    def test_off_with_local_files_doesnt_claim_the_group(self):
+        names, _, instructions, _ = _launch(
+            {"LOCAL_FILE_ACCESS": "off", "ENABLED_TOOLS": "local-files,get_sheet_data"}
+        )
+        assert names == ["get_sheet_data"]
+        assert "local-files tool group" not in instructions
+        assert instructions.startswith("Tools: this server loads 1 of ")
+
+    def test_off_with_all_doesnt_claim_every_tool(self):
+        names, _, instructions, _ = _launch({"LOCAL_FILE_ACCESS": "off", "ENABLED_TOOLS": "all"})
+        total = len(_registrations())
+        assert instructions.startswith(f"Tools: this server loads {len(names)} of {total} tools.")
+        assert len(names) < total
 
     @pytest.mark.parametrize("value", ["ALL", "get_sheet_dta"])
     def test_an_unknown_entry_warns_and_the_server_still_starts(self, value):
@@ -386,6 +470,7 @@ class TestLaunch:
             "entries": ["gmail", "get_sheet_data"],
             "configured": True,
             "registered_tools": len(_members("gmail")) + 1,
+            "deprecated_aliases": [],
         }
 
 
@@ -404,5 +489,6 @@ class TestAuthStatusToolSelection:
         assert status["tool_selection"] == {
             "entries": ["default"],
             "configured": False,
-            "registered_tools": len(server.mcp._tool_manager.list_tools()),
+            "registered_tools": len(server._registered_tools),
+            "deprecated_aliases": [],
         }

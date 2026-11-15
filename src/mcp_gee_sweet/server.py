@@ -321,6 +321,10 @@ _unregistered_local_only_tools: list[str] = []
 # Every tool the decorator saw, registered or not, with its groups (#1364): the
 # unknown-entry check and the counts in the startup log and `instructions` need it.
 _known_tools: dict[str, frozenset[str]] = {}
+# The tools actually registered, aliases aside, with their groups, and the aliases
+# registered: what `instructions`, the startup line and auth-status report.
+_registered_tools: dict[str, frozenset[str]] = {}
+_registered_aliases: list[str] = []
 
 
 def _alias_of(func, old_name: str, renamed: tool_groups.Renamed):
@@ -377,8 +381,10 @@ def tool(
             return func
         _registered_tool_modules.add(func.__module__)
         timed = _register(func, annotations)
+        _registered_tools[tool_name] = member_of
         for old_name in SELECTION.aliases_for(tool_name):
             _register(_alias_of(func, old_name, SELECTION.renamed[old_name]), annotations)
+            _registered_aliases.append(old_name)
         return timed
 
     return decorator
@@ -430,11 +436,9 @@ _log_selection_problems(SELECTION)
 # requested when ENABLED_TOOLS leaves at least one Gmail tool in (#790).
 set_gmail_enabled(_gmail_tools.__name__ in _registered_tool_modules)
 # Read by each client at initialize, so it must be set before serving.
-mcp._lowlevel_server.instructions = SELECTION.describe(_known_tools)
-
-
-def _registered_tool_count() -> int:
-    return len(mcp._tool_manager.list_tools())
+mcp._lowlevel_server.instructions = SELECTION.describe(
+    _registered_tools, len(_known_tools), len(_registered_aliases)
+)
 
 
 def _startup_tools_line(selection: tool_groups.Selection) -> str:
@@ -443,7 +447,10 @@ def _startup_tools_line(selection: tool_groups.Selection) -> str:
         source = f"ENABLED_TOOLS={','.join(selection.entries)}"
     else:
         source = "the default tool group (ENABLED_TOOLS is unset)"
-    line = f"Registered {_registered_tool_count()} of {len(_known_tools)} tools from {source}."
+    line = f"Registered {len(_registered_tools)} of {len(_known_tools)} tools"
+    if _registered_aliases:
+        line += f" plus {len(_registered_aliases)} deprecated aliases"
+    line += f" from {source}."
     if not selection.selects_all:
         line += " Set ENABLED_TOOLS=all to register every tool."
     return line
@@ -454,7 +461,8 @@ def _tool_selection_status() -> dict:
     return {
         "entries": list(SELECTION.entries),
         "configured": SELECTION.configured,
-        "registered_tools": _registered_tool_count(),
+        "registered_tools": len(_registered_tools),
+        "deprecated_aliases": sorted(_registered_aliases),
     }
 
 
@@ -663,7 +671,7 @@ def get_auth_status() -> str:
     was set explicitly, the allowed directories in roots mode, and the local-only
     tools off mode left unregistered. `tool_selection` gives the ENABLED_TOOLS
     entries in effect (`default` when it's unset), whether it was set, and how many
-    tools are registered.
+    tools (aliases aside) and which deprecated aliases are registered.
     """
     # mcp v2 dropped get_context() with no replacement for a static (non-templated)
     # resource — Context injection isn't supported there at all (confirmed live

@@ -2273,7 +2273,7 @@ All six steps met their checks, with `DEBUG_LEVEL` and `LOG_FILE` set empty as i
 
 **Action**
 1. Start `uv run mcp-gee-sweet` through the SDK client with `ENABLED_TOOLS` unset. Call `search_files` with `query="zz-1364-no-such-file"`, `max_results=1`.
-2. Same, with `ENABLED_TOOLS=all`.
+2. Same, with `ENABLED_TOOLS=all`. Then again with `LOCAL_FILE_ACCESS=off` added.
 3. Same, with `ENABLED_TOOLS=docs,list_events`.
 4. Same, with `ENABLED_TOOLS=ALL`.
 5. Same, with `ENABLED_TOOLS=get_sheet_dta,comments`.
@@ -2282,12 +2282,12 @@ All six steps met their checks, with `DEBUG_LEVEL` and `LOG_FILE` set empty as i
 8. `ENABLED_TOOLS=docs,list_events TOKEN_PATH=<scratch>/t.json uv run mcp-gee-sweet auth --no-browser`: kill it once the URL is printed. Then the same with `ENABLED_TOOLS` unset.
 
 **Checks**
-- 1: 38 tools, `list_messages` listed, `add_doc_comment` not. `instructions` starts `Tools: this server loads the default tool group, out of 143.` and names `ENABLED_TOOLS` and the other groups. `tool_selection` is `{"entries": ["default"], "configured": false, "registered_tools": 38}`. stderr has `Registered 38 of 143 tools from the default tool group (ENABLED_TOOLS is unset). Set ENABLED_TOOLS=all to register every tool.` exactly once, and no `smaller default tool set` line. `search_files` returns a list, not an error
-- 2: 143 tools. `instructions` is `Tools: every tool is loaded (143), because ENABLED_TOOLS includes all.` The startup line ends `from ENABLED_TOOLS=all.`
+- 1: 38 tools, `list_messages` listed, `add_doc_comment` not. `instructions` starts `Tools: this server loads 38 of 143 tools (the default tool group).` and names `ENABLED_TOOLS` and the other groups. `tool_selection` is `{"entries": ["default"], "configured": false, "registered_tools": 38, "deprecated_aliases": []}`. stderr has `Registered 38 of 143 tools from the default tool group (ENABLED_TOOLS is unset). Set ENABLED_TOOLS=all to register every tool.` exactly once, and no `smaller default tool set` line. `search_files` returns a list, not an error
+- 2: 143 tools. `instructions` is `Tools: every tool is loaded (143), because ENABLED_TOOLS includes all.` The startup line ends `from ENABLED_TOOLS=all.` Repeated with `LOCAL_FILE_ACCESS=off`: 134 tools, and `instructions` is `Tools: this server loads 134 of 143 tools. ENABLED_TOOLS includes all, and the local-file policy (LOCAL_FILE_ACCESS) leaves out the rest.`
 - 3: 35 tools (every Docs tool plus `list_events`), `add_doc_comment` listed, `list_messages` not. `tool_selection.entries` is `["docs", "list_events"]`. No `ENABLED_TOOLS: ignoring` line
 - 4: 0 tools, and stderr has `ENABLED_TOOLS: ignoring ALL, which names no tool or tool group. Names are case-sensitive; see docs/tools.md for tool names.` The server still starts
 - 5: 3 tools (`list_doc_comments`, `add_doc_comment`, `resolve_doc_comment`), and the `ignoring` line names `get_sheet_dta` only
-- 6: 1 tool (`get_sheet_data`), and stderr has `not registering local-only tools named in ENABLED_TOOLS:` followed by all nine local-only tools
+- 6: 1 tool (`get_sheet_data`), and stderr has `not registering local-only tools named in ENABLED_TOOLS:` followed by all nine local-only tools. `instructions` starts `Tools: this server loads 1 of 143 tools (1 individually named tool).` and doesn't claim the `local-files` group, which registered nothing (PR #1501 QA round 1)
 - 7: 32 tools (the Drive group without its six local-only tools), and no `not registering local-only tools` line
 - 8: with `docs,list_events`, the `Scopes :` line has no `gmail.modify`. Unset, it has `gmail.modify`, since `default` includes Gmail tools
 

@@ -78,28 +78,31 @@ def parse_entries(text: str | None) -> tuple[str, ...]:
 @dataclass(frozen=True)
 class Selection:
     """What ENABLED_TOOLS selects. `configured` is False when it's unset or empty,
-    and `entries` is then `("default",)`."""
+    and `entries` is then `("default",)`. Holds its own copy of the rename map, as
+    a tuple, so it stays immutable and hashable."""
 
     entries: tuple[str, ...]
     configured: bool
-    renamed: dict[str, Renamed]
+    renamed_items: tuple[tuple[str, Renamed], ...]
 
     @classmethod
     def from_entries(cls, entries, renamed: dict[str, Renamed] | None = None) -> "Selection":
         entries = tuple(entries)
-        renamed = RENAMED_TOOLS if renamed is None else renamed
+        items = tuple(sorted((RENAMED_TOOLS if renamed is None else renamed).items()))
         if not entries:
-            return cls((DEFAULT,), False, renamed)
-        return cls(entries, True, renamed)
+            return cls((DEFAULT,), False, items)
+        return cls(entries, True, items)
+
+    @property
+    def renamed(self) -> dict[str, Renamed]:
+        return dict(self.renamed_items)
 
     @property
     def selects_all(self) -> bool:
         return ALL in self.entries
 
     def _named_through_old_name(self, name: str) -> bool:
-        return any(
-            old in self.entries for old, target in self.renamed.items() if target.new == name
-        )
+        return any(old in self.entries for old, target in self.renamed_items if target.new == name)
 
     def names(self, name: str) -> bool:
         """Whether `name` is listed by itself, or through an old name of it."""
@@ -113,13 +116,14 @@ class Selection:
         themselves, or every one under `all`."""
         return sorted(
             old
-            for old, target in self.renamed.items()
+            for old, target in self.renamed_items
             if target.new == name and (self.selects_all or old in self.entries)
         )
 
     def old_names(self) -> list[str]:
         """The entries that are old names of a renamed tool."""
-        return [entry for entry in self.entries if entry in self.renamed]
+        renamed = self.renamed
+        return [entry for entry in self.entries if entry in renamed]
 
     def unknown_entries(self, tool_names) -> list[str]:
         """Entries that are neither a tool, a group nor an old name, in order."""
@@ -129,23 +133,48 @@ class Selection:
     def group_entries(self) -> list[str]:
         return [entry for entry in self.entries if entry in GROUP_NAMES]
 
-    def describe(self, tool_names) -> str:
-        """The `instructions` line: what's loaded, and the setting for the rest."""
-        tool_names = set(tool_names)
-        total = len(tool_names)
+    def describe(self, registered: dict[str, frozenset[str]], total: int, aliases: int = 0) -> str:
+        """The `instructions` line, built from what actually registered: `registered`
+        maps each registered tool (aliases aside) to its groups, out of `total` tools.
+
+        A listed group is named only if it registered a tool, and a listed tool is
+        counted only if no listed group already brought it in, so the line never
+        claims a tool the client can't call (PR #1501 QA round 1)."""
+        count = len(registered)
+        alias_note = (
+            f", plus {aliases} deprecated alias{'es' if aliases > 1 else ''}" if aliases else ""
+        )
         if self.selects_all:
-            return f"Tools: every tool is loaded ({total}), because ENABLED_TOOLS includes all."
-        groups = self.group_entries()
-        named = sum(1 for e in self.entries if e in tool_names or e in self.renamed)
+            if count == total:
+                return (
+                    f"Tools: every tool is loaded ({total}{alias_note}), because "
+                    "ENABLED_TOOLS includes all."
+                )
+            return (
+                f"Tools: this server loads {count} of {total} tools{alias_note}. "
+                "ENABLED_TOOLS includes all, and the local-file policy "
+                "(LOCAL_FILE_ACCESS) leaves out the rest."
+            )
+        listed_groups = set(self.group_entries())
+        groups = [
+            g
+            for g in self.group_entries()
+            if any(g in member_of for member_of in registered.values())
+        ]
+        named = sum(
+            1
+            for name, member_of in registered.items()
+            if self.names(name) and not member_of.intersection(listed_groups)
+        )
         parts = []
         if groups:
             parts.append(f"the {', '.join(groups)} tool group{'s' if len(groups) > 1 else ''}")
         if named:
             parts.append(f"{named} individually named tool{'s' if named > 1 else ''}")
-        loaded = " plus ".join(parts) or "no tools"
+        what = f" ({' plus '.join(parts)})" if parts else ""
         others = ", ".join(sorted(GROUP_NAMES - {ALL, DEFAULT}))
         return (
-            f"Tools: this server loads {loaded}, out of {total}. To add more, set "
-            f"ENABLED_TOOLS (or --include-tools) to tool names and groups ({others}), "
-            "or all."
+            f"Tools: this server loads {count} of {total} tools{what}{alias_note}. "
+            "To add more, set ENABLED_TOOLS (or --include-tools) to tool names and "
+            f"groups ({others}), or all."
         )

@@ -35,37 +35,24 @@ GENERATED_BANNER = (
 )
 
 
-def collect_tools():
+def collect_tools(default_names: set[str] | None = None):
     """Call register_all() with a capturing decorator instead of the real
-    FastMCP one, so this script never touches the mcp/auth machinery."""
+    FastMCP one, so this script never touches the mcp/auth machinery. Adds the
+    tools an unset ENABLED_TOOLS registers (`default=True`, #1364) to
+    `default_names` when one is given."""
     captured = []
 
-    def tool(annotations=None, local_only=False, **_):
+    def tool(annotations=None, local_only=False, default=False, **_):
         def decorator(func):
             captured.append(func)
+            if default and default_names is not None:
+                default_names.add(func.__name__)
             return func
 
         return decorator
 
     register_all(tool)
     return captured
-
-
-def default_tool_names() -> set[str]:
-    """The tools an unset ENABLED_TOOLS registers: those whose decorator passes
-    `default=True` (#1364)."""
-    names = set()
-
-    def tool(annotations=None, local_only=False, default=False, **_):
-        def decorator(func):
-            if default:
-                names.add(func.__name__)
-            return func
-
-        return decorator
-
-    register_all(tool)
-    return names
 
 
 def require_docstrings(funcs) -> None:
@@ -375,11 +362,7 @@ def service_subsets(funcs) -> list[tuple[str, list[str]]]:
     return [*resolved.items(), (combined_name, combined)]
 
 
-def render_subsets_block(
-    known_names: set[str], extra_subsets=(), default_count: int | None = None
-) -> str:
-    if default_count is None:
-        default_count = len(default_tool_names())
+def render_subsets_block(known_names: set[str], default_count: int, extra_subsets=()) -> str:
     lines = [
         "## Tool filtering",
         "",
@@ -453,14 +436,15 @@ def write_if_changed(path: Path, content: str) -> bool:
 
 
 def main() -> int:
-    funcs = collect_tools()
+    default_names: set[str] = set()
+    funcs = collect_tools(default_names)
     require_docstrings(funcs)
     known_names = {f.__name__ for f in funcs}
 
     changed = write_if_changed(TOOLS_MD, render_tools_md(funcs))
 
     config_text = CONFIG_MD.read_text()
-    new_block = render_subsets_block(known_names, service_subsets(funcs))
+    new_block = render_subsets_block(known_names, len(default_names), service_subsets(funcs))
     # backslash-escape the replacement so re.sub doesn't treat it as a backreference template
     escaped_block = new_block.replace("\\", "\\\\") + "\n"
     updated_config, n_subs = re.subn(

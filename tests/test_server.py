@@ -171,7 +171,7 @@ class TestStartupToolsLine:
         lines = self._lines(monkeypatch, ["mcp-gee-sweet"], _selection())
         assert len(lines) == 1
         total = len(server._known_tools)
-        registered = len(mcp._tool_manager.list_tools())
+        registered = len(server._registered_tools)
         assert lines[0] == (
             f"Registered {registered} of {total} tools from the default tool group "
             "(ENABLED_TOOLS is unset). Set ENABLED_TOOLS=all to register every tool."
@@ -1286,7 +1286,10 @@ def _import_server_in_subprocess(argv: list[str], env: dict[str, str]):
 
 class TestLocalFilePolicyAtImport:
     def test_sse_default_leaves_local_only_tools_unregistered(self):
-        names, _ = _import_server_in_subprocess(["mcp-gee-sweet", "--transport", "sse"], {})
+        # ENABLED_TOOLS=all, since `default` holds no local-only tool (#1364).
+        names, _ = _import_server_in_subprocess(
+            ["mcp-gee-sweet", "--transport", "sse"], {"ENABLED_TOOLS": "all"}
+        )
         assert not (names & _LOCAL_ONLY_TOOLS)
         # Tools with only an optional local path stay registered.
         assert {"get_sheet_data", "send_message", "create_doc"} <= names
@@ -1314,12 +1317,15 @@ class TestLocalFilePolicyAtImport:
         assert stderr.count("not registering local-only tools") == 1
         assert "named in ENABLED_TOOLS: sync_folder\n" in stderr
 
-    @pytest.mark.parametrize("value", ["all", ""])
-    def test_all_or_no_filter_names_no_dropped_tool(self, value):
-        _, stderr = _import_server_in_subprocess(
+    @pytest.mark.parametrize("value", ["all", "", "drive,docs"])
+    def test_all_default_or_a_service_group_names_no_dropped_tool(self, value):
+        # `drive,docs` holds every local-only tool, so a stray warning would show; the
+        # unset case only shows the default stays quiet, since it holds none (#1364).
+        names, stderr = _import_server_in_subprocess(
             ["mcp-gee-sweet"], {"LOCAL_FILE_ACCESS": "off", "ENABLED_TOOLS": value}
         )
         assert "not registering local-only tools" not in stderr
+        assert not names & _LOCAL_ONLY_TOOLS
 
     def test_enabled_tools_all_registers_every_tool(self):
         everything, _ = _import_server_in_subprocess(["mcp-gee-sweet"], {"ENABLED_TOOLS": "all"})
