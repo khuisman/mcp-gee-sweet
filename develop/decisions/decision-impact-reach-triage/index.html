@@ -1353,7 +1353,7 @@
 <h1 id="decision-impact-reach-triage-and-a-follow-up-chain-stop-rule">Decision: Impact × Reach Triage and a Follow-Up Chain Stop Rule<a class="headerlink" href="#decision-impact-reach-triage-and-a-follow-up-chain-stop-rule" title="Permanent link">&para;</a></h1>
 <p><strong>Date:</strong> 2026-10-13
 <strong>Snapshot commit:</strong> branch <code>develop</code>
-<strong>Issue:</strong> #1024. Thresholds approved by the maintainer as written on 2026-10-13.</p>
+<strong>Issue:</strong> #1024. Thresholds approved by the maintainer as written on 2026-10-13. Amended 2026-11-15 (decision 7).</p>
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>v0.9.2 collected 178 issues. A one-pass hand classification of their text by impact × reach (reach is estimated; there's no usage telemetry yet, see #646) found that about 15 changed behavior a typical user would hit or be badly hurt by, and about 15 more were real but narrow. Most of the rest were rare-input defects, error-message polish, internal hygiene, tests, or team process.</p>
 <table>
@@ -1400,8 +1400,20 @@
 <li><strong>Chain stop rule.</strong> After a root defect's second follow-up in its function family, later tickets in that family go to the next version unless severe or observed. The alternative is declaring the area done and recording its residual edges in <code>docs/known-limitations.md</code> (#692's precedent). <code>qa.md</code> step 3 and <code>dev.md</code> step 6 make the filer state the chain position so Kai can apply it.</li>
 <li><strong>Seam questions.</strong> <code>qa.md</code> step 4 asks four seam questions each pass (install/auth, new domain or tool, service account and Shared Drive, dependency move) and records the answers in the round's comment. <code>dev.md</code> step 2 asks the Dev the same questions before the PR.</li>
 <li><strong>Measured.</strong> <code>decision-review-finding-ticket-bar.md</code> decision 11 extends its 2026-10-18 checkpoint to count <code>from-review</code> tickets by cell.</li>
-<li><strong>Data exposure means across a trust boundary</strong> (maintainer, 2026-10-22, PR #1159): to another OS user, another tenant, or a network peer. Mixing the data of two identities the same person controls is <code>wrong</code>, not <code>severe</code>.</li>
+<li>
+<p><strong>Data exposure means across a trust boundary</strong> (maintainer, 2026-10-22, PR #1159): to another OS user, another tenant, or a network peer. Mixing the data of two identities the same person controls is <code>wrong</code>, not <code>severe</code>.</p>
+</li>
+<li>
+<p><strong>Unobserved review follow-ups get no version</strong> (maintainer, 2026-11-15). A review follow-up (a <code>from-review</code> ticket from <code>dev.md</code> step 6 or <code>qa.md</code> step 3) gets a version label only if it's a regression since the last stable tag or its failure was observed. Otherwise it gets no version label until someone places it deliberately. This replaces the "next version" placement for unobserved <code>wrong/narrow</code>, <code>wrong/rare</code>, <code>loud/narrow</code>, and <code>loud/rare</code> follow-ups. Why: about 30 of ankylosaurus's open tickets were <code>wrong/narrow, not observed</code> review follow-ups that had defaulted into the next version, so that version's fill kept refilling itself; the maintainer trimmed 18 of them on 2026-11-14. The rule looks forward only: tickets placed before it aren't re-triaged. Tickets from backlog triage and <code>/retro</code> still go by their cell.</p>
+</li>
 </ol>
+<h2 id="prompt-qa-notes-bob-2026-11-15-decision-7">Prompt-QA notes (Bob, 2026-11-15, decision 7)<a class="headerlink" href="#prompt-qa-notes-bob-2026-11-15-decision-7" title="Permanent link">&para;</a></h2>
+<p>The approved text leaves three things open. The role files settle them as follows, and the PR flags each for the maintainer:</p>
+<ul>
+<li><strong>The urgent cells.</strong> Read literally, "only if regression or observed" would also strip an unobserved <code>severe</code>, <code>wrong/common</code>, or install/auth/first-run follow-up of its in-flight label. The approval named only the next-version cells, so <code>kai.md</code> keeps those three in flight.</li>
+<li><strong><code>wrong/narrow</code> under an hour.</strong> The approval says it replaces the next-version placement, but the headline rule ("only if") also covers the under-an-hour in-flight path. <code>kai.md</code> follows the headline: an unobserved, non-regression <code>wrong/narrow</code> follow-up gets no version even when it's quick.</li>
+<li><strong>Who places it.</strong> "Someone places it deliberately" is written in <code>kai.md</code> as the maintainer, or Kai on the maintainer's word, so an agent can't put it back in a version through the old default.</li>
+</ul>
 <h2 id="prompt-qa-notes-bob-2026-10-13">Prompt-QA notes (Bob, 2026-10-13)<a class="headerlink" href="#prompt-qa-notes-bob-2026-10-13" title="Permanent link">&para;</a></h2>
 <p>Two gaps in the approved text were filled in the role files and flagged for the maintainer on the PR rather than decided silently:</p>
 <ul>
