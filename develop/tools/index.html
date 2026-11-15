@@ -2061,7 +2061,7 @@
 </tr>
 <tr>
 <td><code>insert_softbreak_paragraph</code></td>
-<td>Insert a single paragraph built from multiple lines joined by soft line breaks (Shift+Enter in the Docs UI), with the paragraph's style set explicitly rather than inherited from whatever is at <code>index</code>.</td>
+<td>Insert a single paragraph built from multiple lines joined by soft line breaks (Shift+Enter in the Docs UI). The paragraph's style is left untouched unless a named_style_type is passed, in which case it is set explicitly over the whole paragraph.</td>
 <td><code>doc_id</code>, <code>index</code>, <code>lines</code>, <code>named_style_type?</code></td>
 </tr>
 <tr>

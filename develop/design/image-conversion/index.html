@@ -1386,7 +1386,7 @@ a conversion that fails or is cancelled never reaches the doc. It collects every
 <code>extract_images(nodes)</code> and passes a unique placeholder URI for each one. <code>_apply_doc_content</code>
 then resolves the images and swaps each resolved image's placeholder for its real URI. An
 unresolved image's <code>insertInlineImage</code> request is replaced by its fallback text (below), and its
-link request goes, since the fallback carries the link. Its insert sits in the descending-position
+style requests go, since the fallback text carries its own. Its insert sits in the descending-position
 tail, so text at that position shifts none of the requests still to come
 (<code>test_unresolved_images_requests_match_their_fallback_text</code> pins this).</p>
 <h2 id="fallback-text-for-an-image-that-isnt-embedded-1099">Fallback text for an image that isn't embedded (#1099)<a class="headerlink" href="#fallback-text-for-an-image-that-isnt-embedded-1099" title="Permanent link">&para;</a></h2>
@@ -1422,7 +1422,7 @@ path's file name, never the whole path, so a server path doesn't land in the doc
   in any paragraph the anchor pass reads as a heading (any named style but <code>NORMAL_TEXT</code>:
   <code>Heading</code>, a <code>BulletItem</code> with <code>heading_level</code>, a TITLE/SUBTITLE <code>NamedBlock</code>;
   <code>emitter.heading_image_ids</code>, recorded on <code>ConvertedContent.heading_image_ids</code>) is dropped as
-  before #1099, with its link request, and reported by its <code>error</code> alone.</li>
+  before #1099, with its style requests, and reported by its <code>error</code> alone.</li>
 <li><strong>One tracker.</strong> <code>emitter.ImageFallbacks</code> builds every fallback (computing each image's text
   once), records its request ids for the tail scan, and moves an image into <code>shown</code> from the
   <code>on_applied</code> of the batch that carried it. The body's retry and <code>CellImages</code> share the one
@@ -1539,20 +1539,55 @@ link (#994, PR #992 QA round 2). Docs stores an image's link on its
 <code>insertInlineImage</code> with an <code>updateTextStyle</code> over its one-character range
 <code>[position, position + 1)</code>. The link has to come right after its own insert, inside the
 descending-position tail: at that point nothing before <code>position</code> has shifted yet. An inserted
-image never inherits a neighboring run's link (confirmed live, both directions), so an unlinked
-image gets no clearing request.</p>
+image never inherits a neighboring run's link (confirmed live, both directions), but it does take
+the character before it's emphasis and position styles (#1334), so every image gets that request,
+linked or not (next section).</p>
+<h3 id="character-style-1334-1475">Character style (#1334, #1475)<a class="headerlink" href="#character-style-1334-1475" title="Permanent link">&para;</a></h3>
+<p>An insert takes the character style of the character before it: an image after a superscript
+run came out raised, and fallback text after a bold, struck, highlighted or code-styled run came
+out styled the same way, <code>Run `make` ![build](bad.svg)</code> reading back as <code>`make build`</code>. And
+an image has a style of its own to keep: <code>**Build: ![status](bad.svg) passing**</code> should give a
+bold "status".</p>
+<ul>
+<li><strong>Parser.</strong> <code>html_parser</code> records the style of the inline tags open around an <code>&lt;img&gt;</code> on the
+  <code>Image</code> (<code>bold</code>, <code>italic</code>, <code>underline</code>, <code>strikethrough</code>, <code>background_color</code>, <code>baseline_offset</code>,
+  <code>font_family</code>), from the same state a <code>Run</code> is styled from (<code>_character_style</code>). A bare
+  top-level <code>&lt;img&gt;</code>, wrapped only in inline tags, has no block whose state they raised, so it
+  reads its style from the open-element stack (<code>_bare_character_style</code>), through
+  <code>_INLINE_CHARACTER_STYLES</code>, the one tag-to-field mapping the inline tag sets are derived
+  from, so a new tag can't style a run and miss a bare image (PR #1508 QA round 1).</li>
+<li><strong>Emitter.</strong> The image's style request, and its fallback text's, name every field in
+  <code>_IMAGE_TEXT_STYLE_FIELDS</code>, setting the ones the image's own span gives it and clearing the
+  rest. <code>weightedFontFamily</code> is among them, since the one font a run sets on the write side is a
+  code span's Courier New; cleared, the text takes its paragraph's font. <code>fontSize</code> and
+  <code>foregroundColor</code> aren't: no run sets them on the write side, so fallback text keeps reading
+  like its paragraph (#1099).</li>
+<li><strong>Linked underline (#1504).</strong> Docs gives text that a request links the link color and an
+  underline, as it does an ordinary link, unless the same request names <code>underline</code>: #1334's
+  clearing request did, so linked fallback text showed the color alone. A linked image's request
+  leaves <code>underline</code> out (<code>_LINKED_IMAGE_TEXT_STYLE_FIELDS</code>) unless its own span underlines it,
+  and an unlinked one still clears an underline from the run before it (confirmed live).</li>
+<li><strong>List markers.</strong> A style request that covers a list paragraph's whole text restyles its
+  bullet marker too (#1383), so <code>- **![logo](x.png)**</code> bolded the marker (confirmed live). A
+  styled image in a <code>BulletItem</code>'s own text, and its fallback text, are styled behind a
+  throwaway character, inserted at the range's end and deleted after, the same wrapper
+  <code>_item_run_style_requests</code> uses for a run (<code>_marker_guarded</code>). A request that only
+  clears needs none. <code>ConvertedContent.list_item_image_ids</code> tells <code>ImageFallbacks</code> which
+  fallback texts need it.</li>
+</ul>
 <p>Inserts that share a position, such as adjacent images with nothing between them, each land in
 front of whatever is already there, so the later one in the document has to be inserted first.
 The descending pass sorts on <code>(position, node order, item order)</code>, all descending; sorting by
 position alone kept source order within a tie and wrote adjacent images reversed (PR #992 QA
 round 1). A table and the image right after it share a position the same way, and still come out
 table first.</p>
-<p>The retry treats the pair as one unit. <code>ast_to_requests(image_links=...)</code> records each
-<code>id(insert request) -&gt; link request</code> as it builds them, and <code>_apply_doc_content</code> uses that record
-rather than matching request shapes. <code>_drop_failed_image</code> pops the link request with its failed
-insert, since a stranded link would land on whatever character now sits at that position.
-<code>_positional_insert_tail_start</code> counts a recorded link request as part of the tail, so the K≥2
-split still applies. A <code>#slug</code> image link goes
+<p>The retry treats an insert and its style requests as one unit. <code>ast_to_requests(image_styles=...)</code>
+records each <code>id(insert request) -&gt; [its style requests]</code> (the <code>updateTextStyle</code>, plus a list
+item's marker guard) as it builds them, and <code>_apply_doc_content</code> uses that record rather than
+matching request shapes. <code>_drop_failed_image</code> removes them with their failed insert
+(<code>emitter.drop_image_style_requests</code>, which finds them right after the insert), since a stranded
+style would land on whatever character now sits at that position. <code>_positional_insert_tail_start</code>
+counts a recorded style request as part of the tail, so the K≥2 split still applies. A <code>#slug</code> image link goes
 through the heading-anchor pass like a text link: <code>_walk_headings_and_anchor_runs</code> reads the
 <code>inlineObjectElement</code>'s link too, so it's resolved or stripped.</p>
 <h2 id="table-cell-images-1073">Table-cell images (#1073)<a class="headerlink" href="#table-cell-images-1073" title="Permanent link">&para;</a></h2>
