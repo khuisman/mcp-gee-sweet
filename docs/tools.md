@@ -139,7 +139,7 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 | `insert_doc_text` | Insert text at one or more positions in a Google Doc. | `doc_id`, `insertions` |
 | `delete_doc_range` | Delete one or more content ranges from a Google Doc. | `doc_id`, `deletions` |
 | `insert_page_break` | Insert an explicit page break at a specific index in a Google Doc. | `doc_id`, `index` |
-| `insert_softbreak_paragraph` | Insert a single paragraph built from multiple lines joined by soft line breaks (Shift+Enter in the Docs UI), with the paragraph's style set explicitly rather than inherited from whatever is at `index`. | `doc_id`, `index`, `lines`, `named_style_type?` |
+| `insert_softbreak_paragraph` | Insert a single paragraph built from multiple lines joined by soft line breaks (Shift+Enter in the Docs UI). The paragraph's style is left untouched unless a named_style_type is passed, in which case it is set explicitly over the whole paragraph. | `doc_id`, `index`, `lines`, `named_style_type?` |
 | `insert_inline_image` | Insert an inline image at a specific index in a Google Doc. | `doc_id`, `index`, `uri?`, `drive_file_id?`, `width?`, `height?`, `auto_downscale?` |
 | `insert_local_images` | Upload local image files to Drive and swap each into a Google Doc at a plain-text marker, in one call. Not available when the server runs with LOCAL_FILE_ACCESS=off. | `doc_id`, `images`, `folder_id?`, `revoke_sharing?`, `auto_downscale?` |
 | `insert_doc_table` | Insert an empty table at a specific position in a Google Doc. | `doc_id`, `index`, `rows`, `columns` |

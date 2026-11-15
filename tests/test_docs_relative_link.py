@@ -8,7 +8,7 @@ target: the run keeps its text and simply gets no link.
 
 from mcp_gee_sweet.tools.docs.ast import Image, Run
 from mcp_gee_sweet.tools.docs.emitter import (
-    _INHERITED_CHARACTER_STYLE_FIELDS,
+    _IMAGE_TEXT_STYLE_FIELDS,
     _image_insert_requests,
     _run_style_requests,
     _storable_link_url,
@@ -172,7 +172,7 @@ class TestImageLinkRequests:
         assert len(requests) == 2
         assert "insertInlineImage" in requests[0]
         assert requests[1]["updateTextStyle"]["textStyle"] == {}
-        assert requests[1]["updateTextStyle"]["fields"] == _INHERITED_CHARACTER_STYLE_FIELDS
+        assert requests[1]["updateTextStyle"]["fields"] == _IMAGE_TEXT_STYLE_FIELDS
 
     def test_absolute_image_link_still_links_the_image(self):
         requests = self._requests("https://example.com/report.pdf")
