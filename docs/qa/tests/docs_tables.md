@@ -35,6 +35,8 @@ insert 2x3 table at N=1: precedingParagraphIndex=1, tableStartIndex=2 (=N+1), ta
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on `ash`** — On my fixture copy, `insert_doc_table(index=1, rows=2, columns=3)` returned precedingParagraphIndex=1, tableStartIndex=2, tableEndIndex=18, rows 2, columns 3, 6 cells each with row/col/startIndex/endIndex/paragraphStartIndex. Re-fetch: empty paragraph at 1 (inherits HEADING_1 from the paragraph it was split from, expected Docs behavior), table at 2. Screenshot `.playwright-mcp/S3/2026-11-08-tc-doc16.png` (URL-checked) shows a 2×3 table above "Test Document".
+
 ---
 
 ### TC-DOC17: Cell indices usable for insert_doc_text ⚠️ destructive
@@ -57,6 +59,8 @@ insert "Cell content" at cells[0].paragraphStartIndex=5; re-fetch cell[0,0] text
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on `ash`** — `insert_doc_text` at cells[0].paragraphStartIndex=5 → insertions 1; re-fetch cell [0,0] text "Cell content", other cells empty, no index error. Cleanup delete [1,30] succeeded.
 
 ---
 
@@ -84,6 +88,8 @@ insert_table_row row_index=0 insert_below=True on 2x2 -> {docId, table_start_ind
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on `ash`** — 2×2 table at tableStartIndex 2; `insert_table_row(row_index=0)` → `{docId, table_start_index: 2, row_index: 0}`, no error. Re-fetch: rows 3. Screenshot `2026-11-08-tc-doc61.png` (URL-checked) shows a 3-row × 2-col table.
+
 ---
 
 ### TC-DOC62: Insert a row above an existing row ⚠️ destructive
@@ -107,6 +113,8 @@ insert_table_row row_index=1 insert_below=False on 2x2; re-fetch 3 rows.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on `ash`** — Fresh 2×2 with "orig0"/"orig1" in col 0; `insert_table_row(row_index=1, insert_below=False)` → no error. Re-fetch: 3 rows, row 0 "orig0", row 1 empty (new), row 2 "orig1". Screenshot `2026-11-08-tc-doc62.png` shows the empty row between orig0 and orig1.
 
 ---
 
@@ -132,6 +140,8 @@ delete_table_row row_index=1 on 3-row -> {docId, table_start_index:2, row_index:
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on `ash`** — 3×2 table labeled r0/r1/r2; `delete_table_row(row_index=1)` → `{docId, table_start_index: 2, row_index: 1}`. Re-fetch: 2 rows, "r0" and "r2". Screenshot `2026-11-08-tc-doc63.png` shows r0/r2 only.
+
 ---
 
 ### TC-DOC64: Insert a column to the right ⚠️ destructive
@@ -156,6 +166,8 @@ insert_table_column column_index=0 insert_right=True on 2x2 -> {docId, table_sta
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on `ash`** — 2×2 labeled c0/c1 in row 0; `insert_table_column(column_index=0)` → `{docId, table_start_index: 2, column_index: 0}`. Re-fetch: 3 columns, row 0 = c0, (new empty), c1. Screenshot `2026-11-08-tc-doc64.png` matches.
+
 ---
 
 ### TC-DOC65: Insert a column to the left ⚠️ destructive
@@ -178,6 +190,8 @@ insert_table_column column_index=1 insert_right=False on 2x2; re-fetch 3 columns
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on `ash`** — 2×2 labeled c0/c1; `insert_table_column(column_index=1, insert_right=False)` → no error. Re-fetch: 3 columns, row 0 = c0, (new empty), c1. Screenshot `2026-11-08-tc-doc65.png` matches.
 
 ---
 
@@ -203,6 +217,8 @@ delete_table_column column_index=1 on 2x3 -> {docId, table_start_index:2, column
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on `ash`** — 2×3 labeled c0/c1/c2; `delete_table_column(column_index=1)` → `{docId, table_start_index: 2, column_index: 1}`. Re-fetch: 2 columns, row 0 = c0, c2. Screenshot `2026-11-08-tc-doc66.png` matches.
+
 ---
 
 ### TC-DOC67: API error returned gracefully (out of bounds row)
@@ -222,6 +238,8 @@ delete_table_row row_index=99 -> {"error":"<HttpError 400 ... row index 99 shoul
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on `ash`** — On a 2×2 table, `delete_table_row(row_index=99)` returned `{"error": "<HttpError 400 ... deleteTableRow: The row index 99 should be less than the total number of rows 2.>"}`; no exception.
 
 ---
 
@@ -252,6 +270,8 @@ merge_table_cells row0/col0 span 1x2 on 2x3 -> response matches exactly; re-fetc
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on `ash`** — 2×3 table; `merge_table_cells(0,0,row_span=1,column_span=2)` → exactly `{docId, table_start_index: 2, row_index: 0, column_index: 0, row_span: 1, column_span: 2}`. Screenshot `2026-11-08-tc-doc91.png`: row 0's first two columns render as one wide cell, row 1 keeps three cells. Re-fetch still reports 3 physical cells in row 0 (indices 4/6/8).
+
 ### TC-DOC92: Merge a vertical range of cells (rowspan) ⚠️ destructive
 **Setup:** insert a 3×2 table; note its `tableStartIndex`
 
@@ -276,6 +296,10 @@ merge_table_cells row0/col0 span 2x1 on 3x2 -> response matches exactly. Visual 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on `ash`** — 3×2 table; `merge_table_cells(0,0,row_span=2,column_span=1)` → exactly `{..., row_span: 2, column_span: 1}`. Screenshot `2026-11-08-tc-doc92.png`: column 0 rows 0–1 render as one tall cell, column 1 keeps two separate cells, row 2 unaffected. Table deleted after.
+
+Layout cases ran on "S3 layout copy" (<copy doc id>: DOC68/70/74) and a second fixture copy "S3 layout content copy" (<copy doc id>: DOC69/71/72/73), so the content variants exercise the fresh-create path, not the "already exists" fallback.
+
 ### TC-DOC93: API error returned gracefully (merge range exceeds table bounds)
 **Setup:** insert a 2×2 table; note its `tableStartIndex`
 
@@ -295,5 +319,7 @@ merge_table_cells span 1x99 -> {"error":"<HttpError 400 ... table range extends 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (sa) on a throwaway doc.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on `ash`** — Same 2×2 table, `merge_table_cells(0,0,row_span=1,column_span=99)` returned `{"error": "<HttpError 400 ... mergeTableCells: The table range extends outside the bounds of the table.>"}`; no exception. Table deleted afterwards. (Run before DOC91/92 to reuse the 2×2.)
 
 ---

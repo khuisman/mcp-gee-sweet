@@ -38,6 +38,8 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-oauth` (OAuth): 3 calendars, each with id, summary, time_zone, access_role, primary; fixture calendar listed.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — 3 calendars (primary, Holidays in United States, fixture `mcp-gee-sweet-qa`), each with id/summary/time_zone/access_role/primary.
+
 ---
 
 ### TC-CAL02: primary flag
@@ -55,6 +57,8 @@ No calendar has primary:true; SACAL primary:false. Matches 🔍 SA note "service
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — exactly one entry (the account's own calendar) has `primary: true`; the other two `false`.
 
 ---
 
@@ -76,6 +80,8 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-oauth` (OAuth): `Cached calendar list (3 entries)`, then `Calendar list cache hit`, same 3 calendars.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — second call returned identical 3 entries; `/tmp/mcp-gee-sweet.log` shows `Cached calendar list (3 entries)` at 20:23:42 then `Calendar list cache hit` at 20:23:58.
+
 ---
 
 ### TC-CAL04: Empty subscription list
@@ -94,6 +100,8 @@ First-ever list_calendars (before any subscription) returned {"result":[]} — e
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, Aziz on `sa`** — The service account has no calendar subscriptions: `list_calendars()` → `{"result": []}`, not an error. (Shard S2's OAuth account always has its primary calendar.)
 
 ---
 
@@ -115,6 +123,8 @@ No (shape matches)
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — fixture calendar: id, summary `mcp-gee-sweet-qa`, description, time_zone `America/Los_Angeles`, access_role owner, primary false; no error.
+
 ---
 
 ### TC-CAL06: calendar_id='primary'
@@ -131,6 +141,8 @@ get_calendar('primary') -> {"error":"HttpError 404 ... notFound"}. Matches 🔍 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — returned the account's primary calendar metadata (`primary: true`, time_zone UTC, description null).
 
 ---
 
@@ -149,6 +161,8 @@ Two get_calendar calls on SACAL returned identical results. Cache-hit log not ob
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — identical result on second call; log shows `Cached calendar <fixture id>` then `Calendar cache hit: <fixture id>` (20:24:03).
+
 ---
 
 ### TC-CAL08: Non-existent calendar ID
@@ -165,6 +179,8 @@ get_calendar('totally-invalid-cal-id@example.com') -> {"error":"<HttpError 404 .
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `{"error": "<HttpError 404 ... calendarList/totally-invalid-cal-id%40example.com ... notFound>"}`, not an exception.
 
 ---
 
@@ -189,6 +205,8 @@ create_calendar -> id, summary=mcp-gee-sweet-qa-lifecycle-test, description="QA 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — returned id, summary `mcp-gee-sweet-qa-lifecycle-test`, description `QA scratch calendar`, time_zone `America/Los_Angeles`; present in the follow-up `list_calendars`.
+
 ---
 
 ### TC-CAL45: Create with only summary
@@ -208,6 +226,8 @@ create_calendar summary-only -> id, summary=mcp-gee-sweet-qa-minimal, descriptio
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — summary-only create succeeded, description null, time_zone `UTC` (account default); present in follow-up list.
 
 ---
 
@@ -234,6 +254,8 @@ update_calendar summary+timezone on SACAL -> summary=mcp-gee-sweet-qa-renamed, t
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — response summary `mcp-gee-sweet-qa-renamed`, time_zone `America/New_York`, description unchanged; `get_calendar` reflects both.
+
 ---
 
 ### TC-CAL47: Change color only ⚠️ destructive
@@ -256,6 +278,8 @@ update_calendar color_id="5" only -> response color_id="5"; summary/description/
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — response `color_id: "5"`, summary/description/time_zone unchanged (confirmed with `get_calendar`). Routing confirmed by source read: color goes through `calendarList().patch()`, base fields via `calendars().get()` when no other field is given.
+
 ---
 
 ### TC-CAL48: No fields provided
@@ -276,6 +300,8 @@ update_calendar with no fields on SACAL -> current metadata unchanged, color_id=
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — on the fixture calendar: current metadata unchanged, `color_id: null`, no error.
+
 ---
 
 ### TC-CAL49: Non-existent calendar ID
@@ -293,6 +319,8 @@ update_calendar on invalid ID -> {"error":"<HttpError 404 ... notFound ...>"}, n
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `{"error": "<HttpError 404 ... notFound>"}`, not an exception.
 
 ---
 
@@ -318,6 +346,8 @@ delete_calendar SACAL -> {"calendar_id":...,"action":"deleted"}. Absent from fol
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `{"calendar_id": ..., "action": "deleted"}`; absent from follow-up `list_calendars`; `get_calendar` on it → 404 notFound error.
+
 ---
 
 ### TC-CAL51: Delete the minimal test calendar ⚠️ destructive
@@ -339,6 +369,8 @@ delete_calendar MINCAL -> {"calendar_id":...,"action":"deleted"}. list_calendars
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `{"calendar_id": ..., "action": "deleted"}`; list back to the original 3 calendars.
+
 ---
 
 ### TC-CAL52: Non-existent calendar ID
@@ -357,6 +389,8 @@ delete_calendar 'totally-invalid-cal-id@example.com' -> {"error":"<HttpError 404
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `{"error": "<HttpError 404 ... notFound>"}`, no side effects.
 
 ---
 
@@ -383,6 +417,8 @@ add_calendar_to_list en.japanese#holiday -> id/summary="Holidays in Japan"/time_
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — Holidays in Japan: id/summary/time_zone/access_role `reader`/primary false/color_id `8`; present in follow-up `list_calendars`.
+
 ---
 
 ### TC-CAL54: Subscribe with a color ⚠️ destructive
@@ -404,6 +440,8 @@ add_calendar_to_list en.canadian#holiday color_id="7" -> color_id="7", summary="
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — Holidays in Canada with `color_id: "7"`; present in `list_calendars`. (Both holiday subscriptions removed again at the end of CAL57.)
+
 ---
 
 ### TC-CAL55: Non-existent calendar ID
@@ -422,6 +460,8 @@ add_calendar_to_list invalid ID -> {"error":"<HttpError 404 ... notFound ...>"},
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `{"error": "<HttpError 404 ... notFound>"}`; follow-up list had no such entry.
 
 ---
 
@@ -446,6 +486,8 @@ remove_calendar_from_list en.japanese#holiday -> {"calendar_id":...,"action":"re
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `{"calendar_id": "en.japanese#holiday@...", "action": "removed_from_list"}`; absent from follow-up list, Canada still present.
+
 ---
 
 ### TC-CAL57: Unsubscribing does not delete the calendar ⚠️ destructive
@@ -467,6 +509,8 @@ Re-subscribed to en.japanese#holiday -> identical summary "Holidays in Japan". C
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — re-subscribe succeeded with identical summary `Holidays in Japan`. Then unsubscribed Japan and Canada to restore the account's list.
+
 ---
 
 ### TC-CAL58: Non-existent calendar ID
@@ -485,6 +529,8 @@ remove_calendar_from_list invalid ID -> {"error":"<HttpError 404 ... notFound ..
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `{"error": "<HttpError 404 ... notFound>"}`, no side effects.
 
 ---
 
@@ -511,6 +557,8 @@ remove_calendar_from_list on SA-owned MINCAL -> {"error":"Google does not allow 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — on the fresh `mcp-gee-sweet-qa-minimal` calendar: `{"error": "Google does not allow removing a calendar you own ... (reason: cannotUnsubscribeFromOwnedCalendar). Use delete_calendar instead ..."}`.
+
 ---
 
 ## `list_calendar_acl`
@@ -532,6 +580,8 @@ No (same shape, different rule count since real fixture is narrowly shared)
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — fixture calendar: 2 rules (primary-owner `user:<calendar id>` and the account's `user:` owner rule), each with id/role/scope_type/scope_value.
+
 ---
 
 ### TC-CAL61: Non-existent calendar ID
@@ -549,6 +599,8 @@ list_calendar_acl(invalid id) -> [{"error":"<HttpError 404 ... notFound ...>"}],
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `[{"error": "<HttpError 404 ... notFound>"}]`, not an exception.
 
 ---
 
@@ -571,6 +623,8 @@ No calendar in reach has 100+ ACL rules (SA owns 2 fresh calendars only). Covere
 
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 No calendar with 100+ ACL rules; the unit test passes.
+
+**Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — environmental: no calendar with 100+ ACL rules. Unit test `test_follows_next_page_token_across_pages` passes (`tests/test_calendar.py`, 104 passed).
 
 ---
 
@@ -597,6 +651,8 @@ No
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — on the scratch lifecycle calendar (`send_notifications=false`): `{"id": "user:test@example.com", "role": "reader", "scope_type": "user", "scope_value": "test@example.com"}`; appeared in follow-up `list_calendar_acl`.
+
 ---
 
 ### TC-CAL63: Add a public (default-scope) rule ⚠️ destructive
@@ -619,6 +675,8 @@ add_calendar_acl freeBusyReader/default, no scope_value on SACAL -> id="default"
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — scratch calendar: id `default`, role `freeBusyReader`, scope_type `default`, scope_value the API's `__public_principal__@public.calendar.google.com` sentinel; no scope_value needed. Removed in CAL67 cleanup.
+
 ---
 
 ### TC-CAL77: scope_value rejected when scope_type is 'default' (issue #458)
@@ -639,6 +697,8 @@ add_calendar_acl default + scope_value="someone@example.com" -> {"error":"scope_
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `{"error": "scope_value must not be set when scope_type is 'default'."}`; fixture ACL unchanged (still 2 rules).
+
 ---
 
 ### TC-CAL64: Invalid role rejected without calling the API
@@ -657,6 +717,8 @@ add_calendar_acl role="admin" -> {"error":"Invalid role 'admin'. Must be one of:
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `{"error": "Invalid role 'admin'. Must be one of: reader, writer, owner, freeBusyReader"}`; fixture ACL unchanged.
 
 ---
 
@@ -677,6 +739,8 @@ add_calendar_acl scope_type="user", no scope_value -> {"error":"scope_value is r
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `{"error": "scope_value is required when scope_type is 'user'."}`; fixture ACL unchanged.
+
 ---
 
 ### TC-CAL66: Non-existent calendar ID
@@ -694,6 +758,8 @@ add_calendar_acl on invalid calendar ID -> {"error":"<HttpError 404 ... notFound
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `{"error": "<HttpError 404 ... notFound>"}`.
 
 ---
 
@@ -718,6 +784,8 @@ No
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `{"calendar_id": ..., "rule_id": "user:test@example.com", "action": "removed"}` (and the CAL63 `default` rule likewise); follow-up list back to the 2 owner rules.
+
 ---
 
 ### TC-CAL68: Non-existent rule ID
@@ -735,6 +803,8 @@ remove_calendar_acl rule_id="totally-invalid-rule-id" -> {"error":"<HttpError 40
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `{"error": "<HttpError 400 ... Invalid resource id value.>"}`, not an exception.
 
 ---
 
@@ -768,6 +838,8 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 **Result (2026-10-25, PR #1222 round 2 @ 7690b8c, Sky) ⚠️ PARTIAL**
 After the pydantic 2.14.1 re-lock, reconnected: no-filter `list_events` returned `[]` with no error. Same gaps as round 1.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — returned only events from now on (first: weekly instance 2026-11-09, then 11-16, the throwaway 11-20 one-off, 11-23), ordered by start, each with id/summary/start/end/status; past July events and the Sept fixture event excluded.
+
 ---
 
 ### TC-CAL10: time_min + time_max window
@@ -786,6 +858,8 @@ list_events 2026-06-01..2026-06-30 window -> {"result":[]} — July events absen
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — June 2026 window returned `[]` (no error); a 2026-07-01..07-05 window returned exactly the three events created there, none outside.
+
 ---
 
 ### TC-CAL11: query string search
@@ -803,6 +877,8 @@ list_events query="dinner" -> {"result":[]} — no matches, empty not an error.
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `query="dinner"` returned only `QA-S2-Future dinner`; a non-matching term returned `[]`.
 
 ---
 
@@ -823,6 +899,8 @@ QA-AllDay-Test in list_events: start="2026-07-02", end="2026-07-03" — date str
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `QA-AllDay-Test` lists as start `2026-07-02`, end `2026-07-03`, no `T`/offset.
+
 ---
 
 ### TC-CAL13: Timed event format
@@ -839,6 +917,8 @@ QA-Timed-Test in list_events: start="2026-07-01T13:00:00-04:00" — contains "T"
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — timed events list as e.g. `2026-07-01T10:00:00-07:00` (contains `T` and offset).
 
 ---
 
@@ -857,6 +937,8 @@ max_results=0 -> exactly 1 event returned (clamped to 1). max_results=3000 -> al
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `max_results=0` returned exactly 1 event. `max_results=3000` returned normally (6 events in Nov); the request URL in an error response for the same arg (invalid calendar) shows `maxResults=2500`, confirming the clamp.
+
 ---
 
 ### TC-CAL15: Non-existent calendar ID
@@ -873,6 +955,8 @@ list_events on 'invalid-cal-id@example.com' -> [{"error":"<HttpError 404 ... not
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `[{"error": "<HttpError 404 ... notFound>"}]`, from the Calendar API.
 
 ---
 
@@ -896,6 +980,8 @@ No — confirms same organizer-is-calendar-ID finding on the real fixture
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — fixture event returned all 13 keys; organizer is the calendar's own ID string; created/updated populated. html_link opens Calendar (verified with another event's link in TC-CAL20).
+
 ---
 
 ### TC-CAL17: Attendees populated
@@ -914,6 +1000,8 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 create_event with attendees gives 403 forbiddenForServiceAccounts under SA.
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — on the TC-CAL22 event (the fixture event has none): `attendees: [{"email": "test@example.com", "response": "needsAction"}]`.
 
 ---
 
@@ -934,6 +1022,8 @@ Instance get_event (dmp5oe7...q_20260713T160000Z) -> recurrence: null. Master ge
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `get_event` on the QA-Weekly-Standup master: `recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO"]`; single events (fixture, QA-Full-Test) have `recurrence: null`.
+
 ---
 
 ### TC-CAL19: Non-existent event ID
@@ -950,6 +1040,8 @@ get_event event_id='invalidEventId999xyz' -> {"error":"<HttpError 404 ... notFou
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `{"error": "<HttpError 404 ... events/invalidEventId999xyz ... notFound>"}` (URL names the bad ID).
 
 ---
 
@@ -982,6 +1074,8 @@ API checks pass; the Playwright step was skipped (the fixture-owner browser can'
 **Result (2026-10-20) ✅ PASS — v0.9.3 post-advisory re-check @ c90b88d3**
 `kai-oauth` (OAuth): event created with correct start/end and html_link, `Marked calendar cache dirty` logged, then deleted. API checks only. Stale wording: `list_events` isn't cached, so there's no re-fetch line to see.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — created `QA-Timed-Test` 2026-07-01T10:00:00-07:00→11:00:00-07:00, status confirmed, html_link present; log shows `Marked calendar cache dirty for <fixture id>` with the create. Playwright: html_link opened Calendar on that event's week; chip "5pm to 6pm, QA-Timed-Test, Calendar: mcp-gee-sweet-qa, July 1, 2026" (UI in UTC = 10–11 PDT). Screenshot `.playwright-mcp/S2/2026-11-08-tc-cal20-22.png`.
+
 ---
 
 ### TC-CAL21: All-day event ⚠️ destructive
@@ -1001,6 +1095,8 @@ create_event all-day -> start="2026-07-02", end="2026-07-03", no "T" (date field
 **Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
 **Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — start `2026-07-02`, end `2026-07-03` (no `T`); appears in `list_events` for that window. Playwright: "All day, QA-AllDay-Test ... July 2, 2026" chip (same screenshot).
 
 ---
 
@@ -1022,6 +1118,8 @@ API checks pass; the Playwright step was skipped (the fixture-owner browser can'
 **Result (2026-10-17) ⏭️ SKIP — v0.9.2 release pass**
 create_event with attendees gives 403 forbiddenForServiceAccounts under SA.
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `get_event`: description `QA test event`, location `Conference Room A`, attendees `[{"email": "test@example.com", "response": "needsAction"}]`. Playwright: chip "QA-Full-Test ... Location: Conference Room A, July 3, 2026" (same screenshot).
+
 ---
 
 ### TC-CAL23: Invalid calendar ID
@@ -1038,6 +1136,8 @@ create_event on 'invalid-cal@example.com' -> {"error":"<HttpError 404 ... notFou
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `{"error": "<HttpError 404 ... calendars/invalid-cal%40example.com/events ... notFound>"}`, no event created.
 
 ---
 
@@ -1061,6 +1161,8 @@ update_event summary -> "QA-Timed-Updated"; start/end unchanged (13:00-14:00-04:
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
 **Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — response summary `QA-Timed-Updated`; `get_event` start/end/location/description unchanged; `Marked calendar cache dirty` logged. Playwright: chip "QA-Timed-Updated ... July 1, 2026" (`.playwright-mcp/S2/2026-11-08-tc-cal24-26.png`, taken after TC-CAL25's move).
+
 ---
 
 ### TC-CAL25: Update start and end ⚠️ destructive
@@ -1079,6 +1181,8 @@ update_event start/end -> 17:00-18:00-04:00 (2pm-3pm PT); summary unchanged.
 **Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
 **Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — response start `2026-07-01T14:00:00-07:00`, end `15:00:00-07:00`, summary unchanged. Playwright: chip "9pm to 10pm, QA-Timed-Updated ... July 1" (UTC = 2–3pm PDT), same screenshot.
 
 ---
 
@@ -1100,6 +1204,8 @@ update_event description="Updated desc", location="Room B". get_event confirms b
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
 **Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `get_event`: description `Updated desc`, location `Room B`, summary and attendee (`test@example.com`) unchanged. Playwright: chip "QA-Full-Test ... Location: Room B, July 3" (same screenshot).
+
 ---
 
 ### TC-CAL27: Non-existent event ID
@@ -1115,6 +1221,8 @@ update_event on 'invalidEventId999xyz' -> {"error":"<HttpError 404 ... notFound 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `{"error": "<HttpError 404 ... events/invalidEventId999xyz ... notFound>"}`.
 
 ---
 
@@ -1138,6 +1246,8 @@ delete_event -> {"calendar_id":...,"event_id":"9m4dfmdjnjl9742ui2hnt7oqm8","acti
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
 **Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — deleted `QA-AllDay-Test`: `{"calendar_id": ..., "event_id": ..., "action": "deleted"}`; `list_events` for Jul 2 now `[]`; the delete path marks the cache dirty (`mark_dirty` logged for every event write this run). Playwright: week of Jul 1 shows QA-Timed-Updated, QA-S2-Cal2-Overlap, QA-Full-Test and no all-day chip (`.playwright-mcp/S2/2026-11-08-tc-cal28.png`).
+
 ---
 
 ### TC-CAL29: Non-existent event ID
@@ -1154,6 +1264,8 @@ delete_event on 'invalidEventId999xyz' -> {"error":"<HttpError 404 ... notFound 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `{"error": "<HttpError 404 ... notFound>"}`, no side effects.
 
 ---
 
@@ -1174,6 +1286,8 @@ find_free_slots SACAL 2026-07-04 full-day, no events -> busy[SACAL]=[], free_slo
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — 2026-07-04: `busy[fixture] == []`, `free_slots == [{start: 2026-07-04T00:00:00Z, end: 2026-07-04T23:59:59Z}]`.
+
 ---
 
 ### TC-CAL31: Single calendar — events in window
@@ -1191,6 +1305,8 @@ find_free_slots SACAL 2026-07-01 16:00-00:00Z (9am-5pm PT) -> busy[SACAL]=[{21:0
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — Jul 1 9–17 PT: busy `14:00–15:00-07:00` (the moved TC-CAL25 event); free_slots 09:00–14:00 and 15:00–17:00, RFC 3339.
 
 ---
 
@@ -1211,6 +1327,8 @@ find_free_slots [SACAL, MINCAL] same window -> busy has a key per calendar; MINC
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — fixture + scratch calendar: with the scratch one empty, its busy list was `[]` and no error; after adding a 14:30–15:30 PT event there, busy has both keys and free_slots are 09:00–14:00 and 15:30–17:00 (union of the overlapping periods).
 
 ---
 
@@ -1233,6 +1351,8 @@ _Prior run (2026-09-04), before the fix:_ find_free_slots [SACAL, 'invalid-cal@e
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `busy["invalid-cal@example.com"] == [{"calendar_id": "invalid-cal@example.com", "calendar_summary": "invalid-cal@example.com", "error": "notFound (global)"}]`; fixture busy still populated (21:00–22:00Z); no top-level error.
+
 ---
 
 ### TC-CAL34: free_slots covers full window when no busy times
@@ -1249,6 +1369,8 @@ find_free_slots SACAL 2026-07-10T00:00:00Z..01:00:00Z, no events -> free_slots e
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `free_slots == [{"start": "2026-07-10T00:00:00Z", "end": "2026-07-10T01:00:00Z"}]`.
 
 ---
 
@@ -1270,6 +1392,8 @@ Two adjacent events (14:00-15:00Z, 15:00-16:00Z) -> busy merged to single {14:00
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — back-to-back events 10–11 and 11–12 PT on Jul 8: one busy period 10:00–12:00 (freebusy already joins them) and free_slots 09–10, 12–13 with no zero-length gap. The tool's own merge is shown by TC-CAL32's cross-calendar overlap (14:00–15:00 + 14:30–15:30 → one gap ending 15:30).
+
 ---
 
 ### TC-CAL78: find_free_slots error shape — summary fallback and no extra API call on the happy path (issue #691) (unit test)
@@ -1286,6 +1410,8 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — unit-level evidence: the four named `TestFindFreeSlots` tests pass (`uv run python -m pytest tests/test_calendar.py -k ...` 44 passed; full file 104 passed).
 
 ---
 
@@ -1330,6 +1456,8 @@ Cleanup done.
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — on fresh `QA-OwnerAcl`: remove primary-owner rule → exact `cannotChangeOwnerAcl` message naming `delete_calendar`; add reader on that rule → exact `cannotChangeOwnerAcl ... always stays 'owner'` message without `delete_calendar`; remove/add on the account's own rule → exact `cannotChangeOwnAcl` message both times; follow-up list still 2 owner rules; invalid rule id still raw `HttpError 400`. Calendar deleted.
+
 ---
 
 ### TC-CAL80: `list_calendar_acl` returns a complete list with no partial marker on a normal calendar (issue #615)
@@ -1345,6 +1473,8 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — fixture calendar: same 2 rules as TC-CAL60, each with the four fields, no `error`/`partial` key.
 
 ---
 
@@ -1365,6 +1495,8 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — unit-level evidence: the five named `TestListCalendarAcl` tests pass, and `tests/drive/test_files.py::TestListDrives::test_never_ending_page_token_is_bounded` passes.
+
 ---
 
 ### TC-CAL82: `get_event` shape unchanged after sharing `_shape_event` (issue #627)
@@ -1384,6 +1516,8 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — fixture event: exactly the 13 listed keys; created `2026-09-03T05:32:14.000Z`, updated `...14.740Z`; start/end/organizer/attendees identical to its `list_events` entry.
+
 ---
 
 ### TC-CAL83: `_shape_event` null guards and collision guard (issue #627) (unit test)
@@ -1400,6 +1534,8 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — unit-level evidence: `TestShapeEvent` (two named tests), `TestGetEvent::test_null_organizer_does_not_crash`, `TestCreateUpdateEventNullTimes` all pass.
+
 ---
 
 ### TC-CAL84: `list_all_events` fan-out cap is process-wide and configurable; calendar summaries match `find_free_slots` (issues #626, #726) (unit test)
@@ -1415,6 +1551,8 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — unit-level evidence: `test_fan_out_cap_is_shared_across_concurrent_invocations`, `TestListAllEventsConcurrencyEnv`, `test_empty_string_summary_matches_list_all_events` pass.
 
 ---
 
@@ -1442,6 +1580,8 @@ create_event recurring weekly -> id dmp5oe7qd342n5odt7a0hqmnhk (no date suffix),
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
 **Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — started 2026-07-06 (the Monday; the case's 07-07 is a Tuesday) 09:00–09:30 America/Los_Angeles: response `recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO"]`, html_link present; `get_event` master recurrence non-null; expanded list shows Monday instances. Playwright: July month view shows QA-Weekly-Standup on Jul 6/13/20/27 (`.playwright-mcp/S2/2026-11-08-tc-cal36-40.png`).
+
 ---
 
 ### TC-CAL37: Create a daily recurring event with COUNT limit ⚠️ destructive
@@ -1464,6 +1604,8 @@ create_event daily COUNT=5 -> recurrence ["RRULE:FREQ=DAILY;COUNT=5"]. list_even
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
 **Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — response `RRULE:FREQ=DAILY;COUNT=5`; expanded list for Jul 7–28 shows exactly 5 instances (Jul 14–18), none after. Playwright: 5 QA-Daily-5x chips Jul 14–18 (same screenshot).
+
 ---
 
 ### TC-CAL38: Recurrence absent when not provided
@@ -1485,6 +1627,8 @@ create_event one-off QA-OneOff -> recurrence: null. list_events(expand_recurring
 **Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
 **Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `QA-OneOff` response `recurrence: null`; appears as a single plain event, never as a series. Playwright: single chip Jul 21 (same screenshot).
 
 ---
 
@@ -1513,6 +1657,8 @@ list_events(expand_recurring=False, query="QA-") -> masters QA-Weekly-Standup (W
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
 **Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — no time filter: returned the QA-Weekly-Standup master once (id `93frfanrt24vsfboi5b4tcnjn4`, no `_date` suffix, recurrence RRULE) plus the future one-off `QA-S2-Future dinner` once. (QA-Daily-5x ended in July, so is correctly absent for time_min=now.) Playwright: the series in the UI (same month screenshot).
+
 ---
 
 ### TC-CAL40: expand_recurring=True (default) expands instances
@@ -1536,6 +1682,8 @@ list_events(expand_recurring=True default) Jul7-28 for QA-Weekly-Standup -> 4 in
 **Result (2026-10-17) ⚠️ PARTIAL — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
 **Corrected (2026-10-17, #1044 audit):** the Playwright check wasn't run: the fixture-owner browser can't see SA-owned calendars (#886).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — Jul 7–28 window: Monday instances Jul 13, 20, 27 (3, since Jul 7 is a Tuesday), ids `93frfanrt24vsfboi5b4tcnjn4_2026MMDDT160000Z`, each `recurrence: null`. Playwright: same month screenshot.
 
 ---
 
@@ -1561,6 +1709,8 @@ update_event(master, recurrence=["RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO"]) -> re
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — response `recurrence: ["RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO"]`, summary/start/end unchanged; 4-week window Jul 6–Aug 2 now returns 2 instances (Jul 6, Jul 20) instead of 4.
+
 ---
 
 ### TC-CAL42: Remove recurrence by passing an empty list ⚠️ destructive
@@ -1582,6 +1732,8 @@ update_event(master, recurrence=[]) -> response recurrence: null. list_events(ex
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `recurrence=[]` → response `recurrence: null`; `expand_recurring=False` lists it with `recurrence: null`; expanded Jul 5–Dec list has only the single Jul 6 occurrence.
 
 ---
 
@@ -1605,6 +1757,8 @@ update_event(instance jkk1ai0c..._20260714T150000Z, summary="QA-Daily-5x (Modifi
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 API checks pass; the Playwright step was skipped (the fixture-owner browser can't see SA-owned calendars).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — instance `..._20260714T150000Z` renamed `QA-Daily-5x (Modified)`; Jul 15–18 instances still `QA-Daily-5x`; master `get_event` summary unchanged with `RRULE:FREQ=DAILY;COUNT=5`; non-expanded list shows the override as a separate exception entry.
 
 ---
 
@@ -1631,6 +1785,8 @@ list_all_events no calendar_ids, 2026-07-01..02 -> flat list; QA-Timed-Updated p
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — no calendar_ids, Jul 1 window: flat list with the fixture's event (`QA-Timed-Updated`, i.e. TC-CAL20's event after TC-CAL24's rename) tagged `calendar_summary: "mcp-gee-sweet-qa"`, and the scratch calendar's `QA-S2-Cal2-Overlap` tagged `mcp-gee-sweet-qa-renamed`; every entry has both fields.
+
 ---
 
 ### TC-CAL70: Explicit calendar_ids restricts the fan-out
@@ -1649,6 +1805,8 @@ list_all_events calendar_ids=[SACAL] -> only SACAL's event; QA-MinCal-Event (on 
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — only the fixture event returned; the scratch calendar's same-window event absent.
 
 ---
 
@@ -1675,6 +1833,8 @@ group_by_calendar=true, [SACAL, MINCAL] -> dict keyed by summary ("mcp-gee-sweet
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — dict keyed `mcp-gee-sweet-qa` and `mcp-gee-sweet-qa-renamed`, each with its own event carrying matching calendar_id/calendar_summary. Duplicate-summary disambiguation not exercised live (no such pair); covered by `test_group_by_calendar_disambiguates_colliding_summaries` (passes).
+
 ---
 
 ### TC-CAL72: One invalid calendar_id does not abort the batch (flat list)
@@ -1695,6 +1855,8 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — flat list: fixture event present, plus one `{"calendar_id": "invalid-cal@example.com", "calendar_summary": "invalid-cal@example.com", "error": "<HttpError 404 ...>"}` with no event fields.
 
 ---
 
@@ -1719,6 +1881,8 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `result["invalid-cal@example.com"] == {"error": "<HttpError 404 ...>", "calendar_id": "invalid-cal@example.com"}`; `mcp-gee-sweet-qa` still maps to its event list.
+
 ---
 
 ### TC-CAL74: query is forwarded to every calendar in the fan-out
@@ -1740,6 +1904,8 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
 
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `query="QA-Timed-Updated"` (the TC-CAL20 event's current title) over fixture + scratch calendar for 2026: one hit from the fixture; nothing from the scratch calendar, whose `QA-S2-Cal2-Overlap` would otherwise be in range.
+
 ---
 
 ### TC-CAL75: expand_recurring=False returns master events across every queried calendar
@@ -1760,6 +1926,8 @@ Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to th
 
 **Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
 Run 2 (kai-sa) on SA-owned scratch calendars (TEST_CALENDAR_ID returns 404 to the SA).
+
+**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S2 on `mcp-gee-sweet-oauth`** — `QA-Weekly-Standup` appeared once as its master (`recurrence` RRULE, id without date suffix), not as instances.
 
 ---
 

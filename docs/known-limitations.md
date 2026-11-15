@@ -7,6 +7,27 @@ Each entry describes what the limitation is, why it exists, and the available wo
 
 ## Google Docs
 
+### Setting a named style clears the paragraph's inline text styles
+
+**What:** Writing a `namedStyleType` onto a paragraph that already has inline text
+styles removes those styles - reproduced with `strikethrough`, and it happens even when
+the named style being written is the one the paragraph already had.
+
+**Why:** The Docs API's `updateParagraphStyle` with a `namedStyleType` re-applies the
+named style's own text properties to the paragraph's runs, so per-run formatting is not
+preserved. It is API behaviour rather than a quirk of this server's request building.
+
+**Where it bites:** `style_doc_range(named_style_type=...)`, and
+`insert_softbreak_paragraph`, which sets the style explicitly for the whole block. The
+v0.9.2 release QA pass reproduced it three times, including a control that set no other
+style fields.
+
+**Workaround:** Set the named style first, then apply the text styles in a second
+`style_doc_range` call carrying only text-style fields. Setting text styles alone never
+takes the `namedStyleType` path.
+
+---
+
 ### Blank paragraph before every table
 
 **What:** A blank paragraph always appears in the document structure immediately before each
@@ -601,9 +622,11 @@ server.
 ### Some clients refuse the full tool set
 
 **What:** With every tool registered (the default), the server is over the tool cap of several
-MCP clients. VS Code with GitHub Copilot fails every agent request with "Cannot have more than
-128 tools per request". Windsurf allows 100 tools across all servers. Cursor's cap depends on the
-model and reports "Too many MCP tools are enabled for this mode", or uses only part of the list.
+MCP clients. VS Code with GitHub Copilot allows 128 tools per request. In our November 2026 test,
+Copilot looked tools up on demand and handled the full set, but a build that sends every tool with
+each request fails with "Cannot have more than 128 tools per request". Windsurf allows 100 tools across all servers.
+Cursor's cap depends on the model and reports "Too many MCP tools are enabled for this mode", or
+uses only part of the list.
 Google Antigravity is reported to reject a server with more than 100 tools.
 
 **Why:** The caps are the clients' own, and the server registers every tool unless told

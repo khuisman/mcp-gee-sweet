@@ -392,8 +392,11 @@ def render_subsets_block(known_names: set[str], extra_subsets=()) -> str:
         "Some MCP clients cap how many tools they accept, and the full tool set is "
         "over every cap: VS Code with GitHub Copilot allows 128 tools per request, "
         "built-in tools included; Windsurf allows 100 across all servers; Cursor's "
-        "cap depends on the model. On those clients, pick one of these subsets. "
-        f"Each one is under {CLIENT_TOOL_LIMIT} tools. See [Clients with a tool limit]"
+        "cap depends on the model. On Windsurf and Cursor, pick one of these "
+        f"subsets. Each one is under {CLIENT_TOOL_LIMIT} tools. In our November "
+        "2026 test, VS Code + Copilot looked tools up on demand and handled the "
+        'full set, so use a subset there only if you see "Cannot have more than '
+        '128 tools per request". See [Clients with a tool limit]'
         "(client-setup.md#clients-with-a-tool-limit) for each client's config.",
         "",
         "To combine two subsets, join their lists with a comma (a name listed "
