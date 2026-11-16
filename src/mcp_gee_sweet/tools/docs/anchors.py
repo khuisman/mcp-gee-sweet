@@ -22,7 +22,7 @@ _WORD_CHARS = re.compile(r"[a-z0-9]+")
 
 
 def _github_style_slugify(text: str) -> str:
-    """GitHub's markdown heading-anchor convention: lowercase, keep word
+    r"""GitHub's markdown heading-anchor convention: lowercase, keep word
     characters, hyphens and literal spaces, strip everything else, and turn
     each space into a hyphen — consecutive hyphens are NOT collapsed
     (" - " -> "---", confirmed against issue #409's own real example; a run

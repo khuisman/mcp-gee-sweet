@@ -166,7 +166,7 @@ class TestComputeSchemeSlugs:
 
 
 class TestGithubSchemeStripsOtherWhitespace:
-    """#1460: the GitHub scheme hyphenated every whitespace run, where GitHub's
+    r"""#1460: the GitHub scheme hyphenated every whitespace run, where GitHub's
     own anchor (github-slugger) strips a tab, an NBSP and a heading's "<br>"
     break with no hyphen at all, so a "#pricelist" link to a heading written
     "Price\xa0List" — HTML input with `&nbsp;` — resolved to nothing."""
