@@ -1023,13 +1023,36 @@ class _AstParser(HTMLParser):
             return "break" if text.endswith("\v") else "text"
         return "none"
 
-    def _segment_content_size(self) -> int:
-        """How much the open segment holds (#1403): run text, one per image, and the
-        buffered pieces, line breaks included. Compared against a container-in-block
-        element's `container_mark` to tell whether the container's own content
-        arrived, source whitespace and all."""
-        size = sum(1 if isinstance(r, Image) else len(r.text) for r in self._pending_runs)
-        return size + sum(len(piece) for piece in self._run_buf)
+    def _segment_visible_size(self) -> int:
+        """How much of the open segment a reader sees (#1403): run text and buffered
+        pieces minus the formatting whitespace a pretty-printer emits, one per image,
+        line breaks aside. Compared against a container-in-block element's
+        `container_mark` to tell whether the container's own content arrived —
+        whitespace alone doesn't count, since a browser draws a container holding
+        only whitespace as if it were empty (#1470 review)."""
+        size = sum(
+            1 if isinstance(r, Image) else len(r.text.strip(_ASCII_FORMATTING_WHITESPACE))
+            for r in self._pending_runs
+        )
+        return size + sum(
+            len(piece.strip(_ASCII_FORMATTING_WHITESPACE))
+            for piece in self._run_buf
+            if not isinstance(piece, _LineBreak)
+        )
+
+    def _segment_is_only_a_task_list_marker(self) -> bool:
+        """Whether the open segment holds nothing but a task-list marker like
+        "[ ] " (#1470 review). _make_bullet_item strips such a marker when the
+        item closes, so a container right after it sits at the item's real
+        start; a break there would leave the stripped item beginning with one,
+        where develop writes the checkbox item reading the container's text."""
+        for piece in self._run_buf:
+            if isinstance(piece, (_LineBreak, Image)) or not isinstance(piece, str):
+                return False
+        if any(isinstance(r, Image) for r in self._pending_runs):
+            return False
+        text = "".join(r.text for r in self._pending_runs) + "".join(self._run_buf)
+        return text.strip(_ASCII_FORMATTING_WHITESPACE) in ("[ ]", "[x]", "[X]")
 
     def _end_anonymous_block(self, *, implicit_too: bool = False):
         """Emit the paragraph a container's own text opened, if one is open: a container
@@ -1719,10 +1742,14 @@ class _AstParser(HTMLParser):
             element = self._open_elements[-1]
             element.container_in_block = True
             element.container_epoch = self._segment_epoch
-            if not self._in_pre and self._tail_kind() == "text":
+            if (
+                not self._in_pre
+                and self._tail_kind() == "text"
+                and not self._segment_is_only_a_task_list_marker()
+            ):
                 self._run_buf.append(_LineBreak("\v"))
                 self._ends_with_line_break = True
-            element.container_mark = self._segment_content_size()
+            element.container_mark = self._segment_visible_size()
 
         # --- thematic break (<hr>) with no open block ---
         # Unlike <img>, which markdown always wraps in a <p> (so an unsupported
@@ -1908,7 +1935,7 @@ class _AstParser(HTMLParser):
             and not self._in_pre
         ):
             mark = element.container_mark if element.container_epoch == self._segment_epoch else 0
-            if self._segment_content_size() > mark and self._tail_kind() != "break":
+            if self._segment_visible_size() > mark and self._tail_kind() != "break":
                 self._run_buf.append(_LineBreak("\v"))
                 self._ends_with_line_break = True
         # --- table structure ---

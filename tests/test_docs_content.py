@@ -1288,8 +1288,30 @@ class TestContainerInOpenBlockBreaksItsText:
         assert [_node_text(n) for n in nodes] == ["a\vb", "c", "d\ve"]
 
     def test_empty_container_after_a_nested_block_adds_no_break(self):
-        nodes = html_to_ast("<li>a<div><p>b</p></div>c</li>")
-        assert [_node_text(n) for n in nodes] == ["a", "b", "c"]
+        # The whitespace between </p> and </div> is the container's own content
+        # in a fresh segment; whitespace alone doesn't draw a line (#1470 review).
+        nodes = html_to_ast("<li>a<div><p>b</p> </div>c</li>")
+        assert [_node_text(n) for n in nodes] == ["a", "b", " c"]
+
+    def test_whitespace_only_container_draws_no_line(self):
+        # A container holding only whitespace renders empty, so no break goes in
+        # beside it, pretty-printed or not; the item keeps reading just "c" and
+        # the leading source whitespace it always kept on develop (#1470 review).
+        assert _node_text(html_to_ast("<li><div> </div>c</li>")[0]) == " c"
+        text = _node_text(html_to_ast("<li>\n  <div>\n  </div>\n  text\n</li>")[0])
+        assert "\v" not in text
+
+    def test_task_list_marker_before_a_container_keeps_the_checkbox_item(self):
+        # "- [ ] <div>details</div>": the marker is the item's only text before the
+        # container, so no break goes in beside it — _make_bullet_item strips the
+        # marker and the checkbox item reads "details", as on develop (#1470 review).
+        nodes = html_to_ast("<li>[ ] <div>details</div></li>")
+        assert [type(n) for n in nodes] == [BulletItem]
+        assert nodes[0].checked is False
+        assert _node_text(nodes[0]) == "details"
+        nodes = html_to_ast("<li>[x] <div>details</div></li>")
+        assert nodes[0].checked is True
+        assert _node_text(nodes[0]) == "details"
 
     def test_unclosed_container_breaks_like_a_closed_one(self):
         # The </li> closes the <div> implicitly, with the block still open.
