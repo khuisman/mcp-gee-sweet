@@ -35,14 +35,18 @@ GENERATED_BANNER = (
 )
 
 
-def collect_tools():
+def collect_tools(default_names: set[str] | None = None):
     """Call register_all() with a capturing decorator instead of the real
-    FastMCP one, so this script never touches the mcp/auth machinery."""
+    FastMCP one, so this script never touches the mcp/auth machinery. Adds the
+    tools an unset ENABLED_TOOLS registers (`default=True`, #1364) to
+    `default_names` when one is given."""
     captured = []
 
-    def tool(annotations=None, local_only=False):
+    def tool(annotations=None, local_only=False, default=False, **_):
         def decorator(func):
             captured.append(func)
+            if default and default_names is not None:
+                default_names.add(func.__name__)
             return func
 
         return decorator
@@ -358,16 +362,17 @@ def service_subsets(funcs) -> list[tuple[str, list[str]]]:
     return [*resolved.items(), (combined_name, combined)]
 
 
-def render_subsets_block(known_names: set[str], extra_subsets=()) -> str:
+def render_subsets_block(known_names: set[str], default_count: int, extra_subsets=()) -> str:
     lines = [
         "## Tool filtering",
         "",
         GENERATED_BANNER,
         "",
-        f"By default all {len(known_names)} tools are registered. Use `ENABLED_TOOLS` "
-        "(or `--include-tools` on the CLI) to restrict the server to exactly the "
-        "tools you need. This reduces the AI's context window cost — each "
-        "registered tool is a name the model must reason about on every call.",
+        f"By default the server registers the `default` tool group, {default_count} of "
+        f"the {len(known_names)} tools. Use `ENABLED_TOOLS` (or `--include-tools` on the "
+        "CLI) to choose the tools you need: it takes tool names and group names, and "
+        "the server registers their union. Fewer tools reduce the AI's context window "
+        "cost — each registered tool is a name the model must reason about on every call.",
         "",
         "```bash",
         "# Environment variable",
@@ -377,15 +382,10 @@ def render_subsets_block(known_names: set[str], extra_subsets=()) -> str:
         "uv run mcp-gee-sweet --include-tools get_sheet_data,update_cells,list_spreadsheets",
         "```",
         "",
-        "If neither is set, or the value is empty, all tools are registered. "
-        "`ENABLED_TOOLS=all` (or `--include-tools all`) registers all tools too. "
-        "Listed with tool names, `all` adds nothing: every tool is still registered.",
-        "",
-        "**Upcoming change:** an upcoming release loads a smaller default tool set when "
-        "`ENABLED_TOOLS` is unset or empty. To keep every tool, set `ENABLED_TOOLS=all`. "
-        "Until then, `mcp-gee-sweet` logs this as a warning at startup when neither "
-        "names a tool. A server started directly with `uvicorn mcp_gee_sweet.server:app` "
-        "doesn't log it.",
+        "If neither is set, or the value is empty, the `default` group is registered. "
+        "`ENABLED_TOOLS=all` (or `--include-tools all`) registers every tool. Listed "
+        "with other entries, `all` still registers every tool. An entry that names no "
+        "tool or group is logged as a warning at startup and otherwise ignored.",
         "",
         "### Suggested subsets",
         "",
@@ -436,14 +436,15 @@ def write_if_changed(path: Path, content: str) -> bool:
 
 
 def main() -> int:
-    funcs = collect_tools()
+    default_names: set[str] = set()
+    funcs = collect_tools(default_names)
     require_docstrings(funcs)
     known_names = {f.__name__ for f in funcs}
 
     changed = write_if_changed(TOOLS_MD, render_tools_md(funcs))
 
     config_text = CONFIG_MD.read_text()
-    new_block = render_subsets_block(known_names, service_subsets(funcs))
+    new_block = render_subsets_block(known_names, len(default_names), service_subsets(funcs))
     # backslash-escape the replacement so re.sub doesn't treat it as a backreference template
     escaped_block = new_block.replace("\\", "\\\\") + "\n"
     updated_config, n_subs = re.subn(

@@ -32,7 +32,7 @@ from ..fakes import as_service_account
 def _make_tool_registry():
     captured = {}
 
-    def tool(annotations=None, local_only=False):
+    def tool(annotations=None, local_only=False, **_):
         def decorator(func):
             captured[func.__name__] = func
             return func
@@ -2196,6 +2196,18 @@ class TestExportFile:
         msg = str(exc_info.value)
         assert "download_file" in msg
         assert "local_path" not in msg
+
+    async def test_cap_error_hint_reads_as_full_sentences(self, monkeypatch):
+        # #1430 follow-up (PR #1442 review): export_file's hint is a complete
+        # sentence, so the shared env-var clause starts a fresh sentence after
+        # it — never spliced onto a trailing ", or " ("…overhead, or Set
+        # MAX_TOOL_RESPONSE_CHARS…", the wording khuisman caught in review).
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 10)
+        ctx = self._ctx(self._workspace_svc(b"x" * 1000))
+        with pytest.raises(ValueError) as exc_info:
+            await _transfer_tools["export_file"](file_id="doc1", export_format="pdf", ctx=ctx)
+        assert "without this overhead. Set MAX_TOOL_RESPONSE_CHARS" in str(exc_info.value)
+        assert ", or Set" not in str(exc_info.value)
 
 
 class _FakeDriveFS:

@@ -49,6 +49,34 @@ def is_rejection(e: BaseException) -> bool:
     return isinstance(e, HttpError) and 400 <= int(e.resp.status) < 500
 
 
+class _BlockWrites:
+    """Whether a write request made inside an `invalidating` block may have landed.
+    Shared by gathered tasks and worker threads the same way `CallAuthState` is. A
+    nested block's write counts for every block around it."""
+
+    def __init__(self, outer: "_BlockWrites | None") -> None:
+        self.outer = outer
+        self.may_have_landed = False
+
+    def record(self) -> None:
+        block: _BlockWrites | None = self
+        while block is not None:
+            block.may_have_landed = True
+            block = block.outer
+
+
+_block_writes: contextvars.ContextVar[_BlockWrites | None] = contextvars.ContextVar(
+    "mcp_gee_sweet_block_writes", default=None
+)
+
+
+def _is_read(execute_fn: Any) -> bool:
+    """True if `execute_fn` is the `.execute` of a GET or HEAD request. Anything it
+    can't tell (no `HttpRequest` behind it) counts as a write."""
+    method = getattr(getattr(execute_fn, "__self__", None), "method", None)
+    return isinstance(method, str) and method.upper() in _RESENDABLE_METHODS
+
+
 @contextmanager
 def invalidating(callback: Callable[[], None], *, on_success: bool = True) -> Iterator[None]:
     """Run `callback`, a cache invalidation for what the write requests inside this
@@ -56,17 +84,24 @@ def invalidating(callback: Callable[[], None], *, on_success: bool = True) -> It
     abandoned and later finishes (`after_abandoned_calls`). Every exit, not just
     success: a failed request (a timeout, a 5xx) may still have been applied, and a
     cancelled one may still land (#907, #1030). The exception is a 4xx
-    (`is_rejection`), which ran nothing, so it skips the callback. `on_success=False`
+    (`is_rejection`), which ran nothing, so it skips the callback, unless an earlier
+    write in the block may have landed (one that returned, failed other than with a
+    4xx, or was cancelled): `copy_sheet`'s copy lands and its rename gets a 400, and
+    the tab the copy added still needs invalidating (#1265). `on_success=False`
     leaves a block that exits normally to its caller, which knows whether anything
     changed (a skipped upload changed nothing). A block nested inside another
     `after_abandoned_calls` block replaces the outer callback for its own requests."""
+    writes = _BlockWrites(_block_writes.get())
+    token = _block_writes.set(writes)
     try:
         with after_abandoned_calls(callback):
             yield
     except BaseException as e:
-        if not is_rejection(e):
+        if not is_rejection(e) or writes.may_have_landed:
             callback()
         raise
+    finally:
+        _block_writes.reset(token)
     if on_success:
         callback()
 
@@ -349,7 +384,24 @@ async def execute_in_thread(execute_fn: Any, service: Any) -> Any:
     Inside an `after_abandoned_calls` block, a call whose awaiting task is cancelled
     while the worker thread is running triggers that block's callback once the thread
     finishes.
+
+    Inside an `invalidating` block, a write that may have landed (anything but a 4xx
+    from the API) records that on the block, so a later 4xx still invalidates.
     """
+    writes = _block_writes.get()
+    if writes is None or _is_read(execute_fn):
+        return await _execute_in_thread(execute_fn, service)
+    try:
+        result = await _execute_in_thread(execute_fn, service)
+    except BaseException as e:
+        if not is_rejection(e):
+            writes.record()
+        raise
+    writes.record()
+    return result
+
+
+async def _execute_in_thread(execute_fn: Any, service: Any) -> Any:
     hook = _abandoned_call_hook.get()
     if hook is None:
         return await asyncio.to_thread(lambda: execute_fn(http=thread_http(service)))

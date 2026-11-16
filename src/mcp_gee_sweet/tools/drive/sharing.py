@@ -25,7 +25,7 @@ def register(tool):
 
         Recipients share concurrently rather than one at a time. If the caller
         supplied a progressToken, a `notifications/progress` update is sent as each
-        share finishes (#355).
+        share finishes.
 
         Args:
             spreadsheet_id: The ID of the spreadsheet to share.
@@ -312,7 +312,7 @@ def register(tool):
             "permissionId": result.get("id"),
         }
 
-    @tool(annotations=ToolAnnotations(title="Share File", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Share File", destructiveHint=True), default=True)
     async def share_file(
         file_id: str,
         permissions: list[dict[str, str]],
@@ -324,7 +324,7 @@ def register(tool):
 
         Permission entries share concurrently rather than one at a time. If the
         caller supplied a progressToken, a `notifications/progress` update is sent
-        as each share finishes (#355).
+        as each share finishes.
 
         Args:
             file_id: The Google Drive file or folder ID.

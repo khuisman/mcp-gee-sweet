@@ -227,6 +227,12 @@ On Windsurf, Cursor and Antigravity, or on VS Code if you see that error, set `E
 
 ---
 
+## Upgrading
+
+Check the [changelog](https://github.com/khuisman/mcp-gee-sweet/blob/develop/CHANGELOG.md) before upgrading. A renamed or removed tool or parameter keeps working for one release first, and is listed under that release's **Deprecated** heading with its replacement. A renamed tool's old name keeps working only when you list it in `ENABLED_TOOLS` or set `ENABLED_TOOLS=all`. Update allowlists, `ENABLED_TOOLS` and saved prompts during that release. The [deprecation policy](https://khuisman.github.io/mcp-gee-sweet/latest/design/#renaming-or-removing-a-tool) has the details.
+
+---
+
 ## Docs
 
 - [Tools](https://khuisman.github.io/mcp-gee-sweet/latest/tools/) — full tool reference, grouped by domain
