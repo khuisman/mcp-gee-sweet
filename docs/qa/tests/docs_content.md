@@ -7496,6 +7496,9 @@ Step 2: `| :-: | --: | :-- |` for both the plain and the quoted table (quote kep
 **Result (2026-11-14) ❌ FAIL (steps 1, 2 and 4 on `{DOC}`) — Rio's re-run for PR #1505's review, on `mcp-gee-sweet-rio` (OAuth, Shared Drive default folder) at `f569d024`; reproduces #1503**
 Step 2: `| :-: | --: | :-- |` for the plain and the quoted table (inside its `> `), and `| :-- | :-- |` for `p | q`. Step 4: `export_revision` of the last revision returned the same delimiter rows. Step 3 (the `.docx` import) wasn't re-run; it rests on the run above. Doc trashed.
 
+**Result (2026-11-15) ✅ PASS — Kit, PR #1524 round 1 @ 50d18d37 (fixes #1503)**
+Step 2: `| :-: | --: | --- |` for the plain table and for the quoted one inside its `> `, and `| --- | --- |` for `p | q`. Step 3: a `.docx` with no `w:jc` on column 3 stores no `alignment` there, and that column exports `---` (TC-DOC260's extra probe). Step 4: `export_revision` of the last revision gives the same delimiter rows for `{DOC}` and the import. Docs trashed.
+
 ### TC-DOC256: An embedded image and its fallback text keep only their own character styles (#1334) ⚠️ requires-network ⚠️ destructive
 
 **Purpose:** an image or its alt-text fallback took the character styles of the run before it, so an image after `<sup>` was raised and shrunk, and fallback text after bold was bold. Each now gets a style request clearing bold, italic, underline, strikethrough, `baselineOffset`, `smallCaps` and `backgroundColor`, keeping its link.
@@ -7605,3 +7608,6 @@ Step 1 as written: `images` has `error` + `fallback_text` for the seven `{BAD}` 
 - Step 5: TC-DOC255's step 2 and step 4 checks pass (`| :-: | --: | --- |` plain and quoted, `| --- | --- |` for `p | q`)
 
 **Cleanup:** `delete_file` every doc
+
+**Result (2026-11-15) ⚠️ PARTIAL — Kit, PR #1524 round 1 @ 50d18d37**
+Every listed check passes. Step 2: `| --- | :-: | --- | --- |`. Step 4: `| --- | :-: | --- |`. Step 5: TC-DOC255 steps 2 and 4 pass (see its Result). Extra probe, not in the steps: a `.docx` built with `w:jc="left"` on column 1, `center` on column 2 and no `w:jc` on column 3, uploaded with `upload_local_file(convert=True)`, stores raw `[START] [CENTER] [None]` on every row. `get_doc_as_markdown` and `export_revision` both give `| --- | :-: | --- |`, so the explicit left column, which `develop` exported as `:--`, is lost (sent back). A `.md` with `|:--|:-:|---|` uploaded the same way stores START on every cell, the `insertTable` shape, and exports `| --- | :-: | --- |`. Docs trashed.
