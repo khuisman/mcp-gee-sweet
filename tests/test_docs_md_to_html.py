@@ -161,6 +161,33 @@ class TestStrikethrough:
             ("b", True),
         ]
 
+    def test_tilde_pair_does_not_cross_an_emphasis_pair(self):
+        # Once the * pair matches, a tilde run inside it can no longer pair with
+        # one outside, as CommonMark's delimiter rules give on develop (#1436
+        # review). The unpaired tildes stay literal.
+        (para,) = _ast("*a ~~b* c~~")
+        assert [(r.text, r.italic, r.strikethrough) for r in para.runs] == [
+            ("a ~~b", True, None),
+            (" c~~", None, None),
+        ]
+        (para,) = _ast("*a ~b* c~")
+        assert [(r.text, r.italic, r.strikethrough) for r in para.runs] == [
+            ("a ~b", True, None),
+            (" c~", None, None),
+        ]
+
+    def test_single_tilde_pair_inside_a_bare_url_stays_text(self):
+        # A `~` inside a GFM extended autolink is part of the URL, so the whole
+        # URL links and nothing strikes, as on develop and GitHub (#1436 review).
+        html = _md_to_html("see https://cs.example.edu/~alice/paper~v2.pdf")
+        assert "<s>" not in html
+        assert (
+            'href="https://cs.example.edu/~alice/paper~v2.pdf"' in html.replace("&amp;", "&")
+        )
+        # A tilde pair around a URL still strikes, with the URL linked inside.
+        html = _md_to_html("~https://x.com/a~")
+        assert html.count("<a ") == 1 and "<s>" in html
+
     def test_tilde_pairs_inside_words_strike(self):
         # GFM imposes no word-boundary flanking rule on tildes, so this is the
         # expected strike (#1436, also noted in markdown-support.md).
