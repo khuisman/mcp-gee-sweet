@@ -41,7 +41,7 @@ a conversion that fails or is cancelled never reaches the doc. It collects every
 `extract_images(nodes)` and passes a unique placeholder URI for each one. `_apply_doc_content`
 then resolves the images and swaps each resolved image's placeholder for its real URI. An
 unresolved image's `insertInlineImage` request is replaced by its fallback text (below), and its
-link request goes, since the fallback carries the link. Its insert sits in the descending-position
+style requests go, since the fallback text carries its own. Its insert sits in the descending-position
 tail, so text at that position shifts none of the requests still to come
 (`test_unresolved_images_requests_match_their_fallback_text` pins this).
 
@@ -79,7 +79,7 @@ path's file name, never the whole path, so a server path doesn't land in the doc
   in any paragraph the anchor pass reads as a heading (any named style but `NORMAL_TEXT`:
   `Heading`, a `BulletItem` with `heading_level`, a TITLE/SUBTITLE `NamedBlock`;
   `emitter.heading_image_ids`, recorded on `ConvertedContent.heading_image_ids`) is dropped as
-  before #1099, with its link request, and reported by its `error` alone.
+  before #1099, with its style requests, and reported by its `error` alone.
 - **One tracker.** `emitter.ImageFallbacks` builds every fallback (computing each image's text
   once), records its request ids for the tail scan, and moves an image into `shown` from the
   `on_applied` of the batch that carried it. The body's retry and `CellImages` share the one
@@ -204,8 +204,43 @@ link (#994, PR #992 QA round 2). Docs stores an image's link on its
 `insertInlineImage` with an `updateTextStyle` over its one-character range
 `[position, position + 1)`. The link has to come right after its own insert, inside the
 descending-position tail: at that point nothing before `position` has shifted yet. An inserted
-image never inherits a neighboring run's link (confirmed live, both directions), so an unlinked
-image gets no clearing request.
+image never inherits a neighboring run's link (confirmed live, both directions), but it does take
+the character before it's emphasis and position styles (#1334), so every image gets that request,
+linked or not (next section).
+
+### Character style (#1334, #1475)
+
+An insert takes the character style of the character before it: an image after a superscript
+run came out raised, and fallback text after a bold, struck, highlighted or code-styled run came
+out styled the same way, ``Run `make` ![build](bad.svg)`` reading back as `` `make build` ``. And
+an image has a style of its own to keep: `**Build: ![status](bad.svg) passing**` should give a
+bold "status".
+
+- **Parser.** `html_parser` records the style of the inline tags open around an `<img>` on the
+  `Image` (`bold`, `italic`, `underline`, `strikethrough`, `background_color`, `baseline_offset`,
+  `font_family`), from the same state a `Run` is styled from (`_character_style`). A bare
+  top-level `<img>`, wrapped only in inline tags, has no block whose state they raised, so it
+  reads its style from the open-element stack (`_bare_character_style`), through
+  `_INLINE_CHARACTER_STYLES`, the one tag-to-field mapping the inline tag sets are derived
+  from, so a new tag can't style a run and miss a bare image (PR #1508 QA round 1).
+- **Emitter.** The image's style request, and its fallback text's, name every field in
+  `_IMAGE_TEXT_STYLE_FIELDS`, setting the ones the image's own span gives it and clearing the
+  rest. `weightedFontFamily` is among them, since the one font a run sets on the write side is a
+  code span's Courier New; cleared, the text takes its paragraph's font. `fontSize` and
+  `foregroundColor` aren't: no run sets them on the write side, so fallback text keeps reading
+  like its paragraph (#1099).
+- **Linked underline (#1504).** Docs gives text that a request links the link color and an
+  underline, as it does an ordinary link, unless the same request names `underline`: #1334's
+  clearing request did, so linked fallback text showed the color alone. A linked image's request
+  leaves `underline` out (`_LINKED_IMAGE_TEXT_STYLE_FIELDS`) unless its own span underlines it,
+  and an unlinked one still clears an underline from the run before it (confirmed live).
+- **List markers.** A style request that covers a list paragraph's whole text restyles its
+  bullet marker too (#1383), so `- **![logo](x.png)**` bolded the marker (confirmed live). A
+  styled image in a `BulletItem`'s own text, and its fallback text, are styled behind a
+  throwaway character, inserted at the range's end and deleted after, the same wrapper
+  `_item_run_style_requests` uses for a run (`_marker_guarded`). A request that only
+  clears needs none. `ConvertedContent.list_item_image_ids` tells `ImageFallbacks` which
+  fallback texts need it.
 
 Inserts that share a position, such as adjacent images with nothing between them, each land in
 front of whatever is already there, so the later one in the document has to be inserted first.
@@ -214,12 +249,13 @@ position alone kept source order within a tie and wrote adjacent images reversed
 round 1). A table and the image right after it share a position the same way, and still come out
 table first.
 
-The retry treats the pair as one unit. `ast_to_requests(image_links=...)` records each
-`id(insert request) -> link request` as it builds them, and `_apply_doc_content` uses that record
-rather than matching request shapes. `_drop_failed_image` pops the link request with its failed
-insert, since a stranded link would land on whatever character now sits at that position.
-`_positional_insert_tail_start` counts a recorded link request as part of the tail, so the K≥2
-split still applies. A `#slug` image link goes
+The retry treats an insert and its style requests as one unit. `ast_to_requests(image_styles=...)`
+records each `id(insert request) -> [its style requests]` (the `updateTextStyle`, plus a list
+item's marker guard) as it builds them, and `_apply_doc_content` uses that record rather than
+matching request shapes. `_drop_failed_image` removes them with their failed insert
+(`emitter.drop_image_style_requests`, which finds them right after the insert), since a stranded
+style would land on whatever character now sits at that position. `_positional_insert_tail_start`
+counts a recorded style request as part of the tail, so the K≥2 split still applies. A `#slug` image link goes
 through the heading-anchor pass like a text link: `_walk_headings_and_anchor_runs` reads the
 `inlineObjectElement`'s link too, so it's resolved or stripped.
 
