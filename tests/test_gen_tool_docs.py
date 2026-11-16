@@ -23,6 +23,24 @@ def make_func(name, doc, params=""):
     return ns[name]
 
 
+class TestDefaultCount:
+    """#1364: the Tool filtering block states the `default` group's size."""
+
+    def test_collect_tools_records_the_default_group(self):
+        from .test_tool_groups import DEFAULT_SNAPSHOT
+
+        default_names: set[str] = set()
+        gen_tool_docs.collect_tools(default_names)
+        assert default_names == DEFAULT_SNAPSHOT
+
+    def test_block_states_the_default_count(self):
+        known_names = {f.__name__ for f in gen_tool_docs.collect_tools()}
+        rendered = gen_tool_docs.render_subsets_block(known_names, 38)
+        assert f"registers the `default` tool group, 38 of the {len(known_names)}" in (
+            rendered.replace("\n", " ")
+        )
+
+
 class TestCollectAndDocstrings:
     def test_collect_tools_returns_every_registered_tool(self):
         funcs = gen_tool_docs.collect_tools()
@@ -87,17 +105,17 @@ class TestRenderSubsetsBlock:
     def test_validates_against_real_tool_set(self):
         funcs = gen_tool_docs.collect_tools()
         known_names = {f.__name__ for f in funcs}
-        gen_tool_docs.render_subsets_block(known_names)  # should not raise
+        gen_tool_docs.render_subsets_block(known_names, 38)  # should not raise
 
     def test_raises_on_unknown_tool_in_subset(self):
         with pytest.raises(RuntimeError, match="Read-only Sheets"):
-            gen_tool_docs.render_subsets_block(known_names=set())
+            gen_tool_docs.render_subsets_block(known_names=set(), default_count=0)
 
     def test_renders_each_subset_with_its_tool_count(self):
         funcs = gen_tool_docs.collect_tools()
         known_names = {f.__name__ for f in funcs}
         rendered = gen_tool_docs.render_subsets_block(
-            known_names, gen_tool_docs.service_subsets(funcs)
+            known_names, 38, gen_tool_docs.service_subsets(funcs)
         )
         assert "**Read-only Sheets** (7 tools):" in rendered
         assert "**Docs + Drive (combined example)**" in rendered
@@ -108,7 +126,7 @@ class TestRenderSubsetsBlock:
         for _name, tool_names in gen_tool_docs.SUBSETS:
             known_names.update(tool_names)
         with pytest.raises(RuntimeError, match="too_big"):
-            gen_tool_docs.render_subsets_block(known_names, [("too_big", names)])
+            gen_tool_docs.render_subsets_block(known_names, 38, [("too_big", names)])
 
 
 class TestServiceSubsets:

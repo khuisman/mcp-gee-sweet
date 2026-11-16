@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-13
 **Snapshot commit:** branch `develop`
-**Issue:** #1024. Thresholds approved by the maintainer as written on 2026-10-13.
+**Issue:** #1024. Thresholds approved by the maintainer as written on 2026-10-13. Amended 2026-11-15 (decision 7).
 
 ## Background
 
@@ -31,6 +31,16 @@ The long tail came from two places the existing rules didn't cover:
 4. **Seam questions.** `qa.md` step 4 asks four seam questions each pass (install/auth, new domain or tool, service account and Shared Drive, dependency move) and records the answers in the round's comment. `dev.md` step 2 asks the Dev the same questions before the PR.
 5. **Measured.** `decision-review-finding-ticket-bar.md` decision 11 extends its 2026-10-18 checkpoint to count `from-review` tickets by cell.
 6. **Data exposure means across a trust boundary** (maintainer, 2026-10-22, PR #1159): to another OS user, another tenant, or a network peer. Mixing the data of two identities the same person controls is `wrong`, not `severe`.
+
+7. **Unobserved review follow-ups get no version** (maintainer, 2026-11-15). A review follow-up (a `from-review` ticket from `dev.md` step 6 or `qa.md` step 3) gets a version label only if it's a regression since the last stable tag or its failure was observed. Otherwise it gets no version label until someone places it deliberately. This replaces the "next version" placement for unobserved `wrong/narrow`, `wrong/rare`, `loud/narrow`, and `loud/rare` follow-ups. Why: about 30 of ankylosaurus's open tickets were `wrong/narrow, not observed` review follow-ups that had defaulted into the next version, so that version's fill kept refilling itself; the maintainer trimmed 18 of them on 2026-11-14. The rule looks forward only: tickets placed before it aren't re-triaged. Tickets from backlog triage and `/retro` still go by their cell.
+
+## Prompt-QA notes (Bob, 2026-11-15, decision 7)
+
+The approved text leaves three things open. The role files settle them as follows, and the PR flags each for the maintainer:
+
+- **The urgent cells.** Read literally, "only if regression or observed" would also strip an unobserved `severe`, `wrong/common`, or install/auth/first-run follow-up of its in-flight label. The approval named only the next-version cells, so `kai.md` keeps those three in flight.
+- **`wrong/narrow` under an hour.** The approval says it replaces the next-version placement, but the headline rule ("only if") also covers the under-an-hour in-flight path. `kai.md` follows the headline: an unobserved, non-regression `wrong/narrow` follow-up gets no version even when it's quick.
+- **Who places it.** "Someone places it deliberately" is written in `kai.md` as the maintainer, or Kai on the maintainer's word, so an agent can't put it back in a version through the old default.
 
 ## Prompt-QA notes (Bob, 2026-10-13)
 

@@ -53,8 +53,8 @@ BASE_SCOPES = [
 # tool uses), so the narrower gmail.readonly/gmail.send scopes #786 also requested
 # were redundant (#790).
 GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
-# Every scope any tool can need — what a default install (no ENABLED_TOOLS filter)
-# requests, and what `mcp-gee-sweet auth` authorizes by default.
+# Every scope any tool can need — what a server with a Gmail tool registered (the
+# `default` group, or `all`) requests, and what `mcp-gee-sweet auth` authorizes then.
 SCOPES = BASE_SCOPES + GMAIL_SCOPES
 
 # Whether any Gmail tool is registered. server.py sets this once registration is done

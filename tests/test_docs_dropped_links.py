@@ -17,7 +17,7 @@ from mcp_gee_sweet.tools.docs.emitter import unstorable_link_urls
 def _make_tool_registry():
     captured = {}
 
-    def tool(annotations=None, local_only=False):
+    def tool(annotations=None, local_only=False, **_):
         def decorator(func):
             captured[func.__name__] = func
             return func

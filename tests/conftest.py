@@ -1,5 +1,12 @@
 import os
 
+# Before importing the package, which imports server and registers tools: the
+# suite's checks over every registered tool need every tool, and an unset
+# ENABLED_TOOLS now loads only `default` (#1364). Set here rather than left to a
+# developer's .env, which the real env var beats. Tests of the selection itself
+# use a fresh interpreter or tool_groups directly.
+os.environ["ENABLED_TOOLS"] = "all"
+
 import pytest
 
 from mcp_gee_sweet import auth, cache, reauth

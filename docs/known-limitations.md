@@ -10,21 +10,25 @@ Each entry describes what the limitation is, why it exists, and the available wo
 ### Setting a named style clears the paragraph's inline text styles
 
 **What:** Writing a `namedStyleType` onto a paragraph that already has inline text
-styles removes those styles - reproduced with `strikethrough`, and it happens even when
+styles removes those styles — reproduced with `strikethrough`, and it happens even when
 the named style being written is the one the paragraph already had.
 
 **Why:** The Docs API's `updateParagraphStyle` with a `namedStyleType` re-applies the
 named style's own text properties to the paragraph's runs, so per-run formatting is not
-preserved. It is API behaviour rather than a quirk of this server's request building.
+preserved — that part is API behaviour. (`insert_softbreak_paragraph` used to add a quirk
+of its own on top: it always sent the paragraph-style request, defaulting to
+`NORMAL_TEXT`, even when no paragraph style was asked for, so a plain insert wiped the
+paragraph's inline styles. It now sends the request only when `named_style_type` is
+passed.)
 
 **Where it bites:** `style_doc_range(named_style_type=...)`, and
-`insert_softbreak_paragraph`, which sets the style explicitly for the whole block. The
-v0.9.2 release QA pass reproduced it three times, including a control that set no other
-style fields.
+`insert_softbreak_paragraph` when a `named_style_type` is passed.
 
-**Workaround:** Set the named style first, then apply the text styles in a second
-`style_doc_range` call carrying only text-style fields. Setting text styles alone never
-takes the `namedStyleType` path.
+**Workaround:** A range dict carrying `named_style_type` plus text-style fields applies
+the paragraph style first and the text styles after, so the text styles named in the
+same call survive — a separate call is only needed to restore per-run formatting the
+paragraph already had elsewhere, after reading the runs to know it. Passing only
+text-style fields never takes the `namedStyleType` path.
 
 ---
 
@@ -621,17 +625,16 @@ server.
 
 ### Some clients refuse the full tool set
 
-**What:** With every tool registered (the default), the server is over the tool cap of several
-MCP clients. VS Code with GitHub Copilot allows 128 tools per request. In our November 2026 test,
+**What:** With every tool registered (`ENABLED_TOOLS=all`), the server is over the tool cap of
+several MCP clients. VS Code with GitHub Copilot allows 128 tools per request. In our November 2026 test,
 Copilot looked tools up on demand and handled the full set, but a build that sends every tool with
 each request fails with "Cannot have more than 128 tools per request". Windsurf allows 100 tools across all servers.
 Cursor's cap depends on the model and reports "Too many MCP tools are enabled for this mode", or
 uses only part of the list.
 Google Antigravity is reported to reject a server with more than 100 tools.
 
-**Why:** The caps are the clients' own, and the server registers every tool unless told
-otherwise, so it works out of the box on clients without a cap. An upcoming release loads a smaller
-default tool set; `ENABLED_TOOLS=all` keeps every tool.
+**Why:** The caps are the clients' own. An unset `ENABLED_TOOLS` loads the `default` tool group,
+which is under every cap; `all` registers every tool, for clients without one.
 
 **Workaround:** Set `ENABLED_TOOLS` (or `--include-tools`) to one of the
 [suggested subsets](configuration.md#suggested-subsets), each under 100 tools. Per-client
