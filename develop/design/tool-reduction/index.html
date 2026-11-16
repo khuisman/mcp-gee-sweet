@@ -1,0 +1,1955 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/design/tool-reduction/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>Tool Reduction - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#tool-reduction" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Tool Reduction
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/gmail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../qa/tests/sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="tool-reduction">Tool Reduction<a class="headerlink" href="#tool-reduction" title="Permanent link">&para;</a></h1>
+<p><strong>Date:</strong> 2026-11-14
+<strong>Snapshot commit:</strong> <a href="https://github.com/khuisman/mcp-gee-sweet/commit/7c887e29"><code>7c887e29</code></a>
+<strong>Issue:</strong> <a href="https://github.com/khuisman/mcp-gee-sweet/issues/1514">#1514</a>
+<strong>Status:</strong> tiers A and B approved by the maintainer on 2026-11-15, as listed below. Tier C is held until #1522 shows whether its merges hurt tool selection. The comments shape is undecided. Nothing here is implemented yet.</p>
+<blockquote>
+<p>A point-in-time design. Counts are as of the snapshot commit, under <code>ENABLED_TOOLS=all</code>. The approaches already ruled out (dynamic disclosure, an executor tool, a groups setting, composites the client can chain) are recorded in <a href="../../decisions/decision-tool-surface/"><code>decision-tool-surface.md</code></a> and aren't reopened here.</p>
+</blockquote>
+<h2 id="summary">Summary<a class="headerlink" href="#summary" title="Permanent link">&para;</a></h2>
+<p>Tool groups (#1364) cut what a client sees by default. This proposal cuts the total, by merging sibling tools that do one operation along different axes, and removing tools that a more general tool already covers.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Tools</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Today</td>
+<td>143</td>
+<td></td>
+</tr>
+<tr>
+<td>After tier A (merges with no loss)</td>
+<td>128</td>
+<td>−15, one of them already decided (#665)</td>
+</tr>
+<tr>
+<td>After tier B (removals with a behavior difference to settle)</td>
+<td>122</td>
+<td>−6</td>
+</tr>
+<tr>
+<td>After tier C (held: a discoverability cost, #1522)</td>
+<td>117</td>
+<td>−5</td>
+</tr>
+</tbody>
+</table>
+<p><code>default</code> loses one tool (<code>get_sheet_formulas</code>, folded into <code>get_sheet_data</code>), so it drops to 39 once PR #1510 lands. <code>search_files</code>, already in <code>default</code>, gains what five Drive listing tools do today, so <code>default</code> clients can do more, not less.</p>
+<p>One planned addition pulls the other way: the comments CRUD in #664 adds eight tools as specified. A six-tool shape for the whole comments surface is proposed below; it conflicts with a decided table, so it's the maintainer's call.</p>
+<h2 id="the-rule">The rule<a class="headerlink" href="#the-rule" title="Permanent link">&para;</a></h2>
+<p>Two tools become one tool with a parameter when all of these hold:</p>
+<ol>
+<li><strong>Same operation, different axis.</strong> They call the same API request, or the same one with a different enum value (<code>ROWS</code>/<code>COLUMNS</code>, <code>hidden: true/false</code>, a render option). Two operations that only share a noun stay separate.</li>
+<li><strong>Same annotations.</strong> Both are read-only, or both are writes with the same <code>destructiveHint</code>. A merge that would put a read and a write in one tool would mislabel one of them (ChatGPT drops a write on read-only plans, #1358).</li>
+<li><strong>Same permission decision.</strong> A user would allow or deny both together. Claude Code permission rules and other clients' approvals work by tool name, so an operation a user might want to allow while denying its sibling stays a separate tool: add vs delete, delete vs restore, share vs transfer ownership. This is the rule that keeps most pairs below.</li>
+<li><strong>No union in the schema.</strong> The merged input doesn't need mutually exclusive parameters, and the output keeps one shape. A merge that needs <code>oneOf</code>/<code>anyOf</code> at the root also breaks clients (#1342).</li>
+<li><strong>Still findable.</strong> The merged tool's name still contains the words a model searches for. <code>hide_rows_or_columns</code> is found by "hide rows"; folding <code>freeze</code> into <code>update_sheet_properties</code> is not, which is why that one is tier C.</li>
+<li><strong>Local-file access is its own boundary.</strong> A tool that reads or writes local files stays separate from its remote twin, so <code>LOCAL_FILE_ACCESS=off</code> can drop it and keep the other (#796).</li>
+</ol>
+<p>A tool is removed outright when another tool already does the same thing with a parameter, which <code>docs/design.md</code>'s inclusion test already forbids ("Convenience aliases").</p>
+<h2 id="tier-a-merges-with-no-loss">Tier A: merges with no loss<a class="headerlink" href="#tier-a-merges-with-no-loss" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Today</th>
+<th>After</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>add_rows</code>, <code>add_columns</code></td>
+<td><code>add_rows_or_columns(dimension, count, start)</code></td>
+<td>Same <code>insertDimension</code> request.</td>
+</tr>
+<tr>
+<td><code>delete_rows</code>, <code>delete_columns</code></td>
+<td><code>delete_rows_or_columns(dimension, start, end)</code></td>
+<td>Same <code>deleteDimension</code>. Stays separate from add (rule 3).</td>
+</tr>
+<tr>
+<td><code>resize_rows</code>, <code>resize_columns</code></td>
+<td><code>resize_rows_or_columns(dimension, start, end, pixel_size, auto_resize)</code></td>
+<td>Same <code>updateDimensionProperties</code>/<code>autoResizeDimensions</code>.</td>
+</tr>
+<tr>
+<td><code>hide_rows</code>, <code>unhide_rows</code>, <code>hide_columns</code>, <code>unhide_columns</code></td>
+<td><code>hide_rows_or_columns(dimension, start, end, hidden=True)</code></td>
+<td>Same <code>updateDimensionProperties</code> on <code>hiddenByUser</code>. Hiding is reversible, so one permission decision covers both directions.</td>
+</tr>
+<tr>
+<td><code>insert_table_row</code>, <code>insert_table_column</code></td>
+<td><code>insert_table_row_or_column(dimension, table_start_index, index, after)</code></td>
+<td><code>after</code> replaces <code>insert_below</code>/<code>insert_right</code>.</td>
+</tr>
+<tr>
+<td><code>delete_table_row</code>, <code>delete_table_column</code></td>
+<td><code>delete_table_row_or_column(dimension, table_start_index, index)</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>star_file</code>, <code>unstar_file</code></td>
+<td><code>star_file(file_id, starred=True)</code></td>
+<td>Not breaking for <code>star_file</code>.</td>
+</tr>
+<tr>
+<td><code>create_header</code>, <code>create_footer</code></td>
+<td><code>create_header_or_footer(kind, type, content)</code></td>
+<td>Identical parameters apart from the name of the type field.</td>
+</tr>
+<tr>
+<td><code>get_doc_theme</code>, <code>get_doc_named_styles</code></td>
+<td><code>get_doc_theme(doc_id, source="body")</code>, with <code>source</code> one of <code>body</code>, <code>named_styles</code>, <code>both</code></td>
+<td>Same input and the same theme-dict output; <code>get_doc_theme</code>'s docstring already tells the model to call both and compare, which <code>both</code> does in one call. Lands with #1358's <code>readOnlyHint</code> for it.</td>
+</tr>
+<tr>
+<td><code>get_sheet_data</code>, <code>get_sheet_formulas</code></td>
+<td><code>get_sheet_data(..., value_render="formatted")</code>, with <code>value_render</code> one of <code>formatted</code>, <code>unformatted</code>, <code>formula</code></td>
+<td><code>get_sheet_formulas</code> is <code>values().get(valueRenderOption="FORMULA")</code>. It returns a bare list today; through <code>get_sheet_data</code> it returns the usual dict. <code>value_render</code> applies to the values path; with <code>include_grid_data=True</code> the grid already carries each cell's formula.</td>
+</tr>
+<tr>
+<td><code>copy_sheet</code>, <code>duplicate_sheet</code></td>
+<td><code>copy_sheet(spreadsheet_id, sheet, destination_spreadsheet_id=None, new_name=None, insert_index=None)</code></td>
+<td>No destination means a <code>duplicateSheet</code> in place; a destination means <code>copyTo</code> plus the rename <code>copy_sheet</code> already does. <code>copy_sheet</code>'s parameters change (<code>src_spreadsheet</code> → <code>spreadsheet_id</code>, <code>src_sheet</code> → <code>sheet</code>, <code>dst_spreadsheet</code> → <code>destination_spreadsheet_id</code>, <code>dst_sheet</code> → <code>new_name</code>), through <code>deprecation.renamed_params</code>. <code>insert_index</code> across spreadsheets needs an extra <code>updateSheetProperties</code>, since <code>copyTo</code> appends.</td>
+</tr>
+<tr>
+<td><code>share_spreadsheet</code></td>
+<td><code>share_file</code></td>
+<td>Already decided (#665).</td>
+</tr>
+<tr>
+<td><code>create_bookmark</code></td>
+<td><code>create_named_range</code></td>
+<td>Proposed here. #1076 (decided 2026-11-01, option B) kept the name, fixed the docstring (#1341), and handed the rename question to this design; folding the tool into <code>create_named_range</code> is the answer. #1364's "then" line predates that decision.</td>
+</tr>
+</tbody>
+</table>
+<p>Net −15. <code>get_sheet_formulas</code> is the only <code>default</code> tool here.</p>
+<h2 id="tier-b-removals-with-a-behavior-difference-to-settle">Tier B: removals with a behavior difference to settle<a class="headerlink" href="#tier-b-removals-with-a-behavior-difference-to-settle" title="Permanent link">&para;</a></h2>
+<h3 id="b1-one-drive-finder-search_files">B1. One Drive finder: <code>search_files</code><a class="headerlink" href="#b1-one-drive-finder-search_files" title="Permanent link">&para;</a></h3>
+<p><code>search_files</code> becomes the tool for finding files anywhere. <code>query</code> becomes optional, and it gains <code>order_by</code> (<code>modified</code> or <code>name</code>), <code>shared_with_me</code> and <code>modified_within_days</code>. It absorbs five tools:</p>
+<table>
+<thead>
+<tr>
+<th>Removed</th>
+<th>Becomes</th>
+<th>Difference to settle</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>search_spreadsheets</code></td>
+<td><code>search_files(query, mime_type=&lt;spreadsheet&gt;)</code></td>
+<td><code>search_spreadsheets</code> returns <code>created_time</code>; <code>search_files</code> requests <code>createdTime</code> but doesn't return it, so <code>search_files</code> gains <code>created_time</code> in its output. The query, corpus and sort are the same. Its own docstring calls it "a strict, less-flexible special case of search_files", and <code>search_files</code>' docstring calls it a "narrower convenience wrapper".</td>
+</tr>
+<tr>
+<td><code>list_spreadsheets</code></td>
+<td><code>search_files(mime_type=&lt;spreadsheet&gt;)</code>, optionally with <code>folder_id</code></td>
+<td>It returns <code>{id, title}</code> and isn't cached; <code>search_files</code> returns richer fields.</td>
+</tr>
+<tr>
+<td><code>list_folders</code></td>
+<td><code>search_files(mime_type=&lt;folder&gt;, folder_id=...)</code></td>
+<td><code>list_folders</code> defaults its parent to <code>DRIVE_FOLDER_ID</code> and sorts by name; <code>search_files</code> doesn't default the folder. The removal either documents that or gives <code>search_files</code> the same default for folders.</td>
+</tr>
+<tr>
+<td><code>list_recent_files</code></td>
+<td><code>search_files(modified_within_days=N)</code></td>
+<td>Default sort <code>modified</code>.</td>
+</tr>
+<tr>
+<td><code>list_shared_with_me</code></td>
+<td><code>search_files(shared_with_me=True)</code></td>
+<td>Must keep the <code>user</code> corpus for this case, as <code>list_shared_with_me</code> does today (CLAUDE.md, <code>tools/drive/files.py</code>).</td>
+</tr>
+</tbody>
+</table>
+<p><code>list_files</code> stays: it's cached, folder-scoped, sorted by name, and reports <code>exhaustive</code>, which makes it the right tool for "what's in this folder".</p>
+<p>Net −5. This bundle also changes how two decided tickets land:
+- <strong>#1202</strong> (decided 2026-11-01, option A) wraps the output of five unscoped listings, <code>search_files</code>, <code>search_spreadsheets</code>, <code>list_spreadsheets</code>, <code>list_folders</code> and <code>list_recent_files</code>, in <code>{"files": [...], "exhaustive": bool}</code>. Four of them are removed here, so done together, that breaking output change lands on one tool, <code>search_files</code>, instead of five. <code>list_shared_with_me</code> isn't in #1202's list; it gets the wrapper by moving into <code>search_files</code>. <strong>Recommendation:</strong> fold #1202 into this bundle.
+- <strong>#39</strong> (decided 2026-10-18) makes an empty <code>search_spreadsheets</code> query an error pointing to <code>list_spreadsheets</code>. Both tools go away here, and an empty <code>query</code> becomes valid on <code>search_files</code>. This supersedes #39, so it's flagged for the maintainer rather than overridden.
+- <strong>#1483</strong> (PR #1496 open) rewrites the <code>list_spreadsheets</code>/<code>list_files</code> docstrings. It's still useful for the deprecation release, when both tools exist.</p>
+<h3 id="b2-get_doc_content">B2. <code>get_doc_content</code><a class="headerlink" href="#b2-get_doc_content" title="Permanent link">&para;</a></h3>
+<p>Removed in favor of <code>get_doc_as_markdown</code> for a Doc's content, or <code>export_file(export_format="txt")</code> for plain text. <strong>Difference:</strong> <code>get_doc_content</code> is served from the doc cache; neither replacement is. <strong>Decided (maintainer, 2026-11-15):</strong> add the doc cache to <code>get_doc_as_markdown</code> before <code>get_doc_content</code> goes. Whether the caches are a net benefit at all is a separate question, out of scope here.</p>
+<p>Net −1.</p>
+<h2 id="tier-c-held-a-discoverability-cost">Tier C: held (a discoverability cost)<a class="headerlink" href="#tier-c-held-a-discoverability-cost" title="Permanent link">&para;</a></h2>
+<p>Each saves a tool, but the tool that remains doesn't have the word a model would search for in its name. The docstring would have to carry it. <strong>Held (maintainer, 2026-11-15)</strong> until a test shows whether these merges hurt tool selection (#1522). No tier C ticket is filed until then.</p>
+<table>
+<thead>
+<tr>
+<th>Today</th>
+<th>After</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rename_sheet</code>, <code>freeze</code></td>
+<td><code>update_sheet_properties(..., title=, frozen_rows=, frozen_columns=)</code></td>
+<td>"rename" and "freeze" leave the tool names. It also fails rule 2 as written: <code>rename_sheet</code> declares <code>destructiveHint=True</code>, and <code>freeze</code> and <code>update_sheet_properties</code> declare none. The MCP spec reads an unset <code>destructiveHint</code> as true, so clients see the same hint, but the merged tool would have to declare one explicitly. <code>rename_sheet</code>'s <code>spreadsheet</code> parameter, unlike every other Sheets tool's <code>spreadsheet_id</code>, goes with it.</td>
+</tr>
+<tr>
+<td><code>unmerge_cells</code></td>
+<td><code>merge_cells(..., merge_type="NONE")</code></td>
+<td>"unmerge" leaves the tool names.</td>
+</tr>
+<tr>
+<td><code>clear_data_validation</code></td>
+<td><code>set_data_validation</code> (renamed from <code>add_data_validation</code>), where no <code>condition_type</code> clears the rule</td>
+<td>Both send <code>setDataValidation</code>; the rename also fixes "add" for a call that replaces the range's rule.</td>
+</tr>
+<tr>
+<td><code>insert_page_break</code></td>
+<td>an <code>insert_doc_text</code> insertion with <code>"page_break": true</code></td>
+<td>"page break" leaves the tool names.</td>
+</tr>
+</tbody>
+</table>
+<p>Net −5 if all are taken.</p>
+<h2 id="investigate-before-deciding">Investigate before deciding<a class="headerlink" href="#investigate-before-deciding" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><code>import_csv_to_sheet</code> vs <code>upload_local_file(convert=True)</code>.</strong> Both make a spreadsheet from a local CSV. The first parses the file and writes rows with <code>valueInputOption="USER_ENTERED"</code> (so it takes <code>sheet_name</code> and reports exactly which row ranges failed); the second hands the file to Drive's import. Whether Drive's import parses numbers, dates and leading zeros the same way, and where its size limit sits, needs a live comparison before <code>import_csv_to_sheet</code> can go. Not counted above.</li>
+</ul>
+<h2 id="comments-a-smaller-shape-for-663-and-664">Comments: a smaller shape for #663 and #664<a class="headerlink" href="#comments-a-smaller-shape-for-663-and-664" title="Permanent link">&para;</a></h2>
+<p><a href="../../decisions/decision-comments-first-class/"><code>decision-comments-first-class.md</code></a> (2026-08-28) renames the three comment tools (#663) and specifies eight more (#664): <code>get_file_comment</code>, <code>update_file_comment</code>, <code>delete_file_comment</code>, <code>reply_to_comment</code>, <code>reopen_comment</code>, <code>update_reply</code>, <code>delete_reply</code>, <code>list_replies</code>. That's 11 comment tools. Its table also names <code>get_note</code>, <code>add_note</code>/<code>update_note</code> and <code>clear_note</code> for cell notes.</p>
+<p>Applying the rule above gives the same API coverage in six:</p>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Covers</th>
+<th>Annotation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>list_file_comments</code></td>
+<td><code>comments.list</code></td>
+<td>read-only</td>
+</tr>
+<tr>
+<td><code>get_file_comment</code></td>
+<td><code>comments.get</code>, with its replies (covers <code>list_replies</code>)</td>
+<td>read-only</td>
+</tr>
+<tr>
+<td><code>add_file_comment</code></td>
+<td><code>comments.create</code></td>
+<td>write</td>
+</tr>
+<tr>
+<td><code>reply_to_comment(action=None)</code>, with <code>action</code> one of <code>resolve</code>, <code>reopen</code></td>
+<td><code>replies.create</code>, with or without an action (covers <code>resolve_comment</code> and <code>reopen_comment</code>)</td>
+<td>write</td>
+</tr>
+<tr>
+<td><code>update_comment(comment_id, reply_id=None, content)</code></td>
+<td><code>comments.update</code>, <code>replies.update</code></td>
+<td>write</td>
+</tr>
+<tr>
+<td><code>delete_comment(comment_id, reply_id=None)</code></td>
+<td><code>comments.delete</code>, <code>replies.delete</code></td>
+<td>destructive, kept apart from update (rule 3)</td>
+</tr>
+</tbody>
+</table>
+<p>Cell notes would likewise be one <code>set_note</code> where empty text clears.</p>
+<h3 id="before-and-after-tool-by-tool">Before and after, tool by tool<a class="headerlink" href="#before-and-after-tool-by-tool" title="Permanent link">&para;</a></h3>
+<p>Every decided tool against the call that replaces it. Of the decided tools, only the three renames exist today; the rest are specified in the decision doc but not built, so their parameters here follow the existing tools (<code>file_id</code>, <code>comment_id</code>, <code>content</code>), and the cell-note parameters (<code>spreadsheet_id</code>, <code>cell</code>, <code>text</code>) are placeholders. Annotations follow the existing comment tools: a read declares <code>readOnlyHint</code>, a write <code>destructiveHint=True</code> (today's <code>add_doc_comment</code> and <code>resolve_doc_comment</code> both do). Under that convention no annotation changes; what changes is which operations share a permission decision.</p>
+<table>
+<thead>
+<tr>
+<th>Decided tool</th>
+<th>Call under the six</th>
+<th>Annotation</th>
+<th>Permission decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>list_file_comments(file_id)</code></td>
+<td><code>list_file_comments(file_id)</code></td>
+<td>Read-only, unchanged</td>
+<td>Unchanged</td>
+</tr>
+<tr>
+<td><code>get_file_comment(file_id, comment_id)</code></td>
+<td><code>get_file_comment(file_id, comment_id)</code>, now with every reply</td>
+<td>Read-only, unchanged</td>
+<td>Unchanged</td>
+</tr>
+<tr>
+<td><code>list_replies(file_id, comment_id)</code></td>
+<td><code>get_file_comment(file_id, comment_id)</code>, paging <code>replies.list</code> itself when a comment has more replies than come inline</td>
+<td>Read-only, unchanged</td>
+<td>Shared with <code>get_file_comment</code>: both reads, so allowing one and denying the other isn't a real choice</td>
+</tr>
+<tr>
+<td><code>add_file_comment(file_id, content)</code></td>
+<td><code>add_file_comment(file_id, content)</code></td>
+<td>Write, unchanged</td>
+<td>Unchanged</td>
+</tr>
+<tr>
+<td><code>reply_to_comment(file_id, comment_id, content)</code></td>
+<td><code>reply_to_comment(file_id, comment_id, content)</code></td>
+<td>Write, unchanged</td>
+<td><strong>Shared</strong> with resolving and reopening</td>
+</tr>
+<tr>
+<td><code>resolve_comment(file_id, comment_id, reply_content=None)</code></td>
+<td><code>reply_to_comment(file_id, comment_id, content=None, action="resolve")</code></td>
+<td>Write, unchanged</td>
+<td><strong>Shared</strong>: a user who allows replies allows resolving</td>
+</tr>
+<tr>
+<td><code>reopen_comment(file_id, comment_id)</code></td>
+<td><code>reply_to_comment(file_id, comment_id, action="reopen")</code></td>
+<td>Write, unchanged</td>
+<td><strong>Shared</strong>, as above</td>
+</tr>
+<tr>
+<td><code>update_file_comment(file_id, comment_id, content)</code></td>
+<td><code>update_comment(file_id, comment_id, content=...)</code></td>
+<td>Write, unchanged</td>
+<td><strong>Shared</strong> with editing a reply</td>
+</tr>
+<tr>
+<td><code>update_reply(file_id, comment_id, reply_id, content)</code></td>
+<td><code>update_comment(file_id, comment_id, reply_id=..., content=...)</code></td>
+<td>Write, unchanged</td>
+<td><strong>Shared</strong>, as above</td>
+</tr>
+<tr>
+<td><code>delete_file_comment(file_id, comment_id)</code></td>
+<td><code>delete_comment(file_id, comment_id)</code></td>
+<td>Write, unchanged</td>
+<td><strong>Shared</strong> with deleting a reply</td>
+</tr>
+<tr>
+<td><code>delete_reply(file_id, comment_id, reply_id)</code></td>
+<td><code>delete_comment(file_id, comment_id, reply_id=...)</code></td>
+<td>Write, unchanged</td>
+<td><strong>Shared</strong>, as above</td>
+</tr>
+<tr>
+<td><code>get_note(spreadsheet_id, cell)</code></td>
+<td><code>get_note(spreadsheet_id, cell)</code></td>
+<td>Read-only, unchanged</td>
+<td>Unchanged</td>
+</tr>
+<tr>
+<td><code>add_note(spreadsheet_id, cell, text)</code></td>
+<td><code>set_note(spreadsheet_id, cell, text)</code></td>
+<td>Write, unchanged</td>
+<td><strong>Shared</strong> with updating and clearing</td>
+</tr>
+<tr>
+<td><code>update_note(spreadsheet_id, cell, text)</code></td>
+<td><code>set_note(spreadsheet_id, cell, text)</code></td>
+<td>Write, unchanged</td>
+<td><strong>Shared</strong>, as above</td>
+</tr>
+<tr>
+<td><code>clear_note(spreadsheet_id, cell)</code></td>
+<td><code>set_note(spreadsheet_id, cell, text="")</code></td>
+<td>Write, unchanged</td>
+<td><strong>Shared</strong>: a user who allows adding notes allows clearing them</td>
+</tr>
+</tbody>
+</table>
+<p>The decision comes down to the rows marked <strong>Shared</strong>. Resolve, reopen and reply all post a reply (<code>replies.create</code>), and editing or deleting a comment or a reply is the same operation one level down, so the six-tool shape treats each set as one permission decision. Under the decided 11, a user can allow replies but deny resolving, or allow deleting their replies but deny deleting whole comments. The notes row is the sharpest: <code>clear_note</code> removes text, and under <code>set_note</code> it's no longer separately deniable, though <code>update_note</code> can already overwrite a note with anything.</p>
+<p><strong>This reverses part of a decided table</strong>, so it's flagged, not adopted. If the maintainer takes it, it has to be decided before #663 starts, since #663 renames <code>resolve_doc_comment</code> to <code>resolve_comment</code>, a name this shape folds into <code>reply_to_comment</code>. The comments total is 11 under the decided plan and 6 under this one.</p>
+<h2 id="pairs-considered-and-kept">Pairs considered and kept<a class="headerlink" href="#pairs-considered-and-kept" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Tools</th>
+<th>Rule that keeps them apart</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>add_*</code>/<code>delete_*</code> row and column tools; <code>insert_table_*</code>/<code>delete_table_*</code>; <code>add_calendar_acl</code>/<code>remove_calendar_acl</code>; <code>add_calendar_to_list</code>/<code>remove_calendar_from_list</code>; <code>share_file</code>/<code>remove_permission</code></td>
+<td>3: adding and removing are separate permission decisions</td>
+</tr>
+<tr>
+<td><code>delete_file</code>, <code>restore_file</code>, <code>empty_trash</code></td>
+<td>3</td>
+</tr>
+<tr>
+<td><code>transfer_ownership</code>, <code>update_permission</code></td>
+<td>3: transferring ownership is the highest-risk sharing action and keeps its own name</td>
+</tr>
+<tr>
+<td><code>get_cache_ttl</code>, <code>set_cache_ttl</code></td>
+<td>2: a read and a write</td>
+</tr>
+<tr>
+<td><code>list_messages</code>, <code>list_threads</code></td>
+<td>4: different result types</td>
+</tr>
+<tr>
+<td><code>get_message</code>, <code>get_thread</code>, <code>get_draft</code></td>
+<td>1: different resources</td>
+</tr>
+<tr>
+<td><code>send_message</code>, <code>reply_to_message</code>, <code>create_draft</code>, <code>update_draft</code>, <code>send_draft</code>, <code>delete_draft</code>, <code>list_drafts</code></td>
+<td>3, and the send-confirmation design (#1081, <code>docs/design/gmail-send-confirmation.md</code>): every send goes through a held draft</td>
+</tr>
+<tr>
+<td><code>create_paragraph_bullets</code>, <code>delete_paragraph_bullets</code></td>
+<td>4: different item schemas; the create side carries the list logic</td>
+</tr>
+<tr>
+<td><code>upload_file</code>/<code>upload_local_file</code>, <code>create_doc</code>/<code>create_doc_from_file</code>, <code>write_doc_content</code>/<code>update_doc_from_file</code>, <code>insert_inline_image</code>/<code>insert_local_images</code>, <code>export_file</code>/<code>download_file</code></td>
+<td>6: local-file access</td>
+</tr>
+<tr>
+<td><code>get_sheet_data</code>/<code>get_multiple_sheet_data</code>, <code>update_cells</code>/<code>batch_update_cells</code></td>
+<td>4: merging needs mutually exclusive inputs and two output shapes</td>
+</tr>
+<tr>
+<td><code>list_events</code>, <code>list_all_events</code></td>
+<td>4: one calendar's events vs several calendars', optionally grouped by calendar</td>
+</tr>
+<tr>
+<td><code>rename_file</code>, <code>move_file</code></td>
+<td>3: moving a file can change who has access to it, since it takes on the new folder's sharing, and renaming can't. 5: an <code>update_file</code> would carry neither word</td>
+</tr>
+<tr>
+<td><code>list_files</code>, <code>search_files</code></td>
+<td>See B1: <code>list_files</code> is the cached, exhaustive folder listing</td>
+</tr>
+</tbody>
+</table>
+<p>Kept with no overlapping sibling:</p>
+<ul>
+<li><strong>Sheets:</strong> <code>add_chart</code>, <code>batch_update</code>, <code>clear_values</code>, <code>create_sheet</code>, <code>delete_sheet</code>, <code>find_in_spreadsheet</code>, <code>format_cells</code>, <code>get_multiple_spreadsheet_summary</code>, <code>list_sheets</code>, <code>sort_range</code>, <code>update_borders</code>, plus <code>get_data_validation</code> (the read side of C3) and <code>update_cells</code></li>
+<li><strong>Drive:</strong> <code>copy_file</code>, <code>create_folder</code>, <code>create_shortcut</code>, <code>create_spreadsheet</code>, <code>download_folder</code>, <code>export_revision</code>, <code>get_file_metadata</code>, <code>get_storage_quota</code>, <code>list_drives</code>, <code>list_file_activity</code>, <code>list_permissions</code>, <code>list_revisions</code>, <code>sync_folder</code>, <code>upload_local_folder</code></li>
+<li><strong>Docs:</strong> <code>apply_theme</code>, <code>delete_doc_range</code>, <code>find_in_doc</code>, <code>get_doc_structure</code>, <code>insert_doc_table</code>, <code>insert_softbreak_paragraph</code> (it writes one paragraph with soft breaks and a named style, which <code>insert_doc_text</code> doesn't), <code>merge_table_cells</code>, <code>style_doc_range</code>, <code>style_doc_table_cells</code>, <code>get_doc_as_markdown</code></li>
+<li><strong>Calendar:</strong> <code>create_calendar</code>, <code>get_calendar</code>, <code>update_calendar</code>, <code>delete_calendar</code>, <code>list_calendars</code>, <code>list_calendar_acl</code>, <code>create_event</code>, <code>get_event</code>, <code>update_event</code>, <code>delete_event</code>, <code>find_free_slots</code></li>
+<li><strong>Gmail:</strong> <code>list_labels</code>, <code>modify_labels</code>, <code>trash_message</code></li>
+<li><strong>Cache:</strong> <code>refresh_cache</code></li>
+</ul>
+<h2 id="counts-by-group">Counts by group<a class="headerlink" href="#counts-by-group" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Group</th>
+<th>Today</th>
+<th>After A + B</th>
+<th>After A + B + C</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sheets</code></td>
+<td>36</td>
+<td>28</td>
+<td>24</td>
+</tr>
+<tr>
+<td><code>drive</code></td>
+<td>38</td>
+<td>31</td>
+<td>31</td>
+</tr>
+<tr>
+<td><code>docs</code></td>
+<td>34</td>
+<td>28</td>
+<td>27</td>
+</tr>
+<tr>
+<td><code>calendar</code></td>
+<td>17</td>
+<td>17</td>
+<td>17</td>
+</tr>
+<tr>
+<td><code>gmail</code></td>
+<td>15</td>
+<td>15</td>
+<td>15</td>
+</tr>
+<tr>
+<td><code>cache</code></td>
+<td>3</td>
+<td>3</td>
+<td>3</td>
+</tr>
+<tr>
+<td><strong>all</strong></td>
+<td><strong>143</strong></td>
+<td><strong>122</strong></td>
+<td><strong>117</strong></td>
+</tr>
+<tr>
+<td><code>default</code></td>
+<td>38 (40 with PR #1510)</td>
+<td>39</td>
+<td>39</td>
+</tr>
+</tbody>
+</table>
+<p>The comments tools are in <code>docs</code> today and move to <code>drive</code> with #663; neither the decided +8 nor the alternative +3 is in this table.</p>
+<h2 id="deprecation">Deprecation<a class="headerlink" href="#deprecation" title="Permanent link">&para;</a></h2>
+<p>Every merge goes through <code>docs/design.md</code>'s "Renaming or Removing a Tool":</p>
+<ul>
+<li><strong>A removed tool</strong> whose job moves to a tool with different parameters is deprecated with <code>deprecation.deprecated_tool(use=...)</code> for one release, naming the call that replaces it (<code>use="`hide_rows_or_columns` with `dimension='rows', hidden=False`"</code>). A <code>RENAMED_TOOLS</code> alias doesn't fit: an alias passes the old arguments through unchanged, and none of these merges keeps them.</li>
+<li><strong>A surviving tool</strong> that only gains optional parameters (<code>star_file</code>, <code>get_doc_theme</code>, <code>get_sheet_data</code>, <code>search_files</code>, <code>update_sheet_properties</code>, <code>merge_cells</code>, <code>insert_doc_text</code>) doesn't break.</li>
+<li><strong><code>copy_sheet</code>'s renamed parameters</strong> use <code>deprecation.renamed_params</code>. <code>dst_sheet</code> was required and <code>new_name</code> is optional, so a call naming neither changes meaning: it now duplicates under Google's default name instead of failing validation.</li>
+<li><strong>During the deprecation release the total rises</strong>, since the merged tools ship while the old ones are still registered: tier A adds seven new names (four Sheets, two Docs tables, <code>create_header_or_footer</code>), eight with C3's <code>set_data_validation</code>. No group reaches its cap (100 per service group; <code>default</code> gains no new tool). The cut lands the release after.</li>
+<li><strong>Each removal is filed as a ticket when its deprecation merges</strong>, per the policy.</li>
+</ul>
+<h2 id="order">Order<a class="headerlink" href="#order" title="Permanent link">&para;</a></h2>
+<ol>
+<li>PR #1510 (groups docs) merges first.</li>
+<li>The maintainer decides the comments shape before #663 starts.</li>
+<li>B1 lands with #1202 folded in. It supersedes #39.</li>
+<li>The tier A bundles are independent of each other and of B1.</li>
+<li>Tier C waits for #1522. Any item approved after it joins whichever bundle covers its service.</li>
+</ol>
+<h2 id="implementation-tickets-to-file-once-this-design-merges-tiers-a-and-b-approved">Implementation tickets, to file once this design merges (tiers A and B approved)<a class="headerlink" href="#implementation-tickets-to-file-once-this-design-merges-tiers-a-and-b-approved" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Sheets rows and columns: the four <code>*_rows_or_columns</code> tools (A).</li>
+<li>Sheets reads and copies: <code>get_sheet_data(value_render=)</code>, <code>copy_sheet</code> absorbing <code>duplicate_sheet</code> (A).</li>
+<li>Docs: the table row/column tools, <code>create_header_or_footer</code>, <code>get_doc_theme(source=)</code>, <code>create_bookmark</code> into <code>create_named_range</code> (A), and <code>get_doc_content</code> (B2), with the doc cache added to <code>get_doc_as_markdown</code> before <code>get_doc_content</code> is deprecated.</li>
+<li>Drive finder: <code>search_files</code> absorbing five tools and gaining <code>created_time</code>, <code>star_file(starred=)</code>, with #1202 (B1, A).</li>
+<li>Investigation: <code>import_csv_to_sheet</code> against Drive's CSV import, live.</li>
+<li>If the comments shape is approved: amend <code>decision-comments-first-class.md</code>, then re-scope #663 and #664.</li>
+</ol>
+<p>Tier C has no ticket here: it's held on #1522.</p>
+<h2 id="open-questions-for-the-maintainer">Open questions for the maintainer<a class="headerlink" href="#open-questions-for-the-maintainer" title="Permanent link">&para;</a></h2>
+<ol>
+<li>~~Approve tiers A and B as listed?~~ <strong>Approved</strong> (2026-11-15), with the B1 corrections now in the table above.</li>
+<li>~~Which tier C items, if any?~~ <strong>Held</strong> until #1522 tests whether the merged names hurt tool selection.</li>
+<li>The comments shape: the decided 11 tools or the proposed 6? Open. The tool-by-tool comparison is under "Before and after, tool by tool".</li>
+<li>~~B2: accept losing the doc cache, or add it to <code>get_doc_as_markdown</code> first?~~ <strong>Decided</strong> (2026-11-15): add the cache first, in ticket 3.</li>
+<li>The names of tier A's four Sheets tools. The choice is between:</li>
+<li><code>add_rows_or_columns</code>, <code>delete_rows_or_columns</code>, <code>resize_rows_or_columns</code>, <code>hide_rows_or_columns</code>: longer, but found when a model searches for "rows" or "columns", the words a user says.</li>
+<li><code>add_dimension</code>, <code>delete_dimension</code>, <code>resize_dimension</code>, <code>hide_dimension</code>: shorter, and the API's own word, but not found by a search for "rows" or "columns".</li>
+</ol>
+<p><strong>Recommendation:</strong> <code>*_rows_or_columns</code>. Rule 5 asks that a merged tool stay findable by the words a model searches for, and Claude Code and VS Code both find tools by search.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+    
+  </body>
+</html>
