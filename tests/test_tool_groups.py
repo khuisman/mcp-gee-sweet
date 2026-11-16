@@ -137,6 +137,64 @@ class TestGroupGuards:
         with pytest.raises(ValueError, match="unknown tool group"):
             tool_groups.tool_groups("mcp_gee_sweet.tools.gmail", groups=("coments",))
 
+    @pytest.mark.parametrize("group", ["default", "all", "local-files", "Sheets"])
+    def test_a_non_declarable_group_fails_at_import(self, group):
+        # Only DECLARED_GROUPS and the service groups go in `groups=`; `default` and
+        # `local-files` have their own flags, and names are case-sensitive.
+        with pytest.raises(ValueError, match="unknown tool group"):
+            tool_groups.tool_groups("mcp_gee_sweet.tools.drive.files", groups=(group,))
+
+    def test_a_declared_service_group_adds_to_the_module_one(self):
+        assert tool_groups.tool_groups(
+            "mcp_gee_sweet.tools.drive.files", groups=("sheets",)
+        ) == frozenset({"drive", "sheets"})
+
+
+# The spreadsheet tools that live under tools/drive/ (#1511).
+SPREADSHEET_DRIVE_TOOLS = {
+    "create_spreadsheet",
+    "list_spreadsheets",
+    "search_spreadsheets",
+    "import_csv_to_sheet",
+    "share_spreadsheet",
+}
+
+
+class TestSpreadsheetToolsInSheets:
+    def test_in_sheets_and_still_in_drive(self):
+        registrations = _registrations()
+        for name in SPREADSHEET_DRIVE_TOOLS:
+            assert {"sheets", "drive"} <= registrations[name], name
+
+    def test_every_spreadsheet_tool_outside_tools_sheets_is_in_sheets(self):
+        # A new spreadsheet tool added under another service has to opt into `sheets`.
+        from mcp_gee_sweet.tools import register_all
+
+        modules = {}
+
+        def capture(annotations=None, *, local_only=False, default=False, groups=()):
+            def decorator(func):
+                modules[func.__name__] = func.__module__
+                return func
+
+            return decorator
+
+        register_all(capture)
+        outside = {
+            name
+            for name, module in modules.items()
+            if re.search(r"sheet|spreadsheet", name)
+            and tool_groups.service_group(module) != "sheets"
+        }
+        assert outside == SPREADSHEET_DRIVE_TOOLS
+        assert outside <= _members("sheets")
+
+    def test_sheets_selection_selects_them(self):
+        selection = Selection.from_entries(["sheets"])
+        registrations = _registrations()
+        for name in SPREADSHEET_DRIVE_TOOLS:
+            assert selection.selects(name, registrations[name]), name
+
 
 # Values in the user docs: `ENABLED_TOOLS=...` or the JSON `"ENABLED_TOOLS": "..."`.
 # Only lowercase identifier entries are checked, so a placeholder like `<your list>`

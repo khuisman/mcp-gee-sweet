@@ -208,13 +208,14 @@ GROUP_DESCRIPTIONS = {
     ),
     tool_groups.ALL: "Every tool, plus the deprecated alias of each recently renamed tool",
     "sheets": (
-        "Every tool that works inside a spreadsheet: data, sheets, formatting, charts. "
-        "Creating, listing, searching, importing and sharing spreadsheets are Drive "
-        "tools, in `drive` (`default` has `create_spreadsheet`)"
+        "Every spreadsheet tool: data, sheets, formatting, charts, and creating, "
+        "listing, searching, importing and sharing spreadsheets (those five are in "
+        "`drive` too)"
     ),
     "drive": (
         "Every Drive tool: files, sharing, activity, upload, download, local sync, and "
-        "creating, listing, searching, importing and sharing spreadsheets"
+        "creating, listing, searching, importing and sharing spreadsheets (also in "
+        "`sheets`)"
     ),
     "docs": "Every Docs tool",
     "calendar": "Every Calendar tool",
@@ -241,7 +242,7 @@ _SPREADSHEET_FILE_TOOLS = (
 )
 MEMBERSHIP_CLAIMS = (
     ("create_spreadsheet", tool_groups.DEFAULT, True),
-    *((name, "sheets", False) for name in _SPREADSHEET_FILE_TOOLS),
+    *((name, "sheets", True) for name in _SPREADSHEET_FILE_TOOLS),
     *((name, "drive", True) for name in _SPREADSHEET_FILE_TOOLS),
 )
 

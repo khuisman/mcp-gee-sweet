@@ -216,9 +216,9 @@ class TestRenderFilteringBlock:
 
     def test_raises_on_a_false_membership_claim(self, monkeypatch):
         monkeypatch.setattr(
-            gen_tool_docs, "MEMBERSHIP_CLAIMS", (("create_spreadsheet", "sheets", True),)
+            gen_tool_docs, "MEMBERSHIP_CLAIMS", (("create_spreadsheet", "docs", True),)
         )
-        with pytest.raises(RuntimeError, match="create_spreadsheet in sheets"):
+        with pytest.raises(RuntimeError, match="create_spreadsheet in docs"):
             gen_tool_docs.render_filtering_block(_groups_by_name())
 
     def test_raises_when_a_left_out_tool_joins_default(self):
