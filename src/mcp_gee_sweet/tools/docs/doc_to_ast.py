@@ -684,20 +684,32 @@ def _resolve_inline_image(
     )
 
 
+# The paragraph alignments a cell can read back as (#1337, #1503). START isn't
+# one: `insertTable` stores START on every paragraph of every cell it creates,
+# so a Doc can't tell a GFM `:--` column from an unaligned one, and reading
+# START as a vote turned every unaligned column into `:--`. Both draw
+# left-aligned, so START reads as unset and exports `---`. Any other value
+# (ALIGNMENT_UNSPECIFIED) reads as unset too.
+_READ_CELL_ALIGNMENTS = frozenset({"CENTER", "END", "JUSTIFIED"})
+
+
 def _cell_alignment(content: list[dict]) -> str | None:
     """A table cell's horizontal alignment (#1337) — the read-side mirror of
     the write side, which styles every paragraph of an aligned cell at once:
-    START, CENTER, END or JUSTIFIED when every paragraph in the cell carries
-    one and the same explicit alignment, else None. A cell whose paragraphs
-    disagree, or that leaves the alignment unset, exports as None so its
-    column renders an unaligned `---` delimiter instead of a false one."""
+    CENTER, END or JUSTIFIED when every paragraph in the cell carries one and
+    the same such alignment, else None. A cell whose paragraphs disagree, or
+    that leaves the alignment unset or START (`_READ_CELL_ALIGNMENTS`),
+    exports as None so its column renders an unaligned `---` delimiter
+    instead of a false one."""
     alignments = {
         elem["paragraph"].get("paragraphStyle", {}).get("alignment")
         for elem in content
         if "paragraph" in elem
     }
-    if len(alignments) == 1 and None not in alignments:
-        return next(iter(alignments))
+    if len(alignments) == 1:
+        (alignment,) = alignments
+        if alignment in _READ_CELL_ALIGNMENTS:
+            return alignment
     return None
 
 

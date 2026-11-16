@@ -302,6 +302,22 @@ that a link can target. Tracked in #1076.
 
 ---
 
+### `get_doc_as_markdown` exports a left-aligned table column as `---`, not `:--`
+
+**What:** A Markdown table column written with `:--` (or an HTML cell with `text-align: left`)
+reads back from `get_doc_as_markdown` as an unaligned `---` column. Centered (`:-:`) and
+right-aligned (`--:`) columns keep their delimiters. Both `:--` and `---` draw left-aligned, so
+the rendered table looks the same.
+
+**Why:** Docs stores a left alignment (`START`) on every cell of a table it creates, aligned or
+not, so a left-aligned column and an unaligned one are the same in the Doc. Reading `START` as
+`:--` exported every unaligned column as `:--` (#1503).
+
+**Workaround:** None needed for display. To keep `:--` in a round trip, restore it in the
+exported Markdown by hand.
+
+---
+
 ### `get_doc_as_markdown` — nested tables, temporary image URLs, and inline-vs-block code ambiguity
 
 **What:** `get_doc_as_markdown` (#300) has three read-side gaps, each rooted in a genuine

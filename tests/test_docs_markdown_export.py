@@ -872,6 +872,17 @@ class TestDocToAstTables:
     def test_cell_with_no_alignment_set_reads_as_none(self):
         assert self._cell_alignment_of([_para("a\n")]) is None
 
+    @pytest.mark.parametrize("alignment", ["START", "ALIGNMENT_UNSPECIFIED"])
+    def test_start_or_unspecified_cell_reads_as_none(self, alignment):
+        # #1503: insertTable stores START on every cell, aligned or not.
+        style = {"alignment": alignment}
+        content = [_para("a\n", para_style=style), _para("b\n", para_style=style)]
+        assert self._cell_alignment_of(content) is None
+
+    def test_justified_cell_reads_as_justified(self):
+        content = [_para("a\n", para_style={"alignment": "JUSTIFIED"})]
+        assert self._cell_alignment_of(content) == "JUSTIFIED"
+
     def test_nested_table_paragraphs_dont_count_toward_the_cells_alignment(self):
         center = {"alignment": "CENTER"}
         inner_cell = {
@@ -1363,6 +1374,48 @@ class TestTableAlignmentRoundTrip:
         assert html == _COMMONMARK.render("| a | b |\n|:-:|--:|\n| 1 | 2 |\n")
         assert html.count('style="text-align:center"') == 2
         assert html.count('style="text-align:right"') == 2
+
+    def test_start_on_every_cell_exports_unaligned_columns(self):
+        """#1503: insertTable leaves alignment START on every cell paragraph, so
+        an unaligned column reads START from the Docs API. It exports `---`, and
+        a CENTER column beside it, or a column mixing CENTER and START, keeps
+        its own delimiter."""
+
+        def cell(text, alignment):
+            return {
+                "tableCellStyle": {},
+                "content": [_para(f"{text}\n", para_style={"alignment": alignment})],
+            }
+
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "table": {
+                            "tableRows": [
+                                {
+                                    "tableCells": [
+                                        cell("p", "START"),
+                                        cell("q", "CENTER"),
+                                        cell("r", "CENTER"),
+                                    ]
+                                },
+                                {
+                                    "tableCells": [
+                                        cell("1", "START"),
+                                        cell("2", "CENTER"),
+                                        cell("3", "START"),
+                                    ]
+                                },
+                            ]
+                        }
+                    }
+                ]
+            },
+            "lists": {},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == "| p | q | r |\n| --- | :-: | --- |\n| 1 | 2 | 3 |\n"
 
 
 class TestAstToMarkdownComments:

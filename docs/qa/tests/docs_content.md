@@ -7587,3 +7587,21 @@ Every listed check passes. Step 1: no `error`, `images` has `error` + `fallback_
 
 **Result (2026-11-14) ✅ PASS — Kit, PR #1508 round 2 @ 57437115**
 Step 1 as written: `images` has `error` + `fallback_text` for the seven `{BAD}` images only. Raw read: every check as in round 1, and the third item's `linked` now has `link`, the link color and `underline: true` (#1504). Extra probes (HTML): an unlinked fallback after `<u>under</u>` has no underline; a linked one inside `<u>` keeps underline and link; a bare `<b><sup><img>` fallback is bold and superscript, a bare `<s><mark><img>` one struck and highlighted. Screenshot (URL-verified, `.playwright-mcp/tc-doc259-r2.png`): `linked` underlined and blue, every marker a plain bullet, `build` in Arial. Doc trashed.
+
+### TC-DOC260: `get_doc_as_markdown` reads a Docs table's START cells as unaligned (#1503) ⚠️ destructive
+
+**Purpose:** `insertTable` stores `alignment: START` on every cell paragraph it creates, so every unaligned column of a table written through the API exported `:--`. START now reads as unset: an unaligned column exports `---`, and so does a `:--` column, which Docs stores the same way. CENTER and END columns keep `:-:` and `--:`. TC-DOC255 reproduces the original failure; this case adds an explicit `:--` column, a column mixing CENTER with unaligned cells, and an HTML table.
+
+**Steps**
+1. `create_doc(title="TC-DOC260", folder_id={FOLDER_ID}, content_format="markdown", content="| l | c | n | m |\n|:--|:-:|---|---|\n| 1 | 2 | 3 | 4 |\n")` → `{MD}`
+2. `get_doc_as_markdown(doc_id={MD})`
+3. `create_doc(title="TC-DOC260 html", folder_id={FOLDER_ID}, content="<table><tr><th>x</th><th style=\"text-align:center\">y</th><th style=\"text-align:right\">z</th></tr><tr><td>1</td><td style=\"text-align:center\">2</td><td>3</td></tr></table>")` → `{HTML}`
+4. `get_doc_as_markdown(doc_id={HTML})`
+5. Re-run TC-DOC255 steps 1, 2 and 4
+
+**Checks**
+- Step 2: the delimiter row is `| --- | :-: | --- | --- |`
+- Step 4: the delimiter row is `| --- | :-: | --- |`: `y` and `2` agree on CENTER, and `z`'s column mixes END with an unaligned `3`
+- Step 5: TC-DOC255's step 2 and step 4 checks pass (`| :-: | --: | --- |` plain and quoted, `| --- | --- |` for `p | q`)
+
+**Cleanup:** `delete_file` every doc
