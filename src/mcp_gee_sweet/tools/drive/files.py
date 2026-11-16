@@ -424,8 +424,9 @@ def register(tool):
         authenticated account can access (corpora='allDrives') — not just
         'My Drive'.
 
-        Not list_files pre-filtered to spreadsheets: without a folder this
-        searches every drive (corpora='allDrives'), sorts by modifiedTime
+        Not list_files pre-filtered to spreadsheets: with no folder_id and
+        no default folder configured this searches every drive
+        (corpora='allDrives'), sorts by modifiedTime
         descending, returns {id, title} per file, and isn't cached, while
         list_files requires a folder_id, sorts by name, returns richer
         fields, and caches — under the same cap the two tools can return
@@ -433,10 +434,11 @@ def register(tool):
         alphabetically.
 
         max_results is clamped at 1000 and there is no pagination (the
-        request's fields leave out nextPageToken), so a larger result set
-        truncates at the cap with no sign of it in the response. For other
+        request's fields leave out nextPageToken), so the list can be
+        incomplete even when it's shorter than max_results — Drive can
+        return fewer results than it asked for with more left. For other
         file types in a folder, or for a folder's spreadsheets with richer
-        fields (modifiedTime, webViewLink), use
+        fields (modified_time, web_link), use
         list_files(folder_id, mime_type=..., ...) instead.
 
         Args:
@@ -600,13 +602,13 @@ def register(tool):
         List files in a Google Drive folder, optionally filtered by MIME type.
 
         For a spreadsheet-only listing, list_spreadsheets is not this call
-        pre-filtered: it can also search every drive with no folder_id, sorts
-        by modifiedTime where this tool sorts by name, returns {id, title}
-        only, and isn't cached.
+        pre-filtered: it can also search every drive with no folder_id and
+        no default folder configured, sorts by modifiedTime where this tool
+        sorts by name, returns {id, title} only, and isn't cached.
 
-        max_results is clamped at 1000 and no second page is fetched, so a
-        larger folder truncates at the cap; the cache entry records the
-        truncation, the returned list does not.
+        max_results is clamped at 1000 and no second page is fetched, so the
+        list can be incomplete even when it's shorter than max_results — the
+        cache entry records the truncation, the returned list does not.
 
         Args:
             folder_id: The Google Drive folder ID to list files from.
