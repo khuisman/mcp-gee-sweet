@@ -44,7 +44,7 @@ Wrap common multi-step workflows in one tool each.
 - [`decision-gmail-domain.md`](decision-gmail-domain.md): `find_unanswered` and `send_reminders` rejected.
 - [`decision-comments-first-class.md`](decision-comments-first-class.md) §1: one comment tool set over any `file_id`, not per-service wrappers such as `list_sheet_comments`. It names the condition for revisiting: an operator asking to restrict comments by service.
 
-Composites stay allowed where the client fails without them: binary data, pagination loops, and encoding decisions.
+Composites stay allowed where the client fails without them: binary data, pagination loops, and encoding decisions. This restates `docs/design.md`'s "When to Build a Composite"; it isn't a new restriction and doesn't affect any existing tool.
 
 ## Narrowed
 
