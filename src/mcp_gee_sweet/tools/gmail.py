@@ -1640,7 +1640,7 @@ def register(tool):
         enforce_response_size_cap(shaped, tool_name="get_thread", hint=hint)
         return shaped
 
-    @tool(annotations=ToolAnnotations(title="List Labels", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="List Labels", readOnlyHint=True), default=True)
     async def list_labels(ctx: Context = None) -> list[dict[str, Any]] | dict[str, Any]:
         """
         List all labels in the authenticated user's mailbox (system and user-defined).

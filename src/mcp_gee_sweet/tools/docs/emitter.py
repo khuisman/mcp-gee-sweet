@@ -49,12 +49,16 @@ class ImageFallbacks:
     since a later batch failing for another reason can leave it out. It keeps every
     request dict it built (`_requests`) until the edit is over, so no id() in
     request_ids or `_first` can be reused by a later request. The images themselves
-    stay alive in the caller's ConvertedContent.images."""
+    stay alive in the caller's ConvertedContent.images.
 
-    def __init__(self) -> None:
+    list_item_images holds id() of each image in a list item's own text
+    (list_item_image_ids), whose fallback text is styled behind a marker guard."""
+
+    def __init__(self, list_item_images: set[int] | None = None) -> None:
         self._texts: dict[int, str] = {}  # id(image) -> its text, once one is built
         self._first: dict[int, int] = {}  # id(insertText) -> id(image)
         self._requests: list[dict] = []
+        self._list_item_images = list_item_images or set()
         self.request_ids: set[int] = set()
         self.shown: set[int] = set()
 
@@ -62,7 +66,9 @@ class ImageFallbacks:
         key = id(image)
         if key not in self._texts:
             self._texts[key] = image_fallback_text(image)
-        requests = image_fallback_requests(image, position, self._texts[key])
+        requests = image_fallback_requests(
+            image, position, self._texts[key], in_list_item=key in self._list_item_images
+        )
         self._requests.extend(requests)
         self._first[id(requests[0])] = key
         self.request_ids.update(id(r) for r in requests)
@@ -117,22 +123,22 @@ class CellImages:
         self._run_batch = run_batch
         self._failed_request_index = failed_request_index
         self._on_dropped = on_dropped
-        # id(insert) -> (insert, image, its style request or None) for the batch being
-        # built and sent. It holds the request dicts themselves and is cleared once that
-        # batch settles, so no id() here can belong to a later batch's request.
-        self._pending: dict[int, tuple[dict, Image, dict | None]] = {}
+        # id(insert) -> (insert, image, its style requests) for the batch being built and
+        # sent. It holds the request dicts themselves and is cleared once that batch
+        # settles, so no id() here can belong to a later batch's request.
+        self._pending: dict[int, tuple[dict, Image, list[dict]]] = {}
 
     def insert_requests(self, image: Image, position: int) -> list[dict]:
         """The requests that place `image` at `position`: its insertInlineImage and its
-        style request (#977, #1334) when it resolved, recorded for the retry, else its
-        fallback text."""
+        style request when it resolved, recorded for the retry, else its fallback text
+        (which carries its own style request). A cell holds no list item, so neither
+        needs a marker guard."""
         uri = self.uris.get(id(image))
         if uri is None:
             return self.fallbacks.requests(image, position)
-        requests = _image_insert_requests(image, uri, position)
-        link = requests[1] if len(requests) > 1 else None
-        self._pending[id(requests[0])] = (requests[0], image, link)
-        return requests
+        insert, *styles = _image_insert_requests(image, uri, position)
+        self._pending[id(insert)] = (insert, image, styles)
+        return [insert, *styles]
 
     def doc_length(self, image: Image) -> int:
         """The indices `image` takes in its cell: 1 for an embedded image, its fallback
@@ -173,9 +179,9 @@ class CellImages:
 
     def _drop(self, requests: list[dict], error: Exception) -> int | None:
         """Replace the image insert `error` names in `requests`, and its style request,
-        with the image's fallback text and its style request (#1099, #1334), and return
-        the index it was at. None if `error` doesn't name one of this batch's image
-        inserts.
+        with the image's fallback text and the text's own style request (#1099), and
+        return the index it was at. None if `error` doesn't name one of this batch's
+        image inserts.
 
         The text goes where the insert was, at the same position: like the insert, it
         moves no request after it in the batch, since those all sit at or before it."""
@@ -186,13 +192,12 @@ class CellImages:
         entry = self._pending.get(id(requests[index]))
         if entry is None:
             return None
-        insert, image, link = entry
+        insert, image, styles = entry
         position = insert["insertInlineImage"]["location"]["index"]
         del self._pending[id(insert)]
         self.uris.pop(id(image), None)
+        index = drop_image_style_requests(requests, index, styles)
         requests[index : index + 1] = self.fallbacks.requests(image, position)
-        if link is not None:
-            requests[:] = [r for r in requests if r is not link]
         self._on_dropped(image, error)
         return index
 
@@ -882,6 +887,19 @@ def heading_image_ids(nodes: list[DocNode]) -> set[int]:
     return ids
 
 
+def list_item_image_ids(nodes: list[DocNode]) -> set[int]:
+    """id() of every Image in a BulletItem's own text, whose style requests
+    ast_to_requests builds with a marker guard (_image_style_requests). Its fallback
+    text, built later by ImageFallbacks, needs the same guard."""
+    return {
+        id(item)
+        for node in nodes
+        if isinstance(node, BulletItem)
+        for item in node.runs
+        if isinstance(item, Image)
+    }
+
+
 def unstorable_link_urls(nodes: list[DocNode]) -> list[str]:
     """Every distinct link target in `nodes` that _storable_link_url refuses, in
     document order: the links ast_to_requests and fill_tables will write as plain
@@ -915,7 +933,7 @@ def ast_to_requests(
     start_index: int = 1,
     image_uris: dict[int, str] | None = None,
     *,
-    image_links: dict[int, dict] | None = None,
+    image_styles: dict[int, list[dict]] | None = None,
     table_gaps: dict[int, str] | None = None,
 ) -> tuple[list[dict], list[Table]]:
     """Convert AST nodes to phase-1 batchUpdate requests and a list of Table nodes.
@@ -948,10 +966,11 @@ def ast_to_requests(
     and, once the images resolve, swaps in each real URI and replaces an unresolved
     image's request with its fallback text (#1240, #1099).
 
-    image_links: if given, filled with id(insertInlineImage request) -> the
-    updateTextStyle request that links that image (#977), so a caller that drops a
-    failed image request can drop its link request too, by identity rather than by
-    matching request shapes.
+    image_styles: if given, filled with id(insertInlineImage request) -> the requests
+    that style and link that image (_image_style_requests: its updateTextStyle, with a
+    list item's marker guard around it when it has one), which every image has, so a
+    caller that drops a failed image request can drop them too, by identity rather
+    than by matching request shapes.
 
     table_gaps: if given, filled with id(request) -> "spaceAbove" or "spaceBelow" for
     each paragraph gap set beside a table (#1427), so without_paragraph_gaps can keep
@@ -1237,9 +1256,11 @@ def ast_to_requests(
                     uri = image_uris.get(id(item))
                     if uri is not None:
                         image_position = _after_bullet_pass(doc_start + offset, seg.tabs_through)
-                        image_requests = _image_insert_requests(item, uri, image_position)
-                        if image_links is not None and len(image_requests) == 2:
-                            image_links[id(image_requests[0])] = image_requests[1]
+                        image_requests = _image_insert_requests(
+                            item, uri, image_position, in_list_item=isinstance(node, BulletItem)
+                        )
+                        if image_styles is not None:
+                            image_styles[id(image_requests[0])] = image_requests[1:]
                         positional_inserts.append(
                             ((image_position, seg.order, item_order), image_requests)
                         )
@@ -2091,23 +2112,25 @@ def _table_placeholder_requests(
     ]
 
 
-def _image_insert_requests(image: Image, uri: str, position: int) -> list[dict]:
-    """Build the insertInlineImage request for an already-resolved image at `position`,
-    followed by the updateTextStyle that resets the styles the image inherits from the
-    character before it (#1334), keeping its link when it has one (#977).
+def _image_insert_requests(
+    image: Image, uri: str, position: int, *, in_list_item: bool = False
+) -> list[dict]:
+    """Build the requests that place an already-resolved image at `position`: its
+    insertInlineImage, then its style requests (_image_style_requests), always both.
+    in_list_item: the image is in a BulletItem's own text, so its style request may
+    need a marker guard.
 
-    Docs stores an image's link on its inlineObjectElement's own textStyle, so the style
-    goes over the image's one-character range [position, position + 1). It must run
-    right after this insert: the descending-position pass guarantees nothing before
-    `position` has shifted yet at that point. An image never inherits a neighboring
-    run's link on insert (confirmed live), but it does take the emphasis and position
-    styles of the character before it (live, #1334): a superscript run before the image
-    raised it and shrunk its fallback text. The clearing request covers both, and always
-    runs, so an unlinked image is reset too. When the insert fails, content.py's retry
-    replaces it with the image's fallback text and drops this style request
-    (_drop_failed_image, through ast_to_requests's image_links); otherwise the cleared
-    fields would land on whatever character sits at `position`, one character of the
-    text."""
+    Docs stores an image's link and style on its inlineObjectElement's own textStyle, so
+    the style goes over the image's one-character range [position, position + 1). It
+    must run right after this insert: the descending-position pass guarantees nothing
+    before `position` has shifted yet at that point. An image never inherits a
+    neighboring run's link on insert (confirmed live), but it does take the emphasis and
+    position styles of the character before it (live, #1334): a superscript run before
+    the image raised it. So the request always runs, setting the image's own span's
+    style and clearing the rest. When the insert fails, the retry replaces it with the
+    image's fallback text, which carries its own style requests, and drops these
+    (drop_image_style_requests); otherwise its style would land on whatever character
+    sits at `position`, one character of the text."""
     request: dict = {"insertInlineImage": {"uri": uri, "location": {"index": position}}}
     if image.width is not None or image.height is not None:
         object_size: dict = {}
@@ -2116,7 +2139,7 @@ def _image_insert_requests(image: Image, uri: str, position: int) -> list[dict]:
         if image.height is not None:
             object_size["height"] = {"magnitude": image.height, "unit": "PT"}
         request["insertInlineImage"]["objectSize"] = object_size
-    return [request, _image_style_request(_storable_link_url(image.link_url), position)]
+    return [request, *_image_style_requests(image, position, position + 1, in_list_item)]
 
 
 # RFC 3986: a scheme is case-insensitive and an open registry, so acceptance is
@@ -2176,17 +2199,71 @@ def _storable_link_url(link_url: str | None) -> str | None:
     return None
 
 
-def _image_style_request(link_url: str | None, position: int) -> dict:
-    """updateTextStyle resetting the character styles an image just inserted at
-    `position` inherited from the character before it (#1334), and linking it when
-    it has a storable link (#977)."""
-    return {
+def _image_style_requests(image: Image, start: int, end: int, in_list_item: bool) -> list[dict]:
+    """The requests giving [start, end), an image just inserted or its fallback text,
+    the image's own character style and link and nothing it inherited from the
+    character before it (#977, #1334, #1475): one updateTextStyle naming every field
+    in _IMAGE_TEXT_STYLE_FIELDS, so whatever the image's span doesn't set is cleared.
+
+    In a list item that request can cover the paragraph's whole text (`- **![a](b)**`),
+    and then it restyles the bullet marker too (confirmed live; #1383). So when it
+    sets anything, a throwaway character holds the paragraph open past the range while
+    it's styled, as _item_run_style_requests does for a run. A request that only
+    clears needs none, since the marker is plain already (_marker_guarded).
+
+    A linked image's request leaves `underline` out of its fields unless its own span
+    underlines it: Docs gives text a link sets its link color and underline, as it
+    does an ordinary text link, but clearing `underline` in the same request took the
+    underline away, so linked fallback text showed the color alone (#1504)."""
+    text_style, _ = _character_text_style(image)
+    fields = _IMAGE_TEXT_STYLE_FIELDS
+    if "link" in text_style and "underline" not in text_style:
+        fields = _LINKED_IMAGE_TEXT_STYLE_FIELDS
+    style = {
         "updateTextStyle": {
-            "range": {"startIndex": position, "endIndex": position + 1},
-            "textStyle": {"link": {"url": link_url}} if link_url else {},
-            "fields": _INHERITED_CHARACTER_STYLE_FIELDS,
+            "range": {"startIndex": start, "endIndex": end},
+            "textStyle": text_style,
+            "fields": fields,
         }
     }
+    if not (in_list_item and text_style):
+        return [style]
+    return _marker_guarded([style], end)
+
+
+def _marker_guarded(style: list[dict], end: int) -> list[dict]:
+    """`style`, requests styling a list paragraph's text up to `end`, wrapped so they
+    don't restyle its marker: an updateTextStyle covering all of a list paragraph's
+    text restyles the marker too (confirmed live, #1383), so a throwaway character
+    holds the paragraph open past `end` while they run, and goes after. It goes in and
+    out at `end`, so it moves no position before it. Used for a BulletItem's run
+    (_item_run_style_requests) and for an image or its fallback text in one
+    (_image_style_requests)."""
+    return [
+        {"insertText": {"location": {"index": end}, "text": _MARKER_GUARD}},
+        *style,
+        {"deleteContentRange": {"range": {"startIndex": end, "endIndex": end + 1}}},
+    ]
+
+
+def drop_image_style_requests(requests: list[dict], index: int, styles: list[dict]) -> int:
+    """Remove `styles`, the style requests of the image insert at `requests[index]`
+    (_image_style_requests), before that insert is replaced by fallback text or
+    dropped, and return the insert's index afterwards. _image_insert_requests puts
+    them right after their insert, and no split separates them (a split cuts before an
+    image insert, never inside its requests), so they're looked up there and the
+    index is unchanged. The identity scan is only a backstop, and returns the index
+    the insert moved to, so a caller never replaces the wrong request."""
+    following = requests[index + 1 : index + 1 + len(styles)]
+    if len(following) == len(styles) and all(
+        a is b for a, b in zip(following, styles, strict=True)
+    ):
+        del requests[index + 1 : index + 1 + len(styles)]
+        return index
+    insert = requests[index]
+    ids = {id(r) for r in styles}
+    requests[:] = [r for r in requests if id(r) not in ids]
+    return next(i for i, r in enumerate(requests) if r is insert)
 
 
 def image_fallback_text(image: Image) -> str:
@@ -2210,41 +2287,46 @@ def image_fallback_text(image: Image) -> str:
     return " ".join(name.split()) or "image"
 
 
-# The character styles an inserted image or its fallback text inherits from the
-# character before it and can't be its own (#1334): an image carries only its link
-# (#977), so its requests clear these fields — named and left unset — from the range
-# the insert covers, keeping the link when there is one. Font family, size and color
-# stay inherited, so fallback text in a heading still reads like the text around it
-# (#1099's intent, untouched by this reset).
-_INHERITED_CHARACTER_STYLE_FIELDS = (
-    "bold,italic,underline,strikethrough,baselineOffset,smallCaps,backgroundColor,link"
+# The character styles an inserted image or its fallback text would otherwise take
+# from the character before it (#1334). Every image style request names all of them:
+# it sets the ones the image's own span gives it (Image's style fields, #1475) and
+# clears the rest, so a style reaches the image only from its own span, never from a
+# neighbor. The link is the image's own (#977). weightedFontFamily is here because the
+# one font a run sets on the write side is a code span's Courier New, which fallback
+# text written after a code span took (#1475); cleared, it's the paragraph's own font.
+# fontSize and foregroundColor aren't: no run sets them on the write side, so they
+# stay the paragraph's, and fallback text reads like the text around it (#1099).
+_IMAGE_TEXT_STYLE_FIELDS = (
+    "bold,italic,underline,strikethrough,baselineOffset,smallCaps,backgroundColor,"
+    "weightedFontFamily,link"
+)
+# The same, less underline, for an image with a link whose own span doesn't underline
+# it: Docs underlines text a link sets, and naming underline cleared that (#1504).
+_LINKED_IMAGE_TEXT_STYLE_FIELDS = ",".join(
+    f for f in _IMAGE_TEXT_STYLE_FIELDS.split(",") if f != "underline"
 )
 
 
-def image_fallback_requests(image: Image, position: int, text: str | None = None) -> list[dict]:
+def image_fallback_requests(
+    image: Image, position: int, text: str | None = None, *, in_list_item: bool = False
+) -> list[dict]:
     """Write `image`'s fallback text (`text`, else image_fallback_text) at
     `position`, where its insertInlineImage would have gone, for an image that
     didn't resolve or that Docs couldn't fetch (#1099): an SVG badge, an unreachable
     URL, a missing local file.
 
-    The image's link goes on the text. The text takes the character before it's
-    styles on insert, so the request clears the character styles a styled neighbor
-    passes on — the emphasis and position fields — keeping only the link (#1334).
-    Font family, size and color still come from the text around it, so it reads
-    like its paragraph (#1099). Like the image's own requests, the pair goes
-    in the descending-position pass, where it moves nothing still to come."""
+    The text takes the character before it's styles on insert, so its style requests
+    set exactly what the image would have had (_image_style_requests): the style of
+    the image's own span and its link, every other character style cleared (#1334,
+    #1475), behind a marker guard in a list item (`in_list_item`). Size and color
+    still come from the paragraph, so it reads like the text around it (#1099). Like
+    the image's own requests, these go in the descending-position pass, where they
+    move nothing still to come."""
     if text is None:
         text = image_fallback_text(image)
-    link_url = _storable_link_url(image.link_url)
     return [
         {"insertText": {"location": {"index": position}, "text": text}},
-        {
-            "updateTextStyle": {
-                "range": {"startIndex": position, "endIndex": position + utf16_len(text)},
-                "textStyle": {"link": {"url": link_url}} if link_url else {},
-                "fields": _INHERITED_CHARACTER_STYLE_FIELDS,
-            }
-        },
+        *_image_style_requests(image, position, position + utf16_len(text), in_list_item),
     ]
 
 
@@ -2297,11 +2379,7 @@ def _item_run_style_requests(
         if not style:
             return []
         if (start, end) == (para_start, para_end):
-            requests.append({"insertText": {"location": {"index": doc_end}, "text": _MARKER_GUARD}})
-            requests.extend(style)
-            requests.append(
-                {"deleteContentRange": {"range": {"startIndex": doc_end, "endIndex": doc_end + 1}}}
-            )
+            requests.extend(_marker_guarded(style, doc_end))
         else:
             requests.extend(style)
     return requests
@@ -2309,55 +2387,7 @@ def _item_run_style_requests(
 
 def _run_style_requests(run: Run, start: int, end: int) -> list[dict]:
     """Return updateTextStyle requests for all non-None style fields on a Run."""
-    text_style: dict = {}
-    fields: list[str] = []
-
-    for key, api_key in [
-        ("bold", "bold"),
-        ("italic", "italic"),
-        ("underline", "underline"),
-        ("strikethrough", "strikethrough"),
-    ]:
-        val = getattr(run, key)
-        if val is not None:
-            text_style[api_key] = val
-            fields.append(api_key)
-
-    link_url = _storable_link_url(run.link_url)
-    if link_url is not None:
-        text_style["link"] = {"url": link_url}
-        fields.append("link")
-
-    if run.font_family is not None:
-        text_style["weightedFontFamily"] = {"fontFamily": run.font_family}
-        fields.append("weightedFontFamily")
-
-    if run.font_size is not None:
-        text_style["fontSize"] = {"magnitude": run.font_size, "unit": "PT"}
-        fields.append("fontSize")
-
-    if run.foreground_color is not None:
-        c = run.foreground_color
-        text_style["foregroundColor"] = {
-            "color": {"rgbColor": {"red": c.red, "green": c.green, "blue": c.blue}}
-        }
-        fields.append("foregroundColor")
-
-    if run.background_color is not None:
-        c = run.background_color
-        text_style["backgroundColor"] = {
-            "color": {"rgbColor": {"red": c.red, "green": c.green, "blue": c.blue}}
-        }
-        fields.append("backgroundColor")
-
-    if run.baseline_offset is not None:
-        text_style["baselineOffset"] = run.baseline_offset
-        fields.append("baselineOffset")
-
-    if run.small_caps is not None:
-        text_style["smallCaps"] = run.small_caps
-        fields.append("smallCaps")
-
+    text_style, fields = _character_text_style(run)
     if not fields:
         return []
 
@@ -2370,6 +2400,57 @@ def _run_style_requests(run: Run, start: int, end: int) -> list[dict]:
             }
         }
     ]
+
+
+def _character_text_style(source: Run | Image) -> tuple[dict, list[str]]:
+    """The textStyle a Run's or an Image's own non-None style fields set, and the
+    names of the fields it sets. An Image has no size or color of its own, since a
+    run on the write side never sets them either (_IMAGE_TEXT_STYLE_FIELDS)."""
+    text_style: dict = {}
+    fields: list[str] = []
+
+    for key in ("bold", "italic", "underline", "strikethrough"):
+        val = getattr(source, key)
+        if val is not None:
+            text_style[key] = val
+            fields.append(key)
+
+    link_url = _storable_link_url(source.link_url)
+    if link_url is not None:
+        text_style["link"] = {"url": link_url}
+        fields.append("link")
+
+    if source.font_family is not None:
+        text_style["weightedFontFamily"] = {"fontFamily": source.font_family}
+        fields.append("weightedFontFamily")
+
+    if isinstance(source, Run) and source.font_size is not None:
+        text_style["fontSize"] = {"magnitude": source.font_size, "unit": "PT"}
+        fields.append("fontSize")
+
+    if isinstance(source, Run) and source.foreground_color is not None:
+        c = source.foreground_color
+        text_style["foregroundColor"] = {
+            "color": {"rgbColor": {"red": c.red, "green": c.green, "blue": c.blue}}
+        }
+        fields.append("foregroundColor")
+
+    if source.background_color is not None:
+        c = source.background_color
+        text_style["backgroundColor"] = {
+            "color": {"rgbColor": {"red": c.red, "green": c.green, "blue": c.blue}}
+        }
+        fields.append("backgroundColor")
+
+    if source.baseline_offset is not None:
+        text_style["baselineOffset"] = source.baseline_offset
+        fields.append("baselineOffset")
+
+    if source.small_caps is not None:
+        text_style["smallCaps"] = source.small_caps
+        fields.append("smallCaps")
+
+    return text_style, fields
 
 
 async def fill_tables(docs_service, doc_id: str, tables: list[Table], images: CellImages) -> None:

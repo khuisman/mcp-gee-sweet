@@ -23,22 +23,42 @@ def make_func(name, doc, params=""):
     return ns[name]
 
 
-class TestDefaultCount:
-    """#1364: the Tool filtering block states the `default` group's size."""
+def _groups_by_name() -> dict[str, frozenset[str]]:
+    groups: dict[str, frozenset[str]] = {}
+    gen_tool_docs.collect_tools(groups)
+    return groups
 
-    def test_collect_tools_records_the_default_group(self):
+
+class TestCollectGroups:
+    """#1364: the script reads each tool's groups as the server computes them."""
+
+    def test_matches_the_server_computation(self):
+        # server._known_tools is what server.tool() recorded at import for every
+        # tool, registered or not; the test process runs with ENABLED_TOOLS=all.
+        from mcp_gee_sweet import server
+
+        assert _groups_by_name() == server._known_tools
+
+    def test_capture_takes_exactly_server_tools_flags(self, monkeypatch):
+        # No catch-all: a new server.tool() flag must fail the script, not vanish.
+        import inspect
+
+        from mcp_gee_sweet import server
+
+        captured = {}
+
+        def register_all(tool):
+            captured["params"] = list(inspect.signature(tool).parameters)
+
+        monkeypatch.setattr(gen_tool_docs, "register_all", register_all)
+        gen_tool_docs.collect_tools()
+        assert captured["params"] == list(inspect.signature(server.tool).parameters)
+
+    def test_records_the_default_group(self):
         from .test_tool_groups import DEFAULT_SNAPSHOT
 
-        default_names: set[str] = set()
-        gen_tool_docs.collect_tools(default_names)
-        assert default_names == DEFAULT_SNAPSHOT
-
-    def test_block_states_the_default_count(self):
-        known_names = {f.__name__ for f in gen_tool_docs.collect_tools()}
-        rendered = gen_tool_docs.render_subsets_block(known_names, 38)
-        assert f"registers the `default` tool group, 38 of the {len(known_names)}" in (
-            rendered.replace("\n", " ")
-        )
+        default = {name for name, groups in _groups_by_name().items() if "default" in groups}
+        assert default == DEFAULT_SNAPSHOT
 
 
 class TestCollectAndDocstrings:
@@ -87,10 +107,24 @@ class TestRenderToolsMd:
     def test_covers_every_real_tool(self):
         # Section notes sometimes reference a tool by name too (e.g. `batch_update`
         # as the escape hatch), so assert presence rather than an exact count.
-        funcs = gen_tool_docs.collect_tools()
-        rendered = gen_tool_docs.render_tools_md(funcs)
+        groups: dict[str, frozenset[str]] = {}
+        funcs = gen_tool_docs.collect_tools(groups)
+        rendered = gen_tool_docs.render_tools_md(funcs, groups)
         for func in funcs:
             assert f"`{func.__name__}`" in rendered
+
+    def test_each_row_lists_the_tools_groups(self):
+        groups: dict[str, frozenset[str]] = {}
+        funcs = gen_tool_docs.collect_tools(groups)
+        rows = {
+            line.split("|")[1].strip(): line.split("|")[-2].strip()
+            for line in gen_tool_docs.render_tools_md(funcs, groups).splitlines()
+            if line.startswith("| `")
+        }
+        assert rows["`create_doc_from_file`"] == "`docs`, `local-files`"
+        assert rows["`add_doc_comment`"] == "`docs`, `comments`"
+        assert rows["`list_labels`"] == "`gmail`, `default`"
+        assert rows["`refresh_cache`"] == "`cache`"
 
     def test_raises_when_a_tool_matches_no_section(self):
         def mystery_tool():
@@ -98,63 +132,122 @@ class TestRenderToolsMd:
 
         mystery_tool.__module__ = "mcp_gee_sweet.tools.nonexistent"
         with pytest.raises(RuntimeError, match="mystery_tool"):
-            gen_tool_docs.render_tools_md([mystery_tool])
+            gen_tool_docs.render_tools_md([mystery_tool], {"mystery_tool": frozenset()})
 
 
-class TestRenderSubsetsBlock:
-    def test_validates_against_real_tool_set(self):
-        funcs = gen_tool_docs.collect_tools()
-        known_names = {f.__name__ for f in funcs}
-        gen_tool_docs.render_subsets_block(known_names, 38)  # should not raise
-
-    def test_raises_on_unknown_tool_in_subset(self):
-        with pytest.raises(RuntimeError, match="Read-only Sheets"):
-            gen_tool_docs.render_subsets_block(known_names=set(), default_count=0)
-
-    def test_renders_each_subset_with_its_tool_count(self):
-        funcs = gen_tool_docs.collect_tools()
-        known_names = {f.__name__ for f in funcs}
-        rendered = gen_tool_docs.render_subsets_block(
-            known_names, 38, gen_tool_docs.service_subsets(funcs)
+class TestRenderFilteringBlock:
+    def test_states_the_default_count(self):
+        groups = _groups_by_name()
+        default = [name for name, g in groups.items() if "default" in g]
+        rendered = gen_tool_docs.render_filtering_block(groups).replace("\n", " ")
+        assert f"registers the `default` tool group, {len(default)} of the {len(groups)}" in (
+            rendered
         )
-        assert "**Read-only Sheets** (7 tools):" in rendered
-        assert "**Docs + Drive (combined example)**" in rendered
 
-    def test_raises_on_subset_at_client_limit(self):
-        names = [f"tool_{i}" for i in range(gen_tool_docs.CLIENT_TOOL_LIMIT)]
-        known_names = set(names)
-        for _name, tool_names in gen_tool_docs.SUBSETS:
-            known_names.update(tool_names)
-        with pytest.raises(RuntimeError, match="too_big"):
-            gen_tool_docs.render_subsets_block(known_names, 38, [("too_big", names)])
+    def test_one_row_per_group_with_its_count(self):
+        from mcp_gee_sweet import tool_groups
 
-
-class TestServiceSubsets:
-    def test_each_service_subset_holds_its_sections_tools(self):
-        funcs = gen_tool_docs.collect_tools()
-        subsets = dict(gen_tool_docs.service_subsets(funcs))
-        docs_tools = {
-            f.__name__ for f in funcs if f.__module__.startswith("mcp_gee_sweet.tools.docs.")
+        groups = _groups_by_name()
+        rendered = gen_tool_docs.render_filtering_block(groups)
+        rows = {
+            line.split("|")[1].strip(): int(line.split("|")[2])
+            for line in rendered.splitlines()
+            if line.startswith("| `")
         }
-        assert set(subsets["All Docs tools"]) == docs_tools
-        assert "list_spreadsheets" in subsets["All Sheets tools"]
-        assert "list_spreadsheets" not in subsets["All Drive tools"]
+        assert set(rows) == {f"`{g}`" for g in tool_groups.GROUP_NAMES}
+        assert rows["`all`"] == len(groups)
+        for group in tool_groups.GROUP_NAMES - {"all"}:
+            assert rows[f"`{group}`"] == sum(group in g for g in groups.values()), group
 
-    def test_combined_subset_is_the_union_of_its_parts(self):
-        funcs = gen_tool_docs.collect_tools()
-        subsets = dict(gen_tool_docs.service_subsets(funcs))
-        name, parts = gen_tool_docs.COMBINED_SUBSET
-        assert subsets[name] == [tool for part in parts for tool in subsets[part]]
+    def test_lists_the_default_tools(self):
+        from .test_tool_groups import DEFAULT_SNAPSHOT
 
-    def test_every_generated_subset_is_under_the_client_limit(self):
-        funcs = gen_tool_docs.collect_tools()
-        for name, tool_names in gen_tool_docs.service_subsets(funcs):
-            assert len(set(tool_names)) < gen_tool_docs.CLIENT_TOOL_LIMIT, name
+        rendered = gen_tool_docs.render_filtering_block(_groups_by_name())
+        lines = rendered.splitlines()
+        listed = lines[lines.index("**What `default` holds:**") + 2]
+        assert set(listed.split(",")) == DEFAULT_SNAPSHOT
 
-    def test_raises_on_unknown_section(self, monkeypatch):
-        monkeypatch.setattr(gen_tool_docs, "SERVICE_SUBSETS", [("Broken", ["No such section"])])
-        with pytest.raises(RuntimeError, match="No such section"):
-            gen_tool_docs.service_subsets([])
+    def test_raises_on_an_undocumented_group(self, monkeypatch):
+        descriptions = dict(gen_tool_docs.GROUP_DESCRIPTIONS)
+        del descriptions["comments"]
+        monkeypatch.setattr(gen_tool_docs, "GROUP_DESCRIPTIONS", descriptions)
+        with pytest.raises(RuntimeError, match="undocumented: comments"):
+            gen_tool_docs.render_filtering_block(_groups_by_name())
+
+    def test_raises_on_an_unknown_group(self, monkeypatch):
+        descriptions = {**gen_tool_docs.GROUP_DESCRIPTIONS, "bogus": "x"}
+        monkeypatch.setattr(gen_tool_docs, "GROUP_DESCRIPTIONS", descriptions)
+        with pytest.raises(RuntimeError, match="unknown: bogus"):
+            gen_tool_docs.render_filtering_block(_groups_by_name())
+
+    def test_raises_on_a_group_at_the_client_limit(self):
+        limit = gen_tool_docs.CLIENT_TOOL_LIMIT
+        groups = {
+            **_groups_by_name(),
+            **{f"tool_{i}": frozenset({"docs"}) for i in range(limit)},
+        }
+        with pytest.raises(RuntimeError, match="'docs' has"):
+            gen_tool_docs.render_filtering_block(groups)
+
+    def test_all_counts_the_deprecated_aliases(self, monkeypatch):
+        from mcp_gee_sweet import tool_groups
+
+        groups = _groups_by_name()
+        monkeypatch.setattr(
+            tool_groups,
+            "RENAMED_TOOLS",
+            {
+                "old_a": tool_groups.Renamed("create_doc", "9.9"),
+                "old_b": tool_groups.Renamed("list_files", "9.9"),
+            },
+        )
+        rendered = gen_tool_docs.render_filtering_block(groups)
+        assert f"| `all` | {len(groups) + 2} |" in rendered
+        # The opening sentence counts tools, not aliases.
+        assert f"of the {len(groups)} tools" in rendered.replace("\n", " ")
+
+    def test_derived_lists_name_the_groups_own_tools(self):
+        groups = _groups_by_name()
+        rendered = gen_tool_docs.render_filtering_block(groups)
+        for group in ("cache", "comments"):
+            row = next(line for line in rendered.splitlines() if line.startswith(f"| `{group}` |"))
+            for name, member_of in groups.items():
+                assert (f"`{name}`" in row) == (group in member_of), (group, name)
+
+    def test_raises_on_a_false_membership_claim(self, monkeypatch):
+        monkeypatch.setattr(
+            gen_tool_docs, "MEMBERSHIP_CLAIMS", (("create_spreadsheet", "sheets", True),)
+        )
+        with pytest.raises(RuntimeError, match="create_spreadsheet in sheets"):
+            gen_tool_docs.render_filtering_block(_groups_by_name())
+
+    def test_raises_when_a_left_out_tool_joins_default(self):
+        groups = _groups_by_name()
+        groups["sync_folder"] = groups["sync_folder"] | {"default"}
+        with pytest.raises(RuntimeError, match="sync_folder not in default"):
+            gen_tool_docs.render_filtering_block(groups)
+
+    def test_raises_on_a_renamed_tool_named_in_the_prose(self):
+        groups = _groups_by_name()
+        groups["get_cache_ttl_v2"] = groups.pop("get_cache_ttl")
+        # The cache row is derived, so it follows the rename; a hand-written name
+        # elsewhere doesn't, and check_names catches it.
+        gen_tool_docs.render_filtering_block(groups)  # should not raise
+        groups["insert_doc_table_v2"] = groups.pop("insert_doc_table")
+        with pytest.raises(RuntimeError, match="insert_doc_table"):
+            gen_tool_docs.render_filtering_block(groups)
+
+    @pytest.mark.parametrize(
+        ("count", "expected"),
+        [(39, "is also under the 40"), (40, "is exactly the 40"), (41, "is over the 40")],
+    )
+    def test_old_cursor_note_matches_the_count(self, count, expected):
+        assert expected in gen_tool_docs._old_cursor_note(count)
+
+    def test_all_may_exceed_the_client_limit(self):
+        groups = _groups_by_name()
+        assert len(groups) >= gen_tool_docs.CLIENT_TOOL_LIMIT
+        gen_tool_docs.render_filtering_block(groups)  # should not raise
 
 
 class TestWriteIfChanged:

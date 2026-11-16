@@ -7560,3 +7560,30 @@ Step 1: `a`/`b` bulleted, `styled` a `SUBTITLE` at `indentStart` 36pt with no bu
 
 **Result (2026-11-14) ✅ PASS**
 Raw read: `First line\vSecond linestruck` (struck) + ` mid ` + `bold\n` (bold), in `HEADING_3`. The inserted lines took the struck neighbour's strikethrough, which is inheritance and out of scope (#1499). `H2 line one` is bold (and struck, inherited), followed by `\vH2 line twos2 plain b2` in `HEADING_2`. `N1\vN2Heading one` is `NORMAL_TEXT`. `Document ID: KH-OPS-001` (bold) `\vCategory: AWS / Database` is one `HEADING_2` paragraph. Doc trashed.
+
+### TC-DOC259: An image and its fallback text take the style of their own span, and a list marker stays plain (#1475) ⚠️ requires-network ⚠️ destructive
+
+**Purpose:** after TC-DOC256's fix (#1334) an image's style request only cleared, so an image or its fallback text inside a bold, struck, highlighted or superscript span came out plain in the middle of it, and fallback text after an inline code span was in Courier New. Each image now records its own span's style, set explicitly on the image or its fallback text, with every other character style cleared, the font included. In a list item whose whole text is a styled image, styling it must not bold the bullet marker.
+
+**Playwright: required**
+
+**Steps** (`{IMG}` = `https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png`; `{BAD}` = `https://img.shields.io/badge/build-passing-brightgreen.svg`, an SVG Docs can't fetch)
+1. `create_doc(title="TC-DOC259", folder_id={FOLDER_ID}, content_format="markdown", content="S1 **Build: ![status]({BAD}) passing**\n\nS2 Run `make` ![build]({BAD}) now\n\nS3 **bold ![logo]({IMG}) image**\n\nS4 <mark>hi ![logo]({IMG})</mark> ~~gone ![struck]({BAD})~~\n\nS5 <code>c <img alt=\"codealt\" src=\"{BAD}\"></code> after\n\n- **![logo]({IMG})**\n- **![badge]({BAD})**\n- [![linked]({BAD})](https://example.com)\n- plain item\n\n| cell |\n|---|\n| **![cellalt]({BAD})** tail |\n")` → `{DOC}`
+
+**Checks** (raw `documents().get()`, and on screen)
+- Step 1: no `error`. `images` has an `error` and `fallback_text` for each `{BAD}` image only
+- S1: `status` is bold, in one bold run with `Build: ` and ` passing`
+- S2: ` build now` has no `weightedFontFamily`. 🔍 `build` is in the paragraph's font, not Courier New
+- S3: the image's `textStyle` is `{"bold": true}`
+- S4: the image's `textStyle` has the yellow `backgroundColor`. `struck` is `strikethrough`
+- S5: `codealt` has `weightedFontFamily` Courier New, like `c `
+- Each of the four list items is bulleted, and each item's `bullet.textStyle` has no `bold`. The first item's image is bold, the second item's `badge` is bold, and the third item's `linked` has the link, the link color and `underline: true`, as an ordinary link does (#1504). 🔍 Every marker is a plain bullet
+- The table cell's `cellalt` is bold and ` tail` isn't
+
+**Cleanup:** `delete_file` the doc
+
+**Result (2026-11-14) ⚠️ PARTIAL — Kit, PR #1508 round 1 @ 3b84ce87**
+Every listed check passes. Step 1: no `error`, `images` has `error` + `fallback_text` for the seven `{BAD}` images only (`status`, `build`, `struck`, `codealt`, `badge`, `linked`, `cellalt`). Raw read: S1 `Build: status passing` is one bold run. S2 ` build now` has no `weightedFontFamily` (only `make` is Courier New). S3 image `textStyle` `{"bold": true}`. S4 image has the yellow `backgroundColor`, `gone struck` is one struck run. S5 `c codealt` is one Courier New run. All four items bulleted, each `bullet.textStyle` only `{"underline": false}` (no `bold`); item 1's image `{"bold": true}`, `badge` bold, `linked` has the link. Cell: `cellalt` bold, ` tail` plain. Screenshot (URL-verified, `.playwright-mcp/tc-doc259.png`): every marker is a plain bullet, `build` in Arial. Not PASS because of one defect seen in the same doc and outside the listed checks: `linked` has the link and link color but no `underline`, while an ordinary Markdown link in the same doc has `underline: true` (#1504). Doc trashed.
+
+**Result (2026-11-14) ✅ PASS — Kit, PR #1508 round 2 @ 57437115**
+Step 1 as written: `images` has `error` + `fallback_text` for the seven `{BAD}` images only. Raw read: every check as in round 1, and the third item's `linked` now has `link`, the link color and `underline: true` (#1504). Extra probes (HTML): an unlinked fallback after `<u>under</u>` has no underline; a linked one inside `<u>` keeps underline and link; a bare `<b><sup><img>` fallback is bold and superscript, a bare `<s><mark><img>` one struck and highlighted. Screenshot (URL-verified, `.playwright-mcp/tc-doc259-r2.png`): `linked` underlined and blue, every marker a plain bullet, `build` in Arial. Doc trashed.
