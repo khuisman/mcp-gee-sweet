@@ -14,7 +14,7 @@ mcp-gee-sweet gives AI clients deep, direct access to Google Sheets, Docs, Drive
 A few highlights:
 - **Caching** — repeated reads return in ~2ms from a local cache instead of a round-trip API call every time.
 - **Formula access** — reads raw `=VLOOKUP()`, `=SUM()`, and `=IF()` expressions, not just the values they produce.
-- **Local sync** — two-way sync between a local folder and Google Drive.
+- **Local sync** — two-way sync between a local folder and Google Drive (add the `local-files` tool group to `ENABLED_TOOLS`; see [Choosing which tools load](#choosing-which-tools-load)).
 
 <img src="https://raw.githubusercontent.com/khuisman/mcp-gee-sweet/develop/docs/assets/readme-demo.png" alt="A Markdown file in an editor beside the Google Doc that create_doc_from_file produces from it, with the heading, table, nested list, quote, and code block intact" width="100%">
 
@@ -91,14 +91,15 @@ command -v uvx    # e.g. /Users/you/.local/bin/uvx
       "args": ["mcp-gee-sweet"],
       "env": {
         "CREDENTIALS_PATH": "/Users/you/mcp-gee-sweet/credentials.json",
-        "TOKEN_PATH": "/Users/you/mcp-gee-sweet/token.json"
+        "TOKEN_PATH": "/Users/you/mcp-gee-sweet/token.json",
+        "ENABLED_TOOLS": "default,local-files"
       }
     }
   }
 }
 ```
 
-If the file already has an `mcpServers` block, add the `"mcp-gee-sweet"` entry inside it instead of adding a second block. Write full paths: the server doesn't expand `~`. For a `develop` build, use `"args": ["--prerelease=allow", "mcp-gee-sweet"]`.
+If the file already has an `mcpServers` block, add the `"mcp-gee-sweet"` entry inside it instead of adding a second block. Write full paths: the server doesn't expand `~`. For a `develop` build, use `"args": ["--prerelease=allow", "mcp-gee-sweet"]`. `ENABLED_TOOLS` picks the tools: `default,local-files` is the everyday set plus the tools that work on files on your Mac, such as `create_doc_from_file` and `sync_folder` (see [Choosing which tools load](#choosing-which-tools-load)).
 
 **6. Restart Claude Desktop and try it.** Quit Claude Desktop completely (⌘Q, not just closing the window), reopen it, and ask something like "List my most recently modified Google Drive files."
 
@@ -191,7 +192,7 @@ claude mcp add mcp-gee-sweet \
   -- uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet
 ```
 
-`ENABLED_TOOLS=all` keeps every tool when an upcoming release loads a smaller default set (`all` is new in v0.9.6; on 0.9.5, see [its docs](https://khuisman.github.io/mcp-gee-sweet/0.9.5/client-setup/)). For a PyPI install, replace everything after `--` with `uvx mcp-gee-sweet`. Run the `auth` command from Configuration above with the same `ENABLED_TOOLS`, since it decides the scopes.
+`ENABLED_TOOLS=all` loads every tool, which suits Claude Code: its tool search loads a tool's full definition only when the model picks it. For a PyPI install, replace everything after `--` with `uvx mcp-gee-sweet`. Run the `auth` command from Configuration above with the same `ENABLED_TOOLS`, since it decides the scopes.
 
 **Claude Desktop — SSE (Docker):**
 ```json
@@ -210,9 +211,19 @@ claude mcp add mcp-gee-sweet \
 
 See [Client Setup](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/) for more options including tool filtering.
 
+### Choosing which tools load
+
+With `ENABLED_TOOLS` unset, the server loads the `default` tool group: everyday reading and writing across Sheets, Docs, Drive, Calendar and Gmail, sized for clients that cap how many tools they accept. `ENABLED_TOOLS` takes tool names and group names, and loads their union:
+
+- `all`: every tool. Use it in Claude Code, whose tool search keeps the full set cheap.
+- `default,local-files`: the default set plus the tools that work on local files: `create_doc_from_file` and `update_doc_from_file` for Markdown files, and local upload, download and `sync_folder`. `default` leaves these out.
+- A service group (`sheets`, `drive`, `docs`, `calendar`, `gmail`) for every tool of that service, e.g. `default,docs`.
+
+The groups, their sizes and the [per-client settings](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/#choosing-tools-for-your-client) are in [Tool filtering](https://khuisman.github.io/mcp-gee-sweet/latest/configuration/#tool-filtering).
+
 ### Using a client with a tool limit
 
-Some MCP clients cap how many tools they accept, and with every tool registered this server is over each cap:
+Some MCP clients cap how many tools they accept. The `default` group is under each current cap below (older Cursor builds capped a session at 40, which `default` doesn't exceed), but with every tool registered (`all`) this server is over all of them:
 
 | Client | Limit |
 |---|---|
@@ -221,9 +232,9 @@ Some MCP clients cap how many tools they accept, and with every tool registered 
 | Cursor | Depends on the model ("Too many MCP tools are enabled for this mode") |
 | Google Antigravity | 100 tools per server (user report) |
 
-On Windsurf, Cursor and Antigravity, or on VS Code if you see that error, set `ENABLED_TOOLS` in the server's `env` to one of the [suggested subsets](https://khuisman.github.io/mcp-gee-sweet/latest/configuration/#suggested-subsets), each under 100 tools, e.g. all Docs tools, or Docs + Drive combined. [Clients with a tool limit](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/#clients-with-a-tool-limit) has a ready-to-paste config for VS Code, Cursor, and Windsurf.
+On Windsurf, Cursor and Antigravity, or on VS Code if you see that error, leave `ENABLED_TOOLS` unset or use [tool groups](https://khuisman.github.io/mcp-gee-sweet/latest/configuration/#tool-groups) and names whose total stays under your client's cap; every group but `all` is under 100 tools. [Clients with a tool limit](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/#clients-with-a-tool-limit) has a ready-to-paste config for VS Code, Cursor, and Windsurf.
 
-> **Upcoming change:** an upcoming release loads a smaller default tool set when `ENABLED_TOOLS` is unset. To keep every tool, set `ENABLED_TOOLS=all`, which registers every tool today as well. `all` is new in v0.9.6; on 0.9.5, see [its docs](https://khuisman.github.io/mcp-gee-sweet/0.9.5/configuration/).
+> **Changed in this release:** an unset `ENABLED_TOOLS` used to load every tool, and now loads only the `default` group. To keep every tool, set `ENABLED_TOOLS=all`. To keep the local-file tools, add `local-files`.
 
 ---
 
