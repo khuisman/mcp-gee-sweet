@@ -563,10 +563,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#tool-filtering-in-client-config" class="md-nav__link">
+  <a href="#choosing-tools-for-your-client" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tool filtering in client config
+        Choosing tools for your client
       
     </span>
   </a>
@@ -1555,7 +1555,7 @@
 <p>The install dialog asks for:</p>
 <ul>
 <li><strong>OAuth client file</strong> (required): the OAuth Client ID JSON for a Desktop app, downloaded from Google Cloud Console. See <a href="../auth/#method-b-oauth-20-personal-use-local-dev">Authentication</a> for how to create one.</li>
-<li><strong>Enabled tools</strong> (optional): a comma-separated list of tool names, or <code>all</code> for every tool (see <a href="#tool-filtering-in-client-config">Tool filtering</a>). Empty also enables every tool in this release, with a warning at startup: an upcoming release loads a smaller default set when it's empty, so enter <code>all</code> to keep every tool.</li>
+<li><strong>Enabled tools</strong> (optional): a comma-separated list of tool names and <a href="../configuration/#tool-groups">tool groups</a>, or <code>all</code> for every tool (see <a href="#choosing-tools-for-your-client">Choosing tools for your client</a>). Empty loads the <code>default</code> group. To create Docs from local Markdown files, upload, download or sync local folders, enter <code>default,local-files</code>.</li>
 </ul>
 <p>The bundle ships the source and <code>uv.lock</code>, not the dependencies: the first start runs <code>uv run --frozen</code>, which installs Python and the locked dependencies, so it takes longer than later ones. It uses OAuth only (<code>AUTH_METHOD=oauth</code>) and keeps the token at <code>~/.mcp-gee-sweet-token.json</code>, outside the extension directory, so the token survives an update. For a service account or Application Default Credentials, use the manual config below instead.</p>
 <p>There's no token on the first start. The server starts without Google access, and its first tool call returns a Google consent link. Approve it in a browser, then retry the call. To authorize from a terminal instead, run <code>CREDENTIALS_PATH=/path/to/credentials.json TOKEN_PATH=~/.mcp-gee-sweet-token.json ENABLED_TOOLS=&lt;your Enabled tools value&gt; uvx mcp-gee-sweet auth</code>, then retry. Give <code>ENABLED_TOOLS</code> the same value as the install dialog's <strong>Enabled tools</strong>, or leave it out if that was empty: the consent asks for mailbox access only when a Gmail tool is enabled, so leaving it out after excluding Gmail grants a scope the server doesn't use.</p>
@@ -1578,7 +1578,7 @@
 <a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">  </span><span class="p">}</span>
 <a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="p">}</span>
 </code></pre></div>
-<p>Replace <code>/path/to/mcp-gee-sweet</code> with your clone path. This uses OAuth (the default waterfall's first method, full personal Drive access) — swap the <code>env</code> block for a different auth method — see <a href="../auth/">Authentication</a>.</p>
+<p>Replace <code>/path/to/mcp-gee-sweet</code> with your clone path. This uses OAuth (the default waterfall's first method, full personal Drive access) — swap the <code>env</code> block for a different auth method — see <a href="../auth/">Authentication</a>. With no <code>ENABLED_TOOLS</code>, it loads the <code>default</code> tool group; add <code>"ENABLED_TOOLS": "default,local-files"</code> to <code>env</code> for the local Markdown file tools and local upload, download and sync (see <a href="#choosing-tools-for-your-client">Choosing tools for your client</a>).</p>
 <p>Before the first connection, log in once from a terminal with the same paths: <code>CREDENTIALS_PATH=... TOKEN_PATH=... uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet auth</code>. A stdio server with no token doesn't open a browser itself. It starts without Google access, and its first tool call offers you the Google consent link, or you can run this command and retry (see <a href="../auth/#method-b-oauth-20-personal-use-local-dev">Re-authorizing from the client</a>).</p>
 <h3 id="sse-docker">SSE — Docker<a class="headerlink" href="#sse-docker" title="Permanent link">&para;</a></h3>
 <p>The container serves over the network interface, so it needs a bearer token (see <a href="../configuration/#http-transport-authentication">HTTP transport authentication</a>). Put <code>MCP_SERVER_TOKEN=&lt;token&gt;</code> in a <code>.env</code> file next to <code>docker-compose.yml</code>, start the server (<code>make start</code>), then point Claude Desktop at the SSE endpoint with the same token:</p>
@@ -1602,12 +1602,44 @@
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">TOKEN_PATH</span><span class="o">=</span>/path/to/token.json<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">  </span>--<span class="w"> </span>uv<span class="w"> </span>run<span class="w"> </span>--directory<span class="w"> </span>/path/to/mcp-gee-sweet<span class="w"> </span>mcp-gee-sweet
 </code></pre></div>
-<p><code>ENABLED_TOOLS=all</code> keeps every tool when an upcoming release loads a smaller default set (<code>all</code> is new in v0.9.6; on 0.9.5, see <a href="https://khuisman.github.io/mcp-gee-sweet/0.9.5/client-setup/">its docs</a>). For a PyPI install, replace everything after <code>--</code> with <code>uvx mcp-gee-sweet</code>.</p>
+<p><code>ENABLED_TOOLS=all</code> loads every tool. Claude Code's tool search loads a tool's full definition only when the model picks it, so the full set costs little context; without <code>ENABLED_TOOLS</code>, the server loads only the <code>default</code> group. For a PyPI install, replace everything after <code>--</code> with <code>uvx mcp-gee-sweet</code>.</p>
 <p>Before the first connection, log in once from a terminal with the same paths and the same <code>ENABLED_TOOLS</code>, which decides the scopes: <code>CREDENTIALS_PATH=... TOKEN_PATH=... ENABLED_TOOLS=all uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet auth</code>, or <code>... uvx mcp-gee-sweet auth</code> for a PyPI install.</p>
 <h2 id="claude-code-this-projects-own-mcp-config">Claude Code (this project's own MCP config)<a class="headerlink" href="#claude-code-this-projects-own-mcp-config" title="Permanent link">&para;</a></h2>
 <p>The project runs two instances — one OAuth, one service account — defined in <code>.mcp.json</code> at the repo root. Claude Code picks these up automatically when you open the project.</p>
-<h2 id="tool-filtering-in-client-config">Tool filtering in client config<a class="headerlink" href="#tool-filtering-in-client-config" title="Permanent link">&para;</a></h2>
-<p>To restrict tools at the client level, pass <code>--include-tools</code> as a CLI arg:</p>
+<h2 id="choosing-tools-for-your-client">Choosing tools for your client<a class="headerlink" href="#choosing-tools-for-your-client" title="Permanent link">&para;</a></h2>
+<p>With <code>ENABLED_TOOLS</code> unset, the server loads the <code>default</code> <a href="../configuration/#tool-groups">tool group</a>: everyday reading and writing across Sheets, Docs, Drive, Calendar and Gmail, sized for clients that cap how many tools they accept (see <a href="#clients-with-a-tool-limit">Clients with a tool limit</a>). Set <code>ENABLED_TOOLS</code> (or <code>--include-tools</code>) to change it:</p>
+<table>
+<thead>
+<tr>
+<th>Client</th>
+<th>Setting</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Claude Code</td>
+<td><code>all</code> (tool search loads each tool's definition only when it's used)</td>
+</tr>
+<tr>
+<td>Codex</td>
+<td><code>default</code>; <code>all</code> if your Codex build has tool search</td>
+</tr>
+<tr>
+<td>Claude Desktop</td>
+<td><code>default</code>, plus <code>local-files</code> for local work: <code>default,local-files</code></td>
+</tr>
+<tr>
+<td>Cursor, VS Code + Copilot, Windsurf, Antigravity</td>
+<td><code>default</code> (see <a href="#clients-with-a-tool-limit">Clients with a tool limit</a>)</td>
+</tr>
+<tr>
+<td>claude.ai, ChatGPT, API connectors</td>
+<td><code>default</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>default</code> leaves out the tools that only work on files on the server's machine, so the Markdown file tools (<code>create_doc_from_file</code>, <code>update_doc_from_file</code>) and local upload, download and sync (<code>upload_local_folder</code>, <code>sync_folder</code>, ...) need <code>local-files</code> in the list. Under SSE or streamable HTTP they also need <a href="../configuration/#local-file-access"><code>LOCAL_FILE_ACCESS</code></a> set, since it defaults to <code>off</code> there. To add more, join a service group or tool names on: <code>default,comments</code>, <code>default,docs</code>, <code>default,insert_doc_table</code>. The full list of groups and what <code>default</code> holds is in <a href="../configuration/#tool-filtering">Tool filtering</a>.</p>
+<p>To set it as a CLI argument instead of an environment variable, pass <code>--include-tools</code>:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="p">{</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&quot;mcpServers&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nt">&quot;mcp-gee-sweet&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
@@ -1615,7 +1647,7 @@
 <a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
 <a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">        </span><span class="s2">&quot;run&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;--directory&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;/path/to/mcp-gee-sweet&quot;</span><span class="p">,</span>
 <a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">        </span><span class="s2">&quot;mcp-gee-sweet&quot;</span><span class="p">,</span>
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">        </span><span class="s2">&quot;--include-tools&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;get_sheet_data,update_cells,list_sheets,list_spreadsheets&quot;</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">        </span><span class="s2">&quot;--include-tools&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;default,local-files&quot;</span>
 <a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">      </span><span class="p">],</span>
 <a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 <a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">        </span><span class="nt">&quot;CREDENTIALS_PATH&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/path/to/credentials.json&quot;</span><span class="p">,</span>
@@ -1625,9 +1657,8 @@
 <a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">  </span><span class="p">}</span>
 <a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="p">}</span>
 </code></pre></div>
-<p>See <a href="../configuration/#tool-filtering">Configuration</a> for suggested subsets.</p>
 <h2 id="clients-with-a-tool-limit">Clients with a tool limit<a class="headerlink" href="#clients-with-a-tool-limit" title="Permanent link">&para;</a></h2>
-<p>Several MCP clients cap how many tools they accept, and with every tool registered the server is over each of these caps:</p>
+<p>Several MCP clients cap how many tools they accept. Every group but <code>all</code> is under 100, so the <code>default</code> group is under each current cap below. Older Cursor builds capped a session at 40; <a href="../configuration/#tool-groups">Tool filtering</a> says where <code>default</code> stands against that. With every tool registered (<code>all</code>), the server is over all of these caps:</p>
 <table>
 <thead>
 <tr>
@@ -1659,9 +1690,9 @@
 </tr>
 </tbody>
 </table>
-<p><strong>VS Code may not need a subset.</strong> In our November 2026 test, with every tool registered, VS Code + Copilot looked tools up on demand: Copilot's first step in the chat was <strong>Search Tools</strong>, and it sent only the tools it picked, so the request carried far fewer than 128 and worked. A build that sends every tool with each request instead fails with "Cannot have more than 128 tools per request". If you see that error, use a subset as below.</p>
-<p>The fix is the same everywhere: set <code>ENABLED_TOOLS</code> to one of the <a href="../configuration/#suggested-subsets">suggested subsets</a>, each of which is under 100 tools, or to your own list. You can join two subsets with a comma, like the Docs + Drive example there, as long as the total stays under your client's limit. On Windsurf, leave room for your other servers' tools too.</p>
-<p>The snippets below use the <strong>Read-only Sheets</strong> subset with the PyPI install (<code>uvx</code>); swap in the list you want. For a cloned repo, use the <code>uv run --directory</code> command from <a href="#stdio-cloned-repo">Claude Desktop</a> instead. <code>--include-tools &lt;list&gt;</code> at the end of <code>args</code> works too, in place of the <code>ENABLED_TOOLS</code> entry.</p>
+<p>On these clients, leave <code>ENABLED_TOOLS</code> unset or set it to <code>default</code>, or to any combination of <a href="../configuration/#tool-groups">tool groups</a> and names whose total stays under your client's cap. The group counts are in <a href="../configuration/#tool-groups">Tool filtering</a>. On Windsurf, leave room for your other servers' tools too.</p>
+<p><strong>VS Code may handle every tool.</strong> In our November 2026 test, with every tool registered, VS Code + Copilot looked tools up on demand: Copilot's first step in the chat was <strong>Search Tools</strong>, and it sent only the tools it picked, so the request carried far fewer than 128 and worked. A build that sends every tool with each request instead fails with "Cannot have more than 128 tools per request". <code>all</code> is worth trying there; if you see that error, go back to <code>default</code>.</p>
+<p>The snippets below set <code>default</code> explicitly, with the PyPI install (<code>uvx</code>); swap in the list you want. For a cloned repo, use the <code>uv run --directory</code> command from <a href="#stdio-cloned-repo">Claude Desktop</a> instead. <code>--include-tools &lt;list&gt;</code> at the end of <code>args</code> works too, in place of the <code>ENABLED_TOOLS</code> entry.</p>
 <h3 id="vs-code-github-copilot">VS Code + GitHub Copilot<a class="headerlink" href="#vs-code-github-copilot" title="Permanent link">&para;</a></h3>
 <p>In <code>.vscode/mcp.json</code> (workspace) or your user-profile <code>mcp.json</code>. VS Code's format uses a top-level <code>servers</code> key (<a href="https://code.visualstudio.com/docs/agents/reference/mcp-configuration">reference</a>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
@@ -1673,13 +1704,13 @@
 <a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 <a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">        </span><span class="nt">&quot;CREDENTIALS_PATH&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/path/to/credentials.json&quot;</span><span class="p">,</span>
 <a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">        </span><span class="nt">&quot;TOKEN_PATH&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/path/to/token.json&quot;</span><span class="p">,</span>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">        </span><span class="nt">&quot;ENABLED_TOOLS&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets&quot;</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">        </span><span class="nt">&quot;ENABLED_TOOLS&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;default&quot;</span>
 <a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">      </span><span class="p">}</span>
 <a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">    </span><span class="p">}</span>
 <a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">  </span><span class="p">}</span>
 <a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="p">}</span>
 </code></pre></div>
-<p>The 128 includes VS Code's own tools and every other server's, so a subset near 100 can still go over it with other servers enabled. You can also deselect tools or whole servers in the chat view's tools picker. That choice is saved in your VS Code profile, while <code>ENABLED_TOOLS</code> travels with the server config.</p>
+<p>The 128 includes VS Code's own tools and every other server's, so a combination near 100 can still go over it with other servers enabled. You can also deselect tools or whole servers in the chat view's tools picker. That choice is saved in your VS Code profile, while <code>ENABLED_TOOLS</code> travels with the server config.</p>
 <h3 id="cursor">Cursor<a class="headerlink" href="#cursor" title="Permanent link">&para;</a></h3>
 <p>In <code>.cursor/mcp.json</code> (project) or <code>~/.cursor/mcp.json</code> (global):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="p">{</span>
@@ -1690,13 +1721,13 @@
 <a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 <a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">        </span><span class="nt">&quot;CREDENTIALS_PATH&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/path/to/credentials.json&quot;</span><span class="p">,</span>
 <a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">        </span><span class="nt">&quot;TOKEN_PATH&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/path/to/token.json&quot;</span><span class="p">,</span>
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">        </span><span class="nt">&quot;ENABLED_TOOLS&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets&quot;</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">        </span><span class="nt">&quot;ENABLED_TOOLS&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;default&quot;</span>
 <a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">      </span><span class="p">}</span>
 <a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">    </span><span class="p">}</span>
 <a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">  </span><span class="p">}</span>
 <a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="p">}</span>
 </code></pre></div>
-<p>Cursor doesn't publish its per-model caps. If you still see "Too many MCP tools", use a smaller subset or switch to a model that allows more tools.</p>
+<p>Cursor doesn't publish its per-model caps. If you still see "Too many MCP tools", name fewer tools (a single service group, or your own list) or switch to a model that allows more tools.</p>
 <h3 id="windsurf">Windsurf<a class="headerlink" href="#windsurf" title="Permanent link">&para;</a></h3>
 <p>In Windsurf's <code>mcp_config.json</code> (its location per platform is in Windsurf's <a href="https://docs.devin.ai/desktop/cascade/mcp">MCP docs</a>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="p">{</span>
@@ -1707,7 +1738,7 @@
 <a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
 <a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">        </span><span class="nt">&quot;CREDENTIALS_PATH&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/path/to/credentials.json&quot;</span><span class="p">,</span>
 <a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">        </span><span class="nt">&quot;TOKEN_PATH&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/path/to/token.json&quot;</span><span class="p">,</span>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">        </span><span class="nt">&quot;ENABLED_TOOLS&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets&quot;</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">        </span><span class="nt">&quot;ENABLED_TOOLS&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;default&quot;</span>
 <a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">      </span><span class="p">}</span>
 <a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">    </span><span class="p">}</span>
 <a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="w">  </span><span class="p">}</span>

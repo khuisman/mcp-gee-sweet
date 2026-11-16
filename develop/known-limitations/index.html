@@ -1861,10 +1861,11 @@ Cursor's cap depends on the model and reports "Too many MCP tools are enabled fo
 uses only part of the list.
 Google Antigravity is reported to reject a server with more than 100 tools.</p>
 <p><strong>Why:</strong> The caps are the clients' own. An unset <code>ENABLED_TOOLS</code> loads the <code>default</code> tool group,
-which is under every cap; <code>all</code> registers every tool, for clients without one.</p>
-<p><strong>Workaround:</strong> Set <code>ENABLED_TOOLS</code> (or <code>--include-tools</code>) to one of the
-<a href="../configuration/#suggested-subsets">suggested subsets</a>, each under 100 tools. Per-client
-config is in <a href="../client-setup/#clients-with-a-tool-limit">Clients with a tool limit</a>.</p>
+which is under every current cap (older Cursor builds allowed 40, which <code>default</code> doesn't exceed); <code>all</code> registers every tool, for clients without one.</p>
+<p><strong>Workaround:</strong> Leave <code>ENABLED_TOOLS</code> unset, or set it (or <code>--include-tools</code>) to
+<a href="../configuration/#tool-groups">tool groups</a> and names whose total stays under your client's cap.
+Every group but <code>all</code> is under 100 tools. Per-client config is in
+<a href="../client-setup/#clients-with-a-tool-limit">Clients with a tool limit</a>.</p>
 <hr />
 <h2 id="google-api-requests">Google API requests<a class="headerlink" href="#google-api-requests" title="Permanent link">&para;</a></h2>
 <h3 id="a-write-that-times-out-may-still-have-been-applied">A write that times out may still have been applied<a class="headerlink" href="#a-write-that-times-out-may-still-have-been-applied" title="Permanent link">&para;</a></h3>
