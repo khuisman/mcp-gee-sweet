@@ -7636,3 +7636,6 @@ Every listed check passes. Step 2: `| --- | :-: | --- | --- |`. Step 4: `| --- |
 - Step 4's export is identical to step 2's
 
 **Cleanup:** `delete_file` both docs; delete the scratch file
+
+**Result (2026-11-16) ✅ PASS — Kit, PR #1539 round 1 @ 3da51399**
+Step 2 matches every listed line (`   1. Nested`, `      - deep bullet`, `  - b`, `    1. c`, `    1. ten child`, `  - [x] subtask`, `  more in task`, `   1. q`, `      more in q`). Step 3: every child list sits inside its parent's `<li>`, both blocks are `<p>`s in their items, and there's no `<pre>`. Step 4: byte-identical to step 2. Both docs trashed. The round was sent back for code-review findings this case doesn't cover (a quoted child under `10.`, a depth jump of 3, an orphan item).
