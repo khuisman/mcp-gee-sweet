@@ -58,10 +58,10 @@
 
 | Tool | Description | Key parameters | Groups |
 |---|---|---|---|
-| `create_spreadsheet` | Create a new Google Spreadsheet. | `title`, `folder_id?` | `drive`, `default` |
-| `import_csv_to_sheet` | Create a new Google Spreadsheet populated from a local CSV file. Not available when the server runs with LOCAL_FILE_ACCESS=off. | `local_path`, `title`, `folder_id?`, `sheet_name?` | `drive`, `local-files` |
-| `list_spreadsheets` | List all spreadsheets in the specified Google Drive folder. If no folder is specified, uses the configured default folder; if that's also unset, searches across 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives') — not just 'My Drive'. | `folder_id?`, `max_results?` | `drive` |
-| `search_spreadsheets` | Search for spreadsheets in Google Drive by name or content, across 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives'). | `query`, `max_results?` | `drive` |
+| `create_spreadsheet` | Create a new Google Spreadsheet. | `title`, `folder_id?` | `drive`, `sheets`, `default` |
+| `import_csv_to_sheet` | Create a new Google Spreadsheet populated from a local CSV file. Not available when the server runs with LOCAL_FILE_ACCESS=off. | `local_path`, `title`, `folder_id?`, `sheet_name?` | `drive`, `sheets`, `local-files` |
+| `list_spreadsheets` | List all spreadsheets in the specified Google Drive folder. If no folder is specified, uses the configured default folder; if that's also unset, searches across 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives') — not just 'My Drive'. | `folder_id?`, `max_results?` | `drive`, `sheets` |
+| `search_spreadsheets` | Search for spreadsheets in Google Drive by name or content, across 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives'). | `query`, `max_results?` | `drive`, `sheets` |
 
 `create_spreadsheet` cannot create files in a personal Drive when using service account auth — use OAuth or a Shared Drive.
 
@@ -106,7 +106,7 @@
 
 | Tool | Description | Key parameters | Groups |
 |---|---|---|---|
-| `share_spreadsheet` | Share a Google Spreadsheet with multiple users via email, assigning specific roles. | `spreadsheet_id`, `recipients`, `send_notification?` | `drive` |
+| `share_spreadsheet` | Share a Google Spreadsheet with multiple users via email, assigning specific roles. | `spreadsheet_id`, `recipients`, `send_notification?` | `drive`, `sheets` |
 | `list_permissions` | List all permissions on a file or folder in Google Drive. | `file_id` | `drive` |
 | `update_permission` | Change the role on an existing permission for a file or folder. | `file_id`, `permission_id`, `role` | `drive` |
 | `remove_permission` | Revoke a permission on a file or folder. | `file_id`, `permission_id` | `drive` |

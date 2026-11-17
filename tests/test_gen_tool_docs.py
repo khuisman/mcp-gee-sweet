@@ -125,6 +125,10 @@ class TestRenderToolsMd:
         assert rows["`add_doc_comment`"] == "`docs`, `comments`"
         assert rows["`list_labels`"] == "`gmail`, `default`"
         assert rows["`refresh_cache`"] == "`cache`"
+        # A tool in a second service group lists its own module's first (#1511).
+        assert rows["`list_spreadsheets`"] == "`drive`, `sheets`"
+        assert rows["`create_spreadsheet`"] == "`drive`, `sheets`, `default`"
+        assert rows["`import_csv_to_sheet`"] == "`drive`, `sheets`, `local-files`"
 
     def test_raises_when_a_tool_matches_no_section(self):
         def mystery_tool():
@@ -216,9 +220,9 @@ class TestRenderFilteringBlock:
 
     def test_raises_on_a_false_membership_claim(self, monkeypatch):
         monkeypatch.setattr(
-            gen_tool_docs, "MEMBERSHIP_CLAIMS", (("create_spreadsheet", "sheets", True),)
+            gen_tool_docs, "MEMBERSHIP_CLAIMS", (("create_spreadsheet", "docs", True),)
         )
-        with pytest.raises(RuntimeError, match="create_spreadsheet in sheets"):
+        with pytest.raises(RuntimeError, match="create_spreadsheet in docs"):
             gen_tool_docs.render_filtering_block(_groups_by_name())
 
     def test_raises_when_a_left_out_tool_joins_default(self):

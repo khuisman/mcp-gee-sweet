@@ -97,8 +97,8 @@ If neither is set, or the value is empty, the `default` group is registered. `EN
 |---|---|---|
 | `default` | 40 | Everyday reading and writing across all five services. What an unset or empty `ENABLED_TOOLS` loads |
 | `all` | 143 | Every tool, plus the deprecated alias of each recently renamed tool |
-| `sheets` | 36 | Every tool that works inside a spreadsheet: data, sheets, formatting, charts. Creating, listing, searching, importing and sharing spreadsheets are Drive tools, in `drive` (`default` has `create_spreadsheet`) |
-| `drive` | 38 | Every Drive tool: files, sharing, activity, upload, download, local sync, and creating, listing, searching, importing and sharing spreadsheets |
+| `sheets` | 41 | Every spreadsheet tool: data, sheets, formatting, charts, and creating, listing, searching, importing and sharing spreadsheets (which are in `drive` too) |
+| `drive` | 38 | Every Drive tool: files, sharing, activity, upload, download, local sync, and creating, listing, searching, importing and sharing spreadsheets (also in `sheets`) |
 | `docs` | 34 | Every Docs tool |
 | `calendar` | 17 | Every Calendar tool |
 | `gmail` | 15 | Every Gmail tool |
@@ -115,7 +115,7 @@ get_sheet_data,get_sheet_formulas,find_in_spreadsheet,update_cells,batch_update,
 
 **What `default` leaves out.** It has no tool that only works on local files, so local upload, download and sync, CSV import, and the Markdown file tools (`upload_local_file`, `download_folder`, `sync_folder`, `import_csv_to_sheet`, `create_doc_from_file`, `update_doc_from_file`, ...) need `local-files` or their own names. It also leaves out most structural tools: Sheets formatting and charts, Docs tables, themes and comments, calendar management, and Drive trash. Add a service group, or the tool names, for those.
 
-**Combining entries.** Join groups and names with a comma, e.g. `default,local-files` or `default,comments,insert_doc_table`; a tool named twice loads once. Some MCP clients cap how many tools they accept, and every group but `all` is under 100, the lowest cap a current client documents. `default` (40) is exactly the 40 older Cursor builds allowed, so there it leaves no room for another server's tools. A combination can go over a cap, so add up the counts above; Windsurf's cap also counts every other server's tools. See [Clients with a tool limit](client-setup.md#clients-with-a-tool-limit) for each client's setting.
+**Combining entries.** Join groups and names with a comma, e.g. `default,local-files` or `default,comments,insert_doc_table`; a tool named twice loads once. Some MCP clients cap how many tools they accept, and every group but `all` is under 100, the lowest cap a current client documents. `default` (40) is exactly the 40 older Cursor builds allowed, so there it leaves no room for another server's tools. A combination can go over a cap. Adding up the counts above gives an upper bound, since groups overlap and a tool in two loads once; Windsurf's cap also counts every other server's tools. See [Clients with a tool limit](client-setup.md#clients-with-a-tool-limit) for each client's setting.
 
 ## HTTP transport authentication
 
