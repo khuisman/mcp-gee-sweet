@@ -553,6 +553,345 @@ class TestDocToAstImages:
         assert node.runs == []
 
 
+class TestImageSpanStyle:
+    """#1509: the read side records an inline image's own character style, and
+    the export keeps an emphasis span open across an image that shares it, so
+    a Doc written from `**bold ![logo](x) image**` reads back as the same
+    Markdown instead of three spans with a plain image in the middle."""
+
+    _URI = "https://example.com/img.png"
+
+    @staticmethod
+    def _embedded(title="logo"):
+        return {
+            "inlineObjectProperties": {
+                "embeddedObject": {
+                    "title": title,
+                    "imageProperties": {"contentUri": "https://example.com/img.png"},
+                }
+            }
+        }
+
+    def _doc(self, before, image_style, after, extra_elements=()):
+        elements = [
+            {"textRun": {"content": before, "textStyle": {"bold": True}}},
+            {
+                "inlineObjectElement": {
+                    "inlineObjectId": "img1",
+                    "textStyle": {"bold": True, **image_style},
+                }
+            },
+            *extra_elements,
+            {"textRun": {"content": after, "textStyle": {"bold": True}}},
+        ]
+        return {
+            "body": {"content": [{"paragraph": {"elements": elements}}]},
+            "inlineObjects": {"img1": self._embedded()},
+        }
+
+    def test_reads_the_images_own_character_style(self):
+        # The live shape #1509 confirmed: the image's inlineObjectElement carries
+        # the span's bold on its own textStyle, next to the link (#951).
+        doc = self._doc("bold ", {}, " image\n")
+        image = document_to_ast(doc)[0].runs[1]
+        assert isinstance(image, Image)
+        assert image.bold is True
+        assert image.alt == "logo"
+
+    def test_bold_span_stays_open_across_the_image(self):
+        doc = self._doc("bold ", {}, " image\n")
+        assert ast_to_markdown(document_to_ast(doc)) == f"**bold ![logo]({self._URI}) image**\n"
+        tokens = _COMMONMARK.parse(ast_to_markdown(document_to_ast(doc)))
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        # One strong span, opened before the text and closed after it, with
+        # the image inside it — not three separate spans around a plain image.
+        assert "strong_open" in types and "strong_close" in types
+        assert types.index("strong_open") < types.index("image") < types.index("strong_close")
+
+    def test_image_style_field_list_mirrors_the_write_side(self):
+        # The same fields emitter._character_text_style writes on an image
+        # (#1475), including the ones Markdown has no syntax for: they ride on
+        # the AST, as a run's do, and are lost in Markdown the same way.
+        doc = self._doc(
+            "bold ",
+            {
+                "italic": True,
+                "underline": True,
+                "strikethrough": True,
+                "baselineOffset": "SUPERSCRIPT",
+                "smallCaps": True,
+                "backgroundColor": {"color": {"rgbColor": {"red": 1.0}}},
+                "weightedFontFamily": {"fontFamily": "Courier New"},
+            },
+            " image\n",
+        )
+        image = document_to_ast(doc)[0].runs[1]
+        assert isinstance(image, Image)
+        assert image.italic is True
+        assert image.underline is True
+        assert image.strikethrough is True
+        assert image.baseline_offset == "SUPERSCRIPT"
+        assert image.small_caps is True
+        assert image.background_color == RGBColor(1.0, 0.0, 0.0)
+        assert image.font_family == "Courier New"
+
+    def test_size_and_color_stay_the_paragraphs(self):
+        # The write side never styles fontSize or foregroundColor on an image
+        # (_IMAGE_TEXT_STYLE_FIELDS), so the read side doesn't invent fields
+        # an Image doesn't even have.
+        doc = self._doc(
+            "bold ",
+            {
+                "fontSize": {"magnitude": 12.0, "unit": "PT"},
+                "foregroundColor": {"color": {"rgbColor": {"red": 1.0}}},
+            },
+            " image\n",
+        )
+        image = document_to_ast(doc)[0].runs[1]
+        assert isinstance(image, Image)
+        assert not hasattr(image, "font_size")
+        assert not hasattr(image, "foreground_color")
+
+    def test_italic_and_strike_wrap_the_same_span(self):
+        style = {"italic": True, "strikethrough": True}
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "a ", "textStyle": style}},
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": style,
+                                    }
+                                },
+                                {"textRun": {"content": " b\n", "textStyle": style}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        # The image shares the italic and the strike, so both stay open across
+        # it, the strike inside the italic — the order _render_plain_run writes.
+        assert ast_to_markdown(document_to_ast(doc)) == f"*~~a ![logo]({self._URI}) b~~*\n"
+
+    def test_lone_styled_image_keeps_its_own_markers(self):
+        # No run shares the span; the image's own markers are the only way the
+        # style survives export at all.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True},
+                                    }
+                                },
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        assert ast_to_markdown(document_to_ast(doc)) == f"**![logo]({self._URI})**\n"
+
+    def test_style_with_no_markdown_syntax_renders_plain(self):
+        # Underline, highlight, superscript, small caps and a code font have no
+        # Markdown marker — the same limitation a run's style has.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {
+                                            "underline": True,
+                                            "baselineOffset": "SUPERSCRIPT",
+                                        },
+                                    }
+                                },
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        assert ast_to_markdown(document_to_ast(doc)) == f"![logo]({self._URI})\n"
+
+    def test_unstyled_image_between_bold_runs_still_splits(self):
+        # Only an image that shares the span keeps it open; a plain one doesn't
+        # join, exactly as before.
+        doc = self._doc("bold ", {"bold": False}, " image\n")
+        doc["body"]["content"][0]["paragraph"]["elements"][1]["inlineObjectElement"][
+            "textStyle"
+        ] = {}
+        assert ast_to_markdown(document_to_ast(doc)) == (
+            f"**bold** ![logo]({self._URI}) **image**\n"
+        )
+
+    def test_edge_break_keeps_the_span_closed(self):
+        # A break at the boundary would land inside the markers; the runs stay
+        # apart, as _coalesce_plain_runs keeps runs apart. The image still
+        # joins the run before it — the break is between it and the next run.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "a", "textStyle": {"bold": True}}},
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True},
+                                    }
+                                },
+                                {"textRun": {"content": "\nb\n", "textStyle": {"bold": True}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        assert ast_to_markdown(document_to_ast(doc)) == f"**a![logo]({self._URI})**<br>**b**\n"
+
+    def test_linked_span_wraps_the_images_bare(self):
+        # The span's one link wraps the whole body; the image's link is that
+        # same link, so it renders bare instead of nesting a link in a link.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "textRun": {
+                                        "content": "a ",
+                                        "textStyle": {"bold": True, "link": {"url": "https://u"}},
+                                    }
+                                },
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {
+                                            "bold": True,
+                                            "link": {"url": "https://u"},
+                                        },
+                                    }
+                                },
+                                {
+                                    "textRun": {
+                                        "content": " b\n",
+                                        "textStyle": {"bold": True, "link": {"url": "https://u"}},
+                                    }
+                                },
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        assert (
+            ast_to_markdown(document_to_ast(doc)) == f"[**a ![logo]({self._URI}) b**](https://u)\n"
+        )
+
+    def test_cell_keeps_the_span_open_across_the_image(self):
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "table": {
+                            "tableRows": [
+                                {
+                                    "tableCells": [
+                                        {
+                                            "content": [
+                                                {
+                                                    "paragraph": {
+                                                        "elements": [
+                                                            {
+                                                                "textRun": {
+                                                                    "content": "a ",
+                                                                    "textStyle": {"bold": True},
+                                                                }
+                                                            },
+                                                            {
+                                                                "inlineObjectElement": {
+                                                                    "inlineObjectId": "img1",
+                                                                    "textStyle": {"bold": True},
+                                                                }
+                                                            },
+                                                            {
+                                                                "textRun": {
+                                                                    "content": " b",
+                                                                    "textStyle": {"bold": True},
+                                                                }
+                                                            },
+                                                        ]
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        assert ast_to_markdown(document_to_ast(doc)) == (
+            f"| **a ![logo]({self._URI}) b** |\n| --- |\n"
+        )
+
+    def test_code_run_breaks_the_span(self):
+        # A code run is not emphasis: a group never forms across it, and the
+        # parts join without a separator, as they always have.
+        doc = self._doc(
+            "a",
+            {},
+            "b\n",
+            extra_elements=[
+                {
+                    "textRun": {
+                        "content": "`c`",
+                        "textStyle": {"weightedFontFamily": {"fontFamily": "Courier New"}},
+                    }
+                }
+            ],
+        )
+        elements = doc["body"]["content"][0]["paragraph"]["elements"]
+        elements[1], elements[2] = elements[2], elements[1]
+        assert ast_to_markdown(document_to_ast(doc)) == (
+            f"**a**`` `c` ``**![logo]({self._URI})b**\n"
+        )
+
+    def test_ast_level_round_trip_keeps_one_span(self):
+        # The write side reads `**bold ![logo](x) image**` into the same AST
+        # (#1475); the export of that AST writes the same Markdown back.
+        source = f"**bold ![logo]({self._URI}) image**"
+        ast = html_to_ast(md_to_html._md_to_html(source))
+        assert ast_to_markdown(ast) == source + "\n"
+
+
 class TestDocToAstTables:
     def test_simple_table_round_trips_rows_and_cells(self):
         doc = {

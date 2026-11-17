@@ -383,13 +383,123 @@ def _md_link_dest(url: str) -> str:
 
 
 def _render_inline(items: list[Run | Image]) -> str:
-    parts: list[str] = []
-    for item in _coalesce_plain_runs(_coalesce_code_runs(items)):
-        if isinstance(item, Image):
-            parts.append(_render_image(item))
-        else:
-            parts.append(_render_run(item))
+    parts = _render_inline_parts(_coalesce_plain_runs(_coalesce_code_runs(items)), in_table=False)
     return _join_inline(parts)
+
+
+def _render_inline_parts(items: list, in_table: bool, cell: bool = False) -> list[str]:
+    """Render coalesced inline items to Markdown parts, keeping an emphasis
+    span open across an image that shares it (#1509): a Doc whose paragraph is
+    bold \"bold", image, bold "image" renders "**bold ![alt](src) image**" —
+    one span — instead of "**bold** ![alt](src) **image**", which a round trip
+    through the write pipeline then reads back with a plain image. An image
+    whose own style no neighbor shares keeps its markers alone. Anything
+    outside such a span renders exactly as it did before.
+
+    A group never forms across a line break at an image's boundary, the same
+    edge `_coalesce_plain_runs keeps apart for runs, so a break never lands
+    inside markers it didn't before. Code runs never join a group: their
+    backticks aren't emphasis markers."""
+    parts: list[str] = []
+    i = 0
+    n = len(items)
+    while i < n:
+        item = items[i]
+        if cell and isinstance(item, Table):
+            parts.append(_NESTED_TABLE_PLACEHOLDER)
+            i += 1
+            continue
+        if _is_code_run(item):
+            parts.append(_render_run(item, in_table))
+            i += 1
+            continue
+        style = _markdown_style(item)
+        group = [item]
+        i += 1
+        if style[:3] != (False, False, False):
+            while i < n:
+                nxt = items[i]
+                if (
+                    (cell and isinstance(nxt, Table))
+                    or _is_code_run(nxt)
+                    or _markdown_style(nxt) != style
+                ):
+                    break
+                # An edge break between two group members would render inside
+                # the markers, where a soft break would split the span; keep
+                # the members apart, as _coalesce_plain_runs does for runs.
+                prev = group[-1]
+                edge_break = (isinstance(prev, Run) and _split_edge_breaks(prev.text)[2]) or (
+                    isinstance(nxt, Run) and _split_edge_breaks(nxt.text)[0]
+                )
+                if edge_break:
+                    break
+                group.append(nxt)
+                i += 1
+        if any(isinstance(m, Image) for m in group):
+            parts.append(_render_span(group, style, in_table))
+        else:
+            # No image, or nothing a marker could span: one item at a time.
+            parts.extend(_render_ungrouped(group, in_table))
+    return parts
+
+
+def _render_ungrouped(group: list, in_table: bool) -> list[str]:
+    parts: list[str] = []
+    for member in group:
+        if isinstance(member, Image):
+            image = _render_image(member)
+            parts.append(_table_safe(image) if in_table else image)
+        else:
+            parts.append(_render_run(member, in_table))
+    return parts
+
+
+def _render_span(group: list[Run | Image], style: tuple, in_table: bool) -> str:
+    """One emphasis span around `group`, its markers kept open across the
+    images inside it (#1509) — the shape doc_to_ast reads from a Doc whose
+    image sits inside a styled span, and the only Markdown form that round
+    trips through the write pipeline back to the same styled span.
+
+    Whitespace at the span's outer edges stays outside the markers, with its
+    line breaks rendered as <br> outside them, the way _render_plain_run keeps
+    a run's edges from breaking CommonMark's flanking rule; whitespace beside
+    an image is inside the span, never at a marker edge. A break inside a run
+    renders as <br> inside the markers, as _render_run does.
+
+    The span's own link wraps the whole body when a run joins it, and the
+    images then render bare: their link is the span's (their style matched),
+    so wrapping again would nest a link in a link. An images-only span keeps
+    _render_image's own link wrap instead."""
+    bold, italic, strike, link_url = style
+    has_run = any(isinstance(m, Run) for m in group)
+    inner: list[str] = []
+    lead = trail = ""
+    last = len(group) - 1
+    for pos, member in enumerate(group):
+        if isinstance(member, Image):
+            inner.append(_image_body(member) if has_run else _render_image(member))
+            continue
+        core = member.text
+        if pos == 0:
+            lead = core[: len(core) - len(core.lstrip())]
+            core = core[len(lead) :]
+        if pos == last:
+            trail = core[len(core.rstrip()) :]
+            core = core[: len(core) - len(trail)]
+        inner.append(_escape(core))
+    body = _join_inline(inner).replace("\n", "<br>")
+    if strike:
+        body = f"~~{body}~~"
+    if italic:
+        body = f"*{body}*"
+    if bold:
+        body = f"**{body}**"
+    body = f"{_render_breaks(lead, in_table)}{body}{_render_breaks(trail, in_table)}"
+    if link_url and has_run:
+        dest = _md_link_dest(link_url)
+        body = f"[{body}]({_table_safe(dest) if in_table else dest})"
+    return _table_safe(body) if in_table else body
 
 
 def _join_inline(parts: list[str]) -> str:
@@ -438,11 +548,16 @@ def _ends_with_unescaped(text: str, chars) -> bool:
     return backslashes % 2 == 0
 
 
+def _image_body(image: Image) -> str:
+    """An image's own Markdown, with no link or span around it."""
+    return f"![{_escape(image.alt or '')}]({_md_link_dest(image.src)})"
+
+
 def _render_image(image: Image) -> str:
     """Markdown for one image, wrapped in a link when the image is linked.
     Every image goes through here, so a linked image keeps its link in a
     code paragraph, a table cell, and ordinary text alike (#951)."""
-    body = f"![{_escape(image.alt or '')}]({_md_link_dest(image.src)})"
+    body = _image_body(image)
     if image.link_url:
         body = f"[{body}]({_md_link_dest(image.link_url)})"
     return body
@@ -477,10 +592,18 @@ def _coalesce_code_runs(items: list) -> list:
     return merged
 
 
-def _markdown_style(run: Run) -> tuple:
+def _markdown_style(item: Run | Image) -> tuple:
     # The styles _render_plain_run writes. Everything else on a Run (color,
-    # size, underline, highlight, ...) has no Markdown syntax.
-    return (bool(run.bold), bool(run.italic), bool(run.strikethrough), run.link_url)
+    # size, underline, highlight, ...) has no Markdown syntax. An Image carries
+    # the same fields (#1475), so the same test tells whether it sits in the
+    # same span as a run (#1509).
+    return (bool(item.bold), bool(item.italic), bool(item.strikethrough), item.link_url)
+
+
+# A style no Markdown marker can express: no emphasis, no link. Items with it
+# render one at a time exactly as before — grouping them would change nothing
+# semantically, but would hand _join_inline different part boundaries.
+_NO_MARKERS = (False, False, False, None)
 
 
 def _coalesce_plain_runs(items: list) -> list:
@@ -720,14 +843,9 @@ def _render_table(table: Table) -> str:
 
 
 def _render_cell(cell: Cell) -> str:
-    parts: list[str] = []
-    for child in _coalesce_plain_runs(_coalesce_code_runs(cell.children)):
-        if isinstance(child, Table):
-            parts.append(_NESTED_TABLE_PLACEHOLDER)
-        elif isinstance(child, Image):
-            parts.append(_table_safe(_render_image(child)))
-        else:
-            parts.append(_render_run(child, in_table=True))
+    parts = _render_inline_parts(
+        _coalesce_plain_runs(_coalesce_code_runs(cell.children)), in_table=True, cell=True
+    )
     # Every part is already table-safe, with its newlines turned into <br>,
     # so strip() here only removes incidental whitespace, never an edge
     # spacer paragraph (#594 QA round 2; see _table_safe).
