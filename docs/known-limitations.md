@@ -304,17 +304,20 @@ that a link can target. Tracked in #1076.
 
 ### `get_doc_as_markdown` exports a left-aligned table column as `---`, not `:--`
 
-**What:** A Markdown table column written with `:--` (or an HTML cell with `text-align: left`)
-reads back from `get_doc_as_markdown` as an unaligned `---` column. Centered (`:-:`) and
-right-aligned (`--:`) columns keep their delimiters. Both `:--` and `---` draw left-aligned, so
-the rendered table looks the same.
+**What:** In a table written by `create_doc`, `write_doc_content`, `create_doc_from_file`,
+`update_doc_from_file`, or `upload_file` (Markdown source), or converted from `.md` by Drive's import,
+a column written with `:--` (or an HTML cell with `text-align: left`) reads back from
+`get_doc_as_markdown` and `export_revision` as an unaligned `---` column. Centered (`:-:`) and
+right-aligned (`--:`) columns keep their delimiters. A Markdown renderer draws an unaligned body cell
+on the left, but may center an unaligned header cell, as a browser does a bare `<th>`. A table from a
+Drive `.docx` import keeps its `:--` columns.
 
-**Why:** Docs stores a left alignment (`START`) on every cell of a table it creates, aligned or
-not, so a left-aligned column and an unaligned one are the same in the Doc. Reading `START` as
-`:--` exported every unaligned column as `:--` (#1503).
+**Why:** Those tables store a left alignment (`START`) on every cell, aligned or not, so a
+left-aligned column and an unaligned one are the same in the Doc. Reading `START` as `:--` exported
+every unaligned column as `:--` (#1503). A `.docx` import leaves an unaligned cell's alignment unset,
+so there `START` is read as `:--`.
 
-**Workaround:** None needed for display. To keep `:--` in a round trip, restore it in the
-exported Markdown by hand.
+**Workaround:** Restore `:--` in the exported Markdown by hand.
 
 ---
 

@@ -879,6 +879,20 @@ class TestDocToAstTables:
         content = [_para("a\n", para_style=style), _para("b\n", para_style=style)]
         assert self._cell_alignment_of(content) is None
 
+    def test_start_is_default_only_when_every_cell_paragraph_has_a_field(self):
+        from mcp_gee_sweet.tools.docs.doc_to_ast import _start_is_default
+
+        start = {"alignment": "START"}
+        unset_inner = {"tableRows": [{"tableCells": [{"content": [_para("x\n")]}]}]}
+
+        def table(*contents):
+            return {"tableRows": [{"tableCells": [{"content": c} for c in contents]}]}
+
+        assert _start_is_default(table([_para("a\n", para_style=start)]))
+        assert not _start_is_default(table([_para("a\n", para_style=start)], [_para("b\n")]))
+        # A nested table's own paragraphs don't decide for the outer table.
+        assert _start_is_default(table([_para("a\n", para_style=start), {"table": unset_inner}]))
+
     def test_justified_cell_reads_as_justified(self):
         content = [_para("a\n", para_style={"alignment": "JUSTIFIED"})]
         assert self._cell_alignment_of(content) == "JUSTIFIED"
@@ -1416,6 +1430,27 @@ class TestTableAlignmentRoundTrip:
         }
         md = ast_to_markdown(document_to_ast(doc))
         assert md == "| p | q | r |\n| --- | :-: | --- |\n| 1 | 2 | 3 |\n"
+
+    def test_start_is_a_left_column_where_unaligned_cells_have_no_field(self):
+        """#1503 QA round 1: a Drive `.docx` import leaves an unaligned cell's
+        `alignment` field out, so in that table START is a real `:--`. Cells
+        read `[START] [CENTER] [None]` there, as Kit's live import did."""
+
+        def cell(text, alignment):
+            style = {"alignment": alignment} if alignment else {}
+            return {"tableCellStyle": {}, "content": [_para(f"{text}\n", para_style=style)]}
+
+        def row(left, center, plain):
+            return {"tableCells": [cell(left, "START"), cell(center, "CENTER"), cell(plain, None)]}
+
+        doc = {
+            "body": {
+                "content": [{"table": {"tableRows": [row("l", "c", "n"), row("1", "2", "3")]}}]
+            },
+            "lists": {},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == "| l | c | n |\n| :-- | :-: | --- |\n| 1 | 2 | 3 |\n"
 
 
 class TestAstToMarkdownComments:

@@ -7590,7 +7590,7 @@ Step 1 as written: `images` has `error` + `fallback_text` for the seven `{BAD}` 
 
 ### TC-DOC260: `get_doc_as_markdown` reads a Docs table's START cells as unaligned (#1503) ⚠️ destructive
 
-**Purpose:** `insertTable` stores `alignment: START` on every cell paragraph it creates, so every unaligned column of a table written through the API exported `:--`. START now reads as unset: an unaligned column exports `---`, and so does a `:--` column, which Docs stores the same way. CENTER and END columns keep `:-:` and `--:`. TC-DOC255 reproduces the original failure; this case adds an explicit `:--` column, a column mixing CENTER with unaligned cells, and an HTML table.
+**Purpose:** `insertTable` stores `alignment: START` on every cell paragraph it creates, so every unaligned column of a table written through the API exported `:--`. START now reads as unset in a table where every cell paragraph carries an alignment, as there it's the default: an unaligned column exports `---`, and so does a `:--` column, which Docs stores the same way. A `.docx` import leaves an unaligned cell's alignment out, so its START cells keep `:--`. CENTER and END columns keep `:-:` and `--:`. TC-DOC255 reproduces the original failure; this case adds an explicit `:--` column, a column mixing CENTER with unaligned cells, an HTML table, and a `.docx` import.
 
 **Steps**
 1. `create_doc(title="TC-DOC260", folder_id={FOLDER_ID}, content_format="markdown", content="| l | c | n | m |\n|:--|:-:|---|---|\n| 1 | 2 | 3 | 4 |\n")` → `{MD}`
@@ -7598,10 +7598,12 @@ Step 1 as written: `images` has `error` + `fallback_text` for the seven `{BAD}` 
 3. `create_doc(title="TC-DOC260 html", folder_id={FOLDER_ID}, content="<table><tr><th>x</th><th style=\"text-align:center\">y</th><th style=\"text-align:right\">z</th></tr><tr><td>1</td><td style=\"text-align:center\">2</td><td>3</td></tr></table>")` → `{HTML}`
 4. `get_doc_as_markdown(doc_id={HTML})`
 5. Re-run TC-DOC255 steps 1, 2 and 4
+6. Build a `.docx` holding a 2×3 table with `w:jc w:val="left"` on every column-1 paragraph, `w:jc w:val="center"` on every column-2 paragraph and no `w:jc` in column 3, and `upload_local_file(convert=True)` it → `{DOCX}`; `get_doc_as_markdown(doc_id={DOCX})` and `export_revision` on its last revision
 
 **Checks**
 - Step 2: the delimiter row is `| --- | :-: | --- | --- |`
 - Step 4: the delimiter row is `| --- | :-: | --- |`: `y` and `2` agree on CENTER, and `z`'s column mixes END with an unaligned `3`
 - Step 5: TC-DOC255's step 2 and step 4 checks pass (`| :-: | --: | --- |` plain and quoted, `| --- | --- |` for `p | q`)
+- Step 6: both exports' delimiter rows are `| :-- | :-: | --- |`. Record the raw `paragraphStyle.alignment` of each row's cells (expected `START`, `CENTER`, and no field)
 
 **Cleanup:** `delete_file` every doc
