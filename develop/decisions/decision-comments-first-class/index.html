@@ -1352,7 +1352,8 @@
 
 <h1 id="decision-comments-as-a-first-class-cross-suite-capability">Decision: Comments as a First-Class, Cross-Suite Capability<a class="headerlink" href="#decision-comments-as-a-first-class-cross-suite-capability" title="Permanent link">&para;</a></h1>
 <p><strong>Date:</strong> 2026-08-28
-<strong>Snapshot commit:</strong> branch <code>doc/joy/comments-first-class</code></p>
+<strong>Snapshot commit:</strong> branch <code>doc/joy/comments-first-class</code>
+<strong>Amended:</strong> 2026-11-16 (#1537). The tool surface below is the six-tool shape the maintainer chose in <a href="../../design/tool-reduction/"><code>docs/design/tool-reduction.md</code></a> (#1514), replacing the 11 comment tools and four note tools first listed here. Decisions 1, 2, 4, 5 and 6 stand; Decision 3's rename is narrowed (see there).</p>
 <h2 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h2>
 <p>The user asked whether comments had been missed entirely as a class of interaction, starting from the (incorrect) premise that Google Docs had no comment tooling at all. Investigation found the opposite problem: comments exist, but the codebase's own bookkeeping about them has drifted, and the underlying capability was never built out to match what the Drive API actually offers.</p>
 <p><strong>What's actually shipped today:</strong> <code>src/mcp_gee_sweet/tools/docs/comments.py</code> ships <code>list_doc_comments</code>, <code>add_doc_comment</code>, <code>resolve_doc_comment</code> (issue #151, PR #324, Tier 2, closed). All three call the generic Drive v3 <code>comments()</code>/<code>replies()</code> resource against <code>fileId</code> — there is nothing Docs-specific in the implementation. Confirmed live: the exact same code, pointed at a real Spreadsheet's file ID, returns real comment data today with zero modification.</p>
@@ -1390,9 +1391,12 @@
 <p>Comments are a generic Drive-resource capability, not owned by Docs or Sheets — this matches how <code>tools/drive/files.py</code> and <code>tools/drive/sharing.py</code> already own generic file-level operations (<code>share_file</code>, <code>copy_file</code>, <code>move_file</code>) that work against any file type. <code>tools/docs/comments.py</code> is retired; its logic moves to <code>tools/drive/comments.py</code> unchanged in substance.</p>
 <h3 id="3-rename-to-generic-tool-names-an-explicit-breaking-change">3. Rename to generic tool names — an explicit breaking change<a class="headerlink" href="#3-rename-to-generic-tool-names-an-explicit-breaking-change" title="Permanent link">&para;</a></h3>
 <p><code>list_doc_comments</code> → <code>list_file_comments</code>, <code>add_doc_comment</code> → <code>add_file_comment</code>, <code>resolve_doc_comment</code> → <code>resolve_comment</code>, param <code>doc_id</code> → <code>file_id</code>.</p>
+<blockquote>
+<p><strong>Amended 2026-11-16 (#1537):</strong> <code>resolve_doc_comment</code> no longer becomes <code>resolve_comment</code>; resolving is <code>reply_to_comment(action="resolve")</code> (see "Proposed tool surface"). The "no alias or deprecation mechanism" finding below is out of date: #1209 added one, and the renames go through <code>docs/design.md</code>'s "Renaming or Removing a Tool" (a <code>RENAMED_TOOLS</code> alias plus <code>renamed_params</code> for <code>doc_id</code>; <code>deprecated_tool</code> for <code>resolve_doc_comment</code>, whose arguments change).</p>
+</blockquote>
 <p>Confirmed live: this codebase has <strong>no alias or deprecation mechanism</strong> — <code>tool()</code>'s decorator either registers a function under its exact name or doesn't; a caller pinning <code>ENABLED_TOOLS=list_doc_comments</code> would see the tool silently vanish (not error) once renamed. This is a real breaking change and should be called out explicitly in the CHANGELOG/release notes for whichever version ships it. Chosen anyway over a permanent-alias approach, consistent with this project's stated anti-shim style (<code>CLAUDE.md</code>: "avoid backwards-compatibility hacks... just change the code") and because the affected surface is small and recently shipped (Tier 2, not original/entrenched like <code>share_spreadsheet</code> — see Decision 6 for why that one is treated more cautiously).</p>
 <h3 id="4-cell-notes-are-a-separate-capability-not-part-of-comments">4. Cell notes are a separate capability, not part of "comments"<a class="headerlink" href="#4-cell-notes-are-a-separate-capability-not-part-of-comments" title="Permanent link">&para;</a></h3>
-<p>Sheets' <code>CellData.note</code> field (Sheets API v4, set via <code>batchUpdate</code> <code>updateCells</code>/<code>repeatCell</code> with <code>fields=note</code>) is a completely different mechanism from Drive comments: plain text, no author, no thread, no resolve state, no Drive API involvement at all. Confirmed via repo-wide grep: entirely unbuilt today (issue #131, Tier 4, no code touches <code>note</code> anywhere). Ships as its own module, <code>tools/sheets/notes.py</code> (<code>add_note</code>/<code>get_note</code>/<code>clear_note</code>), not folded into the comments work — conflating the two is exactly the confusion the current stale Tier 4 roadmap line already has ("Sheet comments <strong>and cell notes</strong>... zero tooling") and is worth untangling explicitly rather than perpetuating.</p>
+<p>Sheets' <code>CellData.note</code> field (Sheets API v4, set via <code>batchUpdate</code> <code>updateCells</code>/<code>repeatCell</code> with <code>fields=note</code>) is a completely different mechanism from Drive comments: plain text, no author, no thread, no resolve state, no Drive API involvement at all. Confirmed via repo-wide grep: entirely unbuilt today (issue #131, Tier 4, no code touches <code>note</code> anywhere). Ships as its own module, <code>tools/sheets/notes.py</code> (<code>get_note</code>/<code>set_note</code> since the 2026-11-16 amendment; first listed as <code>add_note</code>/<code>get_note</code>/<code>clear_note</code>), not folded into the comments work — conflating the two is exactly the confusion the current stale Tier 4 roadmap line already has ("Sheet comments <strong>and cell notes</strong>... zero tooling") and is worth untangling explicitly rather than perpetuating.</p>
 <h3 id="5-cell-anchored-sheets-comments-confirmed-infeasible-via-the-public-api-cell-notes-are-the-documented-answer-instead">5. Cell-anchored Sheets comments — confirmed infeasible via the public API; cell notes are the documented answer instead<a class="headerlink" href="#5-cell-anchored-sheets-comments-confirmed-infeasible-via-the-public-api-cell-notes-are-the-documented-answer-instead" title="Permanent link">&para;</a></h3>
 <p>Google's own docs (<code>developers.google.com/workspace/drive/api/v3/manage-comments</code>) state plainly that Workspace editors treat a custom <code>anchor</code> value as unanchored, and that anchors are best suited to "documents where the position doesn't change" — not an encouraging signal for arbitrary cell-pinning.</p>
 <p>Three live experiments confirmed this outright, no spike ticket needed:
@@ -1404,93 +1408,75 @@
 <h3 id="6-share_spreadsheetshare_file-overlap-flagged-not-fixed-here">6. <code>share_spreadsheet</code>/<code>share_file</code> overlap — flagged, not fixed here<a class="headerlink" href="#6-share_spreadsheetshare_file-overlap-flagged-not-fixed-here" title="Permanent link">&para;</a></h3>
 <p>Same shape of problem as #151/#142, and a cleaner case of it (<code>share_file</code> is a strict superset, not just similarly-scoped). Not bundled into this work: <code>share_spreadsheet</code> is the project's original tool with a much longer usage/compatibility tail than the 3-tool comments surface, so deprecating it deserves its own review rather than riding along with an unrelated piece of work. Filed separately (Ticket 6 below).</p>
 <h2 id="proposed-tool-surface-target-end-state">Proposed tool surface (target end-state)<a class="headerlink" href="#proposed-tool-surface-target-end-state" title="Permanent link">&para;</a></h2>
-<p>All in <code>tools/drive/comments.py</code> unless noted; all operate on any <code>file_id</code>.</p>
+<p><em>Amended 2026-11-16 (#1537):</em> the maintainer chose the six-tool shape from <a href="../../design/tool-reduction/"><code>docs/design/tool-reduction.md</code></a> over the 11 tools first listed here. Reply, resolve and reopen are one <code>replies().create()</code> call, and editing or deleting a comment or a reply is the same operation one level down, so each set is one tool. The trade-off, accepted: a user can no longer allow one of each set while denying the others (the design's "Before and after, tool by tool" table lists every case).</p>
+<p>All in <code>tools/drive/comments.py</code>; all operate on any <code>file_id</code>.</p>
 <table>
 <thead>
 <tr>
 <th>Tool</th>
 <th>Drive call</th>
-<th>Status</th>
+<th>Annotation</th>
+<th>Ticket</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>list_file_comments</code></td>
 <td><code>comments().list()</code></td>
-<td>Rename of <code>list_doc_comments</code></td>
-</tr>
-<tr>
-<td><code>get_file_comment</code></td>
-<td><code>comments().get()</code></td>
-<td>New</td>
+<td>read-only</td>
+<td>#663 (rename of <code>list_doc_comments</code>)</td>
 </tr>
 <tr>
 <td><code>add_file_comment</code></td>
 <td><code>comments().create()</code></td>
-<td>Rename of <code>add_doc_comment</code>; gains an optional passthrough <code>anchor: str \| None</code> param for non-Workspace Drive files (images, PDFs) where Google's documented generic <code>drive#commentRegion</code> format may actually be honored — confirmed inert for Docs/Sheets/Slides (Decision 5), so the docstring must say so explicitly rather than implying it can pin a comment to a cell</td>
+<td>write</td>
+<td>#663 (rename of <code>add_doc_comment</code>). Gains an optional passthrough <code>anchor: str \| None</code> for non-Workspace Drive files (images, PDFs), where Google's documented <code>drive#commentRegion</code> format may be honored; confirmed inert for Docs/Sheets/Slides (Decision 5), so the docstring must say so rather than imply it can pin a comment to a cell</td>
 </tr>
 <tr>
-<td><code>update_file_comment</code></td>
-<td><code>comments().update()</code></td>
-<td>New — edit a comment's content</td>
+<td><code>reply_to_comment(action=None)</code>, <code>action</code> one of <code>resolve</code>, <code>reopen</code></td>
+<td><code>replies().create()</code>, with <code>body.action</code> when given</td>
+<td>write</td>
+<td>#663 (replaces <code>resolve_doc_comment</code>)</td>
 </tr>
 <tr>
-<td><code>delete_file_comment</code></td>
-<td><code>comments().delete()</code></td>
-<td>New — explicitly out of scope for #151 per its own QA docs; closes that gap</td>
+<td><code>get_file_comment</code></td>
+<td><code>comments().get()</code>, with every reply (pages <code>replies().list()</code> when needed)</td>
+<td>read-only</td>
+<td>#664</td>
 </tr>
 <tr>
-<td><code>reply_to_comment</code></td>
-<td><code>replies().create()</code> (no <code>action</code>)</td>
-<td>New — plain reply; today only a resolve-flavored reply exists</td>
+<td><code>update_comment(reply_id=None)</code></td>
+<td><code>comments().update()</code>, or <code>replies().update()</code> with <code>reply_id</code></td>
+<td>write</td>
+<td>#664</td>
 </tr>
 <tr>
-<td><code>resolve_comment</code></td>
-<td><code>replies().create(action="resolve")</code></td>
-<td>Rename of <code>resolve_doc_comment</code></td>
-</tr>
-<tr>
-<td><code>reopen_comment</code></td>
-<td><code>replies().create(action="reopen")</code></td>
-<td>New</td>
-</tr>
-<tr>
-<td><code>update_reply</code></td>
-<td><code>replies().update()</code></td>
-<td>New — edit a reply's content</td>
-</tr>
-<tr>
-<td><code>delete_reply</code></td>
-<td><code>replies().delete()</code></td>
-<td>New</td>
-</tr>
-<tr>
-<td><code>list_replies</code></td>
-<td><code>replies().list()</code></td>
-<td>New — pagination beyond what <code>list_file_comments</code> embeds inline; low priority</td>
+<td><code>delete_comment(reply_id=None)</code></td>
+<td><code>comments().delete()</code>, or <code>replies().delete()</code> with <code>reply_id</code></td>
+<td>write, kept apart from update</td>
+<td>#664</td>
 </tr>
 </tbody>
 </table>
-<p>Cell notes, in <code>tools/sheets/notes.py</code> (Sheets API v4, unrelated resource):</p>
+<p>Cell notes, in <code>tools/sheets/notes.py</code> (Sheets API v4, unrelated resource), #131:</p>
 <table>
 <thead>
 <tr>
 <th>Tool</th>
 <th>Mechanism</th>
+<th>Annotation</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>get_note</code></td>
 <td><code>spreadsheets().get(fields=".../note")</code></td>
+<td>read-only</td>
 </tr>
 <tr>
-<td><code>add_note</code> / <code>update_note</code></td>
-<td><code>batchUpdate</code> <code>updateCells</code>/<code>repeatCell</code>, <code>fields="note"</code></td>
-</tr>
-<tr>
-<td><code>clear_note</code></td>
-<td>same, empty string</td>
+<td><code>set_note</code></td>
+<td><code>batchUpdate</code> <code>updateCells</code>/<code>repeatCell</code>, <code>fields="note"</code>; empty text clears</td>
+<td>write</td>
 </tr>
 </tbody>
 </table>
@@ -1503,12 +1489,13 @@
 <li><code>docs/roadmap.md</code>: fix the stale Tier 4 Docs line, close or re-scope #142, add a new Tier-appropriate entry for cell notes (#131 already exists) and for this rename/generalization work with real issue numbers once filed.</li>
 </ul>
 <h2 id="ticket-plan">Ticket plan<a class="headerlink" href="#ticket-plan" title="Permanent link">&para;</a></h2>
+<p><em>Amended 2026-11-16 (#1537)</em> for the six-tool shape:</p>
 <ol>
 <li><strong>Roadmap/issue cleanup</strong> (no code) — fix the stale Tier 4 Docs comments line; close #142 as superseded by #151, or re-scope it to whatever's still missing.</li>
-<li><strong>Generalize existing three tools</strong> — move to <code>tools/drive/comments.py</code>, rename per Decision 3, update tests/QA/docs-gen config. Mechanical, low risk, highest value (this is the part that's actually "missing" today: discoverability, not capability).</li>
-<li><strong>Fill CRUD gaps</strong> — <code>delete_file_comment</code>, <code>reply_to_comment</code>, <code>reopen_comment</code>, <code>get_file_comment</code>, <code>update_file_comment</code>, <code>update_reply</code>, <code>delete_reply</code>, <code>list_replies</code>.</li>
-<li><strong>Cell notes</strong> — <code>tools/sheets/notes.py</code>, closes #131. Feasibility already confirmed live (Decision 5) — this is a straight implementation ticket, no spike needed.</li>
-<li><strong><code>share_spreadsheet</code>/<code>share_file</code> consolidation review</strong> — separate from comments work; evaluate deprecation path given its longer compatibility tail.</li>
+<li><strong>Generalize the existing three tools</strong> (#663) — move to <code>tools/drive/comments.py</code>, rename the list and add tools, replace <code>resolve_doc_comment</code> with <code>reply_to_comment(action=)</code>, update tests/QA/docs-gen config.</li>
+<li><strong>Fill CRUD gaps</strong> (#664) — <code>get_file_comment</code>, <code>update_comment</code>, <code>delete_comment</code>.</li>
+<li><strong>Cell notes</strong> (#131) — <code>tools/sheets/notes.py</code>, <code>get_note</code> and <code>set_note</code>. Feasibility already confirmed live (Decision 5).</li>
+<li><strong><code>share_spreadsheet</code>/<code>share_file</code> consolidation</strong> (#665) — separate from comments work.</li>
 </ol>
 <p>Cell-anchored Sheets comments are <strong>not</strong> a ticket — Decision 5 closes that line of work outright, confirmed infeasible via three live experiments (empirical schema recovery, write-side validation-bypass proof, and direct visual confirmation in the Sheets UI). No further investigation recommended barring a future change in what Google's API exposes.</p>
 <h2 id="when-to-re-evaluate">When to Re-evaluate<a class="headerlink" href="#when-to-re-evaluate" title="Permanent link">&para;</a></h2>
