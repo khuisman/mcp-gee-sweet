@@ -15,11 +15,7 @@ the named style being written is the one the paragraph already had.
 
 **Why:** The Docs API's `updateParagraphStyle` with a `namedStyleType` re-applies the
 named style's own text properties to the paragraph's runs, so per-run formatting is not
-preserved — that part is API behaviour. (`insert_softbreak_paragraph` used to add a quirk
-of its own on top: it always sent the paragraph-style request, defaulting to
-`NORMAL_TEXT`, even when no paragraph style was asked for, so a plain insert wiped the
-paragraph's inline styles. It now sends the request only when `named_style_type` is
-passed.)
+preserved — that part is API behaviour.
 
 **Where it bites:** `style_doc_range(named_style_type=...)`, and
 `insert_softbreak_paragraph` when a `named_style_type` is passed.

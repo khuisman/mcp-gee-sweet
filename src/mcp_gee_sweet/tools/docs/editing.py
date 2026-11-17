@@ -7,7 +7,7 @@ from mcp.types import ToolAnnotations
 from ...auth import execute_in_thread
 from .indices import utf16_len
 from .invalidation import doc_invalidating
-from .style import _NAMED_STYLE_TYPES, _text_style_and_fields
+from .style import _NAMED_STYLE_TYPES, _bold_runs_in_range, _text_style_and_fields
 
 logger = logging.getLogger(__name__)
 
@@ -190,23 +190,27 @@ def register(tool):
             Category: AWS / Database
             Source: ...
         insert_doc_text with "\\n" between lines creates separate paragraphs with a
-        blank line between them instead. Passing a named_style_type also sidesteps
+        blank line between them instead.
+
+        Passing a named_style_type applies the Docs API behaviour documented
+        on style_doc_range: updateParagraphStyle re-applies the named style's
+        own text properties over the paragraph's runs, clearing any inline
+        text styles the paragraph carried. It also sidesteps
         delete_doc_range's paragraph-merge style-inheritance gotcha (see its
-        docstring): the style is set explicitly on the whole paragraph the block
-        lands in, rather than left to whichever neighboring paragraph it happened
-        to merge into.
+        docstring). To replace existing content with a soft-break block, delete
+        it first with delete_doc_range, then call this tool at the same index
+        passing named_style_type (e.g. NORMAL_TEXT): the deletion's merge
+        leaves the position styled by the paragraph it merged into, so the
+        original style cannot be assumed to have survived.
 
-        To replace existing content with a soft-break block: delete it first with
-        delete_doc_range, then call this tool at the same index.
-
-        When a named_style_type is passed, the Docs API behaviour documented on
-        style_doc_range applies: updateParagraphStyle re-applies the named
-        style's own text properties over the paragraph's runs, clearing any
-        inline text styles the paragraph carried. With the default None no
-        paragraph-style request is sent at all, so the paragraph's existing
-        style and inline text styles are untouched. Either way, set the styles
-        you want on the line dicts rather than relying on the paragraph's
-        previous formatting.
+        Either way, set the styles you want on the line dicts rather than
+        relying on the paragraph's previous formatting: inserted lines inherit
+        the inline style of the character before index (bold, italic,
+        strikethrough, link included), and a line can set a field to false to
+        clear an inherited style. A font_family line that sends no bold of its
+        own keeps the bold the insert inherited: the weightedFontFamily request
+        would clear it (#1273), so it is restored after, as style_doc_range
+        does.
 
         Args:
             doc_id: The Google Doc file ID.
@@ -223,9 +227,7 @@ def register(tool):
             named_style_type: Optional paragraph style applied to the whole
                 paragraph the inserted block ends up in (per Docs API
                 updateParagraphStyle semantics, this covers the entire paragraph
-                touched by the insert, not just the newly-inserted span). None
-                (the default) sends no updateParagraphStyle request, leaving the
-                paragraph's style and inline text styles untouched. Otherwise:
+                touched by the insert, not just the newly-inserted span):
                 NORMAL_TEXT, HEADING_1 … HEADING_6, TITLE, SUBTITLE.
 
         Returns:
@@ -249,6 +251,28 @@ def register(tool):
 
         joined_text = "\v".join(line["text"] for line in lines)
         end_index = index + utf16_len(joined_text)
+
+        # #1499 item 4: a font_family line that sends no bold of its own would
+        # clear the direct bold the insert inherits from the character before
+        # index — the same weightedFontFamily behaviour style_doc_range restores
+        # after (#1273) — so read the preceding character's own bold once,
+        # before the insert. Bold a run carries via its paragraph's named style
+        # is not the run's and not affected by the font request, exactly as
+        # _bold_runs_in_range's own docstring says, so only a directly bold
+        # preceding character restores anything.
+        font_only_lines = {
+            i for i, line in enumerate(lines) if "font_family" in line and "bold" not in line
+        }
+        inherits_bold = False
+        if font_only_lines:
+            try:
+                doc = await execute_in_thread(
+                    lc.docs_service.documents().get(documentId=doc_id).execute,
+                    lc.docs_service,
+                )
+            except Exception as e:
+                return {"error": str(e)}
+            inherits_bold = bool(_bold_runs_in_range(doc, index - 1, index))
 
         requests: list[dict[str, Any]] = [
             {"insertText": {"location": {"index": index}, "text": joined_text}},
@@ -289,6 +313,20 @@ def register(tool):
                         }
                     }
                 )
+                # Restore the direct bold the font request clears (#1273), in
+                # the same batchUpdate and after it, as style_doc_range does.
+                # Only a line that sends no bold of its own is restored, and
+                # only when the insert inherited bold at all.
+                if i in font_only_lines and inherits_bold:
+                    requests.append(
+                        {
+                            "updateTextStyle": {
+                                "range": {"startIndex": line_start, "endIndex": line_end},
+                                "textStyle": {"bold": True},
+                                "fields": "bold",
+                            }
+                        }
+                    )
 
             cursor = line_end + (1 if i < len(lines) - 1 else 0)  # +1 for the "\v" separator
 

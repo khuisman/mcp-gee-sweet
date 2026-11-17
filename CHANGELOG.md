@@ -20,6 +20,16 @@ All notable changes to this project are documented in this file.
 
 ### Bug fixes
 
+- `insert_softbreak_paragraph`: a `font_family` line that sends no bold of its own keeps
+  the bold the insert inherited from the character before `index`, where the
+  `weightedFontFamily` request used to clear it — the same restore `style_doc_range`
+  already does after its font requests (#1273) is now shared, in the same batchUpdate,
+  only when a directly bold character precedes the insert and only for lines without
+  bold of their own. The docstring now says the replace-recipe passes `named_style_type`
+  (the deletion's paragraph merge leaves the position styled by its neighbor), that
+  inserted lines inherit the preceding character's inline style and a line field set to
+  `false` clears it, and states the `None`/explicit rule once; the known-limitations
+  entry drops the old-behaviour parenthetical the CHANGELOG already carries — #1499
 - `insert_softbreak_paragraph` no longer sends a paragraph-style request unless `named_style_type` is passed: it used to write `NORMAL_TEXT` over the whole paragraph the block landed in by default, so a plain insert wiped the paragraph's existing inline text styles (`updateParagraphStyle(namedStyleType)` re-applies the named style's text properties). The default is now `None` — no `updateParagraphStyle` at all — and passing a named style still writes it over the whole paragraph. Its line-dict vocabulary now lists `font_family`, which was already supported, and the docstring, `style_doc_range`'s Note and the known-limitations entry now state that one range dict carrying `named_style_type` plus text-style fields applies paragraph-style-first in a single call, dropping the wrong second-call workaround — #1489
 - A `<pre>` inside a table cell is styled as code, as a `<pre>` at the body level is: its text keeps the line breaks #1215 gave it and now reads in Courier New, where it used to keep the breaks but look like plain text in the cell. Text after the `</pre>` in the same cell stays plain — #1417
 - An `<li>` that is the first item of a `<ul>` and holds only a styled block (a `<p data-style="title">` or `<p data-style="subtitle">`, HTML input, with no `&nbsp;` before it) is that block, indented under the list with no bullet, as in v0.9.5, instead of an empty bullet above it: a browser draws the item's marker beside the block's first line, so the item reads as one line (#1075's premise put the marker on a line of its own). Every other item keeps the bullet #1075 gives it — one with text of its own, a later item of the list, an item of an `<ol>` (whose `start`/`value` numbering counts it), or one whose only content is a nested list, quote, code block or rule. Applies to `create_doc`, `write_doc_content`, `create_doc_from_file` and `update_doc_from_file` — #1414
