@@ -7629,13 +7629,15 @@ Every listed check passes. Step 2: `| --- | :-: | --- | --- |`. Step 4: `| --- |
 2. `get_doc_as_markdown(doc_id={DOC}, local_path="<scratch dir>/tc-doc261.md")`
 3. Render step 2's file with plain CommonMark: `uv run python -c "import sys; from markdown_it import MarkdownIt; print(MarkdownIt('commonmark').render(open(sys.argv[1]).read()))" <scratch dir>/tc-doc261.md`
 4. `create_doc(title="TC-DOC261 round trip", folder_id={FOLDER_ID}, content_format="markdown", content=<step 2's file>)` → `{RT}`, then `get_doc_as_markdown(doc_id={RT})`
+5. Items Markdown can't nest under their parent (PR #1539 QA round 1): `create_doc(title="TC-DOC261 can't nest", folder_id={FOLDER_ID}, content_format="markdown", content="1. one\n2. two\n3. three\n4. four\n5. five\n6. six\n7. seven\n8. eight\n9. nine\n10. ten\n    > - quoted child\n\nBreak\n\n- a\n  - b\n    - c\n      - d\n")` → `{NN}`, then `get_doc_as_markdown(doc_id={NN}, local_path="<scratch dir>/tc-doc261-nn.md")` and render it as in step 3
 
 **Checks**
 - Step 2's lines, in order: `1. Top`, `   1. Nested` (3 spaces), `      - deep bullet` (6), `2. Next`; `- a`, `  - b` (2), `    1. c` (4); `10. ten`, `    1. ten child` (4); `- [ ] task`, `  - [x] subtask` (2), a blank line, `  more in task` (2); `1. p`, `   1. q` (3), a blank line, `      more in q` (6), a blank line, `2. r`
 - Step 3: each child list sits inside its parent's `<li>`: `Nested` and `deep bullet` inside `Top`'s, `c` inside `b`'s inside `a`'s, `ten child` inside `ten`'s, `subtask` inside `task`'s, `q` inside `p`'s. `more in task` and `more in q` are `<p>`s inside their items. There's no `<pre>` anywhere
 - Step 4's export is identical to step 2's
+- Step 5: `quoted child` is a depth-1 item in a quote under the unquoted `10. ten`, and Markdown can't put a quoted line inside an unquoted item's indent. It exports as `> - quoted child` at the margin, after a blank line, never `>` followed by 4+ spaces. `- a` through `      - d` keep 2 more spaces per level. The render has no `<pre>`: `quoted child` is an `<li>` in a `<blockquote>`, and `d` is inside `c`'s `<li>`
 
-**Cleanup:** `delete_file` both docs; delete the scratch file
+**Cleanup:** `delete_file` all three docs; delete the scratch files
 
 **Result (2026-11-16) ✅ PASS — Kit, PR #1539 round 1 @ 3da51399**
 Step 2 matches every listed line (`   1. Nested`, `      - deep bullet`, `  - b`, `    1. c`, `    1. ten child`, `  - [x] subtask`, `  more in task`, `   1. q`, `      more in q`). Step 3: every child list sits inside its parent's `<li>`, both blocks are `<p>`s in their items, and there's no `<pre>`. Step 4: byte-identical to step 2. Both docs trashed. The round was sent back for code-review findings this case doesn't cover (a quoted child under `10.`, a depth jump of 3, an orphan item).

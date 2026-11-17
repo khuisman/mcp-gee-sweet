@@ -167,21 +167,42 @@ class _OpenItems:
             self.separator = f"\n{'>' * shared}\n" if shared else "\n\n"
         return rendered
 
+    def _nesting_column(self, depth: int, quote: int) -> int:
+        """The column an item at `depth` starts at: the content column of the open
+        item above it (#1128), when Markdown can hold it inside that item.
+
+        It can't when their quote depths differ: the item's quote markers go at the
+        margin, outside any indent, so a quoted child of an unquoted item, or the
+        reverse, would sit 4+ columns past its quote's margin, an indented code
+        block. A skipped depth has no column of its own either, and a step past the
+        item above would put the child 4+ columns past it, lazy text of that item.
+        So the item nests in the deepest open item when the quotes match, and
+        otherwise starts at the margin. That ends every list above it in Markdown,
+        so those depths close (column 0, no quote): a block that names one is
+        written at the margin, where it then is."""
+        if not self._items or depth == 0:
+            return 0
+        column, above_quote = self._items[-1]
+        if above_quote == quote:
+            return column
+        self._items[:] = [(0, 0)] * len(self._items)
+        return 0
+
     def _render(self, node: DocNode, prev_node: DocNode | None) -> str:
         if isinstance(node, BulletItem):
             opens_sublist = _opens_sublist(node, prev_node)
+            quote = node.blockquote_depth
             del self._items[node.depth :]
-            # A depth with no open item (a fragment whose parent wasn't exported)
-            # takes the old two-space step past the depth above it.
-            while len(self._items) < node.depth:
-                above = self._items[-1][0] if self._items else 0
-                self._items.append((above + 2, 0))
-            indent = self._items[-1][0] if node.depth else 0
+            indent = self._nesting_column(node.depth, quote)
+            # A depth with no item of its own (a skipped level, or a fragment whose
+            # parent wasn't exported) sits at the column this item nests under, so a
+            # block that names it lands inside the same item, or at the margin.
+            self._items.extend([(indent, quote)] * (node.depth - len(self._items)))
             prefix = _item_prefix(node, opens_sublist, indent)
-            self._items.append((len(prefix), node.blockquote_depth))
-            self._margin_quote = node.blockquote_depth
+            self._items.append((len(prefix), quote))
+            self._margin_quote = quote
             self._inner_quote = None
-            return _render_block(node, opens_sublist=opens_sublist, item_indent=indent)
+            return _render_block(node, item_prefix=prefix)
         list_depth = node.list_depth
         if list_depth is None or list_depth >= len(self._items):
             self._items.clear()
@@ -279,11 +300,14 @@ def _render_code_block(node: Paragraph) -> str:
 
 def _opens_sublist(node: DocNode, prev_node: DocNode | None) -> bool:
     """Whether `node` is a list item nested under the item just before it, so its
-    line follows that item's text with only a newline between them."""
+    line follows that item's text with only a newline between them. An item whose
+    quote depth differs from that item's can't nest in it (`_OpenItems._nesting_column`),
+    and a blank line comes between them."""
     return (
         isinstance(node, BulletItem)
         and isinstance(prev_node, BulletItem)
         and node.depth > prev_node.depth
+        and node.blockquote_depth == prev_node.blockquote_depth
     )
 
 
@@ -328,13 +352,13 @@ def _checkbox(node: BulletItem) -> str:
 
 def _render_block(
     node: Heading | Paragraph | BulletItem | NamedBlock,
-    opens_sublist: bool = False,
     blockquote_depth: int | None = None,
-    item_indent: int = 0,
+    item_prefix: str = "",
 ) -> str:
     """`blockquote_depth` overrides the node's own, for a block whose outer quote
-    levels its caller writes (see `_OpenItems`). `item_indent` is a list item's
-    indent, its parent item's content column (see `_item_prefix`)."""
+    levels its caller writes (see `_OpenItems`). `item_prefix` is a list item's
+    indent and marker, from `_item_prefix`, whose length `_OpenItems` records as
+    the column the item's children nest under."""
     if isinstance(node, Paragraph) and node.rule:
         body = _RULE
     elif isinstance(node, Paragraph) and _is_code_block(node):
@@ -355,7 +379,7 @@ def _render_block(
             # Text after the marker starts the item's first block, so "# a" or
             # "> a" there would read as a heading or quote inside the item.
             text = _escape_leading_block_marker(text)
-        body = f"{_item_prefix(node, opens_sublist, item_indent)}{_checkbox(node)}{text}"
+        body = f"{item_prefix}{_checkbox(node)}{text}"
     else:
         body = _escape_leading_block_marker(_render_inline(node.runs))
 

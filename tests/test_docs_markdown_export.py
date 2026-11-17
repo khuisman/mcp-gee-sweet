@@ -1129,9 +1129,10 @@ class TestAstToMarkdownBlocks:
         nodes = [BulletItem(runs=[Run(text="item")], depth=0, ordered=False)]
         assert ast_to_markdown(nodes) == "- item\n"
 
-    def test_bullet_item_nested_indents_by_depth(self):
+    def test_bullet_item_with_no_exported_parent_starts_at_the_margin(self):
+        """Four spaces would be an indented code block (PR #1539 QA round 1)."""
         nodes = [BulletItem(runs=[Run(text="item")], depth=2, ordered=False)]
-        assert ast_to_markdown(nodes) == "    - item\n"
+        assert ast_to_markdown(nodes) == "- item\n"
 
     def test_bullet_item_ordered_uses_numeral_marker(self):
         nodes = [BulletItem(runs=[Run(text="item")], depth=0, ordered=True)]
@@ -3268,9 +3269,77 @@ class TestNestedListIndentsToParentContentColumn:
         html = _tight_html(md)
         assert "<li><p>a</p><ol><li><p>b</p><p>more</p></li></ol></li><li><p>c</p></li>" in html
 
-    def test_fragment_without_a_parent_keeps_two_spaces_per_missing_depth(self):
-        """An item whose parent wasn't exported has no column to clear."""
-        assert ast_to_markdown([_bullet("deep", 2)]) == "    - deep\n"
+    def test_item_with_no_exported_parent_is_a_list_item(self):
+        """An orphan item has no column to nest under, and Markdown can't hold a
+        list 4+ columns in at the margin: that's an indented code block, which
+        develop wrote too (PR #1539 QA round 1)."""
+        md = ast_to_markdown([Paragraph(runs=[Run(text="p")]), _bullet("x", 2)])
+        assert md == "p\n\n- x\n"
+        assert "<p>p</p><ul><li>x</li></ul>" in _tight_html(md)
+
+    @pytest.mark.parametrize("depth", [2, 3, 5])
+    def test_skipped_depths_nest_in_the_deepest_open_item(self, depth):
+        """A skipped level has no marker of its own, so a step past the parent's
+        column per level put the child 4+ columns past it, lazy text of the
+        parent (PR #1539 QA round 1). It nests one level down instead."""
+        md = ast_to_markdown([_bullet("a", ordered=True), _bullet("x", depth)])
+        assert md == "1. a\n   - x\n"
+        assert "<li>a<ul><li>x</li></ul></li>" in _tight_html(md)
+
+    @pytest.mark.parametrize("parent_quote, child_quote", [(0, 1), (1, 0), (1, 2), (2, 1)])
+    def test_child_in_another_quote_starts_at_the_margin(self, parent_quote, child_quote):
+        """The child's quote markers go at the margin, outside any indent, so the
+        parent's column put it 4+ columns past its quote's margin, an indented
+        code block (PR #1539 QA round 1). It can't nest in the parent, so it
+        starts a list of its own."""
+        nodes = [
+            _bullet("ten", ordered=True, number=10, blockquote_depth=parent_quote),
+            _bullet("x", 1, blockquote_depth=child_quote),
+        ]
+        md = ast_to_markdown(nodes)
+        assert f"{'> ' * child_quote}- x\n" in md
+        html = _tight_html(md)
+        assert "<pre>" not in html
+        assert "<li>x</li>" in html
+
+    def test_after_a_child_in_another_quote_the_lists_above_are_closed(self):
+        """The quoted child ended the unquoted list in Markdown, so a later item
+        or block at that list's depth starts at the margin, not at its column."""
+        nodes = [
+            _bullet("ten", ordered=True, number=10),
+            _bullet("q", 1, blockquote_depth=1),
+            _bullet("c", 2),
+            Paragraph(runs=[Run(text="more")], list_depth=0),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "10. ten\n\n> - q\n\n- c\n\nmore\n"
+        assert "<pre>" not in _tight_html(md)
+
+    @pytest.mark.parametrize("quote", [0, 1])
+    def test_block_naming_a_skipped_depth(self, quote):
+        """A skipped depth sits at the column its item nests under, with that
+        item's quote, so a block naming it isn't pushed 4+ columns in (PR #1539
+        QA round 1)."""
+        nodes = [
+            _bullet("x", 2, blockquote_depth=quote),
+            Paragraph(runs=[Run(text="more")], list_depth=1, blockquote_depth=quote),
+        ]
+        md = ast_to_markdown(nodes)
+        prefix = "> " * quote
+        assert md.endswith(f"{prefix}more\n")
+        html = _tight_html(md)
+        assert "<pre>" not in html
+        assert "<p>more</p>" in html
+
+    def test_block_naming_a_skipped_depth_under_an_item_is_inside_it(self):
+        nodes = [
+            _bullet("a", ordered=True),
+            _bullet("x", 3),
+            Paragraph(runs=[Run(text="more")], list_depth=1),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "1. a\n   - x\n\n   more\n"
+        assert "<li><p>a</p><ul><li>x</li></ul><p>more</p></li>" in _tight_html(md)
 
 
 class TestTaskItemContentColumn:
