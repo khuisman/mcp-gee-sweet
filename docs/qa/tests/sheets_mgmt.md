@@ -2919,18 +2919,22 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 - Calls 1 and 2 each return a `batchUpdate` result (`replies`), no `error`
 - Call 3: row 1 is `a1`, empty, `b1`, `c1` (column B inserted); rows 2 and 3 are empty (two rows inserted at index 1); row 4 is `a2`, empty, `b2`, `c2`
 
-**Cleanup:** `delete_rows_or_columns(..., dimension="rows", start=1, end=2)`, then `delete_rows_or_columns(..., dimension="columns", start=1)`, restoring the A1:C4 layout (TC-S136 checks this read-back).
+**Cleanup:** none here. TC-S136's first two calls remove the inserted rows and column and check the restored layout, so run TC-S136 next; don't delete them separately, or TC-S136 deletes fixture rows instead.
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — Calls 1 and 2 each returned `replies: [{}]`, no `error`. Read-back: `[a1,"",b1,c1]`, `[]`, `[]`, `[a2,"",b2,c2]`, `[a3,"",b3,c3]`, `[a4,"",b4,c4]`.
 
 ### TC-S136: delete_rows_or_columns removes an inclusive range ⚠️ destructive
 
 **Prompt**
-> "Run TC-S135's cleanup calls, read back `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", range=\"A1:F8\")`, then call `delete_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", start=1, end=2)` and read back again."
+> "Call `delete_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", start=1, end=2)`, then `delete_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"columns\", start=1)` (undoing TC-S135's inserts), read back `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", range=\"A1:F8\")`, then call `delete_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", start=1, end=2)` and read back again."
 
 **Checks**
-- After the cleanup calls: A1:C4 is back to `a1`…`c4` exactly, with no empty row or column between them
+- After the two undo calls: A1:C4 is back to `a1`…`c4` exactly, with no empty row or column between them
 - After the delete: two rows are left, `a1 b1 c1` and `a4 b4 c4` (indices 1 and 2 deleted, `end` inclusive)
 
 **Cleanup:** `update_cells(..., range="A1:C4", data=<the fixture's four rows>)` to restore rows 2 and 3.
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — Run from this round's corrected prompt (the original re-ran TC-S135's own Cleanup step, which would have deleted fixture rows). After the two undo deletes: A1:C4 = `a1`…`c4` exactly. After `delete_rows_or_columns(rows, start=1, end=2)`: `[a1,b1,c1]`, `[a4,b4,c4]`.
 
 ### TC-S137: hide_rows_or_columns hides by default and unhides with `hidden=False` ⚠️ destructive
 
@@ -2943,6 +2947,8 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 - The screenshot shows row headers 1 → 4 and column headers A → C, with show chevrons at both boundaries
 - After `hidden=False`: no row or column in A1:D4 has `hiddenByUser: true`
 
+**Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — After hiding: rows `hiddenByUser` `[false,true,true,false]`, columns `[false,true,false,false]`. Screenshot (default `playwright` server under the mutex, account check passed): row headers 1 → 4, column headers A → C, show chevrons at both boundaries. After `hidden=False`: no row or column in A1:D4 hidden.
+
 ### TC-S138: resize_rows_or_columns sets a pixel size and auto-fits ⚠️ destructive
 
 **Prompt**
@@ -2951,6 +2957,8 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 **Checks**
 - After the pixel sizes: `columnMetadata[0]` and `[1]` have `pixelSize: 180`, `columnMetadata[2]` doesn't; `rowMetadata[0]` has `pixelSize: 50`, `rowMetadata[1]` doesn't
 - After `auto_resize=True`: columns A and B are no longer 180 (auto-fit to the short `a1`/`b1` text)
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — After pixel sizes: columns `pixelSize` `[180,180,100]`, rows `[50,21,21]`. After `auto_resize=True`: columns `[21,21,100]`.
 
 ### TC-S139: the four tools reject bad arguments before any API call
 
@@ -2974,6 +2982,8 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 
 **Unit coverage:** `TestRowsOrColumnsTools::test_invalid_arguments_return_error_without_api_call`, `test_unknown_dimension_returns_error_without_api_call` and `test_missing_sheet_returns_error_without_api_call` (`tests/sheets/test_structure.py`) assert each error and that no `batchUpdate` is sent.
 
+**Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — 1–5 returned exactly the listed errors. 6 was rejected by input validation: `Input should be 'rows' or 'columns' [type=literal_error, input_value='ROWS']`. Read-back afterwards unchanged (`a1`…`c4`).
+
 ### TC-S140: the ten replaced tools are deprecated, and still work
 
 **Prompt**
@@ -2986,3 +2996,5 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 - `server://auth-status`'s `tool_selection.deprecated_tools` lists all ten old names
 
 **Cleanup:** `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Deprecated1525")`.
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — All ten served descriptions begin with the stated `Deprecated: use ...` line (`unhide_*` with `hidden=False`); none of the four new ones does. `add_rows` and `unhide_columns` each returned `replies: [{}]`, no `error`. `server://auth-status` `tool_selection.deprecated_tools` lists all ten. Both scratch tabs deleted.
