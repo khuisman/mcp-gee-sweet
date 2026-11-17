@@ -3,7 +3,7 @@
 **Date:** 2026-11-14
 **Snapshot commit:** [`7c887e29`](https://github.com/khuisman/mcp-gee-sweet/commit/7c887e29)
 **Issue:** [#1514](https://github.com/khuisman/mcp-gee-sweet/issues/1514)
-**Status:** tiers A and B approved by the maintainer on 2026-11-15, as listed below. Tier C is held until #1522 shows whether its merges hurt tool selection. The comments shape is undecided. Nothing here is implemented yet.
+**Status:** tiers A and B approved by the maintainer on 2026-11-15, as listed below. Tier C is held until #1522 shows whether its merges hurt tool selection. The comments shape (the proposed six tools) and the `*_rows_or_columns` names were decided on 2026-11-16 (#1537). Nothing here is implemented yet.
 
 > A point-in-time design. Counts are as of the snapshot commit, under `ENABLED_TOOLS=all`. The approaches already ruled out (dynamic disclosure, an executor tool, a groups setting, composites the client can chain) are recorded in [`decision-tool-surface.md`](../decisions/decision-tool-surface.md) and aren't reopened here.
 
@@ -20,7 +20,7 @@ Tool groups (#1364) cut what a client sees by default. This proposal cuts the to
 
 `default` loses one tool (`get_sheet_formulas`, folded into `get_sheet_data`), so it drops to 39 once PR #1510 lands. `search_files`, already in `default`, gains what five Drive listing tools do today, so `default` clients can do more, not less.
 
-One planned addition pulls the other way: the comments CRUD in #664 adds eight tools as specified. A six-tool shape for the whole comments surface is proposed below; it conflicts with a decided table, so it's the maintainer's call.
+One planned addition pulls the other way: the comments CRUD in #664 added eight tools as first specified. The maintainer chose the six-tool shape below for the whole comments surface (2026-11-16), so #663 and #664 add three tools to today's three.
 
 ## The rule
 
@@ -140,7 +140,7 @@ Every decided tool against the call that replaces it. Of the decided tools, only
 
 The decision comes down to the rows marked **Shared**. Resolve, reopen and reply all post a reply (`replies.create`), and editing or deleting a comment or a reply is the same operation one level down, so the six-tool shape treats each set as one permission decision. Under the decided 11, a user can allow replies but deny resolving, or allow deleting their replies but deny deleting whole comments. The notes row is the sharpest: `clear_note` removes text, and under `set_note` it's no longer separately deniable, though `update_note` can already overwrite a note with anything.
 
-**This reverses part of a decided table**, so it's flagged, not adopted. If the maintainer takes it, it has to be decided before #663 starts, since #663 renames `resolve_doc_comment` to `resolve_comment`, a name this shape folds into `reply_to_comment`. The comments total is 11 under the decided plan and 6 under this one.
+**Decided (maintainer, 2026-11-16): the six-tool shape.** It reverses part of `decision-comments-first-class.md`'s table, which is amended to match (#1537). #663 now replaces `resolve_doc_comment` with `reply_to_comment(action=)` instead of renaming it to `resolve_comment`, #664 adds the remaining three tools, and #131 is `get_note` plus `set_note`. The comments total is 6, not 11.
 
 ## Pairs considered and kept
 
@@ -182,7 +182,7 @@ Kept with no overlapping sibling:
 | **all** | **143** | **122** | **117** |
 | `default` | 38 (40 with PR #1510) | 39 | 39 |
 
-The comments tools are in `docs` today and move to `drive` with #663; neither the decided +8 nor the alternative +3 is in this table.
+The comments tools are in `docs` today and move to `drive` with #663; the +3 from the six-tool shape (#664) isn't in this table.
 
 ## Deprecation
 
@@ -197,19 +197,19 @@ Every merge goes through `docs/design.md`'s "Renaming or Removing a Tool":
 ## Order
 
 1. PR #1510 (groups docs) merges first.
-2. The maintainer decides the comments shape before #663 starts.
+2. The comments shape is decided (six tools), so #663 and #664 can start as re-scoped.
 3. B1 lands with #1202 folded in. It supersedes #39.
 4. The tier A bundles are independent of each other and of B1.
 5. Tier C waits for #1522. Any item approved after it joins whichever bundle covers its service.
 
-## Implementation tickets, to file once this design merges (tiers A and B approved)
+## Implementation tickets
 
-1. Sheets rows and columns: the four `*_rows_or_columns` tools (A).
-2. Sheets reads and copies: `get_sheet_data(value_render=)`, `copy_sheet` absorbing `duplicate_sheet` (A).
-3. Docs: the table row/column tools, `create_header_or_footer`, `get_doc_theme(source=)`, `create_bookmark` into `create_named_range` (A), and `get_doc_content` (B2), with the doc cache added to `get_doc_as_markdown` before `get_doc_content` is deprecated.
-4. Drive finder: `search_files` absorbing five tools and gaining `created_time`, `star_file(starred=)`, with #1202 (B1, A).
-5. Investigation: `import_csv_to_sheet` against Drive's CSV import, live.
-6. If the comments shape is approved: amend `decision-comments-first-class.md`, then re-scope #663 and #664.
+1. #1532, Sheets rows and columns: the four `*_rows_or_columns` tools (A).
+2. #1533, Sheets reads and copies: `get_sheet_data(value_render=)`, `copy_sheet` absorbing `duplicate_sheet` (A).
+3. #1534, Docs: the table row/column tools, `create_header_or_footer`, `get_doc_theme(source=)`, `create_bookmark` into `create_named_range` (A), and `get_doc_content` (B2), with the doc cache added to `get_doc_as_markdown` before `get_doc_content` is deprecated.
+4. #1535, Drive finder: `search_files` absorbing five tools and gaining `created_time`, `star_file(starred=)`, with #1202 (B1, A).
+5. #1536, investigation: `import_csv_to_sheet` against Drive's CSV import, live.
+6. #1537: amend `decision-comments-first-class.md` for the six-tool shape; #663, #664 and #131 re-scoped to it.
 
 Tier C has no ticket here: it's held on #1522.
 
@@ -217,9 +217,9 @@ Tier C has no ticket here: it's held on #1522.
 
 1. ~~Approve tiers A and B as listed?~~ **Approved** (2026-11-15), with the B1 corrections now in the table above.
 2. ~~Which tier C items, if any?~~ **Held** until #1522 tests whether the merged names hurt tool selection.
-3. The comments shape: the decided 11 tools or the proposed 6? Open. The tool-by-tool comparison is under "Before and after, tool by tool".
+3. ~~The comments shape: the decided 11 tools or the proposed 6?~~ **Decided** (2026-11-16): the proposed six, and `get_note` plus `set_note` for cell notes.
 4. ~~B2: accept losing the doc cache, or add it to `get_doc_as_markdown` first?~~ **Decided** (2026-11-15): add the cache first, in ticket 3.
-5. The names of tier A's four Sheets tools. The choice is between:
+5. ~~The names of tier A's four Sheets tools.~~ **Decided** (2026-11-16): `*_rows_or_columns`, as recommended. The choice was between:
    - `add_rows_or_columns`, `delete_rows_or_columns`, `resize_rows_or_columns`, `hide_rows_or_columns`: longer, but found when a model searches for "rows" or "columns", the words a user says.
    - `add_dimension`, `delete_dimension`, `resize_dimension`, `hide_dimension`: shorter, and the API's own word, but not found by a search for "rows" or "columns".
 

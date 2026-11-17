@@ -2,6 +2,7 @@
 
 **Date:** 2026-08-28
 **Snapshot commit:** branch `doc/joy/comments-first-class`
+**Amended:** 2026-11-16 (#1537). The tool surface below is the six-tool shape the maintainer chose in [`docs/design/tool-reduction.md`](../design/tool-reduction.md) (#1514), replacing the 11 comment tools and four note tools first listed here. Decisions 1, 2, 4 and 5 stand; Decision 3's rename is narrowed (see there).
 
 ## Background
 
@@ -44,11 +45,13 @@ Comments are a generic Drive-resource capability, not owned by Docs or Sheets �
 
 `list_doc_comments` → `list_file_comments`, `add_doc_comment` → `add_file_comment`, `resolve_doc_comment` → `resolve_comment`, param `doc_id` → `file_id`.
 
+> **Amended 2026-11-16 (#1537):** `resolve_doc_comment` no longer becomes `resolve_comment`; resolving is `reply_to_comment(action="resolve")` (see "Proposed tool surface"). The "no alias or deprecation mechanism" finding below is out of date: #1209 added one, and the renames go through `docs/design.md`'s "Renaming or Removing a Tool" (a `RENAMED_TOOLS` alias plus `renamed_params` for `doc_id`; `deprecated_tool` for `resolve_doc_comment`, whose arguments change).
+
 Confirmed live: this codebase has **no alias or deprecation mechanism** — `tool()`'s decorator either registers a function under its exact name or doesn't; a caller pinning `ENABLED_TOOLS=list_doc_comments` would see the tool silently vanish (not error) once renamed. This is a real breaking change and should be called out explicitly in the CHANGELOG/release notes for whichever version ships it. Chosen anyway over a permanent-alias approach, consistent with this project's stated anti-shim style (`CLAUDE.md`: "avoid backwards-compatibility hacks... just change the code") and because the affected surface is small and recently shipped (Tier 2, not original/entrenched like `share_spreadsheet` — see Decision 6 for why that one is treated more cautiously).
 
 ### 4. Cell notes are a separate capability, not part of "comments"
 
-Sheets' `CellData.note` field (Sheets API v4, set via `batchUpdate` `updateCells`/`repeatCell` with `fields=note`) is a completely different mechanism from Drive comments: plain text, no author, no thread, no resolve state, no Drive API involvement at all. Confirmed via repo-wide grep: entirely unbuilt today (issue #131, Tier 4, no code touches `note` anywhere). Ships as its own module, `tools/sheets/notes.py` (`add_note`/`get_note`/`clear_note`), not folded into the comments work — conflating the two is exactly the confusion the current stale Tier 4 roadmap line already has ("Sheet comments **and cell notes**... zero tooling") and is worth untangling explicitly rather than perpetuating.
+Sheets' `CellData.note` field (Sheets API v4, set via `batchUpdate` `updateCells`/`repeatCell` with `fields=note`) is a completely different mechanism from Drive comments: plain text, no author, no thread, no resolve state, no Drive API involvement at all. Confirmed via repo-wide grep: entirely unbuilt today (issue #131, Tier 4, no code touches `note` anywhere). Ships as its own module, `tools/sheets/notes.py` (`get_note`/`set_note` since the 2026-11-16 amendment; first listed as `add_note`/`get_note`/`clear_note`), not folded into the comments work — conflating the two is exactly the confusion the current stale Tier 4 roadmap line already has ("Sheet comments **and cell notes**... zero tooling") and is worth untangling explicitly rather than perpetuating.
 
 ### 5. Cell-anchored Sheets comments — confirmed infeasible via the public API; cell notes are the documented answer instead
 
@@ -69,29 +72,25 @@ Same shape of problem as #151/#142, and a cleaner case of it (`share_file` is a 
 
 ## Proposed tool surface (target end-state)
 
-All in `tools/drive/comments.py` unless noted; all operate on any `file_id`.
+*Amended 2026-11-16 (#1537):* the maintainer chose the six-tool shape from [`docs/design/tool-reduction.md`](../design/tool-reduction.md) over the 11 tools first listed here. Reply, resolve and reopen are one `replies().create()` call, and editing or deleting a comment or a reply is the same operation one level down, so each set is one tool. The trade-off, accepted: a user can no longer allow one of each set while denying the others (the design's "Before and after, tool by tool" table lists every case).
 
-| Tool | Drive call | Status |
+All in `tools/drive/comments.py`; all operate on any `file_id`.
+
+| Tool | Drive call | Annotation | Ticket |
+|---|---|---|---|
+| `list_file_comments` | `comments().list()` | read-only | #663 (rename of `list_doc_comments`) |
+| `add_file_comment` | `comments().create()` | write | #663 (rename of `add_doc_comment`). Gains an optional passthrough `anchor: str \| None` for non-Workspace Drive files (images, PDFs), where Google's documented `drive#commentRegion` format may be honored; confirmed inert for Docs/Sheets/Slides (Decision 5), so the docstring must say so rather than imply it can pin a comment to a cell |
+| `reply_to_comment(action=None)`, `action` one of `resolve`, `reopen` | `replies().create()`, with `body.action` when given | write | #663 (replaces `resolve_doc_comment`) |
+| `get_file_comment` | `comments().get()`, with every reply (pages `replies().list()` when needed) | read-only | #664 |
+| `update_comment(reply_id=None)` | `comments().update()`, or `replies().update()` with `reply_id` | write | #664 |
+| `delete_comment(reply_id=None)` | `comments().delete()`, or `replies().delete()` with `reply_id` | write, kept apart from update | #664 |
+
+Cell notes, in `tools/sheets/notes.py` (Sheets API v4, unrelated resource), #131:
+
+| Tool | Mechanism | Annotation |
 |---|---|---|
-| `list_file_comments` | `comments().list()` | Rename of `list_doc_comments` |
-| `get_file_comment` | `comments().get()` | New |
-| `add_file_comment` | `comments().create()` | Rename of `add_doc_comment`; gains an optional passthrough `anchor: str \| None` param for non-Workspace Drive files (images, PDFs) where Google's documented generic `drive#commentRegion` format may actually be honored — confirmed inert for Docs/Sheets/Slides (Decision 5), so the docstring must say so explicitly rather than implying it can pin a comment to a cell |
-| `update_file_comment` | `comments().update()` | New — edit a comment's content |
-| `delete_file_comment` | `comments().delete()` | New — explicitly out of scope for #151 per its own QA docs; closes that gap |
-| `reply_to_comment` | `replies().create()` (no `action`) | New — plain reply; today only a resolve-flavored reply exists |
-| `resolve_comment` | `replies().create(action="resolve")` | Rename of `resolve_doc_comment` |
-| `reopen_comment` | `replies().create(action="reopen")` | New |
-| `update_reply` | `replies().update()` | New — edit a reply's content |
-| `delete_reply` | `replies().delete()` | New |
-| `list_replies` | `replies().list()` | New — pagination beyond what `list_file_comments` embeds inline; low priority |
-
-Cell notes, in `tools/sheets/notes.py` (Sheets API v4, unrelated resource):
-
-| Tool | Mechanism |
-|---|---|
-| `get_note` | `spreadsheets().get(fields=".../note")` |
-| `add_note` / `update_note` | `batchUpdate` `updateCells`/`repeatCell`, `fields="note"` |
-| `clear_note` | same, empty string |
+| `get_note` | `spreadsheets().get(fields=".../note")` | read-only |
+| `set_note` | `batchUpdate` `updateCells`/`repeatCell`, `fields="note"`; empty text clears | write |
 
 ## Wiring and doc-gen impact
 
@@ -103,11 +102,13 @@ Cell notes, in `tools/sheets/notes.py` (Sheets API v4, unrelated resource):
 
 ## Ticket plan
 
+*Amended 2026-11-16 (#1537)* for the six-tool shape:
+
 1. **Roadmap/issue cleanup** (no code) — fix the stale Tier 4 Docs comments line; close #142 as superseded by #151, or re-scope it to whatever's still missing.
-2. **Generalize existing three tools** — move to `tools/drive/comments.py`, rename per Decision 3, update tests/QA/docs-gen config. Mechanical, low risk, highest value (this is the part that's actually "missing" today: discoverability, not capability).
-3. **Fill CRUD gaps** — `delete_file_comment`, `reply_to_comment`, `reopen_comment`, `get_file_comment`, `update_file_comment`, `update_reply`, `delete_reply`, `list_replies`.
-4. **Cell notes** — `tools/sheets/notes.py`, closes #131. Feasibility already confirmed live (Decision 5) — this is a straight implementation ticket, no spike needed.
-5. **`share_spreadsheet`/`share_file` consolidation review** — separate from comments work; evaluate deprecation path given its longer compatibility tail.
+2. **Generalize the existing three tools** (#663) — move to `tools/drive/comments.py`, rename the list and add tools, replace `resolve_doc_comment` with `reply_to_comment(action=)`, update tests/QA/docs-gen config.
+3. **Fill CRUD gaps** (#664) — `get_file_comment`, `update_comment`, `delete_comment`.
+4. **Cell notes** (#131) — `tools/sheets/notes.py`, `get_note` and `set_note`. Feasibility already confirmed live (Decision 5).
+5. **`share_spreadsheet`/`share_file` consolidation** (#665) — separate from comments work.
 
 Cell-anchored Sheets comments are **not** a ticket — Decision 5 closes that line of work outright, confirmed infeasible via three live experiments (empirical schema recovery, write-side validation-bypass proof, and direct visual confirmation in the Sheets UI). No further investigation recommended barring a future change in what Google's API exposes.
 
