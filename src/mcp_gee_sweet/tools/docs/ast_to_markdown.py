@@ -670,7 +670,9 @@ def _render_code_run_text(text: str, in_table: bool) -> str:
 
 
 # A GFM delimiter row can only carry what Markdown can express (#1337): a
-# JUSTIFIED cell has no GFM form and stays `---`.
+# JUSTIFIED cell has no GFM form and stays `---`. START reaches it only from a
+# table where it isn't Docs' default, such as a Drive `.docx` import
+# (`doc_to_ast._start_is_default`, #1503).
 _GFM_COLUMN_DELIMITERS = {"START": ":--", "CENTER": ":-:", "END": "--:"}
 
 

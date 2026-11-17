@@ -302,6 +302,26 @@ that a link can target. Tracked in #1076.
 
 ---
 
+### `get_doc_as_markdown` exports a left-aligned table column as `---`, not `:--`
+
+**What:** In a table written by `create_doc`, `write_doc_content`, `create_doc_from_file`,
+`update_doc_from_file`, or `upload_file` (Markdown source), or converted from `.md` by Drive's import,
+a column written with `:--` (or an HTML cell with `text-align: left`) reads back from
+`get_doc_as_markdown` and `export_revision` as an unaligned `---` column. Centered (`:-:`) and
+right-aligned (`--:`) columns keep their delimiters. A Markdown renderer draws an unaligned body cell
+on the left, but may center an unaligned header cell, as a browser does a bare `<th>`. A table from a
+Drive `.docx` import keeps its `:--` columns when some cell in the table has no alignment of its own;
+one whose every cell sets an alignment reads like the tables above.
+
+**Why:** Those tables store a left alignment (`START`) on every cell, aligned or not, so a
+left-aligned column and an unaligned one are the same in the Doc. Reading `START` as `:--` exported
+every unaligned column as `:--` (#1503). So `START` is read as `:--` only in a table where some cell
+paragraph has no alignment, as an unaligned cell from a `.docx` import does.
+
+**Workaround:** Restore `:--` in the exported Markdown by hand.
+
+---
+
 ### `get_doc_as_markdown` — nested tables, temporary image URLs, and inline-vs-block code ambiguity
 
 **What:** `get_doc_as_markdown` (#300) has three read-side gaps, each rooted in a genuine
