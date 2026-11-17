@@ -1582,6 +1582,21 @@ Insert &gt; Link &gt; "Headings, bookmarks, and tabs", and no link can point to 
 <p><strong>Workaround:</strong> Link to a heading instead: every heading has a <code>headingId</code> (<code>get_doc_structure</code>)
 that a link can target. Tracked in #1076.</p>
 <hr />
+<h3 id="get_doc_as_markdown-exports-a-left-aligned-table-column-as-not-"><code>get_doc_as_markdown</code> exports a left-aligned table column as <code>---</code>, not <code>:--</code><a class="headerlink" href="#get_doc_as_markdown-exports-a-left-aligned-table-column-as-not-" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> In a table written by <code>create_doc</code>, <code>write_doc_content</code>, <code>create_doc_from_file</code>,
+<code>update_doc_from_file</code>, or <code>upload_file</code> (Markdown source), or converted from <code>.md</code> by Drive's import,
+a column written with <code>:--</code> (or an HTML cell with <code>text-align: left</code>) reads back from
+<code>get_doc_as_markdown</code> and <code>export_revision</code> as an unaligned <code>---</code> column. Centered (<code>:-:</code>) and
+right-aligned (<code>--:</code>) columns keep their delimiters. A Markdown renderer draws an unaligned body cell
+on the left, but may center an unaligned header cell, as a browser does a bare <code>&lt;th&gt;</code>. A table from a
+Drive <code>.docx</code> import keeps its <code>:--</code> columns when some cell in the table has no alignment of its own;
+one whose every cell sets an alignment reads like the tables above.</p>
+<p><strong>Why:</strong> Those tables store a left alignment (<code>START</code>) on every cell, aligned or not, so a
+left-aligned column and an unaligned one are the same in the Doc. Reading <code>START</code> as <code>:--</code> exported
+every unaligned column as <code>:--</code> (#1503). So <code>START</code> is read as <code>:--</code> only in a table where some cell
+paragraph has no alignment, as an unaligned cell from a <code>.docx</code> import does.</p>
+<p><strong>Workaround:</strong> Restore <code>:--</code> in the exported Markdown by hand.</p>
+<hr />
 <h3 id="get_doc_as_markdown-nested-tables-temporary-image-urls-and-inline-vs-block-code-ambiguity"><code>get_doc_as_markdown</code> — nested tables, temporary image URLs, and inline-vs-block code ambiguity<a class="headerlink" href="#get_doc_as_markdown-nested-tables-temporary-image-urls-and-inline-vs-block-code-ambiguity" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> <code>get_doc_as_markdown</code> (#300) has three read-side gaps, each rooted in a genuine
 Markdown-format or Docs-API constraint rather than missing implementation:</p>
