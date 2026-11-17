@@ -605,7 +605,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] `insert_softbreak_paragraph` follow-ups from community PR #1495's review, plus #1489 item 2 (`style_doc_range` cross-range ordering, premise unconfirmed). `wrong/narrow`, not observed ([#1499](https://github.com/khuisman/mcp-gee-sweet/issues/1499))
 - [x] Live QA for community PR #1495 (`insert_softbreak_paragraph` writes a paragraph style only when asked) ([#1500](https://github.com/khuisman/mcp-gee-sweet/issues/1500)) (PR #1505)
 - [ ] Single-tilde pairing (`_pair_single_tilde`) from community PR #1436's review: quadratic on crafted input, pairs across matched spans, an export fixture no longer tests upstream pairing. The code isn't on `develop` yet: starts after #1436 merges, and items 1–2 close with it if its rework moves pairing into `balance_pairs` ([#1502](https://github.com/khuisman/mcp-gee-sweet/issues/1502))
-- [ ] `get_doc_as_markdown` writes `:--` for every unaligned table column, since `insertTable` stores START on every cell. Regression since v0.9.6 (PR #1360) ([#1503](https://github.com/khuisman/mcp-gee-sweet/issues/1503))
+- [x] `get_doc_as_markdown` writes `:--` for every unaligned table column, since `insertTable` stores START on every cell. Regression since v0.9.6 (PR #1360) ([#1503](https://github.com/khuisman/mcp-gee-sweet/issues/1503)) (PR #1524)
 - [x] A linked image's fallback text keeps the link color but loses its underline. Regression since v0.9.6 (PR #1457) ([#1504](https://github.com/khuisman/mcp-gee-sweet/issues/1504)) (PR #1508)
 
 **Triaged in 2026-11-15** _(review and sweep tickets from 2026-11-01 to 11-06 that had no version)_
