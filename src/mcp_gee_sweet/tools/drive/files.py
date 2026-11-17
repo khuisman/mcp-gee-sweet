@@ -93,7 +93,9 @@ async def _list_drive_files(
 
 def register(tool):
     @tool(
-        annotations=ToolAnnotations(title="Create Spreadsheet", destructiveHint=True), default=True
+        annotations=ToolAnnotations(title="Create Spreadsheet", destructiveHint=True),
+        default=True,
+        groups=("sheets",),
     )
     async def create_spreadsheet(
         title: str, folder_id: str | None = None, ctx: Context = None
@@ -158,6 +160,7 @@ def register(tool):
     @tool(
         annotations=ToolAnnotations(title="Import CSV to Sheet", destructiveHint=True),
         local_only=True,
+        groups=("sheets",),
     )
     async def import_csv_to_sheet(
         local_path: str,
@@ -413,7 +416,10 @@ def register(tool):
             "rows_written": len(rows),
         }
 
-    @tool(annotations=ToolAnnotations(title="List Spreadsheets", readOnlyHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="List Spreadsheets", readOnlyHint=True),
+        groups=("sheets",),
+    )
     async def list_spreadsheets(
         folder_id: str | None = None, max_results: int = 100, ctx: Context = None
     ) -> list[dict[str, str]]:
@@ -751,7 +757,8 @@ def register(tool):
     @tool(
         annotations=ToolAnnotations(
             title="Search Spreadsheets by Name or Content", readOnlyHint=True
-        )
+        ),
+        groups=("sheets",),
     )
     async def search_spreadsheets(
         query: str, max_results: int = 20, ctx: Context = None
