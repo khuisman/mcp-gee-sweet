@@ -20,7 +20,7 @@ Tool groups (#1364) cut what a client sees by default. This proposal cuts the to
 
 `default` loses one tool (`get_sheet_formulas`, folded into `get_sheet_data`), so it drops to 39 once PR #1510 lands. `search_files`, already in `default`, gains what five Drive listing tools do today, so `default` clients can do more, not less.
 
-One planned addition pulls the other way: the comments CRUD in #664 added eight tools as first specified. The maintainer chose the six-tool shape below for the whole comments surface (2026-11-16), so #663 and #664 add three tools to today's three.
+One planned addition pulls the other way: the comments CRUD in #664 would have added eight tools as first specified. The maintainer chose the six-tool shape below for the whole comments surface (2026-11-16), so #663 and #664 add three tools to today's three.
 
 ## The rule
 
@@ -101,7 +101,7 @@ Net −5 if all are taken.
 
 ## Comments: a smaller shape for #663 and #664
 
-[`decision-comments-first-class.md`](../decisions/decision-comments-first-class.md) (2026-08-28) renames the three comment tools (#663) and specifies eight more (#664): `get_file_comment`, `update_file_comment`, `delete_file_comment`, `reply_to_comment`, `reopen_comment`, `update_reply`, `delete_reply`, `list_replies`. That's 11 comment tools. Its table also names `get_note`, `add_note`/`update_note` and `clear_note` for cell notes.
+[`decision-comments-first-class.md`](../decisions/decision-comments-first-class.md) (2026-08-28), as first written, renamed the three comment tools (#663) and specified eight more (#664): `get_file_comment`, `update_file_comment`, `delete_file_comment`, `reply_to_comment`, `reopen_comment`, `update_reply`, `delete_reply`, `list_replies`. That was 11 comment tools. Its table also named `get_note`, `add_note`/`update_note` and `clear_note` for cell notes.
 
 Applying the rule above gives the same API coverage in six:
 

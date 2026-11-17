@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-28
 **Snapshot commit:** branch `doc/joy/comments-first-class`
-**Amended:** 2026-11-16 (#1537). The tool surface below is the six-tool shape the maintainer chose in [`docs/design/tool-reduction.md`](../design/tool-reduction.md) (#1514), replacing the 11 comment tools and four note tools first listed here. Decisions 1, 2, 4 and 5 stand; Decision 3's rename is narrowed (see there).
+**Amended:** 2026-11-16 (#1537). The tool surface below is the six-tool shape the maintainer chose in [`docs/design/tool-reduction.md`](../design/tool-reduction.md) (#1514), replacing the 11 comment tools and four note tools first listed here. Decisions 1, 2, 4, 5 and 6 stand; Decision 3's rename is narrowed (see there).
 
 ## Background
 
