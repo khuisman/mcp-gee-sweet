@@ -6764,7 +6764,7 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 - Step 1 returns no `error` key
 - Step 2, Docs' own numbering: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, then the table, `3. c`, `Aside`, `1. x`, `2. y`. If Docs numbers any item differently, the case's premise has changed: report it rather than checking step 3 against this list
 - Raw `documents().get()` read: `a` through `c` share one `listId`, and `x`/`y` share a different one
-- Step 3: every list item's marker matches step 2's number for that item, including `3. c` after the table and `1. x` starting the second list. (The sublist's indent is #1128, not checked here)
+- Step 3: every list item's marker matches step 2's number for that item, including `3. c` after the table and `1. x` starting the second list. Each sublist item is indented 3 spaces, under its parent's text (#1128)
 
 **Cleanup:** trash the doc
 
@@ -7125,7 +7125,7 @@ asyncio.run(main())
 - LB-14: the table at the margin (no leading spaces), then `1. Step two`: the write side makes two Docs lists here, so the table is outside the list. The second list starts at 1, not 2, because the write side ignores `start` (#1118)
 - Step 3's export equals step 2's. (Until #1096, LB-10's rule exported as an empty paragraph, which the re-import dropped, so step 3 had two fewer blank lines there.)
 - Step 4, W-1: every line from `> - a` through `> - c` starts with `>`; the table lines are `>   | …` (the quote, then 2 spaces)
-- W-2: the table lines indented 3 spaces between `1. a` and `- b`, then `2. c`. (`- b` itself is indented 2 spaces, which is #1128)
+- W-2: the table lines indented 3 spaces between `1. a` and `   - b` (also 3 spaces, under `a`'s text, #1128), then `2. c`
 - W-3: the table lines indented 2 spaces (in a), not 4 (in b), before `- c`
 - W-4: `> > b` at the margin, not `  > b`
 - An ambiguous block that ends a list's last item reads as outside the list (`docs/known-limitations.md`)
@@ -7619,3 +7619,20 @@ Every listed check passes. Step 2: `| --- | :-: | --- | --- |`. Step 4: `| --- |
 
 **Result (2026-11-16) ⚠️ PARTIAL — Kit, PR #1524 round 2 @ c15fe204**
 Every listed check passes. Step 2: `| --- | :-: | --- | --- |`. Step 4: `| --- | :-: | --- |`. Step 5: TC-DOC255 steps 2 and 4 pass (see its Result). Step 6: raw `[START] [CENTER] [None]` on both rows; `get_doc_as_markdown` and `export_revision` both give `| :-- | :-: | --- |`. Extra probe, not in the steps: a `.docx` with `w:jc` on every cell (`left`, `center`, `left`) stores raw `[START] [CENTER] [START]`, the `insertTable` shape, and exports `| --- | :-: | --- |`. That loss is the designed trade-off, but this case's Purpose and the known-limitations entry both say a `.docx` import keeps its `:--` columns without that condition (sent back). Docs trashed.
+
+### TC-DOC261: `get_doc_as_markdown` indents a nested list to its parent item's text, so it nests in CommonMark (#1128) ⚠️ destructive
+
+**Purpose:** The export indented every nested item 2 spaces per level, whatever its parent's marker. Under `1. ` (text at column 3) a child at 2 spaces is a sibling in CommonMark, so a numbered outline exported flat for any CommonMark reader. This server's own import repairs that indent (`md_to_html` rule D1), so a round trip through it doesn't show the bug: check the export with plain CommonMark. Each item now starts at its parent's text column: 2 under `- `, 3 under `1. `, 4 under `10. `. A task item's text column is 2, after `- `: the `[ ] ` is the item's text, and the export had put a block inside a task item at 6 spaces, which CommonMark reads as an indented code block.
+
+**Steps**
+1. `create_doc(title="TC-DOC261", folder_id={FOLDER_ID}, content_format="markdown", content="1. Top\n   1. Nested\n      - deep bullet\n2. Next\n\nBreak\n\n- a\n  - b\n    1. c\n\nBreak\n\n1. one\n2. two\n3. three\n4. four\n5. five\n6. six\n7. seven\n8. eight\n9. nine\n10. ten\n    1. ten child\n\nBreak\n\n- [ ] task\n  - [x] subtask\n\n  more in task\n\nBreak\n\n1. p\n   1. q\n\n      more in q\n\n2. r\n")` → `{DOC}`
+2. `get_doc_as_markdown(doc_id={DOC}, local_path="<scratch dir>/tc-doc261.md")`
+3. Render step 2's file with plain CommonMark: `uv run python -c "import sys; from markdown_it import MarkdownIt; print(MarkdownIt('commonmark').render(open(sys.argv[1]).read()))" <scratch dir>/tc-doc261.md`
+4. `create_doc(title="TC-DOC261 round trip", folder_id={FOLDER_ID}, content_format="markdown", content=<step 2's file>)` → `{RT}`, then `get_doc_as_markdown(doc_id={RT})`
+
+**Checks**
+- Step 2's lines, in order: `1. Top`, `   1. Nested` (3 spaces), `      - deep bullet` (6), `2. Next`; `- a`, `  - b` (2), `    1. c` (4); `10. ten`, `    1. ten child` (4); `- [ ] task`, `  - [x] subtask` (2), a blank line, `  more in task` (2); `1. p`, `   1. q` (3), a blank line, `      more in q` (6), a blank line, `2. r`
+- Step 3: each child list sits inside its parent's `<li>`: `Nested` and `deep bullet` inside `Top`'s, `c` inside `b`'s inside `a`'s, `ten child` inside `ten`'s, `subtask` inside `task`'s, `q` inside `p`'s. `more in task` and `more in q` are `<p>`s inside their items. There's no `<pre>` anywhere
+- Step 4's export is identical to step 2's
+
+**Cleanup:** `delete_file` both docs; delete the scratch file

@@ -171,11 +171,17 @@ class _OpenItems:
         if isinstance(node, BulletItem):
             opens_sublist = _opens_sublist(node, prev_node)
             del self._items[node.depth :]
-            self._items.extend([(0, 0)] * (node.depth - len(self._items)))
-            self._items.append((len(_item_prefix(node, opens_sublist)), node.blockquote_depth))
+            # A depth with no open item (a fragment whose parent wasn't exported)
+            # takes the old two-space step past the depth above it.
+            while len(self._items) < node.depth:
+                above = self._items[-1][0] if self._items else 0
+                self._items.append((above + 2, 0))
+            indent = self._items[-1][0] if node.depth else 0
+            prefix = _item_prefix(node, opens_sublist, indent)
+            self._items.append((len(prefix), node.blockquote_depth))
             self._margin_quote = node.blockquote_depth
             self._inner_quote = None
-            return _render_block(node, opens_sublist=opens_sublist)
+            return _render_block(node, opens_sublist=opens_sublist, item_indent=indent)
         list_depth = node.list_depth
         if list_depth is None or list_depth >= len(self._items):
             self._items.clear()
@@ -295,25 +301,40 @@ def _ordered_marker(node: BulletItem, opens_sublist: bool) -> str:
     return f"{node.number}. "
 
 
-def _item_prefix(node: BulletItem, opens_sublist: bool) -> str:
-    """A list item's indent and marker, before its text; its length is the item's
-    content column."""
-    if node.checked is not None:
-        marker = "- [x] " if node.checked else "- [ ] "
-    elif node.ordered:
-        marker = _ordered_marker(node, opens_sublist)
-    else:
-        marker = "- "
-    return "  " * node.depth + marker
+def _item_prefix(node: BulletItem, opens_sublist: bool, indent: int) -> str:
+    """A list item's indent and list marker, before its text; its length is the
+    item's content column.
+
+    `indent` is the content column of the item it's nested in (0 at the top level).
+    CommonMark nests an item only when it starts at or past that column, which
+    depends on the parent's marker: 2 under "- ", 3 under "1. ", 4 under "10. ". A
+    fixed two spaces per depth read a numbered child as a sibling (#1128).
+
+    A checkbox's "[ ] " isn't part of the marker: CommonMark reads it as the
+    item's text (GFM's task list is an extension of that paragraph), so a task
+    item's content column is 2 like any "- " item's, and `_render_block` writes
+    the box after this prefix. Counting it put a block 4 columns past the column,
+    an indented code block, and a child item in the parent's text."""
+    if node.ordered and node.checked is None:
+        return " " * indent + _ordered_marker(node, opens_sublist)
+    return " " * indent + "- "
+
+
+def _checkbox(node: BulletItem) -> str:
+    if node.checked is None:
+        return ""
+    return "[x] " if node.checked else "[ ] "
 
 
 def _render_block(
     node: Heading | Paragraph | BulletItem | NamedBlock,
     opens_sublist: bool = False,
     blockquote_depth: int | None = None,
+    item_indent: int = 0,
 ) -> str:
     """`blockquote_depth` overrides the node's own, for a block whose outer quote
-    levels its caller writes (see `_OpenItems`)."""
+    levels its caller writes (see `_OpenItems`). `item_indent` is a list item's
+    indent, its parent item's content column (see `_item_prefix`)."""
     if isinstance(node, Paragraph) and node.rule:
         body = _RULE
     elif isinstance(node, Paragraph) and _is_code_block(node):
@@ -334,7 +355,7 @@ def _render_block(
             # Text after the marker starts the item's first block, so "# a" or
             # "> a" there would read as a heading or quote inside the item.
             text = _escape_leading_block_marker(text)
-        body = f"{_item_prefix(node, opens_sublist)}{text}"
+        body = f"{_item_prefix(node, opens_sublist, item_indent)}{_checkbox(node)}{text}"
     else:
         body = _escape_leading_block_marker(_render_inline(node.runs))
 
