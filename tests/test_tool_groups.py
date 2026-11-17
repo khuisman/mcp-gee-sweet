@@ -552,5 +552,6 @@ class TestAuthStatusToolSelection:
             "configured": False,
             "registered_tools": len(server._registered_tools),
             "deprecated_aliases": [],
-            "deprecated_tools": [],
+            # The suite registers every tool, deprecated ones included (#1525).
+            "deprecated_tools": sorted(server._deprecated_tools),
         }
