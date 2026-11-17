@@ -1798,25 +1798,25 @@
 <td><code>create_spreadsheet</code></td>
 <td>Create a new Google Spreadsheet.</td>
 <td><code>title</code>, <code>folder_id?</code></td>
-<td><code>drive</code>, <code>default</code></td>
+<td><code>drive</code>, <code>sheets</code>, <code>default</code></td>
 </tr>
 <tr>
 <td><code>import_csv_to_sheet</code></td>
 <td>Create a new Google Spreadsheet populated from a local CSV file. Not available when the server runs with LOCAL_FILE_ACCESS=off.</td>
 <td><code>local_path</code>, <code>title</code>, <code>folder_id?</code>, <code>sheet_name?</code></td>
-<td><code>drive</code>, <code>local-files</code></td>
+<td><code>drive</code>, <code>sheets</code>, <code>local-files</code></td>
 </tr>
 <tr>
 <td><code>list_spreadsheets</code></td>
 <td>List all spreadsheets in the specified Google Drive folder. If no folder is specified, uses the configured default folder; if that's also unset, searches across 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives') — not just 'My Drive'.</td>
 <td><code>folder_id?</code>, <code>max_results?</code></td>
-<td><code>drive</code></td>
+<td><code>drive</code>, <code>sheets</code></td>
 </tr>
 <tr>
 <td><code>search_spreadsheets</code></td>
 <td>Search for spreadsheets in Google Drive by name or content, across 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives').</td>
 <td><code>query</code>, <code>max_results?</code></td>
-<td><code>drive</code></td>
+<td><code>drive</code>, <code>sheets</code></td>
 </tr>
 </tbody>
 </table>
@@ -2024,7 +2024,7 @@
 <td><code>share_spreadsheet</code></td>
 <td>Share a Google Spreadsheet with multiple users via email, assigning specific roles.</td>
 <td><code>spreadsheet_id</code>, <code>recipients</code>, <code>send_notification?</code></td>
-<td><code>drive</code></td>
+<td><code>drive</code>, <code>sheets</code></td>
 </tr>
 <tr>
 <td><code>list_permissions</code></td>

@@ -1708,13 +1708,13 @@
 </tr>
 <tr>
 <td><code>sheets</code></td>
-<td>36</td>
-<td>Every tool that works inside a spreadsheet: data, sheets, formatting, charts. Creating, listing, searching, importing and sharing spreadsheets are Drive tools, in <code>drive</code> (<code>default</code> has <code>create_spreadsheet</code>)</td>
+<td>41</td>
+<td>Every spreadsheet tool: data, sheets, formatting, charts, and creating, listing, searching, importing and sharing spreadsheets (which are in <code>drive</code> too)</td>
 </tr>
 <tr>
 <td><code>drive</code></td>
 <td>38</td>
-<td>Every Drive tool: files, sharing, activity, upload, download, local sync, and creating, listing, searching, importing and sharing spreadsheets</td>
+<td>Every Drive tool: files, sharing, activity, upload, download, local sync, and creating, listing, searching, importing and sharing spreadsheets (also in <code>sheets</code>)</td>
 </tr>
 <tr>
 <td><code>docs</code></td>
@@ -1753,7 +1753,7 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>get_sheet_data,get_sheet_formulas,find_in_spreadsheet,update_cells,batch_update,list_sheets,create_spreadsheet,list_files,search_files,get_file_metadata,create_folder,copy_file,rename_file,share_file,export_file,upload_file,create_doc,write_doc_content,get_doc_structure,find_in_doc,insert_doc_text,delete_doc_range,style_doc_range,get_doc_as_markdown,list_calendars,list_events,get_event,create_event,update_event,delete_event,find_free_slots,list_messages,get_thread,list_labels,send_message,create_draft,send_draft,list_drafts,reply_to_message,modify_labels
 </code></pre></div></p>
 <p><strong>What <code>default</code> leaves out.</strong> It has no tool that only works on local files, so local upload, download and sync, CSV import, and the Markdown file tools (<code>upload_local_file</code>, <code>download_folder</code>, <code>sync_folder</code>, <code>import_csv_to_sheet</code>, <code>create_doc_from_file</code>, <code>update_doc_from_file</code>, ...) need <code>local-files</code> or their own names. It also leaves out most structural tools: Sheets formatting and charts, Docs tables, themes and comments, calendar management, and Drive trash. Add a service group, or the tool names, for those.</p>
-<p><strong>Combining entries.</strong> Join groups and names with a comma, e.g. <code>default,local-files</code> or <code>default,comments,insert_doc_table</code>; a tool named twice loads once. Some MCP clients cap how many tools they accept, and every group but <code>all</code> is under 100, the lowest cap a current client documents. <code>default</code> (40) is exactly the 40 older Cursor builds allowed, so there it leaves no room for another server's tools. A combination can go over a cap, so add up the counts above; Windsurf's cap also counts every other server's tools. See <a href="../client-setup/#clients-with-a-tool-limit">Clients with a tool limit</a> for each client's setting.</p>
+<p><strong>Combining entries.</strong> Join groups and names with a comma, e.g. <code>default,local-files</code> or <code>default,comments,insert_doc_table</code>; a tool named twice loads once. Some MCP clients cap how many tools they accept, and every group but <code>all</code> is under 100, the lowest cap a current client documents. <code>default</code> (40) is exactly the 40 older Cursor builds allowed, so there it leaves no room for another server's tools. A combination can go over a cap. Adding up the counts above gives an upper bound, since groups overlap and a tool in two loads once; Windsurf's cap also counts every other server's tools. See <a href="../client-setup/#clients-with-a-tool-limit">Clients with a tool limit</a> for each client's setting.</p>
 <h2 id="http-transport-authentication">HTTP transport authentication<a class="headerlink" href="#http-transport-authentication" title="Permanent link">&para;</a></h2>
 <p>Under <code>--transport sse</code> or <code>--transport streamable-http</code>, the server listens on <code>127.0.0.1</code> by default, so only this machine can reach it. stdio is unaffected by everything in this section.</p>
 <p>To serve on any other address (<code>HOST=0.0.0.0</code>, a LAN address, a hostname), set <code>MCP_SERVER_TOKEN</code> to a long random value, for example from <code>python3 -c "import secrets; print(secrets.token_urlsafe(32))"</code>. Every request must then send it:</p>
