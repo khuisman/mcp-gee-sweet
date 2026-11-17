@@ -310,12 +310,13 @@ a column written with `:--` (or an HTML cell with `text-align: left`) reads back
 `get_doc_as_markdown` and `export_revision` as an unaligned `---` column. Centered (`:-:`) and
 right-aligned (`--:`) columns keep their delimiters. A Markdown renderer draws an unaligned body cell
 on the left, but may center an unaligned header cell, as a browser does a bare `<th>`. A table from a
-Drive `.docx` import keeps its `:--` columns.
+Drive `.docx` import keeps its `:--` columns when some cell in the table has no alignment of its own;
+one whose every cell sets an alignment reads like the tables above.
 
 **Why:** Those tables store a left alignment (`START`) on every cell, aligned or not, so a
 left-aligned column and an unaligned one are the same in the Doc. Reading `START` as `:--` exported
-every unaligned column as `:--` (#1503). A `.docx` import leaves an unaligned cell's alignment unset,
-so there `START` is read as `:--`.
+every unaligned column as `:--` (#1503). So `START` is read as `:--` only in a table where some cell
+paragraph has no alignment, as an unaligned cell from a `.docx` import does.
 
 **Workaround:** Restore `:--` in the exported Markdown by hand.
 

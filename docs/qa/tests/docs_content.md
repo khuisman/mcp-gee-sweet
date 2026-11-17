@@ -7596,7 +7596,7 @@ Step 1 as written: `images` has `error` + `fallback_text` for the seven `{BAD}` 
 
 ### TC-DOC260: `get_doc_as_markdown` reads a Docs table's START cells as unaligned (#1503) ⚠️ destructive
 
-**Purpose:** `insertTable` stores `alignment: START` on every cell paragraph it creates, so every unaligned column of a table written through the API exported `:--`. START now reads as unset in a table where every cell paragraph carries an alignment, as there it's the default: an unaligned column exports `---`, and so does a `:--` column, which Docs stores the same way. A `.docx` import leaves an unaligned cell's alignment out, so its START cells keep `:--`. CENTER and END columns keep `:-:` and `--:`. TC-DOC255 reproduces the original failure; this case adds an explicit `:--` column, a column mixing CENTER with unaligned cells, an HTML table, and a `.docx` import.
+**Purpose:** `insertTable` stores `alignment: START` on every cell paragraph it creates, so every unaligned column of a table written through the API exported `:--`. START now reads as unset in a table where every cell paragraph carries an alignment, as there it's the default: an unaligned column exports `---`, and so does a `:--` column, which Docs stores the same way. A `.docx` import leaves an unaligned cell's alignment out, so when some cell in the table has no alignment of its own, its START cells keep `:--`. CENTER and END columns keep `:-:` and `--:`. TC-DOC255 reproduces the original failure; this case adds an explicit `:--` column, a column mixing CENTER with unaligned cells, an HTML table, and a `.docx` import.
 
 **Steps**
 1. `create_doc(title="TC-DOC260", folder_id={FOLDER_ID}, content_format="markdown", content="| l | c | n | m |\n|:--|:-:|---|---|\n| 1 | 2 | 3 | 4 |\n")` → `{MD}`
