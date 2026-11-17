@@ -536,7 +536,8 @@ def _validate_resize_params(
     start_label: str,
     end_label: str,
 ) -> tuple[dict[str, Any] | None, int | None]:
-    """Pure parameter validation for resize_rows/resize_columns — no I/O, so it
+    """Pure parameter validation for resize_rows_or_columns and
+    resize_rows/resize_columns — no I/O, so it
     can be unit-tested without a mock service.
 
     Returns (error, None) on failure, or (None, end_index) on success.
@@ -564,6 +565,19 @@ def _validate_resize_params(
     return None, end_index
 
 
+# The `dimension` values the row/column helpers take, mapped to the Sheets API's
+# Dimension enum.
+_DIMENSIONS = {"rows": "ROWS", "columns": "COLUMNS"}
+
+
+def _dimension_error(dimension: str) -> dict[str, Any] | None:
+    """An {"error": ...} dict unless `dimension` is `rows` or `columns`. The tool
+    schema already restricts it; this covers direct calls."""
+    if dimension not in _DIMENSIONS:
+        return {"error": f"dimension must be 'rows' or 'columns', got {dimension!r}"}
+    return None
+
+
 async def _resize_dimension(
     lc,
     spreadsheet_id: str,
@@ -576,7 +590,10 @@ async def _resize_dimension(
     start_label: str,
     end_label: str,
 ) -> dict[str, Any]:
-    """Shared implementation behind resize_rows/resize_columns."""
+    """Shared implementation behind resize_rows_or_columns and resize_rows/resize_columns."""
+    error = _dimension_error(dimension)
+    if error:
+        return error
     sheets_service = lc.sheets_service
 
     sheet_id = await _get_sheet_id(
@@ -594,14 +611,14 @@ async def _resize_dimension(
 
     if auto_resize:
         return await _auto_resize_dimension(
-            sheets_service, spreadsheet_id, sheet_id, dimension, start_index, end_index
+            sheets_service, spreadsheet_id, sheet_id, _DIMENSIONS[dimension], start_index, end_index
         )
 
     return await _update_dimension_properties(
         sheets_service,
         spreadsheet_id,
         sheet_id,
-        dimension,
+        _DIMENSIONS[dimension],
         start_index,
         end_index,
         {"pixelSize": pixel_size},
@@ -609,22 +626,9 @@ async def _resize_dimension(
     )
 
 
-# The `dimension` values the *_rows_or_columns tools take, mapped to the Sheets
-# API's Dimension enum.
-_DIMENSIONS = {"rows": "ROWS", "columns": "COLUMNS"}
-
 # Every tool removed in favor of a *_rows_or_columns tool (#1525) goes in the
 # next feature release, per docs/design.md "Renaming or Removing a Tool".
 _ROWS_OR_COLUMNS_REMOVED_IN = "the next feature release"
-
-
-def _api_dimension(dimension: str) -> tuple[dict[str, Any] | None, str | None]:
-    """The API's Dimension for a tool's `dimension` argument, or an error. The
-    schema already restricts it to `rows`/`columns`; this covers direct calls."""
-    api = _DIMENSIONS.get(dimension)
-    if api is None:
-        return {"error": f"dimension must be 'rows' or 'columns', got {dimension!r}"}, None
-    return None, api
 
 
 async def _add_dimension(
@@ -637,6 +641,9 @@ async def _add_dimension(
     start_label: str,
 ) -> dict[str, Any]:
     """Shared implementation behind add_rows_or_columns and add_rows/add_columns."""
+    error = _dimension_error(dimension)
+    if error:
+        return error
     sheets_service = lc.sheets_service
 
     sheet_id = await _get_sheet_id(
@@ -666,7 +673,7 @@ async def _add_dimension(
                             "insertDimension": {
                                 "range": {
                                     "sheetId": sheet_id,
-                                    "dimension": dimension,
+                                    "dimension": _DIMENSIONS[dimension],
                                     "startIndex": start_index,
                                     "endIndex": start_index + count,
                                 },
@@ -692,6 +699,9 @@ async def _delete_dimension(
     end_label: str,
 ) -> dict[str, Any]:
     """Shared implementation behind delete_rows_or_columns and delete_rows/delete_columns."""
+    error = _dimension_error(dimension)
+    if error:
+        return error
     sheets_service = lc.sheets_service
 
     sheet_id = await _get_sheet_id(
@@ -719,7 +729,7 @@ async def _delete_dimension(
                             "deleteDimension": {
                                 "range": {
                                     "sheetId": sheet_id,
-                                    "dimension": dimension,
+                                    "dimension": _DIMENSIONS[dimension],
                                     "startIndex": start,
                                     "endIndex": end_index,
                                 }
@@ -745,6 +755,9 @@ async def _hide_dimension(
     end_label: str,
 ) -> dict[str, Any]:
     """Shared implementation behind hide_rows_or_columns and the four hide/unhide tools."""
+    error = _dimension_error(dimension)
+    if error:
+        return error
     sheets_service = lc.sheets_service
 
     sheet_id = await _get_sheet_id(
@@ -766,7 +779,7 @@ async def _hide_dimension(
         sheets_service,
         spreadsheet_id,
         sheet_id,
-        dimension,
+        _DIMENSIONS[dimension],
         start,
         end_index,
         {"hiddenByUser": hidden},
@@ -1027,18 +1040,14 @@ def register(tool):
                 right. If omitted, adds at the beginning.
 
         Returns:
-            Result of the operation. Returns {"error": ...} without calling the
-            Sheets API if start is negative or count isn't positive.
+            Result of the operation. Returns {"error": ...} without changing
+            the sheet if start is negative or count isn't positive.
         """
-        error, api_dimension = _api_dimension(dimension)
-        if error:
-            return error
-        assert api_dimension is not None  # guaranteed whenever error is None
         return await _add_dimension(
             ctx.request_context.lifespan_context,
             spreadsheet_id,
             sheet,
-            api_dimension,
+            dimension,
             count,
             start,
             "start",
@@ -1066,14 +1075,14 @@ def register(tool):
             start_row: 0-based row index to start adding. If not provided, adds at the beginning.
 
         Returns:
-            Result of the operation. Returns {"error": ...} without calling the
-            Sheets API if start_row is negative or count isn't positive.
+            Result of the operation. Returns {"error": ...} without changing
+            the sheet if start_row is negative or count isn't positive.
         """
         return await _add_dimension(
             ctx.request_context.lifespan_context,
             spreadsheet_id,
             sheet,
-            "ROWS",
+            "rows",
             count,
             start_row,
             "start_row",
@@ -1101,14 +1110,14 @@ def register(tool):
             start_column: 0-based column index to start adding. If not provided, adds at the beginning.
 
         Returns:
-            Result of the operation. Returns {"error": ...} without calling the
-            Sheets API if start_column is negative or count isn't positive.
+            Result of the operation. Returns {"error": ...} without changing
+            the sheet if start_column is negative or count isn't positive.
         """
         return await _add_dimension(
             ctx.request_context.lifespan_context,
             spreadsheet_id,
             sheet,
-            "COLUMNS",
+            "columns",
             count,
             start_column,
             "start_column",
@@ -1169,18 +1178,14 @@ def register(tool):
                 If omitted, deletes only start.
 
         Returns:
-            Result of the operation. Returns {"error": ...} without calling the
-            Sheets API if start is negative or end precedes start.
+            Result of the operation. Returns {"error": ...} without changing
+            the sheet if start is negative or end precedes start.
         """
-        error, api_dimension = _api_dimension(dimension)
-        if error:
-            return error
-        assert api_dimension is not None  # guaranteed whenever error is None
         return await _delete_dimension(
             ctx.request_context.lifespan_context,
             spreadsheet_id,
             sheet,
-            api_dimension,
+            dimension,
             start,
             end,
             "start",
@@ -1210,14 +1215,14 @@ def register(tool):
                      If omitted, deletes only start_row.
 
         Returns:
-            Result of the operation. Returns {"error": ...} without calling the
-            Sheets API if start_row is negative or end_row precedes start_row.
+            Result of the operation. Returns {"error": ...} without changing
+            the sheet if start_row is negative or end_row precedes start_row.
         """
         return await _delete_dimension(
             ctx.request_context.lifespan_context,
             spreadsheet_id,
             sheet,
-            "ROWS",
+            "rows",
             start_row,
             end_row,
             "start_row",
@@ -1247,14 +1252,14 @@ def register(tool):
                         If omitted, deletes only start_column.
 
         Returns:
-            Result of the operation. Returns {"error": ...} without calling the
-            Sheets API if start_column is negative or end_column precedes start_column.
+            Result of the operation. Returns {"error": ...} without changing
+            the sheet if start_column is negative or end_column precedes start_column.
         """
         return await _delete_dimension(
             ctx.request_context.lifespan_context,
             spreadsheet_id,
             sheet,
-            "COLUMNS",
+            "columns",
             start_column,
             end_column,
             "start_column",
@@ -1286,17 +1291,13 @@ def register(tool):
 
         Returns:
             Result of the batchUpdate operation. Returns {"error": ...} without
-            calling the Sheets API if start is negative or end precedes start.
+            changing the sheet if start is negative or end precedes start.
         """
-        error, api_dimension = _api_dimension(dimension)
-        if error:
-            return error
-        assert api_dimension is not None  # guaranteed whenever error is None
         return await _hide_dimension(
             ctx.request_context.lifespan_context,
             spreadsheet_id,
             sheet,
-            api_dimension,
+            dimension,
             start,
             end,
             hidden,
@@ -1328,13 +1329,13 @@ def register(tool):
 
         Returns:
             Result of the batchUpdate operation. Returns {"error": ...} without
-            calling the Sheets API if start_row is negative or end_row precedes start_row.
+            changing the sheet if start_row is negative or end_row precedes start_row.
         """
         return await _hide_dimension(
             ctx.request_context.lifespan_context,
             spreadsheet_id,
             sheet,
-            "ROWS",
+            "rows",
             start_row,
             end_row,
             True,
@@ -1366,13 +1367,13 @@ def register(tool):
 
         Returns:
             Result of the batchUpdate operation. Returns {"error": ...} without
-            calling the Sheets API if start_row is negative or end_row precedes start_row.
+            changing the sheet if start_row is negative or end_row precedes start_row.
         """
         return await _hide_dimension(
             ctx.request_context.lifespan_context,
             spreadsheet_id,
             sheet,
-            "ROWS",
+            "rows",
             start_row,
             end_row,
             False,
@@ -1404,13 +1405,13 @@ def register(tool):
 
         Returns:
             Result of the batchUpdate operation. Returns {"error": ...} without
-            calling the Sheets API if start_column is negative or end_column precedes start_column.
+            changing the sheet if start_column is negative or end_column precedes start_column.
         """
         return await _hide_dimension(
             ctx.request_context.lifespan_context,
             spreadsheet_id,
             sheet,
-            "COLUMNS",
+            "columns",
             start_column,
             end_column,
             True,
@@ -1442,13 +1443,13 @@ def register(tool):
 
         Returns:
             Result of the batchUpdate operation. Returns {"error": ...} without
-            calling the Sheets API if start_column is negative or end_column precedes start_column.
+            changing the sheet if start_column is negative or end_column precedes start_column.
         """
         return await _hide_dimension(
             ctx.request_context.lifespan_context,
             spreadsheet_id,
             sheet,
-            "COLUMNS",
+            "columns",
             start_column,
             end_column,
             False,
@@ -1486,19 +1487,15 @@ def register(tool):
 
         Returns:
             Result of the batchUpdate operation. Returns {"error": ...} without
-            calling the Sheets API if start is negative, end precedes start,
+            changing the sheet if start is negative, end precedes start,
             pixel_size isn't positive, or neither or both of pixel_size and
             auto_resize are given.
         """
-        error, api_dimension = _api_dimension(dimension)
-        if error:
-            return error
-        assert api_dimension is not None  # guaranteed whenever error is None
         return await _resize_dimension(
             ctx.request_context.lifespan_context,
             spreadsheet_id,
             sheet,
-            api_dimension,
+            dimension,
             start,
             end,
             pixel_size,
@@ -1536,14 +1533,14 @@ def register(tool):
 
         Returns:
             Result of the batchUpdate operation. Returns {"error": ...} without
-            calling the Sheets API if start_row is negative, end_row precedes
+            changing the sheet if start_row is negative, end_row precedes
             start_row, or pixel_size isn't positive.
         """
         return await _resize_dimension(
             ctx.request_context.lifespan_context,
             spreadsheet_id,
             sheet,
-            "ROWS",
+            "rows",
             start_row,
             end_row,
             pixel_size,
@@ -1581,14 +1578,14 @@ def register(tool):
 
         Returns:
             Result of the batchUpdate operation. Returns {"error": ...} without
-            calling the Sheets API if start_column is negative, end_column precedes
+            changing the sheet if start_column is negative, end_column precedes
             start_column, or pixel_size isn't positive.
         """
         return await _resize_dimension(
             ctx.request_context.lifespan_context,
             spreadsheet_id,
             sheet,
-            "COLUMNS",
+            "columns",
             start_column,
             end_column,
             pixel_size,

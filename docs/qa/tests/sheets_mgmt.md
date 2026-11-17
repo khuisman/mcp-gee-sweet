@@ -2960,7 +2960,7 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 
 **Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — After pixel sizes: columns `pixelSize` `[180,180,100]`, rows `[50,21,21]`. After `auto_resize=True`: columns `[21,21,100]`.
 
-### TC-S139: the four tools reject bad arguments before any API call
+### TC-S139: the four tools reject bad arguments without changing the sheet
 
 **Prompt**
 > "Call each and report the raw result:
@@ -2980,7 +2980,7 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 - 6 → rejected by the tool's input schema (`dimension` must be `rows` or `columns`); the sheet is unchanged
 - `get_sheet_data(..., range="A1:F8")` afterwards shows the same layout as before the calls
 
-**Unit coverage:** `TestRowsOrColumnsTools::test_invalid_arguments_return_error_without_api_call`, `test_unknown_dimension_returns_error_without_api_call` and `test_missing_sheet_returns_error_without_api_call` (`tests/sheets/test_structure.py`) assert each error and that no `batchUpdate` is sent.
+**Unit coverage:** `TestRowsOrColumnsTools::test_invalid_arguments_return_error_without_api_call`, `test_unknown_dimension_returns_error_before_any_api_call` and `test_missing_sheet_returns_error_without_api_call` (`tests/sheets/test_structure.py`) assert each error and that no `batchUpdate` is sent. The argument checks run after the sheet lookup (a `spreadsheets().get` on a cold cache), so a bad sheet name is reported first (#323, TC-S111); only an unknown `dimension` is rejected before any API call.
 
 **Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — 1–5 returned exactly the listed errors. 6 was rejected by input validation: `Input should be 'rows' or 'columns' [type=literal_error, input_value='ROWS']`. Read-back afterwards unchanged (`a1`…`c4`).
 

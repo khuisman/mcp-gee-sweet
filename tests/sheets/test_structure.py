@@ -2821,11 +2821,13 @@ class TestRowsOrColumnsTools:
         assert not svc.spreadsheets.return_value.batchUpdate.called
 
     @pytest.mark.parametrize("name", sorted(_ROWS_OR_COLUMNS_TOOLS))
-    async def test_unknown_dimension_returns_error_without_api_call(self, name):
+    async def test_unknown_dimension_returns_error_before_any_api_call(self, name):
         svc, result = await _run_dimension_tool(
             name, dimension="ROWS", **_ROWS_OR_COLUMNS_TOOLS[name]
         )
         assert "dimension must be 'rows' or 'columns'" in result["error"]
+        # Checked before the sheet lookup: it never reaches the API at all.
+        assert not svc.spreadsheets.return_value.get.called
         assert not svc.spreadsheets.return_value.batchUpdate.called
 
     @pytest.mark.parametrize("name", sorted(_ROWS_OR_COLUMNS_TOOLS))
