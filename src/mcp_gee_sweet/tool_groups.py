@@ -58,7 +58,11 @@ def tool_groups(
     unknown = sorted(set(groups) - set(DECLARED_GROUPS) - set(SERVICE_GROUPS))
     if unknown:
         raise ValueError(
-            f"unknown tool group(s) {', '.join(unknown)}; add to tool_groups.DECLARED_GROUPS"
+            f"unknown tool group(s) {', '.join(unknown)} in groups=: it takes a service "
+            f"group ({', '.join(SERVICE_GROUPS)}) or a declared one "
+            f"({', '.join(DECLARED_GROUPS)}). Use default=True for `{DEFAULT}` and "
+            f"local_only=True for `{LOCAL_FILES}`; a new group goes in "
+            "tool_groups.DECLARED_GROUPS."
         )
     result = set(groups)
     if default:

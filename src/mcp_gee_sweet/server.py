@@ -369,7 +369,8 @@ def tool(
     list. `local_only` marks a tool that can only work on local files, which
     LOCAL_FILE_ACCESS=off doesn't register, and puts it in `local-files`; `default`
     puts it in the set an unset ENABLED_TOOLS loads; `groups` names any other group
-    (tool_groups.DECLARED_GROUPS). Its service group comes from its module (#1364)."""
+    (tool_groups.DECLARED_GROUPS, or a second service group, #1511). Its own service
+    group comes from its module (#1364)."""
 
     def decorator(func):
         tool_name = func.__name__

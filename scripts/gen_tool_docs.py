@@ -209,8 +209,8 @@ GROUP_DESCRIPTIONS = {
     tool_groups.ALL: "Every tool, plus the deprecated alias of each recently renamed tool",
     "sheets": (
         "Every spreadsheet tool: data, sheets, formatting, charts, and creating, "
-        "listing, searching, importing and sharing spreadsheets (those five are in "
-        "`drive` too)"
+        "listing, searching, importing and sharing spreadsheets (which are in `drive` "
+        "too)"
     ),
     "drive": (
         "Every Drive tool: files, sharing, activity, upload, download, local sync, and "
@@ -233,7 +233,9 @@ GROUP_DESCRIPTIONS = {
 # Every membership the prose above and in render_filtering_block states, as
 # (tool, group, is a member). Checked against the collected groups on every run, so
 # a tool moving between groups fails the run instead of leaving a false claim.
-_SPREADSHEET_FILE_TOOLS = (
+# The spreadsheet tools under tools/drive/, in `sheets` too (#1511);
+# tests/test_tool_groups.py checks this list against the tools.
+SPREADSHEET_FILE_TOOLS = (
     "create_spreadsheet",
     "list_spreadsheets",
     "search_spreadsheets",
@@ -242,8 +244,8 @@ _SPREADSHEET_FILE_TOOLS = (
 )
 MEMBERSHIP_CLAIMS = (
     ("create_spreadsheet", tool_groups.DEFAULT, True),
-    *((name, "sheets", True) for name in _SPREADSHEET_FILE_TOOLS),
-    *((name, "drive", True) for name in _SPREADSHEET_FILE_TOOLS),
+    *((name, "sheets", True) for name in SPREADSHEET_FILE_TOOLS),
+    *((name, "drive", True) for name in SPREADSHEET_FILE_TOOLS),
 )
 
 # The local-file tools "What `default` leaves out" names. Each must be in
@@ -319,9 +321,13 @@ def check_names(text: str, known: set[str]) -> None:
         )
 
 
-def format_groups(groups: frozenset[str]) -> str:
-    """A tool's groups for its docs/tools.md row: its service group first, then the rest."""
-    services = [g for g in tool_groups.SERVICE_GROUPS if g in groups]
+def format_groups(groups: frozenset[str], module: str) -> str:
+    """A tool's groups for its docs/tools.md row: the service group of its own module
+    first, then any other service group, then the rest."""
+    home = tool_groups.service_group(module)
+    services = [g for g in tool_groups.SERVICE_GROUPS if g in groups and g != home]
+    if home in groups:
+        services.insert(0, home)
     others = sorted(groups - set(services))
     return ", ".join(f"`{g}`" for g in [*services, *others])
 
@@ -349,7 +355,7 @@ def render_tools_md(funcs, groups_by_name: dict[str, frozenset[str]]) -> str:
         for func in matched:
             lines.append(
                 f"| `{func.__name__}` | {summary(func)} | {param_list(func)} "
-                f"| {format_groups(groups_by_name[func.__name__])} |"
+                f"| {format_groups(groups_by_name[func.__name__], func.__module__)} |"
             )
         lines.append("")
         if notes:
@@ -454,7 +460,8 @@ def render_filtering_block(groups_by_name: dict[str, frozenset[str]]) -> str:
         "twice loads once. Some MCP clients cap how many tools they accept, and every "
         f"group but `all` is under {CLIENT_TOOL_LIMIT}, the lowest cap a current client "
         f"documents. {_old_cursor_note(len(default_names))} A combination can go over "
-        "a cap, so add up the counts above; Windsurf's cap also counts every other "
+        "a cap. Adding up the counts above gives an upper bound, since groups overlap "
+        "and a tool in two loads once; Windsurf's cap also counts every other "
         "server's tools. See [Clients with a tool limit]"
         "(client-setup.md#clients-with-a-tool-limit) for each client's setting.",
         "",

@@ -125,6 +125,10 @@ class TestRenderToolsMd:
         assert rows["`add_doc_comment`"] == "`docs`, `comments`"
         assert rows["`list_labels`"] == "`gmail`, `default`"
         assert rows["`refresh_cache`"] == "`cache`"
+        # A tool in a second service group lists its own module's first (#1511).
+        assert rows["`list_spreadsheets`"] == "`drive`, `sheets`"
+        assert rows["`create_spreadsheet`"] == "`drive`, `sheets`, `default`"
+        assert rows["`import_csv_to_sheet`"] == "`drive`, `sheets`, `local-files`"
 
     def test_raises_when_a_tool_matches_no_section(self):
         def mystery_tool():
