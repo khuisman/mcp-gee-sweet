@@ -64,7 +64,7 @@
     "enabled_tools": {
       "type": "string",
       "title": "Enabled tools",
-      "description": "Comma-separated tool names to register, or `all` for every tool. Empty also enables every tool in this release; an upcoming release loads a smaller default set when empty.",
+      "description": "Comma-separated tool names and tool groups to register. Groups: default, all, sheets, drive, docs, calendar, gmail, cache, local-files, comments. Empty loads `default`. Enter `default,local-files` to also create Docs from local Markdown files and upload, download or sync local folders, or `all` for every tool.",
       "required": false,
       "default": ""
     }

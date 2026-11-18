@@ -13,7 +13,10 @@ logger = logging.getLogger(__name__)
 
 
 def register(tool):
-    @tool(annotations=ToolAnnotations(title="Share Spreadsheet", destructiveHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Share Spreadsheet", destructiveHint=True),
+        groups=("sheets",),
+    )
     async def share_spreadsheet(
         spreadsheet_id: str,
         recipients: list[dict[str, str]],

@@ -210,7 +210,7 @@ def _shape_written_event(e: dict[str, Any]) -> dict[str, Any]:
 
 
 def register(tool):
-    @tool(annotations=ToolAnnotations(title="List Calendars", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="List Calendars", readOnlyHint=True), default=True)
     async def list_calendars(ctx: Context = None) -> list[dict[str, Any]]:
         """
         List all calendars accessible to the authenticated user.

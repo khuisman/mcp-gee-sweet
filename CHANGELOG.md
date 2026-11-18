@@ -6,9 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Breaking change
+
+- **An unset or empty `ENABLED_TOOLS` now loads the `default` tool group, 40 everyday tools across Sheets, Docs, Drive, Calendar and Gmail, instead of every tool.** To keep every tool, set `ENABLED_TOOLS=all` (or `--include-tools all`). `default` leaves out the tools that only work on local files (local upload, download and `sync_folder`, `import_csv_to_sheet`, `create_doc_from_file`, `update_doc_from_file`, `insert_local_images`); add the `local-files` group, e.g. `ENABLED_TOOLS=default,local-files`, to keep them. v0.9.6 announced this change — #1364
+
+### New features
+
+- `ENABLED_TOOLS` and `--include-tools` take tool group names as well as tool names, and register their union: `default`, `all`, one group per service (`sheets`, `drive`, `docs`, `calendar`, `gmail`, `cache`), `local-files` and `comments`. Every group but `all` is under the lowest documented client tool cap (100). An entry that names no tool or group, such as `ALL` or a misspelled name, logs a startup warning instead of being dropped silently. The startup log, the server's instructions to the client, and `server://auth-status` (`tool_selection`) say which tools loaded. `docs/tools.md` lists each tool's groups, and [Tool filtering](https://khuisman.github.io/mcp-gee-sweet/latest/configuration/#tool-filtering) replaces the suggested subsets with the groups. [Client Setup](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/#choosing-tools-for-your-client) gives the setting for each client — #1364
+
+### New tools
+
+- `add_rows_or_columns`, `delete_rows_or_columns`, `resize_rows_or_columns` and `hide_rows_or_columns` add, delete, resize, and hide or unhide rows or columns in a sheet: `dimension` (`rows` or `columns`) picks which, `start` and `end` (inclusive, 0-based) give the range, and `hide_rows_or_columns(hidden=False)` unhides. Each sends the same request as the row-only or column-only tool it replaces — #1525
+
 ### Changed
 
 - Renamed and removed tools now get one release of notice. A renamed tool's old name keeps working for one release when it's listed in `ENABLED_TOOLS` or the server runs with `all`, with a startup warning naming the new tool; a tool due for removal says so at the start of its description and warns at startup when `ENABLED_TOOLS` names it; and a renamed parameter's old name keeps working, with a `deprecation_warnings` entry in the result. Each one is listed here under **Deprecated** in the release that deprecates it and under **Removed** in the release after. `server://auth-status` lists deprecated tools under `tool_selection.deprecated_tools`. See the [deprecation policy](https://khuisman.github.io/mcp-gee-sweet/latest/design/#renaming-or-removing-a-tool) — #1209
+
+### Deprecated
+
+- The ten row-only and column-only Sheets tools are deprecated and removed in the next feature release. Use `add_rows_or_columns` for `add_rows`/`add_columns`, `delete_rows_or_columns` for `delete_rows`/`delete_columns`, `resize_rows_or_columns` for `resize_rows`/`resize_columns`, and `hide_rows_or_columns` for `hide_rows`/`hide_columns` and, with `hidden=False`, `unhide_rows`/`unhide_columns`, passing `dimension='rows'` or `'columns'`. `start_row`/`start_column` become `start` and `end_row`/`end_column` become `end`; nothing else changes — #1525
 
 ### Bug fixes
 
