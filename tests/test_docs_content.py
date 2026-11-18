@@ -1023,6 +1023,38 @@ class TestContainerText:
             [("y", None)],
         ]
 
+    def test_link_wrapping_a_container_inside_a_container_keeps_the_link(self):
+        # The #1404 review round 2: one level down, the parser opens its anonymous
+        # paragraph (_ANONYMOUS_BLOCK) for the <a> before the tag records anything,
+        # and bare_side didn't count that paragraph as "no block around it", so the
+        # href went on the per-segment _link_url and the inner container's start tag
+        # reset it — the #1404 card lost its link whenever it was wrapped.
+        nodes = html_to_ast('<div><a href="https://x.test"><div>title</div></a></div>')
+        assert [(r.text, r.link_url) for n in nodes for r in n.runs] == [
+            ("title", "https://x.test")
+        ]
+        # The same markup in a full page's <body>, the wrapper the review called
+        # out: also the parser's own paragraph, also bare.
+        nodes = html_to_ast('<body><a href="https://x.test"><div>title</div></a></body>')
+        assert [(r.text, r.link_url) for n in nodes for r in n.runs] == [
+            ("title", "https://x.test")
+        ]
+
+    def test_bold_wrapping_a_paragraph_inside_a_container_styles_it(self):
+        # The <b> twin of the case above: <p> is a real block, but the <b> is
+        # inside the container's anonymous paragraph, not inside the <p>.
+        nodes = html_to_ast("<div><b><p>x</p></b></div>")
+        assert [(r.text, r.bold) for n in nodes for r in n.runs] == [("x", True)]
+
+    def test_bold_wrapping_containers_inside_a_blockquote_styles_both(self):
+        # Both segments: the quote's own anonymous paragraph hosts the <b>, and the
+        # two container boundaries under it used to end the style at the first.
+        nodes = html_to_ast("<blockquote><b><div>a</div><div>b</div></b></blockquote>")
+        assert [(r.text, r.bold) for n in nodes for r in n.runs] == [
+            ("a", True),
+            ("b", True),
+        ]
+
     def test_inline_only_content_in_a_quote(self):
         nodes = html_to_ast("<blockquote><b>quoted</b></blockquote>")
         assert [(r.text, r.bold) for r in nodes[0].runs] == [("quoted", True)]

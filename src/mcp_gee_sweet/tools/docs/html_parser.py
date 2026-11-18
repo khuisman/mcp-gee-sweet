@@ -539,6 +539,9 @@ class _BlockFrame:
     # The interrupted block's _block_implicit, so a resumed implicit paragraph keeps
     # its source line breaks too.
     implicit: bool = False
+    # The interrupted block's _block_anonymous, so a resumed anonymous paragraph
+    # still counts as "no block of its own" for a later inline tag (#1404 review).
+    anonymous: bool = False
 
 
 def _px_to_pt(value: str) -> float | None:
@@ -679,6 +682,7 @@ class _AstParser(HTMLParser):
         # flush's preserve-or-drop decision (#401) is actually made.
         self._block_resumed = False
         self._block_implicit = False  # see _open_block
+        self._block_anonymous = False  # see _open_block
         # True while the last content of the current segment is a <br>: only then does
         # _emit_block_node drop a final "\v", so an authored "\v" character stays
         # (PR #772). Per-segment, reset by _open_block.
@@ -942,7 +946,13 @@ class _AstParser(HTMLParser):
         return runs
 
     def _open_block(
-        self, tag: str, *, resumed: bool, named_style: str | None, implicit: bool = False
+        self,
+        tag: str,
+        *,
+        resumed: bool,
+        named_style: str | None,
+        implicit: bool = False,
+        anonymous: bool = False,
     ):
         """Reset every piece of per-segment block-open state together, in the
         one place all four sites that begin buffering a block's content route
@@ -964,6 +974,13 @@ class _AstParser(HTMLParser):
         # not HTML to reflow, and a caller's line structure would vanish silently
         # (PR #1356 QA round 1).
         self._block_implicit = implicit
+        # True for the paragraph the parser itself opens directly inside a container
+        # or <blockquote> for content with no block of its own (_ANONYMOUS_BLOCK,
+        # #1391) — as opposed to a real <div> start tag, which also routes through
+        # here under the same "div" name. Like _block_implicit, it marks the block
+        # as the parser's own construct, so an inline tag opened in it is bare-side
+        # (#1404 review).
+        self._block_anonymous = anonymous
         self._ends_with_line_break = False
         self._segment_had_line_break = False
         self._block_had_unsupported_content = False
@@ -1409,6 +1426,7 @@ class _AstParser(HTMLParser):
                 list_depth=(len(self._list_ordered) if new_construct_tag in ("ol", "ul") else None),
                 lists=self._block_lists,
                 implicit=self._block_implicit,
+                anonymous=self._block_anonymous,
             )
         )
         self._block_tag = None
@@ -1510,7 +1528,11 @@ class _AstParser(HTMLParser):
         if not resumes:
             return
         self._open_block(
-            frame.outer_tag, resumed=True, named_style=frame.named_style, implicit=frame.implicit
+            frame.outer_tag,
+            resumed=True,
+            named_style=frame.named_style,
+            implicit=frame.implicit,
+            anonymous=frame.anonymous,
         )
 
     # ------------------------------------------------------------------
@@ -1750,7 +1772,7 @@ class _AstParser(HTMLParser):
         # Directly in a container it opens the container's own paragraph instead, so
         # text after it joins it, as text before it would (PR #1400 QA round 1).
         if tag == "img" and _image_src(attr_dict) and self._can_open_anonymous_block():
-            self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None)
+            self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None, anonymous=True)
         if tag == "img" and self._block_tag is None and self._table_depth == 0:
             src = _image_src(attr_dict)
             if src:
@@ -1772,7 +1794,7 @@ class _AstParser(HTMLParser):
             self._open_elements[-1].counted = True
         if (tag not in _VOID_TAGS or tag == "br") and self._can_open_anonymous_block():
             # Opened before the tag's own handling below, so <div><b>x</b></div> is bold.
-            self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None)
+            self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None, anonymous=True)
         in_cell = (
             self._table_depth >= 1 and bool(self._table_stack) and self._table_stack[-1].in_cell
         )
@@ -1786,14 +1808,17 @@ class _AstParser(HTMLParser):
         # formatting markers, and like develop — never inside table cells, which
         # _bare_formatting keeps the element-recorded style out of entirely. "No
         # block of its own" is the top level and a table's non-cell structure,
-        # plus the implicit paragraph bare top-level text opens (#343): that
-        # paragraph is the parser's own construct, so in the source HTML
-        # "Intro <b><div>x</div></b>" has the <b> with no block around it. A real
-        # block or a cell around the tag keeps the counters, whose boundary reset
-        # stays the leak guard for a tag left unclosed inside a block, where a
-        # browser would auto-close it
+        # plus the parser's own paragraphs: the implicit one bare top-level text
+        # opens (#343), and the anonymous one the parser opens directly inside a
+        # container or <blockquote> for an inline tag or the container's own text
+        # (_ANONYMOUS_BLOCK, #1391) — the source HTML wrote no block around the
+        # tag in either case (#1404 review). A real block or a cell around the tag
+        # keeps the counters, whose boundary reset stays the leak guard for a tag
+        # left unclosed inside a block, where a browser would auto-close it
         # (test_unclosed_bold_does_not_leak_past_nested_list).
-        bare_side = not in_cell and (self._block_tag is None or self._block_implicit)
+        bare_side = not in_cell and (
+            self._block_tag is None or self._block_implicit or self._block_anonymous
+        )
         if self._block_tag or in_cell:
             self._release_cell_whitespace()
             self._flush_run()
@@ -2157,7 +2182,7 @@ class _AstParser(HTMLParser):
             return
         # An "&nbsp;" draws a line in a container, as source indentation doesn't.
         if data and not _is_formatting_whitespace(data) and self._can_open_anonymous_block():
-            self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None)
+            self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None, anonymous=True)
         # Table-cell text and open-block text are independent triggers that happen
         # to be buffered the same way today; kept as separate branches so either
         # can diverge without first untangling a merged condition (#638).
