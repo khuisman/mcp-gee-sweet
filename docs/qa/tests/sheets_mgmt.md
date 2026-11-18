@@ -2923,6 +2923,8 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 
 **Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — Calls 1 and 2 each returned `replies: [{}]`, no `error`. Read-back: `[a1,"",b1,c1]`, `[]`, `[]`, `[a2,"",b2,c2]`, `[a3,"",b3,c3]`, `[a4,"",b4,c4]`.
 
+**Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on `mcp-gee-sweet-sky` @ 6e5b0616** — Same read-back as round 1: `[a1,"",b1,c1]`, `[]`, `[]`, `[a2,"",b2,c2]`, `[a3,"",b3,c3]`, `[a4,"",b4,c4]`; both calls returned `replies`, no `error`.
+
 ### TC-S136: delete_rows_or_columns removes an inclusive range ⚠️ destructive
 
 **Prompt**
@@ -2935,6 +2937,8 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 **Cleanup:** `update_cells(..., range="A1:C4", data=<the fixture's four rows>)` to restore rows 2 and 3.
 
 **Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — Run from this round's corrected prompt (the original re-ran TC-S135's own Cleanup step, which would have deleted fixture rows). After the two undo deletes: A1:C4 = `a1`…`c4` exactly. After `delete_rows_or_columns(rows, start=1, end=2)`: `[a1,b1,c1]`, `[a4,b4,c4]`.
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on `mcp-gee-sweet-sky` @ 6e5b0616** — After the two undo deletes: A1:C4 = `a1`…`c4` exactly. After the inclusive delete: `[a1,b1,c1]`, `[a4,b4,c4]`.
 
 ### TC-S137: hide_rows_or_columns hides by default and unhides with `hidden=False` ⚠️ destructive
 
@@ -2949,6 +2953,8 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 
 **Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — After hiding: rows `hiddenByUser` `[false,true,true,false]`, columns `[false,true,false,false]`. Screenshot (default `playwright` server under the mutex, account check passed): row headers 1 → 4, column headers A → C, show chevrons at both boundaries. After `hidden=False`: no row or column in A1:D4 hidden.
 
+**Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on `mcp-gee-sweet-sky` @ 6e5b0616** — Hidden: rows `[false,true,true,false]`, columns `[false,true,false,false]`; screenshot (URL-verified on the tab's gid, under the mutex) shows rows 1 → 4 and columns A → C with show chevrons. After `hidden=False`: nothing hidden in A1:D4.
+
 ### TC-S138: resize_rows_or_columns sets a pixel size and auto-fits ⚠️ destructive
 
 **Prompt**
@@ -2959,6 +2965,8 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 - After `auto_resize=True`: columns A and B are no longer 180 (auto-fit to the short `a1`/`b1` text)
 
 **Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — After pixel sizes: columns `pixelSize` `[180,180,100]`, rows `[50,21,21]`. After `auto_resize=True`: columns `[21,21,100]`.
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on `mcp-gee-sweet-sky` @ 6e5b0616** — After pixel sizes: columns `[180,180,100]`, rows `[50,21,21]`. After `auto_resize=True`: columns `[21,21,100]`.
 
 ### TC-S139: the four tools reject bad arguments without changing the sheet
 
@@ -2984,6 +2992,8 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 
 **Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — 1–5 returned exactly the listed errors. 6 was rejected by input validation: `Input should be 'rows' or 'columns' [type=literal_error, input_value='ROWS']`. Read-back afterwards unchanged (`a1`…`c4`).
 
+**Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on `mcp-gee-sweet-sky` @ 6e5b0616** — 1–5 returned exactly the listed errors; 6 rejected by input validation (`literal_error`, `input_value='ROWS'`); read-back unchanged.
+
 ### TC-S140: the ten replaced tools are deprecated, and still work
 
 **Prompt**
@@ -2998,3 +3008,5 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 **Cleanup:** `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Deprecated1525")`.
 
 **Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — All ten served descriptions begin with the stated `Deprecated: use ...` line (`unhide_*` with `hidden=False`); none of the four new ones does. `add_rows` and `unhide_columns` each returned `replies: [{}]`, no `error`. `server://auth-status` `tool_selection.deprecated_tools` lists all ten. Both scratch tabs deleted.
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on `mcp-gee-sweet-sky` @ 6e5b0616** — Beyond the case's two calls, all ten deprecated tools were called on `Deprecated1525` (the fix changed the dimension each passes): each returned `replies`, no `error`; `hide_rows`/`hide_columns` hid row 2/column B and `unhide_rows`/`unhide_columns` cleared them; `resize_rows` set row 3 to 40 and `resize_columns` column C to 150. `server://auth-status` `deprecated_tools` lists all ten. Scratch tabs deleted.
