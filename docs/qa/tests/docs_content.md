@@ -6762,9 +6762,9 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 
 **Checks**
 - Step 1 returns no `error` key
-- Step 2, Docs' own numbering: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, then the table, `3. c`, `Aside`, `1. x`, `2. y`. If Docs numbers any item differently, the case's premise has changed: report it rather than checking step 3 against this list
-- Raw `documents().get()` read: `a` through `c` share one `listId`, and `x`/`y` share a different one
-- Step 3: every list item's marker matches step 2's number for that item, including `3. c` after the table and `1. x` starting the second list. (The sublist's indent is #1128, not checked here)
+- Step 2, Docs' own numbering: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, then the table, `1. c`, `Aside`, `1. x`, `2. y`. If Docs numbers any item differently, the case's premise has changed: report it rather than checking step 3 against this list. Since #1118 (PR #1368) the write side keeps the `1. c` after the table as a list of its own starting at 1, as CommonMark reads it; before that it joined `a`'s list as `3. c`. A Docs list continuing past a table is TC-DOC233 step 5
+- Raw `documents().get()` read: `a` through `b1` share one `listId`, `c` has its own, and `x`/`y` share a third
+- Step 3: every list item's marker matches step 2's number for that item, including `1. c` after the table and `1. x` starting the last list. Each sublist item is indented 3 spaces, under its parent's text (#1128)
 
 **Cleanup:** trash the doc
 
@@ -6775,6 +6775,9 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 `sky`, after `/mcp reconnect`, on a fresh doc (trashed afterward). Steps 1–3 read the same as round 1: txt export `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, the table, `3. c`, `Aside`, `1. x`, `2. y`. `a`–`c` share one `listId` and `x`/`y` another. `get_doc_as_markdown` matches item for item. No sublist here starts past 1, so the new `1.` fallback isn't exercised live: the API can't write `startNumber`, and the case is unit-tested.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard C2 on `jay`** — No `error`. Docs' txt export: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, table, `1. c`, `Aside`, `1. x`, `2. y` — the premise changed for `c` (Docs says `1.`, the case expected `3.`; source `1. c` starts a new list under #1118, see top). Raw read: a–b1 share listId …3p5s90, `c` has its own (…4bbk7l), x/y share …d4968y. Step 3's markers match Docs for every item: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, `1. c`, `1. x`, `2. y`.
+
+**Result (2026-11-17) ✅ PASS — Kit, PR #1539 round 2 @ 5b48603d**
+`mcp-gee-sweet-kit`, reconnected after the reset. No `error`. Docs' txt export: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, the table, `1. c`, `Aside`, `1. x`, `2. y`. `get_doc_structure`: `a`–`b1` share one `listId`, `c` has its own, `x`/`y` share a third. Same premise change the release pass found. This round updated the checks to match (#1118, PR #1368). Step 3: `1. a`, `   1. a1`, `   2. a2`, `2. b`, `   1. b1`, then `1. c`, `1. x`, `2. y`. Every marker matches Docs, and each sublist item is at 3 spaces (#1128). Doc trashed.
 
 ### TC-DOC237: A Docs edit tool cancelled while its edit is in flight re-invalidates the doc cache once the edit lands (#1030) ⚠️ requires-oauth ⚠️ destructive
 
@@ -7122,10 +7125,10 @@ asyncio.run(main())
 - LB-11: `   > First quote.` and `   > Second quote.`, separated by at least two blank lines, before `2. Next item`
 - LB-12: `    Inner second paragraph` (4 spaces), then `- Outer two`
 - LB-13: `> 1. Quoted one`, `>`, `>    More of quoted one`, `>`, `> 2. Quoted two`
-- LB-14: the table at the margin (no leading spaces), then `1. Step two`: the write side makes two Docs lists here, so the table is outside the list. The second list starts at 1, not 2, because the write side ignores `start` (#1118)
+- LB-14: the table at the margin (no leading spaces), then `2. Step two`: the table is outside the list. Since #1118 (PR #1368) the write side keeps the source's `2.`, so the export writes it too
 - Step 3's export equals step 2's. (Until #1096, LB-10's rule exported as an empty paragraph, which the re-import dropped, so step 3 had two fewer blank lines there.)
 - Step 4, W-1: every line from `> - a` through `> - c` starts with `>`; the table lines are `>   | …` (the quote, then 2 spaces)
-- W-2: the table lines indented 3 spaces between `1. a` and `- b`, then `2. c`. (`- b` itself is indented 2 spaces, which is #1128)
+- W-2: the table lines indented 3 spaces between `1. a` and `   - b` (also 3 spaces, under `a`'s text, #1128), then `2. c`
 - W-3: the table lines indented 2 spaces (in a), not 4 (in b), before `- c`
 - W-4: `> > b` at the margin, not `  > b`
 - An ambiguous block that ends a list's last item reads as outside the list (`docs/known-limitations.md`)
@@ -7142,6 +7145,9 @@ asyncio.run(main())
 `mcp-gee-sweet-sky` at 28c464a4, reconnected, on scratch docs in `{FOLDER_ID}`. Run because the PR rewrote the export's block separator (`_OpenItems.separator`). Step 2: every LB check holds, LB-10 now `   ---`, a blank line, `   After the rule`, then `2. Next item`. Step 3's export is byte-identical to step 2's (diffed). Step 4: W-1 keeps `>` on every line, with the table at `>   | …`; W-2 has the table at 3 spaces, `  - b` (#1128), then `2. c`; W-3 has the table at 2 spaces, then `- c`; W-4 is `> > b` at the margin, then `After.`. Scratch docs trashed.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard C2 on `jay`** — All three creates without error. Step 2: LB-04 `   Second paragraph…` (3 spaces) between items; LB-05 fence and code at 3 spaces; LB-06 `  > Quoted text inside the item.` (one `>`; no `> >` anywhere except W-4's source); LB-07 table lines at 3 spaces between items; LB-08 `- # Heading inside an item` then `- Plain item after it`; LB-10 `   ---`, blank, `   After the rule` before `2. Next item`; LB-11 `   > First quote.` and `   > Second quote.` with three blank lines between; LB-12 `    Inner second paragraph` (4) then `- Outer two`; LB-13 `> 1. Quoted one`, `>`, `>    More of quoted one`, `>`, `> 2. Quoted two`; LB-14 table at the margin, then `2. Step two` (the check's `1.` is stale since #1118, see top). Step 3 (re-import via `create_doc_from_file` of the saved step-2 export rather than pasting it into `create_doc`; same converter): export byte-identical to step 2. Step 4: W-1 every line `>`-prefixed, table `>   | …`; W-2 table at 3 spaces between `1. a` and `  - b` (#1128), then `2. c`; W-3 table at 2 spaces before `- c`; W-4 `> > b` at the margin.
+
+**Result (2026-11-17) ✅ PASS — Kit, PR #1539 round 2 @ 5b48603d**
+`mcp-gee-sweet-kit`, reconnected after the reset. Steps 1 and 3 ran through `create_doc_from_file`, the same converter as the release pass. Step 2: every LB check holds. LB-09's children are now `   - Child of one` (3 spaces, under `1. `'s text; they were at 2 before #1128). LB-14 is the table at the margin, then `2. Step two`. This round updated that check, which had been stale since #1118. Step 3: byte-identical to step 2 (`cmp`). Step 4: W-1 has `>` on every line and the table at `>   | …`; W-2 has the table at 3 spaces, then `   - b` (3 spaces, #1128), then `2. c`; W-3 has the table at 2 spaces before `- c`; W-4 has `> > b` at the margin. Docs trashed.
 
 ### TC-DOC245: A file's relative image path resolves against the file, and a replace uploads its local images to folder_id, the server default, or the doc's own folder (#1121, #1139) ⚠️ requires-oauth ⚠️ destructive
 **Purpose:** `create_doc_from_file`/`update_doc_from_file` resolved a relative image path against the server's working directory, so a README's images never embedded (#1121). `update_doc_from_file` had no `folder_id`, so on a server with no default folder every local image failed after the doc was cleared, leaving it without its images (#1139). A relative path is now joined to the file's own folder; `write_doc_content`/`update_doc_from_file` take `folder_id`, fall back to the server's default folder and then to the doc's own folder, and refuse before touching the doc when none is known. The doc's-folder fallback only runs on a server with no `DRIVE_FOLDER_ID`, so parts B and C use a scratch script against the checkout under test with `folder_id=None`, the way TC-DOC243 part B does.
@@ -7619,3 +7625,28 @@ Every listed check passes. Step 2: `| --- | :-: | --- | --- |`. Step 4: `| --- |
 
 **Result (2026-11-16) ⚠️ PARTIAL — Kit, PR #1524 round 2 @ c15fe204**
 Every listed check passes. Step 2: `| --- | :-: | --- | --- |`. Step 4: `| --- | :-: | --- |`. Step 5: TC-DOC255 steps 2 and 4 pass (see its Result). Step 6: raw `[START] [CENTER] [None]` on both rows; `get_doc_as_markdown` and `export_revision` both give `| :-- | :-: | --- |`. Extra probe, not in the steps: a `.docx` with `w:jc` on every cell (`left`, `center`, `left`) stores raw `[START] [CENTER] [START]`, the `insertTable` shape, and exports `| --- | :-: | --- |`. That loss is the designed trade-off, but this case's Purpose and the known-limitations entry both say a `.docx` import keeps its `:--` columns without that condition (sent back). Docs trashed.
+
+### TC-DOC261: `get_doc_as_markdown` indents a nested list to its parent item's text, so it nests in CommonMark (#1128) ⚠️ destructive
+
+**Purpose:** The export indented every nested item 2 spaces per level, whatever its parent's marker. Under `1. ` (text at column 3) a child at 2 spaces is a sibling in CommonMark, so a numbered outline exported flat for any CommonMark reader. This server's own import repairs that indent (`md_to_html` rule D1), so a round trip through it doesn't show the bug: check the export with plain CommonMark. Each item now starts at its parent's text column: 2 under `- `, 3 under `1. `, 4 under `10. `. A task item's text column is 2, after `- `: the `[ ] ` is the item's text, and the export had put a block inside a task item at 6 spaces, which CommonMark reads as an indented code block.
+
+**Steps**
+1. `create_doc(title="TC-DOC261", folder_id={FOLDER_ID}, content_format="markdown", content="1. Top\n   1. Nested\n      - deep bullet\n2. Next\n\nBreak\n\n- a\n  - b\n    1. c\n\nBreak\n\n1. one\n2. two\n3. three\n4. four\n5. five\n6. six\n7. seven\n8. eight\n9. nine\n10. ten\n    1. ten child\n\nBreak\n\n- [ ] task\n  - [x] subtask\n\n  more in task\n\nBreak\n\n1. p\n   1. q\n\n      more in q\n\n2. r\n")` → `{DOC}`
+2. `get_doc_as_markdown(doc_id={DOC}, local_path="<scratch dir>/tc-doc261.md")`
+3. Render step 2's file with plain CommonMark: `uv run python -c "import sys; from markdown_it import MarkdownIt; print(MarkdownIt('commonmark').render(open(sys.argv[1]).read()))" <scratch dir>/tc-doc261.md`
+4. `create_doc(title="TC-DOC261 round trip", folder_id={FOLDER_ID}, content_format="markdown", content=<step 2's file>)` → `{RT}`, then `get_doc_as_markdown(doc_id={RT})`
+5. Items Markdown can't nest under their parent (PR #1539 QA round 1): `create_doc(title="TC-DOC261 can't nest", folder_id={FOLDER_ID}, content_format="markdown", content="1. one\n2. two\n3. three\n4. four\n5. five\n6. six\n7. seven\n8. eight\n9. nine\n10. ten\n    > - quoted child\n\nBreak\n\n- a\n  - b\n    - c\n      - d\n")` → `{NN}`, then `get_doc_as_markdown(doc_id={NN}, local_path="<scratch dir>/tc-doc261-nn.md")` and render it as in step 3
+
+**Checks**
+- Step 2's lines, in order: `1. Top`, `   1. Nested` (3 spaces), `      - deep bullet` (6), `2. Next`; `- a`, `  - b` (2), `    1. c` (4); `10. ten`, `    1. ten child` (4); `- [ ] task`, `  - [x] subtask` (2), a blank line, `  more in task` (2); `1. p`, `   1. q` (3), a blank line, `      more in q` (6), a blank line, `2. r`
+- Step 3: each child list sits inside its parent's `<li>`: `Nested` and `deep bullet` inside `Top`'s, `c` inside `b`'s inside `a`'s, `ten child` inside `ten`'s, `subtask` inside `task`'s, `q` inside `p`'s. `more in task` and `more in q` are `<p>`s inside their items. There's no `<pre>` anywhere
+- Step 4's export is identical to step 2's
+- Step 5: `quoted child` is a depth-1 item in a quote under the unquoted `10. ten`, and Markdown can't put a quoted line inside an unquoted item's indent. It exports as `> - quoted child` at the margin, after a blank line, never `>` followed by 4+ spaces. `- a` through `      - d` keep 2 more spaces per level. The render has no `<pre>`: `quoted child` is an `<li>` in a `<blockquote>`, and `d` is inside `c`'s `<li>`
+
+**Cleanup:** `delete_file` all three docs; delete the scratch files
+
+**Result (2026-11-16) ✅ PASS — Kit, PR #1539 round 1 @ 3da51399**
+Step 2 matches every listed line (`   1. Nested`, `      - deep bullet`, `  - b`, `    1. c`, `    1. ten child`, `  - [x] subtask`, `  more in task`, `   1. q`, `      more in q`). Step 3: every child list sits inside its parent's `<li>`, both blocks are `<p>`s in their items, and there's no `<pre>`. Step 4: byte-identical to step 2. Both docs trashed. The round was sent back for code-review findings this case doesn't cover (a quoted child under `10.`, a depth jump of 3, an orphan item).
+
+**Result (2026-11-17) ✅ PASS — Kit, PR #1539 round 2 @ 5b48603d**
+`mcp-gee-sweet-kit`, reconnected after the reset. Steps 1–2: the export is byte-identical to round 1's, so the step 2 and step 3 checks hold as in round 1. Step 4 wasn't re-run: its input is that same text, and round 1's round trip was byte-identical. Step 5: `10. ten`, a blank line, `> - quoted child` at the margin (no `>` followed by 4+ spaces), then `- a`, `  - b`, `    - c`, `      - d`. CommonMark render: `quoted child` is an `<li>` in a `<blockquote>`, `d` is inside `c`'s `<li>`, and there's no `<pre>`. Both docs trashed.
