@@ -917,6 +917,18 @@ class TestServeConsent:
         with pytest.raises(OSError):
             socket.create_connection(("localhost", port), timeout=1).close()
 
+    def test_the_callback_serves_the_styled_success_page_as_html(self, monkeypatch):
+        monkeypatch.setattr(auth_module, "_CONSENT_POLL_SECONDS", 0.05)
+        flow = self._flow()
+        with patch.object(auth_module.webbrowser, "get", side_effect=webbrowser.Error("none")):
+            thread, box = self._serve_in_thread(flow, 30, threading.Event())
+            redirect = self._wait_for_redirect_uri(flow)
+            with urllib.request.urlopen(f"{redirect}?code=***&state=st", timeout=5) as resp:
+                assert resp.headers["Content-Type"].startswith("text/html")
+                assert resp.read() == auth_module._CONSENT_SUCCESS_PAGE.encode()
+            thread.join(5)
+        assert box == {"result": flow.credentials}
+
     def test_stop_ends_the_wait_and_closes_the_port(self, monkeypatch):
         monkeypatch.setattr(auth_module, "_CONSENT_POLL_SECONDS", 0.05)
         flow = self._flow()
@@ -961,6 +973,22 @@ class TestServeConsent:
                 silent.close()
         assert isinstance(box.get("error"), auth_module.WSGITimeoutError)
         assert "Traceback" not in capsys.readouterr().err
+
+
+class TestConsentSuccessPage:
+    def test_names_the_server_and_the_next_step(self):
+        page = auth_module._CONSENT_SUCCESS_PAGE
+        assert "mcp-gee-sweet is authorized" in page
+        assert "The authentication flow has completed." in page
+        assert "You may close this window and go back to your MCP client." in page
+
+    def test_self_contained_and_light_and_dark(self):
+        page = auth_module._CONSENT_SUCCESS_PAGE
+        assert "prefers-color-scheme:dark" in page
+        # No external assets: the page carries its own style and fetches nothing.
+        assert "http" not in page
+        assert "src=" not in page
+        assert "href=" not in page
 
 
 class TestConsentOffEventLoop:
@@ -1491,6 +1519,45 @@ class TestLifespanDegradesOnConsentRequired:
         assert degraded.unauthorized_message == "run mcp-gee-sweet auth"
         assert healthy.unauthorized_message is None
         assert healthy.auth_method == "oauth"
+
+
+class TestRunConsentFlow:
+    def _writable_paths(self, monkeypatch, tmp_path):
+        token_path = tmp_path / "token.json"
+        creds_path = tmp_path / "credentials.json"
+        creds_path.write_text("{}")
+        monkeypatch.setattr(auth_module, "TOKEN_PATH", str(token_path))
+        monkeypatch.setattr(auth_module, "CREDENTIALS_PATH", str(creds_path))
+        return token_path
+
+    def test_passes_the_styled_page_as_the_library_success_message(self, monkeypatch, tmp_path):
+        # #1513: the terminal flow serves the same page as the server's own callback;
+        # the library's server just labels it text/plain.
+        token_path = self._writable_paths(monkeypatch, tmp_path)
+        fresh = MagicMock()
+        fresh.to_json.return_value = json.dumps({"token": "new"})
+        mock_flow = MagicMock()
+        mock_flow.run_local_server.return_value = fresh
+        with patch(
+            "mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file", return_value=mock_flow
+        ):
+            assert auth_module.run_consent_flow(["scope"], open_browser=False) is fresh
+        assert (
+            mock_flow.run_local_server.call_args.kwargs["success_message"]
+            is auth_module._CONSENT_SUCCESS_PAGE
+        )
+        assert json.loads(token_path.read_text())["token"] == "new"
+
+    def test_a_caller_success_message_wins(self, monkeypatch, tmp_path):
+        # The QA wrapper (scripts/oauth_setup.py) sets its own success_message.
+        self._writable_paths(monkeypatch, tmp_path)
+        mock_flow = MagicMock()
+        mock_flow.run_local_server.return_value.to_json.return_value = "{}"
+        with patch(
+            "mcp_gee_sweet.auth.InstalledAppFlow.from_client_secrets_file", return_value=mock_flow
+        ):
+            auth_module.run_consent_flow(["scope"], open_browser=False, success_message="QA page")
+        assert mock_flow.run_local_server.call_args.kwargs["success_message"] == "QA page"
 
 
 class TestRunAuthCommand:

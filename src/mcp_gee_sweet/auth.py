@@ -472,7 +472,36 @@ def _run_server_consent(
 
 
 _CONSENT_PROMPT = "Please visit this URL to authorize this application: {url}"
-_CONSENT_SUCCESS_PAGE = "The authentication flow has completed. You may close this window."
+# The success page every consent path serves (#1513): the tab that just granted
+# access is the first page a new user sees, so it names the server and says what
+# to do next — self-contained HTML, light and dark, with the old plain message
+# kept as its text so a client that shows the raw response still reads correctly.
+_CONSENT_SUCCESS_PAGE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp-gee-sweet is authorized</title>
+<style>
+body{margin:0;min-height:100vh;display:grid;place-items:center;
+font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;
+background:#f6f8fa;color:#1f2328}
+main{max-width:36rem;margin:2rem;padding:2.5rem 3rem;text-align:center;
+background:#ffffff;border:1px solid #d0d7de;border-radius:12px}
+h1{font-size:1.3rem;margin:0 0 .75rem}
+p{margin:0}
+@media (prefers-color-scheme:dark){
+body{background:#0d1117;color:#e6edf3}
+main{background:#161b22;border-color:#30363d}}
+</style>
+</head>
+<body>
+<main>
+<h1>mcp-gee-sweet is authorized</h1>
+<p>The authentication flow has completed. You may close this window and go back to your MCP client.</p>
+</main>
+</body>
+</html>"""
 # How often the callback server's wait checks the deadline and the stop flag.
 _CONSENT_POLL_SECONDS = 0.5
 
@@ -485,7 +514,8 @@ class _CallbackApp:
         self.request_uri: str | None = None
 
     def __call__(self, environ, start_response):
-        start_response("200 OK", [("Content-type", "text/plain; charset=utf-8")])
+        # text/html, so the styled success page renders (#1513).
+        start_response("200 OK", [("Content-type", "text/html; charset=utf-8")])
         self.request_uri = wsgiref.util.request_uri(environ)
         return [_CONSENT_SUCCESS_PAGE.encode()]
 
@@ -1077,6 +1107,11 @@ def run_consent_flow(scopes: list[str], **run_kwargs: Any) -> Credentials:
     auth`), where the library's stdout prompt belongs; the server's own consent is
     _run_server_consent."""
     flow = _new_flow(scopes)
+    # All three consent paths serve the styled success page (#1513). The library's
+    # own callback server, which this terminal flow uses, labels it text/plain, so
+    # the page reads as text there; the server's own callback serves it as HTML.
+    # A caller's success_message still wins — the QA wrapper sets its own.
+    run_kwargs.setdefault("success_message", _CONSENT_SUCCESS_PAGE)
     creds = flow.run_local_server(port=0, **run_kwargs)
     _write_token(creds)
     logger.debug("OAuth flow completed successfully")
