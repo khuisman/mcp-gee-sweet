@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import html as html_module
 import re
 from dataclasses import dataclass, field, replace
@@ -231,46 +232,70 @@ class _ElementFormatting:
 # What _bare_formatting returns when nothing contributes (#1404).
 _NO_FORMATTING = _ElementFormatting()
 
-_INLINE_BOLD = {"b", "strong"}
-_INLINE_ITALIC = {"i", "em"}
-_INLINE_UNDERLINE = {"u"}
-_INLINE_STRIKE = {"s", "strike", "del"}  # <del> strikes too (#1077)
-# <sub>/<sup> set the run's baselineOffset; the innermost open one wins (#1119).
-_INLINE_BASELINE = {"sub": "SUBSCRIPT", "sup": "SUPERSCRIPT"}
-# <mark> highlights its text in yellow, a browser's default <mark> color (#1119).
-_INLINE_MARK = "mark"
 
+_MARK_RGB = (1.0, 1.0, 0.0)
+# Every inline tag that styles its text: the Run/Image field it sets and the value.
+# The one mapping: the tag sets below, which handle_starttag/handle_endtag use, are
+# derived from it, and so is a bare top-level <img>'s style (_bare_character_style,
+# #1475), so a tag added here styles both. <del> strikes too (#1077). <sub>/<sup> set
+# baselineOffset, and the innermost open one wins (#1119). <code> is code-styled
+# outside <pre>.
+_INLINE_CHARACTER_STYLES: dict[str, tuple[str, object]] = {
+    "b": ("bold", True),
+    "strong": ("bold", True),
+    "i": ("italic", True),
+    "em": ("italic", True),
+    "u": ("underline", True),
+    "s": ("strikethrough", True),
+    "strike": ("strikethrough", True),
+    "del": ("strikethrough", True),
+    "sub": ("baseline_offset", "SUBSCRIPT"),
+    "sup": ("baseline_offset", "SUPERSCRIPT"),
+    "mark": ("background_color", RGBColor(*_MARK_RGB)),
+    "code": ("font_family", "Courier New"),
+}
+
+
+def _inline_tags(field_name: str) -> set[str]:
+    return {tag for tag, (name, _) in _INLINE_CHARACTER_STYLES.items() if name == field_name}
+
+
+_INLINE_BOLD = _inline_tags("bold")
+_INLINE_ITALIC = _inline_tags("italic")
+_INLINE_UNDERLINE = _inline_tags("underline")
+_INLINE_STRIKE = _inline_tags("strikethrough")
+_INLINE_BASELINE = {
+    tag: str(_INLINE_CHARACTER_STYLES[tag][1]) for tag in _inline_tags("baseline_offset")
+}
+_INLINE_MARK = _inline_tags("background_color")
+_INLINE_CODE = _inline_tags("font_family")
 # The inline formatting tags that can open with no block around them and so record
 # their contribution on their open element (#1404) instead of the live counters.
-_INLINE_FORMATTING_TAGS = (
-    _INLINE_BOLD
-    | _INLINE_ITALIC
-    | _INLINE_UNDERLINE
-    | _INLINE_STRIKE
-    | set(_INLINE_BASELINE)
-    | {_INLINE_MARK, "code"}
-)
+# Every tag in the one mapping can: each styles text, so _formatting_of reads it.
+_INLINE_FORMATTING_TAGS = set(_INLINE_CHARACTER_STYLES)
+
+# The _ElementFormatting field each _INLINE_CHARACTER_STYLES field name maps to
+# (_formatting_of, #1404): the shared vocabulary of the two style systems.
+_BARE_FORMATTING_FIELDS = {
+    "bold": "bold",
+    "italic": "italic",
+    "underline": "underline",
+    "strikethrough": "strike",
+    "background_color": "mark",
+    "font_family": "code",
+}
 
 
 def _formatting_of(tag: str) -> _ElementFormatting:
     """The one formatting contribution `tag`'s open element records (#1404). Only
-    called for tags in _INLINE_FORMATTING_TAGS."""
-    if tag in _INLINE_BOLD:
-        return _ElementFormatting(bold=True)
-    if tag in _INLINE_ITALIC:
-        return _ElementFormatting(italic=True)
-    if tag in _INLINE_UNDERLINE:
-        return _ElementFormatting(underline=True)
-    if tag in _INLINE_STRIKE:
-        return _ElementFormatting(strike=True)
-    if tag in _INLINE_BASELINE:
-        return _ElementFormatting(baseline=_INLINE_BASELINE[tag])
-    if tag == _INLINE_MARK:
-        return _ElementFormatting(mark=True)
-    return _ElementFormatting(code=True)
+    called for tags in _INLINE_FORMATTING_TAGS; reads the same one mapping the
+    counter-side tag sets derive from, so a tag added there styles both sides."""
+    field_name, value = _INLINE_CHARACTER_STYLES[tag]
+    if field_name == "baseline_offset":
+        return _ElementFormatting(baseline=value)
+    return _ElementFormatting(**{_BARE_FORMATTING_FIELDS[field_name]: True})
 
 
-_MARK_RGB = (1.0, 1.0, 0.0)
 # HTML void elements: never get a matching close tag from Python's stdlib
 # HTMLParser unless the source text itself self-closes them ("<img ... />"),
 # since HTMLParser has no built-in HTML5 void-element awareness. Excluded from
@@ -651,18 +676,20 @@ def _image_src(attr_dict: dict) -> str:
     return (attr_dict.get("src") or "").strip()
 
 
-def _make_image(attr_dict: dict, src: str, link_url: str | None = None) -> Image:
+def _make_image(attr_dict: dict, src: str, link_url: str | None, character_style: dict) -> Image:
     """Build an Image node from an <img> tag's attributes. width/height are
     only ever present on raw HTML <img> tags (content_format="html") — plain
     markdown "![alt](src)" has no syntax for them, so they're None there.
     link_url is the enclosing <a href>, if any (markdown "[![alt](src)](url)",
-    #977)."""
+    #977), and character_style the enclosing inline tags' style
+    (_AstParser._character_style, #1475)."""
     return Image(
         src=src,
         alt=attr_dict.get("alt") or None,
         width=_px_to_pt(attr_dict.get("width") or ""),
         height=_px_to_pt(attr_dict.get("height") or ""),
         link_url=link_url,
+        **character_style,
     )
 
 
@@ -710,6 +737,10 @@ class _AstParser(HTMLParser):
         # even with no content (#1075).
         self._block_had_unsupported_content = False
         self._list_ordered: list[bool] = []  # stack: True=ol, False=ul
+        # Whether an <li> has opened in each open list, pushed and popped with
+        # _list_ordered: a list's first item is the one no earlier <li> opened in
+        # it (#1414).
+        self._list_seen_item: list[bool] = []
         # Each <ol> by list id, numbered once every item is known (#1118).
         self._ordered_lists: dict[int, _OrderedList] = {}
         # The open <li>'s value attribute.
@@ -726,6 +757,12 @@ class _AstParser(HTMLParser):
         # makes the item a bulleted heading (#1094). Per-segment, like the fields
         # _open_block resets.
         self._li_heading_level: int | None = None
+        # True while the segment about to be flushed is a fresh <li> that is the
+        # first item of an open <ul> — no earlier <li> opened in that list, and the
+        # list is unordered (#1414). Only such an item can be the styled block it
+        # wraps (see _interrupt_open_block); every other <li> keeps the empty
+        # bullet #1075 gives it. Per-segment, reset by _open_block.
+        self._block_li_first_ul_item = False
         # The tags of the open item headings, which outlive their segment: a nested
         # block can interrupt the item before the heading's </hN>, which must still be
         # consumed here rather than reach the inline end-tag path and decrement
@@ -824,8 +861,13 @@ class _AstParser(HTMLParser):
         # written once more content follows in the same segment of the cell, and
         # dropped if the segment ends first.
         self._cell_held_runs: list[Run] = []
-        # Open <pre> tags inside a table cell, whose whitespace is never trimmed.
+        # Open <pre> tags inside a table cell, whose whitespace is never trimmed
+        # and whose runs are code-styled (#1417), like a body <pre>'s.
         self._cell_pre_depth = 0
+        # #1418: the cell's next text sits right after a nested table's </table>, so
+        # its leading source spacing collapses at the start of the line that follows,
+        # as a browser draws it (see handle_data). Cleared at a cell's start and end.
+        self._cell_after_table = False
 
         # --- named block style (data-style on <p>) ---
         self._block_named_style: str | None = None
@@ -897,15 +939,8 @@ class _AstParser(HTMLParser):
         if not text:
             return
         self._run_buf = []
-        bare = self._bare_formatting()
         run = Run(
             text=text,
-            bold=True if self._bold_depth > 0 or bare.bold else None,
-            italic=True if self._italic_depth > 0 or bare.italic else None,
-            underline=True if self._underline_depth > 0 or bare.underline else None,
-            strikethrough=True if self._strike_depth > 0 or bare.strike else None,
-            background_color=RGBColor(*_MARK_RGB) if self._mark_depth > 0 or bare.mark else None,
-            baseline_offset=self._baseline_stack[-1] if self._baseline_stack else bare.baseline,
             # An <a> opened with no block or cell around it pushed its href as a
             # bare link (#977); a run flushed while it is still open — the
             # paragraph of a block container it wraps, a <p> of its own, a list
@@ -920,11 +955,67 @@ class _AstParser(HTMLParser):
                 if self._bare_link_url and self._table_depth == 0
                 else None
             ),
-            font_family="Courier New"
-            if (self._in_pre or self._code_depth > 0 or bare.code)
-            else None,
+            **self._run_style(),
         )
         self._pending_runs.append(run)
+
+    def _bare_character_style(self) -> dict:
+        """_character_style for a bare top-level <img>, wrapped only in inline tags
+        (`<b><img></b>`). No block was open when those tags started, so they raised no
+        style depth; read the same mapping from the open-element stack instead, as the
+        bare link is kept apart (_bare_link_url). Outermost first, so the innermost
+        open <sub>/<sup> wins, as in a block."""
+        style: dict = dict.fromkeys(self._character_style())
+        for element in self._open_elements:
+            if not element.inert and element.tag in _INLINE_CHARACTER_STYLES:
+                field_name, value = _INLINE_CHARACTER_STYLES[element.tag]
+                # A copy, so no two nodes share the one RGBColor in the mapping.
+                style[field_name] = copy.copy(value)
+        return style
+
+    def _character_style(self) -> dict:
+        """The character style of the inline tags open right now, as the Run/Image
+        fields they share: a run of text takes it, and so does an image in the same
+        span (#1475), which the emitter then sets explicitly rather than letting the
+        image or its fallback text take whatever the character before it has."""
+        return {
+            "bold": True if self._bold_depth > 0 else None,
+            "italic": True if self._italic_depth > 0 else None,
+            "underline": True if self._underline_depth > 0 else None,
+            "strikethrough": True if self._strike_depth > 0 else None,
+            "background_color": RGBColor(*_MARK_RGB) if self._mark_depth > 0 else None,
+            "baseline_offset": self._baseline_stack[-1] if self._baseline_stack else None,
+            "font_family": (
+                "Courier New"
+                if (self._in_pre or self._cell_pre_depth > 0 or self._code_depth > 0)
+                else None
+            ),
+        }
+
+    def _run_style(self) -> dict:
+        """_character_style with the formatting an inline tag opened with no block
+        around it recorded on its open element unioned in (#1404): a run in a block
+        the tag wraps keeps the tag's style across the block boundaries inside it,
+        which the live counters — whose values _character_style reads — reset at
+        every boundary. The counters keep precedence where both apply (the
+        innermost open baseline wins in either system)."""
+        style = self._character_style()
+        bare = self._bare_formatting()
+        if bare.bold:
+            style["bold"] = True
+        if bare.italic:
+            style["italic"] = True
+        if bare.underline:
+            style["underline"] = True
+        if bare.strike:
+            style["strikethrough"] = True
+        if bare.mark:
+            style["background_color"] = RGBColor(*_MARK_RGB)
+        if bare.code and style["font_family"] is None:
+            style["font_family"] = "Courier New"
+        if bare.baseline is not None and style["baseline_offset"] is None:
+            style["baseline_offset"] = bare.baseline
+        return style
 
     def _flush_pending_runs(self) -> list[Run | Image]:
         self._flush_run()
@@ -988,6 +1079,18 @@ class _AstParser(HTMLParser):
         self._li_trailing_padding = False
         self._li_heading_level = None
         self._block_lists = (tuple(self._list_ordered), tuple(self._list_ids))
+        # #1414: a fresh <li> that is the first item of an open <ul>. Computed from
+        # the live stacks, since no list can have opened inside this item yet; a
+        # resumed segment is never the item's first content, so it's False there.
+        # handle_starttag marks the list as having seen its item right after this,
+        # so the next <li> of the same list finds False here.
+        self._block_li_first_ul_item = (
+            tag == "li"
+            and not resumed
+            and bool(self._list_ordered)
+            and not self._list_ordered[-1]
+            and not self._list_seen_item[-1]
+        )
         self._run_buf = []
         self._pending_runs = []
 
@@ -1138,6 +1241,7 @@ class _AstParser(HTMLParser):
         self._list_count += 1
         self._list_ordered.append(ordered)
         self._list_ids.append(self._list_count)
+        self._list_seen_item.append(False)
 
     def _blockquote_fields(self) -> dict:
         """blockquote_depth and blockquote_path for a node built now. Every leaf-node
@@ -1391,7 +1495,7 @@ class _AstParser(HTMLParser):
                 Paragraph(runs=runs, **self._blockquote_fields(), **self._list_item_fields())
             )
 
-    def _interrupt_open_block(self, new_construct_tag: str):
+    def _interrupt_open_block(self, new_construct_tag, interrupting_named_style=None):
         """A block-ish construct (new_construct_tag: 'ul', 'ol', 'table',
         'pre', or a _BLOCK_TAGS tag) is opening. If a block is currently
         open — of *any* kind, not just <li> — its buffered text must be
@@ -1402,6 +1506,9 @@ class _AstParser(HTMLParser):
         paragraphs interrupted the same way) and emit the outer block after
         its children, since a streaming parser closes children before their
         parent.
+
+        interrupting_named_style is the data-style a `<p>` carries when it's
+        the construct opening, None for every other construct (#1414).
 
         Pushes a frame recording exactly which tag closing would legitimately
         end this interruption, so _resume_interrupted_block can restore it —
@@ -1415,9 +1522,37 @@ class _AstParser(HTMLParser):
         if self._run_buf and not self._in_pre:
             self._trim_source_line_break()
         runs = self._flush_pending_runs()
-        self._emit_block_node(
-            outer_tag, runs, preserve_if_empty=self._block_had_unsupported_content
-        )
+        if not (
+            # #1414: a fresh, text-less <li> that is the FIRST item of a <ul>,
+            # with no `&nbsp;` before the styled block, is that block, indented
+            # under the list with no bullet — as before #1075 and as TC-DOC242's
+            # check reads it — not an empty bullet sitting above the block. A
+            # browser draws the marker beside the block's first line, not on a
+            # line of its own, so the item reads as one line; the block keeps
+            # the item's indent either way. Scoped to exactly the issue's row:
+            # an <ol>'s items keep the bullet, since a skipped item would no
+            # longer count for start/value numbering (`<ol start="3">`'s next
+            # item would show 3, not 4), and so does every item but the first
+            # — skipping one in the middle makes the block read as content of
+            # the item before it, the same AST as `<li>a<p …>s</p></li>` — and
+            # an `&nbsp;` before the block, a deliberate empty-bullet marker
+            # elsewhere (#1075). #1075's own rows (a nested list, quote, code
+            # block or rule as the item's only content) keep their empty
+            # bullet too, an item that dropped unsupported content keeps it
+            # so its boundary node isn't lost, and an item with text of its
+            # own still emits as a normal bullet.
+            outer_tag == "li"
+            and self._block_li_first_ul_item
+            and not self._block_resumed
+            and new_construct_tag == "p"
+            and interrupting_named_style is not None
+            and not self._block_had_unsupported_content
+            and not _has_content(runs)
+            and not any("\xa0" in r.text for r in runs if isinstance(r, Run))
+        ):
+            self._emit_block_node(
+                outer_tag, runs, preserve_if_empty=self._block_had_unsupported_content
+            )
         self._block_stack.append(
             _BlockFrame(
                 outer_tag=outer_tag,
@@ -1611,6 +1746,7 @@ class _AstParser(HTMLParser):
                 )
                 self._cell_held_runs = []
                 self._cell_pre_depth = 0
+                self._cell_after_table = False
                 # If it's a header cell, pre-activate bold
                 if is_header:
                     self._bold_depth += 1
@@ -1698,10 +1834,12 @@ class _AstParser(HTMLParser):
                 self._li_heading_level = int(tag[1])
                 self._li_heading_tags.append(tag)
                 return
-            self._interrupt_open_block(tag)
+            self._interrupt_open_block(tag, interrupting_named_style=named_style)
             self._open_block(tag, resumed=False, named_style=named_style)
             if tag == "li":
                 self._li_value = _html_integer(attr_dict.get("value"))
+                if self._list_seen_item:
+                    self._list_seen_item[-1] = True
             return
 
         # --- block container with no node of its own (#1391) ---
@@ -1779,7 +1917,7 @@ class _AstParser(HTMLParser):
                 link_url = self._bare_link_url[-1] if self._bare_link_url else None
                 self._nodes.append(
                     Paragraph(
-                        runs=[_make_image(attr_dict, src, link_url)],
+                        runs=[_make_image(attr_dict, src, link_url, self._bare_character_style())],
                         **self._blockquote_fields(),
                         **self._list_item_fields(),
                     )
@@ -1834,14 +1972,14 @@ class _AstParser(HTMLParser):
                 self._strike_depth += 1
             elif tag in _INLINE_BASELINE:
                 self._baseline_stack.append(_INLINE_BASELINE[tag])
-            elif tag == _INLINE_MARK:
+            elif tag in _INLINE_MARK:
                 self._mark_depth += 1
             elif tag == "a":
                 href = attr_dict.get("href", "")
                 if href:
                     (self._bare_link_url if bare_side else self._link_url).append(href)
                 self._anchor_pushes.append(("bare" if bare_side else "block") if href else None)
-            elif tag == "code" and not self._in_pre:
+            elif tag in _INLINE_CODE and not self._in_pre:
                 self._code_depth += 1
             elif tag == "pre":
                 # Only reachable in a table cell: a body <pre> is handled above.
@@ -1867,7 +2005,9 @@ class _AstParser(HTMLParser):
                         # Never inside a table: bare links stop at table cells, like
                         # the element-recorded styles (see _bare_formatting).
                         link_url = self._bare_link_url[-1] if self._bare_link_url else None
-                    self._pending_runs.append(_make_image(attr_dict, src, link_url))
+                    self._pending_runs.append(
+                        _make_image(attr_dict, src, link_url, self._run_style())
+                    )
                     self._ends_with_line_break = False
                 elif self._block_tag:
                     self._block_had_unsupported_content = True
@@ -1929,6 +2069,7 @@ class _AstParser(HTMLParser):
         if tag == "table":
             # A cell left open has no </td> to drop what it held.
             self._cell_held_runs = []
+            appended_to_cell = False
             if self._table_stack:
                 tb = self._table_stack.pop()
                 node = tb.build()
@@ -1942,7 +2083,16 @@ class _AstParser(HTMLParser):
                         self._nodes.append(node)
                     elif self._table_stack:
                         self._table_stack[-1].append_nested_table(node)
+                        appended_to_cell = True
             self._table_depth -= 1
+            # #1418: back inside an open cell, the text that follows starts on the
+            # line after the block that just closed, so its leading spacing
+            # collapses (see handle_data) — but only when a table node was really
+            # appended to that cell. An empty <table></table> builds no node, so
+            # the text on either side keeps the spacing the source put there, as on
+            # develop ("Before After", not "BeforeAfter"). Outside a cell there is
+            # nothing to trim.
+            self._cell_after_table = appended_to_cell and self._table_stack[-1].in_cell
             if self._table_depth == 0:
                 self._resume_interrupted_block("table")
             return
@@ -1959,6 +2109,7 @@ class _AstParser(HTMLParser):
                 runs = self._flush_pending_runs()
                 self._cell_held_runs = []
                 self._cell_pre_depth = 0
+                self._cell_after_table = False
                 if is_header:
                     self._bold_depth -= 1
                 tb.end_cell(runs)
@@ -1987,6 +2138,7 @@ class _AstParser(HTMLParser):
             if self._list_ordered:
                 self._list_ordered.pop()
                 self._list_ids.pop()
+                self._list_seen_item.pop()
             self._resume_interrupted_block(tag)
             return
 
@@ -2134,11 +2286,11 @@ class _AstParser(HTMLParser):
                 self._strike_depth = max(0, self._strike_depth - 1)
             elif tag in _INLINE_BASELINE:
                 self._close_baseline(_INLINE_BASELINE[tag])
-            elif tag == _INLINE_MARK:
+            elif tag in _INLINE_MARK:
                 self._mark_depth = max(0, self._mark_depth - 1)
             elif tag == "a":
                 self._close_anchor()
-            elif tag == "code" and not self._in_pre:
+            elif tag in _INLINE_CODE and not self._in_pre:
                 self._code_depth = max(0, self._code_depth - 1)
             elif tag == "pre":
                 self._cell_pre_depth = max(0, self._cell_pre_depth - 1)
@@ -2198,7 +2350,19 @@ class _AstParser(HTMLParser):
             # with its own style and link, only if more content follows; so everything
             # else in a cell parses as before (#1221 is the general question).
             if not (self._run_buf or self._pending_runs):
-                data = _without_line_break_edge(data, leading=True)
+                if self._cell_after_table:
+                    # #1418: the text resuming after a nested table starts a new line
+                    # in a browser (a table is a block), so the source spacing
+                    # between </table> and that text collapses at the line's start —
+                    # whether or not it holds a line break, where the #1073 trim above
+                    # took only the kind that did. An authored "&nbsp;" isn't ASCII
+                    # whitespace and stays (#444). The flag holds until the cell ends,
+                    # so a tag between the table and its text doesn't restore the
+                    # spacing either; only this line's start is affected, since real
+                    # text lands in the buffer and ends the segment start.
+                    data = data.lstrip(_ASCII_FORMATTING_WHITESPACE)
+                else:
+                    data = _without_line_break_edge(data, leading=True)
             text = _without_line_break_edge(data, leading=False)
             if text:
                 self._release_cell_whitespace()

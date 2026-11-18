@@ -87,7 +87,7 @@ Over SSE, the server still runs the browser consent itself when there's no usabl
 
 Either way, run the `auth` command (see step 6 above) and restart the server to re-authorize. A tool call doesn't offer the consent link for a missing scope.
 
-**Gmail scope is only requested when a Gmail tool is registered.** With no `ENABLED_TOOLS` filter every tool is registered, so the server asks for `gmail.modify` (read, compose, send, label, trash). If you don't want to grant mailbox access, leave the Gmail tools out of `ENABLED_TOOLS` / `--include-tools`. The server then neither requests nor requires the Gmail scope, and an existing pre-Gmail token keeps working.
+**Gmail scope is only requested when a Gmail tool is registered.** The `default` tool group (what an unset `ENABLED_TOOLS` loads) and `all` both include Gmail tools, so either way the server asks for `gmail.modify` (read, compose, send, label, trash). If you don't want to grant mailbox access, leave the Gmail tools out of `ENABLED_TOOLS` / `--include-tools`. The server then neither requests nor requires the Gmail scope, and an existing pre-Gmail token keeps working.
 
 ## Method C: Base64 credential injection
 

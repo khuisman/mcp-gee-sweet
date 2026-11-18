@@ -121,6 +121,16 @@ class TestUserConfig:
                 else:
                     assert var in _HOST_VARIABLES, var
 
+    def test_enabled_tools_names_exactly_the_tool_groups(self):
+        # The install dialog is the bundle user's only guide to the setting, so
+        # its group list must match the groups the server knows (#1364).
+        from mcp_gee_sweet.tool_groups import GROUP_NAMES
+
+        description = _manifest()["user_config"]["enabled_tools"]["description"]
+        listed = re.search(r"Groups: ([^.]+)\.", description)
+        assert listed, description
+        assert {g.strip() for g in listed.group(1).split(",")} == GROUP_NAMES
+
     def test_every_key_is_used(self):
         manifest = _manifest()
         used = " ".join(_mcp_config_strings(manifest))

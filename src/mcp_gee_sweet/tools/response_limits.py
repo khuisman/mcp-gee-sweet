@@ -81,11 +81,13 @@ def _over_cap_error(
     local_path_param: str,
 ) -> ValueError:
     # Not offered when this server's LOCAL_FILE_ACCESS policy would refuse it (#796).
+    # A hint, when given, is a complete sentence ending in ". " — the shared
+    # text always starts a fresh sentence after it, capitalized either way (#1430).
     local_path_clause = (
         f"Pass {local_path_param} to write the result to disk instead of returning it "
         "inline (bypasses this cap), or set"
         if local_path_available and local_files.local_paths_usable()
-        else "set"
+        else "Set"
     )
     return ValueError(
         f"{tool_name}: {size_clause}, over the "

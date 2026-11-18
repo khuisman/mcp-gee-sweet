@@ -36,10 +36,12 @@ from .emitter import (
     CellImages,
     ImageFallbacks,
     ast_to_requests,
+    drop_image_style_requests,
     extract_images,
     fill_tables,
     heading_image_ids,
     iter_cell_leaves,
+    list_item_image_ids,
     unstorable_link_urls,
     without_paragraph_gaps,
 )
@@ -95,20 +97,22 @@ class ConvertedContent:
     which ones resolve isn't known until _apply_doc_content's upload and share step.
     That step swaps a resolved image's placeholder for its real URI and replaces an
     unresolved one's request with its fallback text (emitter.image_fallback_requests,
-    #1099), dropping its link request (`image_links`), since the fallback carries the
-    link. Its request sits in the descending-position tail, where text at the
-    image's own position shifts none of the requests still to come. An image in a
-    heading (`heading_image_ids`, emitter.heading_image_ids) gets no fallback text:
-    its request is dropped, with its link request. `images` keeps every Image alive,
-    so each id(image) stays valid."""
+    #1099), dropping the image's style requests (`image_styles`), since the fallback
+    text carries its own (with a marker guard for an image in a list item's text,
+    `list_item_image_ids`). Its request sits in the descending-position tail, where
+    text at the image's own position shifts none of the requests still to come. An
+    image in a heading (`heading_image_ids`, emitter.heading_image_ids) gets no
+    fallback text: its request is dropped, with its style requests. `images` keeps
+    every Image alive, so each id(image) stays valid."""
 
     images: list[Image]
     requests: list[dict]
     tables: list[Table]
-    image_links: dict[int, dict]
+    image_styles: dict[int, list[dict]]
     placeholder_uris: dict[int, str]
     unstorable_urls: list[str]
     heading_image_ids: set[int] = field(default_factory=set)
+    list_item_image_ids: set[int] = field(default_factory=set)
     # id(request) -> field of each paragraph gap beside a table (#1427), for
     # without_paragraph_gaps.
     table_gaps: dict[int, str] = field(default_factory=dict)
@@ -130,23 +134,24 @@ def _convert_doc_content(
     nodes = html_to_ast(html_content)
     images = extract_images(nodes)
     placeholder_uris = {id(img): f"urn:mcp-gee-sweet:pending-image:{id(img)}" for img in images}
-    image_links: dict[int, dict] = {}
+    image_styles: dict[int, list[dict]] = {}
     table_gaps: dict[int, str] = {}
     requests, tables = ast_to_requests(
         nodes,
         start_index=1,
         image_uris=placeholder_uris,
-        image_links=image_links,
+        image_styles=image_styles,
         table_gaps=table_gaps,
     )
     return ConvertedContent(
         images=images,
         requests=requests,
         tables=tables,
-        image_links=image_links,
+        image_styles=image_styles,
         placeholder_uris=placeholder_uris,
         unstorable_urls=unstorable_link_urls(nodes),
         heading_image_ids=heading_image_ids(nodes),
+        list_item_image_ids=list_item_image_ids(nodes),
         table_gaps=table_gaps,
     )
 
@@ -219,22 +224,25 @@ def _record_embed_failure(entry: dict[str, Any], e: HttpError) -> None:
 
 def _positional_insert_tail_start(
     requests: list[dict],
-    image_links: dict[int, dict] | None = None,
+    image_styles: dict[int, list[dict]] | None = None,
     fallback_ids: set[int] | None = None,
 ) -> int:
     """Index where ast_to_requests's trailing stage-3 pass (the descending-position
     insertTable + insertInlineImage requests — see its docstring) begins: the start
-    of the maximal suffix made up only of those two request kinds, plus each linked
-    image's own link request (#977), each table's placeholder delete (#1097), and
-    the fallback-text requests that replaced an image (#1099). `image_links` is the
-    id(insert) -> link request map ast_to_requests filled; a link request counts by
-    identity, and so does a fallback request (`fallback_ids`). A placeholder delete
-    counts by its position, right after its own insertTable."""
-    link_ids = {id(link) for link in (image_links or {}).values()} | (fallback_ids or set())
+    of the maximal suffix made up only of those two request kinds, each image's own
+    style requests (#977, #1334, a marker guard's included), each table's
+    placeholder delete (#1097), and the fallback-text requests that replaced an
+    image (#1099). `image_styles` is the id(insert) -> style requests map
+    ast_to_requests filled; a style request counts only by identity, and so does a
+    fallback request (`fallback_ids`). A placeholder delete counts by its position,
+    right after its own insertTable."""
+    tail_ids = {id(style) for styles in (image_styles or {}).values() for style in styles} | (
+        fallback_ids or set()
+    )
 
     def in_tail(i: int) -> bool:
         request = requests[i]
-        if id(request) in link_ids or any(key in request for key in _POSITIONAL_INSERT_KEYS):
+        if id(request) in tail_ids or any(key in request for key in _POSITIONAL_INSERT_KEYS):
             return True
         return "deleteContentRange" in request and i > 0 and "insertTable" in requests[i - 1]
 
@@ -1196,7 +1204,7 @@ async def _apply_doc_content(
     image_by_id = {id(img): img for img in images}
     # The fallback text written in place of images that aren't embedded (#1099),
     # shared by the body below and the table fill (CellImages).
-    fallbacks = ImageFallbacks()
+    fallbacks = ImageFallbacks(converted.list_item_image_ids)
 
     if images:
         results = await lifecycle.resolve(
@@ -1265,7 +1273,7 @@ async def _apply_doc_content(
 
     try:
         async with lifecycle.edit():
-            image_links = converted.image_links
+            image_styles = converted.image_styles
             tables = converted.tables
 
             # Swap each resolved image's placeholder URI for the real one, recording
@@ -1273,7 +1281,7 @@ async def _apply_doc_content(
             # retry below can trace a failure back to the right image without relying
             # on URI or position, both of which two images can share (see the comment
             # above). An unresolved image's request is replaced by its fallback text
-            # (#1099), and its link request goes, since the fallback carries the link:
+            # (#1099), and its style request goes, since the fallback carries its own:
             # in the descending-position tail, text at the image's position moves no
             # request still to come, just as dropping it wouldn't (ConvertedContent).
             # An image in a heading gets no fallback text, so its request is just
@@ -1286,7 +1294,7 @@ async def _apply_doc_content(
             }
             request_id_to_img_id: dict[int, int] = {}
             unresolved_img_by_request: dict[int, int] = {}
-            unresolved_link_ids: set[int] = set()
+            unresolved_style_ids: set[int] = set()
             for req in converted.requests:
                 inline = req.get("insertInlineImage")
                 if inline is None:
@@ -1299,12 +1307,10 @@ async def _apply_doc_content(
                     inline["uri"] = real_uri_by_id[img_id]
                 else:
                     unresolved_img_by_request[id(req)] = img_id
-                    link = image_links.get(id(req))
-                    if link is not None:
-                        unresolved_link_ids.add(id(link))
+                    unresolved_style_ids.update(id(r) for r in image_styles[id(req)])
             content_requests: list[dict] = []
             for req in converted.requests:
-                if id(req) in unresolved_link_ids:
+                if id(req) in unresolved_style_ids:
                     continue
                 img_id = unresolved_img_by_request.get(id(req))
                 if img_id is None:
@@ -1392,10 +1398,11 @@ async def _apply_doc_content(
                 def _drop_failed_image(requests: list[dict], e: Exception) -> int | None:
                     """Replace the insertInlineImage request `e` names in `requests`
                     (the batch that raised `e`) with its image's fallback text
-                    (#1099), or pop it for an image in a heading, drop its link
-                    request if the image was linked (#977), record the failure on
-                    its image's outcome entry, and return the index it was at. None
-                    if `e` isn't an image-fetch failure, so the caller re-raises."""
+                    (#1099), or pop it for an image in a heading, drop the image's
+                    style requests (the fallback text carries its own), record the
+                    failure on its image's outcome entry, and return the index it
+                    was at. None if `e` isn't an image-fetch failure, so the caller
+                    re-raises."""
                     if not isinstance(e, HttpError):
                         return None
                     bad_index = _failed_insert_image_request_index(e)
@@ -1404,6 +1411,12 @@ async def _apply_doc_content(
                     bad_request = requests[bad_index]
                     if "insertInlineImage" not in bad_request:
                         return None
+                    # Left in place, the image's style would land on whatever
+                    # character now sits at its position. Matched by identity: the
+                    # list holds the same dict objects ast_to_requests recorded.
+                    bad_index = drop_image_style_requests(
+                        requests, bad_index, image_styles[id(bad_request)]
+                    )
                     img_id = request_id_to_img_id.get(id(bad_request))
                     if img_id is None or img_id in converted.heading_image_ids:
                         requests.pop(bad_index)
@@ -1414,13 +1427,6 @@ async def _apply_doc_content(
                         requests[bad_index : bad_index + 1] = fallbacks.requests(
                             image_by_id[img_id], position
                         )
-                    # Left in place, the link would land on whatever character now
-                    # sits at the image's position. Matched by identity: the list
-                    # holds the same dict objects ast_to_requests recorded.
-                    link = image_links.get(id(bad_request))
-                    if link is not None:
-                        link_index = next(i for i, r in enumerate(requests) if r is link)
-                        requests.pop(link_index)
                     entry = entry_by_id.get(img_id) if img_id is not None else None
                     if entry is not None:
                         _record_embed_failure(entry, e)
@@ -1428,7 +1434,7 @@ async def _apply_doc_content(
 
                 def _body_split_point(remaining: list[dict], _index: int) -> int:
                     tail_start = _positional_insert_tail_start(
-                        remaining, image_links, fallbacks.request_ids
+                        remaining, image_styles, fallbacks.request_ids
                     )
                     # Fail-safe: split only if every image request really is in the
                     # tail. If ast_to_requests ever emits something after its
@@ -1645,7 +1651,7 @@ async def _resolve_heading_anchors(
 
 
 def register(tool):
-    @tool(annotations=ToolAnnotations(title="Create Document", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Create Document", destructiveHint=True), default=True)
     async def create_doc(
         title: str,
         content: str | None = None,
@@ -1732,8 +1738,9 @@ def register(tool):
             already revoked.
 
         Note:
-            Requires OAuth or ADC auth. Service accounts cannot create files in personal
-            Drive (no storage quota). Works on Shared Drives regardless of auth method.
+            A service account has no My Drive storage, so it can only create files in a
+            Shared Drive; a user identity (OAuth, or ADC with user credentials) can
+            use either. ADC can also resolve to a service identity, which has the same Shared Drive-only limit.
             Workaround for service accounts: create the file manually in Drive, then use
             write_doc_content to populate it. Check server://auth-status for your current
             auth method.
@@ -1812,8 +1819,9 @@ def register(tool):
             already revoked.
 
         Note:
-            Requires OAuth or ADC auth. Service accounts cannot create files in personal
-            Drive (no storage quota). Check server://auth-status for your current auth method.
+            A service account has no My Drive storage, so it can only create files in a
+            Shared Drive; a user identity (OAuth, or ADC with user credentials) can
+            use either. ADC can also resolve to a service identity, which has the same Shared Drive-only limit. Check server://auth-status for your current auth method.
         """
         source = await asyncio.to_thread(
             _read_doc_source_file, local_path, None, format_overridable=False
@@ -1930,7 +1938,10 @@ def register(tool):
         enforce_response_size_cap(result, tool_name="get_doc_content")
         return result
 
-    @tool(annotations=ToolAnnotations(title="Write Document Content", destructiveHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Write Document Content", destructiveHint=True),
+        default=True,
+    )
     async def write_doc_content(
         doc_id: str,
         content: str,
@@ -2137,7 +2148,9 @@ def register(tool):
             source_dir=Path(local_path).parent,
         )
 
-    @tool(annotations=ToolAnnotations(title="Get Document Structure", readOnlyHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Get Document Structure", readOnlyHint=True), default=True
+    )
     async def get_doc_structure(doc_id: str, ctx: Context = None) -> dict[str, Any]:
         """
         Return the full structural map of a Google Doc body with element indices.
@@ -2173,8 +2186,7 @@ def register(tool):
             headingId is the piece needed to build a working in-doc jump link: set
             link_url via style_doc_range to
             f"https://docs.google.com/document/d/{doc_id}/edit?tab=t.0#heading={heading_id}"
-            — an ordinary URL, no special Link-object field required. Confirmed live
-            2026-07-24 (issue #409).
+            — an ordinary URL, no special Link-object field required.
         """
         lc = ctx.request_context.lifespan_context
         try:
@@ -2315,7 +2327,7 @@ def register(tool):
             "elements": elements,
         }
 
-    @tool(annotations=ToolAnnotations(title="Find in Document", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="Find in Document", readOnlyHint=True), default=True)
     async def find_in_doc(
         doc_id: str,
         query: str,

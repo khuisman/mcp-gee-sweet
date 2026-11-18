@@ -1,4 +1,6 @@
 import logging
+from collections.abc import Callable
+from contextlib import nullcontext
 from typing import Any
 
 from googleapiclient.errors import HttpError
@@ -7,6 +9,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME, SheetInfo, fetch_sheets, get_modified_time
+from ...http_transport import invalidating
 from ...local_files import check_write
 from ..concurrency import gather_with_fallback, report_progress_safe
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
@@ -21,16 +24,25 @@ from .helpers import (
 logger = logging.getLogger(__name__)
 
 
-async def _execute_or_error(func, service) -> tuple[dict[str, Any] | None, Any]:
+async def _execute_or_error(
+    func, service, invalidate: Callable[[], None] | None = None
+) -> tuple[dict[str, Any] | None, Any]:
     """Runs execute_in_thread(func, service) and returns (error, result): a clean
     {"error": ...} dict on HttpError instead of letting it propagate uncaught, or
     (None, result) on success — matching this codebase's established error-or-None
     convention (_parse_a1_notation_or_error, _resolve_grid_range) instead of
     duplicating try/except HttpError at every call site in this file that hands a
     raw caller-supplied range/request straight to the Sheets API with no local
-    validation (issue #757)."""
+    validation (issue #757).
+
+    A write passes `invalidate`, its cache invalidation, which runs through
+    `invalidating`: on success, on a failure that may have landed (a 5xx, a timeout),
+    on a cancellation, and again when an abandoned request lands, but not on a 4xx,
+    which ran nothing (#1265). The HttpError is caught outside that block, so
+    `invalidating` sees it before it becomes an error dict."""
     try:
-        return None, await execute_in_thread(func, service)
+        with invalidating(invalidate) if invalidate is not None else nullcontext():
+            return None, await execute_in_thread(func, service)
     except HttpError as e:
         return {"error": str(e)}, None
 
@@ -82,7 +94,7 @@ def _build_rich_text_cell(runs: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def register(tool):
-    @tool(annotations=ToolAnnotations(title="Get Sheet Data", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="Get Sheet Data", readOnlyHint=True), default=True)
     async def get_sheet_data(
         spreadsheet_id: str,
         sheet: str,
@@ -183,7 +195,7 @@ def register(tool):
                     tool_name="get_sheet_data(include_grid_data=True)",
                     hint="Densely formatted cells serialize to ~700+ bytes each, so even a "
                     "modest range can produce a response large enough to break the client "
-                    "connection. Narrow the range, or ",
+                    "connection. Narrow the range. ",
                 )
         else:
             error, values_result = await _execute_or_error(
@@ -214,7 +226,7 @@ def register(tool):
 
         return result
 
-    @tool(annotations=ToolAnnotations(title="Get Sheet Formulas", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="Get Sheet Formulas", readOnlyHint=True), default=True)
     async def get_sheet_formulas(
         spreadsheet_id: str, sheet: str, range: str | None = None, ctx: Context = None
     ) -> list[list[Any]] | dict[str, Any]:
@@ -228,7 +240,7 @@ def register(tool):
 
         Returns:
             A 2D array of the sheet formulas, or {"error": ...} if the range is
-            rejected by the Sheets API (issue #757).
+            rejected by the Sheets API.
         """
         sheets_service = ctx.request_context.lifespan_context.sheets_service
 
@@ -256,7 +268,7 @@ def register(tool):
 
         Queries fetch concurrently rather than one at a time. If the caller supplied
         a progressToken, a `notifications/progress` update is sent as each query
-        finishes (#355).
+        finishes.
 
         Args:
             queries: A list of dictionaries, each specifying a query.
@@ -379,7 +391,7 @@ def register(tool):
 
         Spreadsheets summarize concurrently rather than one at a time. If the caller
         supplied a progressToken, a `notifications/progress` update is sent as each
-        summary finishes (#355).
+        summary finishes.
 
         Args:
             spreadsheet_ids: A list of spreadsheet IDs to summarize.
@@ -575,7 +587,7 @@ def register(tool):
         enforce_response_size_cap(summaries, tool_name="get_multiple_spreadsheet_summary")
         return summaries
 
-    @tool(annotations=ToolAnnotations(title="Find Cells", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="Find Cells", readOnlyHint=True), default=True)
     async def find_in_spreadsheet(
         spreadsheet_id: str,
         query: str,
@@ -705,12 +717,13 @@ def register(tool):
             .clear(spreadsheetId=spreadsheet_id, range=full_range, body={})
             .execute,
             lc.sheets_service,
+            invalidate=lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id),
         )
         if error:
             return error
         return result
 
-    @tool(annotations=ToolAnnotations(title="Update Cells", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Update Cells", destructiveHint=True), default=True)
     async def update_cells(
         spreadsheet_id: str, sheet: str, range: str, data: list[list[Any]], ctx: Context = None
     ) -> dict[str, Any]:
@@ -764,6 +777,9 @@ def register(tool):
 
         result: dict[str, Any] = {}
 
+        def invalidate_data() -> None:
+            lc.sheet_data_cache.mark_dirty(spreadsheet_id)
+
         # Parsed once up front and reused by both branches below, rather than
         # separately by each — the mixed-cells branch and the rich-text branch
         # both key off the same `range` string, and rich_text_cells being
@@ -796,11 +812,11 @@ def register(tool):
                 )
                 .execute,
                 sheets_service,
+                invalidate=invalidate_data,
             )
             if error:
                 return error
             result["values_update"] = values_update
-            lc.sheet_data_cache.mark_dirty(spreadsheet_id)
         elif plain_cells:
             # Mixed call: write only the actual plain-cell positions, addressed
             # individually, rather than the whole rectangle. Writing the whole
@@ -836,12 +852,9 @@ def register(tool):
                 )
                 .execute,
                 sheets_service,
+                invalidate=invalidate_data,
             )
-            if error:
-                result["values_update"] = error
-            else:
-                result["values_update"] = values_update
-                lc.sheet_data_cache.mark_dirty(spreadsheet_id)
+            result["values_update"] = error or values_update
 
         if rich_text_cells:
             sheet_id = await _get_sheet_id(
@@ -876,12 +889,9 @@ def register(tool):
                 .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
                 .execute,
                 sheets_service,
+                invalidate=invalidate_data,
             )
-            if error:
-                result["rich_text_update"] = error
-            else:
-                result["rich_text_update"] = rich_text_update
-                lc.sheet_data_cache.mark_dirty(spreadsheet_id)
+            result["rich_text_update"] = error or rich_text_update
 
         if len(result) == 1:
             return next(iter(result.values()))
@@ -931,11 +941,10 @@ def register(tool):
             )
             .execute,
             sheets_service,
+            invalidate=lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id),
         )
         if error:
             return error
-
-        lc.sheet_data_cache.mark_dirty(spreadsheet_id)
 
         logger.debug(
             "batch_update_cells raw response: input_ranges=%s row_counts=%s response=%s",
@@ -946,7 +955,7 @@ def register(tool):
 
         return result
 
-    @tool(annotations=ToolAnnotations(title="Batch Update", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Batch Update", destructiveHint=True), default=True)
     async def batch_update(
         spreadsheet_id: str, requests: list[dict[str, Any]], ctx: Context = None
     ) -> dict[str, Any]:
@@ -1011,13 +1020,14 @@ def register(tool):
         if not all(isinstance(req, dict) for req in requests):
             return {"error": "Each request must be a dictionary"}
 
-        result = await execute_in_thread(
-            sheets_service.spreadsheets()
-            .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
-            .execute,
-            sheets_service,
-        )
+        def _invalidate() -> None:
+            lc.cache.mark_dirty(spreadsheet_id)
+            lc.sheet_data_cache.mark_dirty(spreadsheet_id)
 
-        lc.cache.mark_dirty(spreadsheet_id)
-        lc.sheet_data_cache.mark_dirty(spreadsheet_id)
-        return result
+        with invalidating(_invalidate):
+            return await execute_in_thread(
+                sheets_service.spreadsheets()
+                .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
+                .execute,
+                sheets_service,
+            )

@@ -7,6 +7,31 @@ Each entry describes what the limitation is, why it exists, and the available wo
 
 ## Google Docs
 
+### Setting a named style clears the paragraph's inline text styles
+
+**What:** Writing a `namedStyleType` onto a paragraph that already has inline text
+styles removes those styles — reproduced with `strikethrough`, and it happens even when
+the named style being written is the one the paragraph already had.
+
+**Why:** The Docs API's `updateParagraphStyle` with a `namedStyleType` re-applies the
+named style's own text properties to the paragraph's runs, so per-run formatting is not
+preserved — that part is API behaviour. (`insert_softbreak_paragraph` used to add a quirk
+of its own on top: it always sent the paragraph-style request, defaulting to
+`NORMAL_TEXT`, even when no paragraph style was asked for, so a plain insert wiped the
+paragraph's inline styles. It now sends the request only when `named_style_type` is
+passed.)
+
+**Where it bites:** `style_doc_range(named_style_type=...)`, and
+`insert_softbreak_paragraph` when a `named_style_type` is passed.
+
+**Workaround:** A range dict carrying `named_style_type` plus text-style fields applies
+the paragraph style first and the text styles after, so the text styles named in the
+same call survive — a separate call is only needed to restore per-run formatting the
+paragraph already had elsewhere, after reading the runs to know it. Passing only
+text-style fields never takes the `namedStyleType` path.
+
+---
+
 ### Blank paragraph before every table
 
 **What:** A blank paragraph always appears in the document structure immediately before each
@@ -274,6 +299,26 @@ Insert > Link > "Headings, bookmarks, and tabs", and no link can point to it.
 
 **Workaround:** Link to a heading instead: every heading has a `headingId` (`get_doc_structure`)
 that a link can target. Tracked in #1076.
+
+---
+
+### `get_doc_as_markdown` exports a left-aligned table column as `---`, not `:--`
+
+**What:** In a table written by `create_doc`, `write_doc_content`, `create_doc_from_file`,
+`update_doc_from_file`, or `upload_file` (Markdown source), or converted from `.md` by Drive's import,
+a column written with `:--` (or an HTML cell with `text-align: left`) reads back from
+`get_doc_as_markdown` and `export_revision` as an unaligned `---` column. Centered (`:-:`) and
+right-aligned (`--:`) columns keep their delimiters. A Markdown renderer draws an unaligned body cell
+on the left, but may center an unaligned header cell, as a browser does a bare `<th>`. A table from a
+Drive `.docx` import keeps its `:--` columns when some cell in the table has no alignment of its own;
+one whose every cell sets an alignment reads like the tables above.
+
+**Why:** Those tables store a left alignment (`START`) on every cell, aligned or not, so a
+left-aligned column and an unaligned one are the same in the Doc. Reading `START` as `:--` exported
+every unaligned column as `:--` (#1503). So `START` is read as `:--` only in a table where some cell
+paragraph has no alignment, as an unaligned cell from a `.docx` import does.
+
+**Workaround:** Restore `:--` in the exported Markdown by hand.
 
 ---
 
@@ -600,21 +645,21 @@ server.
 
 ### Some clients refuse the full tool set
 
-**What:** With every tool registered (the default), the server is over the tool cap of several
-MCP clients. VS Code with GitHub Copilot allows 128 tools per request. In our November 2026 test,
+**What:** With every tool registered (`ENABLED_TOOLS=all`), the server is over the tool cap of
+several MCP clients. VS Code with GitHub Copilot allows 128 tools per request. In our November 2026 test,
 Copilot looked tools up on demand and handled the full set, but a build that sends every tool with
 each request fails with "Cannot have more than 128 tools per request". Windsurf allows 100 tools across all servers.
 Cursor's cap depends on the model and reports "Too many MCP tools are enabled for this mode", or
 uses only part of the list.
 Google Antigravity is reported to reject a server with more than 100 tools.
 
-**Why:** The caps are the clients' own, and the server registers every tool unless told
-otherwise, so it works out of the box on clients without a cap. An upcoming release loads a smaller
-default tool set; `ENABLED_TOOLS=all` keeps every tool.
+**Why:** The caps are the clients' own. An unset `ENABLED_TOOLS` loads the `default` tool group,
+which is under every current cap (older Cursor builds allowed 40, which `default` doesn't exceed); `all` registers every tool, for clients without one.
 
-**Workaround:** Set `ENABLED_TOOLS` (or `--include-tools`) to one of the
-[suggested subsets](configuration.md#suggested-subsets), each under 100 tools. Per-client
-config is in [Clients with a tool limit](client-setup.md#clients-with-a-tool-limit).
+**Workaround:** Leave `ENABLED_TOOLS` unset, or set it (or `--include-tools`) to
+[tool groups](configuration.md#tool-groups) and names whose total stays under your client's cap.
+Every group but `all` is under 100 tools. Per-client config is in
+[Clients with a tool limit](client-setup.md#clients-with-a-tool-limit).
 
 ---
 

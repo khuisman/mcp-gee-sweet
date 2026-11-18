@@ -2,6 +2,7 @@
 API -> AST walker, ast_to_markdown.py's AST -> Markdown serializer, and the
 get_doc_as_markdown tool wiring them together."""
 
+import re
 from html import escape
 from unittest.mock import MagicMock
 from xml.etree import ElementTree
@@ -11,6 +12,7 @@ import pytest
 from markdown_it import MarkdownIt
 
 from mcp_gee_sweet.tools import docs as docs_module
+from mcp_gee_sweet.tools.docs import md_to_html
 from mcp_gee_sweet.tools.docs.ast import (
     BulletItem,
     Cell,
@@ -18,12 +20,14 @@ from mcp_gee_sweet.tools.docs.ast import (
     Image,
     NamedBlock,
     Paragraph,
+    RGBColor,
     Row,
     Run,
     Table,
 )
 from mcp_gee_sweet.tools.docs.ast_to_markdown import ast_to_markdown
 from mcp_gee_sweet.tools.docs.doc_to_ast import document_to_ast
+from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 
 # Strict CommonMark, plus GFM pipe tables. Python-Markdown (used by some older
 # tests below) strips whitespace inside code spans and closes a fence only on an
@@ -67,7 +71,7 @@ def _make_tool_registry():
     captured = {}
     captured_annotations = {}
 
-    def tool(annotations=None, local_only=False):
+    def tool(annotations=None, local_only=False, **_):
         def decorator(func):
             captured[func.__name__] = func
             captured_annotations[func.__name__] = annotations
@@ -351,6 +355,105 @@ class TestDocToAstLinks:
         md = ast_to_markdown(document_to_ast(self._doc({"headingId": "h.abc"})))
         url = f"{self._BASE}?tab=t.0#heading=h.abc"
         assert md == f"[jump]({url})[![](https://i/p.png)]({url})\n"
+
+
+class TestStabilizedHeadingLinks:
+    """PR #1435 review: a revision's exported heading links are written as
+    '#slug' anchors by _stabilize_internal_links, and that slug must be exactly
+    what anchors.py's resolver (and GitHub itself) would produce for the same
+    heading — hard breaks included. A link to the wrong section is worse than
+    no link, so a doc holding both a hard-break heading and a plain heading
+    with the same words must keep their anchors distinct."""
+
+    @staticmethod
+    def _doc():
+        def heading(heading_id, text):
+            return {
+                "paragraph": {
+                    "paragraphStyle": {
+                        "headingId": heading_id,
+                        "namedStyleType": "HEADING_1",
+                    },
+                    "elements": [{"textRun": {"content": text, "textStyle": {}}}],
+                }
+            }
+
+        def linked_run(link):
+            return {
+                "paragraph": {
+                    "elements": [
+                        {"textRun": {"content": "jump", "textStyle": {"link": link}}},
+                        {"textRun": {"content": "\n", "textStyle": {}}},
+                    ]
+                }
+            }
+
+        return {
+            "body": {
+                "content": [
+                    # The raw doc carries the hard break as "\v" (#1230);
+                    # doc_to_ast normalizes it to "\n" inside the runs.
+                    heading("h.brk", "Heading one\vheading two\n"),
+                    heading("h.plain", "Heading one heading two\n"),
+                    linked_run({"headingId": "h.brk"}),
+                ]
+            }
+        }
+
+    def _link(self, doc, paragraph_index):
+        elements = doc["body"]["content"][paragraph_index]["paragraph"]["elements"]
+        return elements[0]["textRun"]["textStyle"]["link"]
+
+    def test_hard_break_heading_link_gets_break_free_slug(self):
+        # GitHub's own anchor for "Heading one<br>heading two" is
+        # "heading-oneheading-two" — the exported link must say the same,
+        # not spell the break as a hyphen.
+        from mcp_gee_sweet.tools.docs.markdown_export import _stabilize_internal_links
+
+        doc = self._doc()
+        _stabilize_internal_links(doc)
+        assert self._link(doc, 2) == {"url": "#heading-oneheading-two"}
+
+    def test_hard_break_and_plain_heading_links_stay_distinct(self):
+        # The regression khuisman caught in review: with the break slugified as
+        # a hyphen, BOTH headings' links read "#heading-one-heading-two" and
+        # the hard-break heading's link resolved to the plain heading.
+        from mcp_gee_sweet.tools.docs.markdown_export import _stabilize_internal_links
+
+        doc = self._doc()
+        doc["body"]["content"].append(
+            {
+                "paragraph": {
+                    "elements": [
+                        {
+                            "textRun": {
+                                "content": "jump too",
+                                "textStyle": {"link": {"headingId": "h.plain"}},
+                            }
+                        },
+                        {"textRun": {"content": "\n", "textStyle": {}}},
+                    ]
+                }
+            }
+        )
+        _stabilize_internal_links(doc)
+        assert self._link(doc, 2) == {"url": "#heading-oneheading-two"}
+        assert self._link(doc, 3) == {"url": "#heading-one-heading-two"}
+
+    def test_exported_slug_round_trips_through_the_resolver(self):
+        # End to end: the slug the export writes must resolve, via the exact
+        # raw heading texts _walk_headings_and_anchor_runs would collect, back
+        # to the very heading the link points at.
+        from mcp_gee_sweet.tools.docs.anchors import resolve_heading_anchor
+        from mcp_gee_sweet.tools.docs.markdown_export import _stabilize_internal_links
+
+        doc = self._doc()
+        _stabilize_internal_links(doc)
+        slug = self._link(doc, 2)["url"]
+        # What the write side's _walk_headings_and_anchor_runs sees: raw
+        # textRun content, trailing "\n" stripped, "\v" intact.
+        raw_headings = ["Heading one\vheading two", "Heading one heading two"]
+        assert resolve_heading_anchor(slug, raw_headings) == 0
 
 
 class TestDocToAstImages:
@@ -732,6 +835,81 @@ class TestDocToAstTables:
         text = "".join(r.text for r in table.rows[0].cells[0].children)
         assert text == "\nLeading test"
 
+    @staticmethod
+    def _cell_alignment_of(content):
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "table": {
+                            "tableRows": [
+                                {"tableCells": [{"tableCellStyle": {}, "content": content}]}
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+        return document_to_ast(doc)[0].rows[0].cells[0].alignment
+
+    def test_cell_whose_paragraphs_are_all_centered_reads_as_center(self):
+        center = {"alignment": "CENTER"}
+        content = [_para("a\n", para_style=center), _para("b\n", para_style=center)]
+        assert self._cell_alignment_of(content) == "CENTER"
+
+    @pytest.mark.parametrize(
+        "second",
+        [{"alignment": "END"}, {"namedStyleType": "NORMAL_TEXT"}, None],
+        ids=["disagreeing", "unset-style", "no-paragraph-style"],
+    )
+    def test_cell_whose_paragraphs_disagree_or_leave_it_unset_reads_as_none(self, second):
+        content = [
+            _para("a\n", para_style={"alignment": "CENTER"}),
+            _para("b\n", para_style=second),
+        ]
+        assert self._cell_alignment_of(content) is None
+
+    def test_cell_with_no_alignment_set_reads_as_none(self):
+        assert self._cell_alignment_of([_para("a\n")]) is None
+
+    @pytest.mark.parametrize("alignment", ["START", "ALIGNMENT_UNSPECIFIED"])
+    def test_start_or_unspecified_cell_reads_as_none(self, alignment):
+        # #1503: insertTable stores START on every cell, aligned or not.
+        style = {"alignment": alignment}
+        content = [_para("a\n", para_style=style), _para("b\n", para_style=style)]
+        assert self._cell_alignment_of(content) is None
+
+    def test_start_is_default_only_when_every_cell_paragraph_has_a_field(self):
+        from mcp_gee_sweet.tools.docs.doc_to_ast import _start_is_default
+
+        start = {"alignment": "START"}
+        unset_inner = {"tableRows": [{"tableCells": [{"content": [_para("x\n")]}]}]}
+
+        def table(*contents):
+            return {"tableRows": [{"tableCells": [{"content": c} for c in contents]}]}
+
+        assert _start_is_default(table([_para("a\n", para_style=start)]))
+        assert not _start_is_default(table([_para("a\n", para_style=start)], [_para("b\n")]))
+        # A nested table's own paragraphs don't decide for the outer table.
+        assert _start_is_default(table([_para("a\n", para_style=start), {"table": unset_inner}]))
+
+    def test_justified_cell_reads_as_justified(self):
+        content = [_para("a\n", para_style={"alignment": "JUSTIFIED"})]
+        assert self._cell_alignment_of(content) == "JUSTIFIED"
+
+    def test_nested_table_paragraphs_dont_count_toward_the_cells_alignment(self):
+        center = {"alignment": "CENTER"}
+        inner_cell = {
+            "tableCellStyle": {},
+            "content": [_para("x\n", para_style={"alignment": "END"})],
+        }
+        content = [
+            _para("a\n", para_style=center),
+            {"table": {"tableRows": [{"tableCells": [inner_cell]}]}},
+            _para("b\n", para_style=center),
+        ]
+        assert self._cell_alignment_of(content) == "CENTER"
+
 
 class TestAstToMarkdownInline:
     def test_bold_and_link_render_correctly(self):
@@ -951,9 +1129,10 @@ class TestAstToMarkdownBlocks:
         nodes = [BulletItem(runs=[Run(text="item")], depth=0, ordered=False)]
         assert ast_to_markdown(nodes) == "- item\n"
 
-    def test_bullet_item_nested_indents_by_depth(self):
+    def test_bullet_item_with_no_exported_parent_starts_at_the_margin(self):
+        """Four spaces would be an indented code block (PR #1539 QA round 1)."""
         nodes = [BulletItem(runs=[Run(text="item")], depth=2, ordered=False)]
-        assert ast_to_markdown(nodes) == "    - item\n"
+        assert ast_to_markdown(nodes) == "- item\n"
 
     def test_bullet_item_ordered_uses_numeral_marker(self):
         nodes = [BulletItem(runs=[Run(text="item")], depth=0, ordered=True)]
@@ -1120,6 +1299,159 @@ class TestAstToMarkdownTables:
         outer = Table(rows=[Row(cells=[Cell(children=[inner])])])
         md = ast_to_markdown([outer])
         assert "nested table omitted" in md
+
+    @staticmethod
+    def _aligned(rows):
+        """A table from rows of (text, alignment) pairs."""
+        return Table(
+            rows=[
+                Row(cells=[Cell(children=[Run(text=t)] if t else [], alignment=a) for t, a in row])
+                for row in rows
+            ]
+        )
+
+    def test_center_and_end_columns_render_their_delimiters(self):
+        table = self._aligned([[("a", "CENTER"), ("b", "END")], [("1", "CENTER"), ("2", "END")]])
+        md = ast_to_markdown([table])
+        assert md.splitlines()[:3] == ["| a | b |", "| :-: | --: |", "| 1 | 2 |"]
+
+    def test_start_column_renders_its_delimiter(self):
+        table = self._aligned([[("a", "START")], [("1", "START")]])
+        assert ast_to_markdown([table]).splitlines()[1] == "| :-- |"
+
+    @pytest.mark.parametrize("other", ["END", None], ids=["disagreeing", "unaligned-text"])
+    def test_mixed_column_stays_unaligned(self, other):
+        table = self._aligned([[("a", "CENTER")], [("1", other)]])
+        assert ast_to_markdown([table]).splitlines()[1] == "| --- |"
+
+    def test_justified_column_stays_unaligned(self):
+        table = self._aligned([[("a", "JUSTIFIED")], [("1", "JUSTIFIED")]])
+        assert ast_to_markdown([table]).splitlines()[1] == "| --- |"
+
+    @pytest.mark.parametrize("empty_alignment", [None, "END"])
+    def test_empty_cell_doesnt_vote(self, empty_alignment):
+        table = self._aligned([[("a", "CENTER")], [("", empty_alignment)], [("1", "CENTER")]])
+        assert ast_to_markdown([table]).splitlines()[1] == "| :-: |"
+
+    def test_colspan_cell_votes_in_every_column_it_spans(self):
+        table = Table(
+            rows=[
+                Row(cells=[Cell(children=[Run(text="wide")], colspan=2, alignment="CENTER")]),
+                Row(
+                    cells=[
+                        Cell(children=[Run(text="a")], alignment="CENTER"),
+                        Cell(children=[Run(text="b")], alignment="END"),
+                    ]
+                ),
+            ]
+        )
+        # Column 1 agrees with the spanning cell; column 2's END disagrees with it.
+        assert ast_to_markdown([table]).splitlines()[1] == "| :-: | --- |"
+
+    def test_colspan_cell_alone_aligns_every_column_it_spans(self):
+        table = Table(
+            rows=[
+                Row(cells=[Cell(children=[Run(text="wide")], colspan=2, alignment="END")]),
+                Row(cells=[Cell(children=[]), Cell(children=[])]),
+            ]
+        )
+        assert ast_to_markdown([table]).splitlines()[1] == "| --: | --: |"
+
+
+class TestTableAlignmentRoundTrip:
+    """#1337: a Doc whose cells carry a GFM table's alignment exports that table."""
+
+    def test_center_and_end_columns_round_trip_from_docs_json(self):
+        def cell(text, alignment):
+            return {
+                "tableCellStyle": {},
+                "content": [_para(f"{text}\n", para_style={"alignment": alignment})],
+            }
+
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "table": {
+                            "tableRows": [
+                                {"tableCells": [cell("a", "CENTER"), cell("b", "END")]},
+                                {"tableCells": [cell("1", "CENTER"), cell("2", "END")]},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "lists": {},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == "| a | b |\n| :-: | --: |\n| 1 | 2 |\n"
+        html = _COMMONMARK.render(md)
+        assert html == _COMMONMARK.render("| a | b |\n|:-:|--:|\n| 1 | 2 |\n")
+        assert html.count('style="text-align:center"') == 2
+        assert html.count('style="text-align:right"') == 2
+
+    def test_start_on_every_cell_exports_unaligned_columns(self):
+        """#1503: insertTable leaves alignment START on every cell paragraph, so
+        an unaligned column reads START from the Docs API. It exports `---`, and
+        a CENTER column beside it, or a column mixing CENTER and START, keeps
+        its own delimiter."""
+
+        def cell(text, alignment):
+            return {
+                "tableCellStyle": {},
+                "content": [_para(f"{text}\n", para_style={"alignment": alignment})],
+            }
+
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "table": {
+                            "tableRows": [
+                                {
+                                    "tableCells": [
+                                        cell("p", "START"),
+                                        cell("q", "CENTER"),
+                                        cell("r", "CENTER"),
+                                    ]
+                                },
+                                {
+                                    "tableCells": [
+                                        cell("1", "START"),
+                                        cell("2", "CENTER"),
+                                        cell("3", "START"),
+                                    ]
+                                },
+                            ]
+                        }
+                    }
+                ]
+            },
+            "lists": {},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == "| p | q | r |\n| --- | :-: | --- |\n| 1 | 2 | 3 |\n"
+
+    def test_start_is_a_left_column_where_unaligned_cells_have_no_field(self):
+        """#1503 QA round 1: a Drive `.docx` import leaves an unaligned cell's
+        `alignment` field out, so in that table START is a real `:--`. Cells
+        read `[START] [CENTER] [None]` there, as Kit's live import did."""
+
+        def cell(text, alignment):
+            style = {"alignment": alignment} if alignment else {}
+            return {"tableCellStyle": {}, "content": [_para(f"{text}\n", para_style=style)]}
+
+        def row(left, center, plain):
+            return {"tableCells": [cell(left, "START"), cell(center, "CENTER"), cell(plain, None)]}
+
+        doc = {
+            "body": {
+                "content": [{"table": {"tableRows": [row("l", "c", "n"), row("1", "2", "3")]}}]
+            },
+            "lists": {},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == "| l | c | n |\n| :-- | :-: | --- |\n| 1 | 2 | 3 |\n"
 
 
 class TestAstToMarkdownComments:
@@ -1913,10 +2245,7 @@ class TestOrderedListNumbering:
         assert "1. a1\n" in md
         assert "6. a2\n" in md
         html = "".join(_COMMONMARK.render(md).split())
-        assert "<li>a1</li><li>a2</li>" in html
-        if not parent_ordered:
-            # Under a numbered parent the 2-space indent doesn't nest at all (#1128).
-            assert "<li>a<ol><li>a1</li><li>a2</li></ol></li>" in html
+        assert "<li>a<ol><li>a1</li><li>a2</li></ol></li>" in html
 
     def test_item_at_same_or_shallower_depth_keeps_its_number(self):
         """Only an item deeper than the one before it starts a sublist mid-item.
@@ -2479,6 +2808,15 @@ class TestQuotedTableReadBack:
         assert (table.blockquote_depth, table.list_depth) == (1, None)
         assert [[c.children for c in r.cells] for r in table.rows] == [[[Run("k")]]]
 
+    def test_quoted_table_exports_its_inner_tables_alignment(self):
+        cell = {
+            "tableCellStyle": {},
+            "content": [_para("k\n", para_style={"alignment": "CENTER"})],
+        }
+        inner = {"table": {"tableRows": [{"tableCells": [cell]}]}}
+        nodes = self._nodes([_quote_bar_wrapper(36, inner)])
+        assert ast_to_markdown(nodes) == "> | k |\n> | :-: |\n"
+
     def test_wrapper_depth_comes_from_the_recorded_indent(self):
         (table,) = self._nodes([_quote_bar_wrapper(72)])
         assert table.blockquote_depth == 2
@@ -2655,3 +2993,379 @@ class TestQuotedTableMarkdown:
             ]
         )
         assert _flat_html(md).count("<blockquote>") == 2
+
+
+def _single_tilde_parsers(on):
+    # _md_to_html's parsers with GFM single-tilde strikethrough set as given.
+    # markdown-it reads the option at parse time, so each parser is built the
+    # usual way and then has it set or cleared (#1462, ahead of #1436).
+    parsers = {}
+    for flag in (True, False):
+        parser = md_to_html._build_markdown_parser(flag)
+        parser.options["strikethrough_single_tilde"] = on
+        parsers[flag] = parser
+    return parsers
+
+
+@pytest.fixture(params=[False, True], ids=["double-tilde", "single-tilde"])
+def single_tilde(request, monkeypatch):
+    monkeypatch.setattr(md_to_html, "_MARKDOWN_PARSERS", _single_tilde_parsers(request.param))
+    return request.param
+
+
+def _reimported_runs(markdown_text):
+    (node,) = html_to_ast(md_to_html._md_to_html(markdown_text))
+    if isinstance(node, Table):
+        return [(r.text, r.strikethrough) for r in node.rows[0].cells[0].children]
+    return [(r.text, r.strikethrough) for r in node.runs]
+
+
+def _struck_text(runs):
+    # The reimported runs with adjacent runs of the same kind (struck or not)
+    # joined, so a split html_to_ast makes at a tag boundary doesn't count.
+    merged = []
+    for text, struck in runs:
+        if merged and merged[-1][1] == struck:
+            merged[-1] = (merged[-1][0] + text, struck)
+        else:
+            merged.append((text, struck))
+    return merged
+
+
+_RED = RGBColor(1.0, 0.0, 0.0)
+
+
+class TestAdjacentStruckRunsRoundTrip:
+    """#1462: two struck runs side by side (split by another style, e.g. a
+    color) exported as "~~a~~~~b~~". Under GFM single-tilde strikethrough a run
+    of three or more tildes is literal, so that came back as one struck run
+    reading "a~~~~b". Each case round-trips through _md_to_html with the
+    option off and on."""
+
+    def test_two_struck_runs_share_one_strike(self, single_tilde):
+        runs = [Run("a", strikethrough=True), Run("b", strikethrough=True, foreground_color=_RED)]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "~~ab~~\n"
+        assert _reimported_runs(rendered) == [("ab", True)]
+
+    def test_three_struck_runs_with_text_around(self, single_tilde):
+        runs = [
+            Run("x "),
+            Run("a", strikethrough=True),
+            Run("b", strikethrough=True, foreground_color=_RED),
+            Run("c", strikethrough=True),
+            Run(" y"),
+        ]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "x ~~abc~~ y\n"
+        assert _reimported_runs(rendered) == [("x ", None), ("abc", True), (" y", None)]
+
+    def test_literal_tildes_at_the_boundary_stay_literal(self, single_tilde):
+        runs = [Run("a~", strikethrough=True), Run("~b", strikethrough=True, foreground_color=_RED)]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "~~a\\~\\~b~~\n"
+        assert _reimported_runs(rendered) == [("a~~b", True)]
+
+    def test_escaped_backslash_before_the_delimiter(self, single_tilde):
+        runs = [Run("a\\", strikethrough=True), Run("b", strikethrough=True, foreground_color=_RED)]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "~~a\\\\b~~\n"
+        assert _reimported_runs(rendered) == [("a\\b", True)]
+
+    def test_boundary_syntax_is_checked_after_the_join(self, single_tilde):
+        # "<" ends the first run's text and "b>" starts the second's: joined
+        # under one strike, they must not make a raw <b> tag.
+        runs = [Run("a <", strikethrough=True), Run("b> c", strikethrough=True)]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert _reimported_runs(rendered) == [("a <b> c", True)]
+
+    @pytest.mark.parametrize(
+        "texts",
+        [("AT&", "amp", ";T"), ("x &", "#38", ";"), ("a <", "b", "> c")],
+    )
+    def test_syntax_split_across_three_struck_runs_stays_literal(self, single_tilde, texts):
+        # PR #1476 QA round 1: an entity or tag split over three runs of
+        # alternating color. Merged before escaping, it's escaped as a whole.
+        runs = [
+            Run(t, strikethrough=True, foreground_color=_RED if i % 2 else None)
+            for i, t in enumerate(texts)
+        ]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert _reimported_runs(rendered) == [("".join(texts), True)]
+
+    @pytest.mark.parametrize(
+        ("style", "expected"),
+        [
+            ({"bold": True}, "**~~ab~~**"),
+            ({"italic": True}, "*~~ab~~*"),
+            ({"bold": True, "italic": True}, "***~~ab~~***"),
+            ({"link_url": "https://e.example"}, "[~~ab~~](https://e.example)"),
+        ],
+    )
+    def test_styled_struck_runs_differing_only_in_color(self, single_tilde, style, expected):
+        # PR #1476 QA round 1: "**~~a~~****~~b~~**" re-imported with literal
+        # asterisks between a and b.
+        runs = [
+            Run("a", strikethrough=True, **style),
+            Run("b", strikethrough=True, foreground_color=_RED, **style),
+        ]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == expected + "\n"
+        assert _reimported_runs(rendered) == [("ab", True)]
+
+    def test_struck_runs_with_different_markers_stay_apart(self, single_tilde):
+        runs = [
+            Run("a", strikethrough=True, bold=True),
+            Run("b", strikethrough=True),
+            Run("c", strikethrough=True, link_url="https://e.example"),
+            Run("d", strikethrough=True),
+        ]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "**~~a~~**~~b~~[~~c~~](https://e.example)~~d~~\n"
+        assert _struck_text(_reimported_runs(rendered)) == [("abcd", True)]
+
+    def test_whitespace_between_struck_runs_is_struck_too(self, single_tilde):
+        # Both runs are struck, so the space between them is as well.
+        runs = [Run("a ", strikethrough=True), Run("b", strikethrough=True, foreground_color=_RED)]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "~~a b~~\n"
+        assert _reimported_runs(rendered) == [("a b", True)]
+
+    @pytest.mark.parametrize("texts", [("a\n", "b"), ("a", "\nb"), ("a \n ", "b")])
+    def test_runs_meeting_at_a_line_break_stay_apart(self, texts):
+        # The break stays outside the link, as an edge break always renders.
+        url = "https://e.example"
+        runs = [Run(texts[0], link_url=url), Run(texts[1], link_url=url, foreground_color=_RED)]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered.count(f"]({url})") == 2
+        assert all("<br>" not in label for label in re.findall(r"\[([^\]]*)\]", rendered))
+
+    def test_many_alternating_runs_render_in_linear_time(self):
+        # PR #1476 QA round 1: joining on the rendered string copied the
+        # output once per run.
+        runs = [
+            Run("ab", strikethrough=True, foreground_color=_RED if i % 2 else None)
+            for i in range(50_000)
+        ]
+        rendered = ast_to_markdown([Paragraph(runs=runs)])
+        assert rendered == "~~" + "ab" * 50_000 + "~~\n"
+
+    def test_table_cell(self, single_tilde):
+        cell = Cell(
+            children=[
+                Run("a", strikethrough=True),
+                Run("b", strikethrough=True, foreground_color=_RED),
+            ]
+        )
+        table = Table(rows=[Row(cells=[cell]), Row(cells=[Cell(children=[Run("c")])])])
+        rendered = ast_to_markdown([table])
+        assert rendered.startswith("| ~~ab~~ |")
+        assert _reimported_runs(rendered) == [("ab", True)]
+
+
+class TestNestedStrikeImport:
+    """#1462 (from #1436's review): how a strike inside a strike imports.
+    Decided: as GitHub renders it. With single-tilde strikethrough on, the
+    inner delimiters pair too, and nested <s> is one strike in a Doc, so all
+    the text is struck and no tilde is left. With it off, a lone "~" is text."""
+
+    @pytest.mark.parametrize("source", ["~~a ~b~ c~~", "~a ~~b~~ c~"])
+    def test_nested_strike(self, single_tilde, source):
+        runs = _struck_text(_reimported_runs(source))
+        if single_tilde:
+            assert runs == [("a b c", True)]
+        elif source.startswith("~~"):
+            assert runs == [("a ~b~ c", True)]
+        else:
+            assert runs == [("~a ", None), ("b", True), (" c~", None)]
+
+
+def _bullet(text, depth=0, ordered=False, number=None, **kwargs):
+    if ordered and number is None:
+        number = 1
+    return BulletItem(runs=[Run(text=text)], depth=depth, ordered=ordered, number=number, **kwargs)
+
+
+def _tight_html(markdown_text: str) -> str:
+    return "".join(_COMMONMARK.render(markdown_text).split())
+
+
+class TestNestedListIndentsToParentContentColumn:
+    """#1128: a nested item was indented two spaces per depth whatever its
+    parent's marker, so a child of "1. " (content column 3) read as more of
+    the parent's list in CommonMark. Each item now starts at its parent's
+    content column. Checked against plain CommonMark, not a round trip through
+    our importer, whose pre-pass (md_to_html rule D1) repairs an under-indented
+    marker, so a round trip passes with or without the fix."""
+
+    def test_numbered_under_numbered(self):
+        nodes = [_bullet("Top", ordered=True), _bullet("Nested", 1, ordered=True)]
+        nodes.append(_bullet("Next", ordered=True, number=2))
+        md = ast_to_markdown(nodes)
+        assert md == "1. Top\n   1. Nested\n2. Next\n"
+        assert "<li>Top<ol><li>Nested</li></ol></li><li>Next</li>" in _tight_html(md)
+
+    def test_bullet_bullet_numbered(self):
+        nodes = [_bullet("a"), _bullet("b", 1), _bullet("c", 2, ordered=True)]
+        md = ast_to_markdown(nodes)
+        assert md == "- a\n  - b\n    1. c\n"
+        assert "<li>a<ul><li>b<ol><li>c</li></ol></li></ul></li>" in _tight_html(md)
+
+    def test_numbered_bullet(self):
+        md = ast_to_markdown([_bullet("a", ordered=True), _bullet("b", 1)])
+        assert md == "1. a\n   - b\n"
+        assert "<li>a<ul><li>b</li></ul></li>" in _tight_html(md)
+
+    def test_numbered_numbered_bullet(self):
+        nodes = [_bullet("a", ordered=True), _bullet("b", 1, ordered=True), _bullet("c", 2)]
+        md = ast_to_markdown(nodes)
+        assert md == "1. a\n   1. b\n      - c\n"
+        assert "<li>a<ol><li>b<ul><li>c</li></ul></li></ol></li>" in _tight_html(md)
+
+    @pytest.mark.parametrize("number", [10, 99, 100, 1000])
+    def test_wide_numbered_parent(self, number):
+        """The child clears the parent's real marker, "10. " or "100. ", where a
+        fixed 4-space indent would land short from 100 on (#1128's comment)."""
+        nodes = [
+            _bullet("p", ordered=True, number=number),
+            _bullet("c", 1, ordered=True),
+            _bullet("d", 2),
+        ]
+        md = ast_to_markdown(nodes)
+        column = len(f"{number}. ")
+        assert md == f"{number}. p\n{' ' * column}1. c\n{' ' * (column + 3)}- d\n"
+        assert "<li>p<ol><li>c<ul><li>d</li></ul></li></ol></li>" in _tight_html(md)
+
+    def test_children_of_different_width_parents(self):
+        nodes = [
+            _bullet("nine", ordered=True, number=9),
+            _bullet("n1", 1),
+            _bullet("ten", ordered=True, number=10),
+            _bullet("t1", 1),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "9. nine\n   - n1\n10. ten\n    - t1\n"
+        html = _tight_html(md)
+        assert "<li>nine<ul><li>n1</li></ul></li><li>ten<ul><li>t1</li></ul></li>" in html
+
+    def test_quoted_numbered_outline(self):
+        nodes = [
+            _bullet("a", ordered=True, blockquote_depth=1),
+            _bullet("b", 1, ordered=True, blockquote_depth=1),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "> 1. a\n>    1. b\n"
+        assert "<blockquote><ol><li>a<ol><li>b</li></ol></li></ol></blockquote>" in _tight_html(md)
+
+    def test_block_under_a_numbered_child_indents_to_its_column(self):
+        nodes = [
+            _bullet("a", ordered=True),
+            _bullet("b", 1, ordered=True),
+            Paragraph(runs=[Run(text="more")], list_depth=1),
+            _bullet("c", ordered=True, number=2),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "1. a\n   1. b\n\n      more\n\n2. c\n"
+        html = _tight_html(md)
+        assert "<li><p>a</p><ol><li><p>b</p><p>more</p></li></ol></li><li><p>c</p></li>" in html
+
+    def test_item_with_no_exported_parent_is_a_list_item(self):
+        """An orphan item has no column to nest under, and Markdown can't hold a
+        list 4+ columns in at the margin: that's an indented code block, which
+        develop wrote too (PR #1539 QA round 1)."""
+        md = ast_to_markdown([Paragraph(runs=[Run(text="p")]), _bullet("x", 2)])
+        assert md == "p\n\n- x\n"
+        assert "<p>p</p><ul><li>x</li></ul>" in _tight_html(md)
+
+    @pytest.mark.parametrize("depth", [2, 3, 5])
+    def test_skipped_depths_nest_in_the_deepest_open_item(self, depth):
+        """A skipped level has no marker of its own, so a step past the parent's
+        column per level put the child 4+ columns past it, lazy text of the
+        parent (PR #1539 QA round 1). It nests one level down instead."""
+        md = ast_to_markdown([_bullet("a", ordered=True), _bullet("x", depth)])
+        assert md == "1. a\n   - x\n"
+        assert "<li>a<ul><li>x</li></ul></li>" in _tight_html(md)
+
+    @pytest.mark.parametrize("parent_quote, child_quote", [(0, 1), (1, 0), (1, 2), (2, 1)])
+    def test_child_in_another_quote_starts_at_the_margin(self, parent_quote, child_quote):
+        """The child's quote markers go at the margin, outside any indent, so the
+        parent's column put it 4+ columns past its quote's margin, an indented
+        code block (PR #1539 QA round 1). It can't nest in the parent, so it
+        starts a list of its own."""
+        nodes = [
+            _bullet("ten", ordered=True, number=10, blockquote_depth=parent_quote),
+            _bullet("x", 1, blockquote_depth=child_quote),
+        ]
+        md = ast_to_markdown(nodes)
+        assert f"{'> ' * child_quote}- x\n" in md
+        html = _tight_html(md)
+        assert "<pre>" not in html
+        assert "<li>x</li>" in html
+
+    def test_after_a_child_in_another_quote_the_lists_above_are_closed(self):
+        """The quoted child ended the unquoted list in Markdown, so a later item
+        or block at that list's depth starts at the margin, not at its column."""
+        nodes = [
+            _bullet("ten", ordered=True, number=10),
+            _bullet("q", 1, blockquote_depth=1),
+            _bullet("c", 2),
+            Paragraph(runs=[Run(text="more")], list_depth=0),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "10. ten\n\n> - q\n\n- c\n\nmore\n"
+        assert "<pre>" not in _tight_html(md)
+
+    @pytest.mark.parametrize("quote", [0, 1])
+    def test_block_naming_a_skipped_depth(self, quote):
+        """A skipped depth sits at the column its item nests under, with that
+        item's quote, so a block naming it isn't pushed 4+ columns in (PR #1539
+        QA round 1)."""
+        nodes = [
+            _bullet("x", 2, blockquote_depth=quote),
+            Paragraph(runs=[Run(text="more")], list_depth=1, blockquote_depth=quote),
+        ]
+        md = ast_to_markdown(nodes)
+        prefix = "> " * quote
+        assert md.endswith(f"{prefix}more\n")
+        html = _tight_html(md)
+        assert "<pre>" not in html
+        assert "<p>more</p>" in html
+
+    def test_block_naming_a_skipped_depth_under_an_item_is_inside_it(self):
+        nodes = [
+            _bullet("a", ordered=True),
+            _bullet("x", 3),
+            Paragraph(runs=[Run(text="more")], list_depth=1),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "1. a\n   - x\n\n   more\n"
+        assert "<li><p>a</p><ul><li>x</li></ul><p>more</p></li>" in _tight_html(md)
+
+
+class TestTaskItemContentColumn:
+    """A checkbox's "[ ] " is the item's text in CommonMark, so a task item's
+    content column is 2, after "- ". Counting the box put a block inside the item
+    at column 6, an indented code block (found while fixing #1128)."""
+
+    @pytest.mark.parametrize("checked", [False, True])
+    def test_block_inside_a_task_item(self, checked):
+        nodes = [_bullet("a", checked=checked), Paragraph(runs=[Run(text="more")], list_depth=0)]
+        md = ast_to_markdown(nodes)
+        box = "[x]" if checked else "[ ]"
+        assert md == f"- {box} a\n\n  more\n"
+        html = _tight_html(md)
+        assert "<pre>" not in html
+        assert f"<li><p>{box.replace(' ', '')}a</p><p>more</p></li>" in html
+
+    def test_child_of_a_task_item(self):
+        nodes = [
+            _bullet("a", checked=False),
+            _bullet("b", 1, checked=True),
+            _bullet("c", 2, ordered=True),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "- [ ] a\n  - [x] b\n    1. c\n"
+        assert "<li>[]a<ul><li>[x]b<ol><li>c</li></ol></li></ul></li>" in _tight_html(md)
+
+    def test_ordered_task_item_keeps_a_dash_marker(self):
+        assert ast_to_markdown([_bullet("a", ordered=True, checked=False)]) == "- [ ] a\n"

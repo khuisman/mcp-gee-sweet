@@ -43,6 +43,8 @@ from mcp_gee_sweet.tools.docs.content import (
     _to_doc_requests,
 )
 from mcp_gee_sweet.tools.docs.emitter import (
+    _IMAGE_TEXT_STYLE_FIELDS,
+    _LINKED_IMAGE_TEXT_STYLE_FIELDS,
     ImageFallbacks,
     ast_to_requests,
     extract_images,
@@ -69,7 +71,7 @@ def _make_png_bytes(width: int, height: int) -> bytes:
 def _make_tool_registry():
     captured = {}
 
-    def tool(annotations=None, local_only=False):
+    def tool(annotations=None, local_only=False, **_):
         def decorator(func):
             captured[func.__name__] = func
             return func
@@ -2946,8 +2948,9 @@ class TestCreateDocImages:
                 or "insertTable" in r
                 or ("deleteContentRange" in r and "insertTable" in attempt[i - 1])
                 or r.get("insertText", {}).get("text") in fallback_texts
+                or (r.get("updateTextStyle") is not None and "insertInlineImage" in attempt[i - 1])
                 or (
-                    r.get("updateTextStyle", {}).get("fields") == "link"
+                    r.get("updateTextStyle") is not None
                     and attempt[i - 1].get("insertText", {}).get("text") in fallback_texts
                 )
                 for i, r in enumerate(attempt)
@@ -2968,8 +2971,11 @@ class TestCreateDocImages:
         return [
             r["updateTextStyle"]["range"]
             for r in requests
-            if r.get("updateTextStyle", {}).get("fields") == "link"
-            and r["updateTextStyle"]["textStyle"]["link"]["url"].startswith("https://link/")
+            if r.get("updateTextStyle", {})
+            .get("textStyle", {})
+            .get("link", {})
+            .get("url", "")
+            .startswith("https://link/")
         ]
 
     async def test_bad_linked_image_link_moves_to_its_fallback_text(self):
@@ -3012,7 +3018,7 @@ class TestCreateDocImages:
                 "updateTextStyle": {
                     "range": {"startIndex": bad_position, "endIndex": bad_position + 3},
                     "textStyle": {"link": {"url": "https://link/bad"}},
-                    "fields": "link",
+                    "fields": _LINKED_IMAGE_TEXT_STYLE_FIELDS,
                 }
             },
         ]
@@ -3026,6 +3032,46 @@ class TestCreateDocImages:
             ],
             key=lambda r: r["startIndex"],
         )
+
+    async def test_bad_bold_list_item_image_moves_its_guarded_style_to_the_fallback(self):
+        # #1475: a bold image that is a list item's whole text is styled behind a
+        # marker guard. When Google can't fetch it, the guard and the style request go
+        # with the insert, and the fallback text brings its own guarded style request.
+        drive_svc, docs_svc = self._make_services()
+        bad_uri = "https://example.com/bad.png"
+        content = f"- **![Bad]({bad_uri})**\n- two"
+        sent: list[list[dict]] = []
+        fail = self._fail_first_matching({bad_uri})
+
+        def side_effect(documentId, body):
+            sent.append(list(body["requests"]))
+            return fail(documentId, body)
+
+        docs_svc.documents.return_value.batchUpdate.side_effect = side_effect
+        ctx = self._ctx(drive_svc, docs_svc)
+
+        result = await _docs_tools["create_doc"](
+            title="Doc", content=content, content_format="markdown", ctx=ctx
+        )
+
+        assert result["images"][0]["fallback_text"] == "Bad"
+        full, retry = sent
+        bad_index = next(i for i, r in enumerate(full) if "insertInlineImage" in r)
+        p = full[bad_index]["insertInlineImage"]["location"]["index"]
+        assert full[bad_index + 1] == {"insertText": {"location": {"index": p + 1}, "text": "​"}}
+        fallback = [
+            {"insertText": {"location": {"index": p}, "text": "Bad"}},
+            {"insertText": {"location": {"index": p + 3}, "text": "​"}},
+            {
+                "updateTextStyle": {
+                    "range": {"startIndex": p, "endIndex": p + 3},
+                    "textStyle": {"bold": True},
+                    "fields": _IMAGE_TEXT_STYLE_FIELDS,
+                }
+            },
+            {"deleteContentRange": {"range": {"startIndex": p + 3, "endIndex": p + 4}}},
+        ]
+        assert retry == full[:bad_index] + fallback + full[bad_index + 4 :]
 
     async def test_multiple_bad_linked_images_still_retry_only_the_insert_tail(self):
         # #977 + #510: link requests ride inside the positional-insert tail, so
@@ -5596,9 +5642,9 @@ class TestConvertBeforeTouchingDoc:
     async def test_unresolved_images_requests_match_their_fallback_text(self, tmp_path):
         # Requests are built before the images resolve, with a placeholder for every
         # image; an unresolved one's request is replaced by its fallback text, which
-        # carries its link, and its own link request is dropped (#1099). The result
-        # must be what ast_to_requests builds with every image, with exactly that
-        # swap made at each unresolved image's position.
+        # carries its own style request, and the image's style request is dropped
+        # (#1099). The result must be what ast_to_requests builds with every image,
+        # with exactly that swap made at each unresolved image's position.
         drive_svc, docs_svc = self._make_services()
         ctx = self._ctx(drive_svc, docs_svc)
         missing = str(tmp_path / "missing.png")
@@ -5616,13 +5662,14 @@ class TestConvertBeforeTouchingDoc:
         nodes = html_to_ast(_md_to_html(content))
         images = extract_images(nodes)
         uris = {id(img): f"urn:test:{i}" for i, img in enumerate(images)}
-        links: dict[int, dict] = {}
-        built, _ = ast_to_requests(nodes, 1, uris, image_links=links)
+        styles: dict[int, list[dict]] = {}
+        built, _ = ast_to_requests(nodes, 1, uris, image_styles=styles)
         bad = {uris[id(images[0])]: images[0], uris[id(images[2])]: images[2]}
         bad_links = {
-            id(links[id(r)])
+            id(style)
             for r in built
-            if r.get("insertInlineImage", {}).get("uri") in bad and id(r) in links
+            if r.get("insertInlineImage", {}).get("uri") in bad
+            for style in styles[id(r)]
         }
         expected = []
         for r in built:
@@ -5956,8 +6003,11 @@ class TestPositionalInsertTailStart:
         )
         nodes = html_to_ast(_md_to_html(md))
         uris = {id(img): img.src for img in extract_images(nodes)}
-        requests, _ = ast_to_requests(nodes, start_index=1, image_uris=uris)
-        tail_start = _positional_insert_tail_start(requests)
+        image_styles: dict[int, list[dict]] = {}
+        requests, _ = ast_to_requests(
+            nodes, start_index=1, image_uris=uris, image_styles=image_styles
+        )
+        tail_start = _positional_insert_tail_start(requests, image_styles)
         positional = [
             i for i, r in enumerate(requests) if "insertTable" in r or "insertInlineImage" in r
         ]
@@ -5985,7 +6035,7 @@ class TestPositionalInsertTailStart:
         }
 
     def test_image_link_request_stays_in_the_tail(self):
-        # #977: a linked image's own link request, recorded in image_links,
+        # #977: a linked image's own style request, recorded in image_styles,
         # counts as part of the tail.
         insert = {"insertInlineImage": {"location": {"index": 5}}}
         link = self._link(5)
@@ -5997,7 +6047,7 @@ class TestPositionalInsertTailStart:
             link,
             {"insertInlineImage": {"location": {"index": 2}}},
         ]
-        assert _positional_insert_tail_start(requests, {id(insert): link}) == 2
+        assert _positional_insert_tail_start(requests, {id(insert): [link]}) == 2
 
     def test_unrecorded_link_request_ends_the_tail(self):
         # Matched by identity, not shape: an identical-looking link request
@@ -6005,22 +6055,44 @@ class TestPositionalInsertTailStart:
         insert = {"insertInlineImage": {"location": {"index": 5}}}
         recorded = self._link(5)
         requests = [{"insertText": {}}, insert, self._link(5)]
-        assert _positional_insert_tail_start(requests, {id(insert): recorded}) == 3
+        assert _positional_insert_tail_start(requests, {id(insert): [recorded]}) == 3
         assert _positional_insert_tail_start(requests) == 3
 
     def test_ast_to_requests_records_each_image_link(self):
         md = "[![A](https://x/a.png)](https://t) ![B](https://x/b.png)"
         nodes = html_to_ast(_md_to_html(md))
         uris = {id(img): img.src for img in extract_images(nodes)}
-        image_links: dict[int, dict] = {}
-        requests, _ = ast_to_requests(nodes, image_uris=uris, image_links=image_links)
+        image_styles: dict[int, list[dict]] = {}
+        requests, _ = ast_to_requests(nodes, image_uris=uris, image_styles=image_styles)
         inserts = {r["insertInlineImage"]["uri"]: r for r in requests if "insertInlineImage" in r}
-        assert list(image_links) == [id(inserts["https://x/a.png"])]
-        link = image_links[id(inserts["https://x/a.png"])]
-        assert any(r is link for r in requests)
-        assert _positional_insert_tail_start(requests, image_links) == requests.index(
+        # Both images' style requests are recorded (#1334): each one must be dropped
+        # with its insert when Google can't fetch the image.
+        assert list(image_styles) == [
+            id(inserts["https://x/a.png"]),
+            id(inserts["https://x/b.png"]),
+        ]
+        for insert in inserts.values():
+            [style] = image_styles[id(insert)]
+            assert requests[requests.index(insert) + 1] is style
+        assert _positional_insert_tail_start(requests, image_styles) == requests.index(
             min(inserts.values(), key=requests.index)
         )
+
+    def test_list_item_marker_guard_stays_in_the_tail(self):
+        # #1475: a styled image in a list item is styled behind a marker guard, whose
+        # insert and delete are recorded with its style request, so they count as
+        # part of the tail and go with the image when Google can't fetch it.
+        md = "- **![A](https://x/a.png)**\n- two"
+        nodes = html_to_ast(_md_to_html(md))
+        uris = {id(img): img.src for img in extract_images(nodes)}
+        image_styles: dict[int, list[dict]] = {}
+        requests, _ = ast_to_requests(nodes, image_uris=uris, image_styles=image_styles)
+        [insert] = [r for r in requests if "insertInlineImage" in r]
+        guard_in, style, guard_out = image_styles[id(insert)]
+        at = requests.index(insert)
+        assert requests[at + 1 : at + 4] == [guard_in, style, guard_out]
+        assert "insertText" in guard_in and "deleteContentRange" in guard_out
+        assert _positional_insert_tail_start(requests, image_styles) == at
 
     def test_table_placeholder_delete_stays_in_the_tail(self):
         # #1097: the delete right after an insertTable removes that table's
@@ -6304,14 +6376,14 @@ class TestImageFallbackText:
         assert style["updateTextStyle"] == {
             "range": {"startIndex": 5, "endIndex": 10},
             "textStyle": {"link": {"url": "https://ci"}},
-            "fields": "link",
+            "fields": _LINKED_IMAGE_TEXT_STYLE_FIELDS,
         }
 
     def test_unlinked_fallback_clears_an_inherited_link(self):
         # Inserted text takes the style of the character before it, a link included.
         [_insert, style] = image_fallback_requests(Image(src="https://x/a.svg", alt="A"), 5)
         assert style["updateTextStyle"]["textStyle"] == {}
-        assert style["updateTextStyle"]["fields"] == "link"
+        assert style["updateTextStyle"]["fields"] == _IMAGE_TEXT_STYLE_FIELDS
 
     def test_unstorable_link_is_cleared_not_stored(self):
         # The same rule as a text link (#1120): a relative target goes nowhere.

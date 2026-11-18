@@ -167,15 +167,42 @@ class _OpenItems:
             self.separator = f"\n{'>' * shared}\n" if shared else "\n\n"
         return rendered
 
+    def _nesting_column(self, depth: int, quote: int) -> int:
+        """The column an item at `depth` starts at: the content column of the open
+        item above it (#1128), when Markdown can hold it inside that item.
+
+        It can't when their quote depths differ: the item's quote markers go at the
+        margin, outside any indent, so a quoted child of an unquoted item, or the
+        reverse, would sit 4+ columns past its quote's margin, an indented code
+        block. A skipped depth has no column of its own either, and a step past the
+        item above would put the child 4+ columns past it, lazy text of that item.
+        So the item nests in the deepest open item when the quotes match, and
+        otherwise starts at the margin. That ends every list above it in Markdown,
+        so those depths close (column 0, no quote): a block that names one is
+        written at the margin, where it then is."""
+        if not self._items or depth == 0:
+            return 0
+        column, above_quote = self._items[-1]
+        if above_quote == quote:
+            return column
+        self._items[:] = [(0, 0)] * len(self._items)
+        return 0
+
     def _render(self, node: DocNode, prev_node: DocNode | None) -> str:
         if isinstance(node, BulletItem):
             opens_sublist = _opens_sublist(node, prev_node)
+            quote = node.blockquote_depth
             del self._items[node.depth :]
-            self._items.extend([(0, 0)] * (node.depth - len(self._items)))
-            self._items.append((len(_item_prefix(node, opens_sublist)), node.blockquote_depth))
-            self._margin_quote = node.blockquote_depth
+            indent = self._nesting_column(node.depth, quote)
+            # A depth with no item of its own (a skipped level, or a fragment whose
+            # parent wasn't exported) sits at the column this item nests under, so a
+            # block that names it lands inside the same item, or at the margin.
+            self._items.extend([(indent, quote)] * (node.depth - len(self._items)))
+            prefix = _item_prefix(node, opens_sublist, indent)
+            self._items.append((len(prefix), quote))
+            self._margin_quote = quote
             self._inner_quote = None
-            return _render_block(node, opens_sublist=opens_sublist)
+            return _render_block(node, item_prefix=prefix)
         list_depth = node.list_depth
         if list_depth is None or list_depth >= len(self._items):
             self._items.clear()
@@ -273,11 +300,14 @@ def _render_code_block(node: Paragraph) -> str:
 
 def _opens_sublist(node: DocNode, prev_node: DocNode | None) -> bool:
     """Whether `node` is a list item nested under the item just before it, so its
-    line follows that item's text with only a newline between them."""
+    line follows that item's text with only a newline between them. An item whose
+    quote depth differs from that item's can't nest in it (`_OpenItems._nesting_column`),
+    and a blank line comes between them."""
     return (
         isinstance(node, BulletItem)
         and isinstance(prev_node, BulletItem)
         and node.depth > prev_node.depth
+        and node.blockquote_depth == prev_node.blockquote_depth
     )
 
 
@@ -295,25 +325,40 @@ def _ordered_marker(node: BulletItem, opens_sublist: bool) -> str:
     return f"{node.number}. "
 
 
-def _item_prefix(node: BulletItem, opens_sublist: bool) -> str:
-    """A list item's indent and marker, before its text; its length is the item's
-    content column."""
-    if node.checked is not None:
-        marker = "- [x] " if node.checked else "- [ ] "
-    elif node.ordered:
-        marker = _ordered_marker(node, opens_sublist)
-    else:
-        marker = "- "
-    return "  " * node.depth + marker
+def _item_prefix(node: BulletItem, opens_sublist: bool, indent: int) -> str:
+    """A list item's indent and list marker, before its text; its length is the
+    item's content column.
+
+    `indent` is the content column of the item it's nested in (0 at the top level).
+    CommonMark nests an item only when it starts at or past that column, which
+    depends on the parent's marker: 2 under "- ", 3 under "1. ", 4 under "10. ". A
+    fixed two spaces per depth read a numbered child as a sibling (#1128).
+
+    A checkbox's "[ ] " isn't part of the marker: CommonMark reads it as the
+    item's text (GFM's task list is an extension of that paragraph), so a task
+    item's content column is 2 like any "- " item's, and `_render_block` writes
+    the box after this prefix. Counting it put a block 4 columns past the column,
+    an indented code block, and a child item in the parent's text."""
+    if node.ordered and node.checked is None:
+        return " " * indent + _ordered_marker(node, opens_sublist)
+    return " " * indent + "- "
+
+
+def _checkbox(node: BulletItem) -> str:
+    if node.checked is None:
+        return ""
+    return "[x] " if node.checked else "[ ] "
 
 
 def _render_block(
     node: Heading | Paragraph | BulletItem | NamedBlock,
-    opens_sublist: bool = False,
     blockquote_depth: int | None = None,
+    item_prefix: str = "",
 ) -> str:
     """`blockquote_depth` overrides the node's own, for a block whose outer quote
-    levels its caller writes (see `_OpenItems`)."""
+    levels its caller writes (see `_OpenItems`). `item_prefix` is a list item's
+    indent and marker, from `_item_prefix`, whose length `_OpenItems` records as
+    the column the item's children nest under."""
     if isinstance(node, Paragraph) and node.rule:
         body = _RULE
     elif isinstance(node, Paragraph) and _is_code_block(node):
@@ -334,7 +379,7 @@ def _render_block(
             # Text after the marker starts the item's first block, so "# a" or
             # "> a" there would read as a heading or quote inside the item.
             text = _escape_leading_block_marker(text)
-        body = f"{_item_prefix(node, opens_sublist)}{text}"
+        body = f"{item_prefix}{_checkbox(node)}{text}"
     else:
         body = _escape_leading_block_marker(_render_inline(node.runs))
 
@@ -384,7 +429,7 @@ def _md_link_dest(url: str) -> str:
 
 def _render_inline(items: list[Run | Image]) -> str:
     parts: list[str] = []
-    for item in _coalesce_code_runs(items):
+    for item in _coalesce_plain_runs(_coalesce_code_runs(items)):
         if isinstance(item, Image):
             parts.append(_render_image(item))
         else:
@@ -474,6 +519,56 @@ def _coalesce_code_runs(items: list) -> list:
             )
         else:
             merged.append(item)
+    return merged
+
+
+def _markdown_style(run: Run) -> tuple:
+    # The styles _render_plain_run writes. Everything else on a Run (color,
+    # size, underline, highlight, ...) has no Markdown syntax.
+    return (bool(run.bold), bool(run.italic), bool(run.strikethrough), run.link_url)
+
+
+def _coalesce_plain_runs(items: list) -> list:
+    """Merge adjacent non-code runs whose Markdown styles match (#1462).
+
+    Docs splits a run at any style change, including ones Markdown can't
+    write (a color). Rendered apart, two such runs put their markers side by
+    side: struck runs wrote "~~a~~~~b~~", which GFM's single-tilde
+    strikethrough reads as literal tildes, and bold struck ones
+    "**~~a~~****~~b~~**". Merged first, they render as one span ("~~ab~~"),
+    and the text is escaped as a whole, so an entity or tag split across runs
+    is still seen. Like _coalesce_code_runs, the merge loses nothing Markdown
+    could have kept. Runs are collected in a list and joined once, so a long
+    paragraph of alternating colors stays linear.
+
+    Two runs that meet at a line break stay apart: a run's edge breaks render
+    outside its link and markers (_split_edge_breaks), and merged they'd be
+    inside, a cell's paragraph break included (PR #1088 QA round 1). Apart,
+    a <br> separates the markers, so they never touch."""
+    merged: list = []
+    pending: list[Run] = []
+
+    def flush() -> None:
+        if len(pending) == 1:
+            merged.append(pending[0])
+        elif pending:
+            merged.append(replace(pending[0], text="".join(r.text for r in pending)))
+        pending.clear()
+
+    for item in items:
+        if not isinstance(item, Run) or _is_code_run(item):
+            flush()
+            merged.append(item)
+        elif pending and (
+            _markdown_style(pending[0]) != _markdown_style(item)
+            or _split_edge_breaks(pending[-1].text)[2]
+            or _split_edge_breaks(item.text)[0]
+        ):
+            flush()
+            pending.append(item)
+        else:
+            pending.append(item)
+    flush()
     return merged
 
 
@@ -619,6 +714,13 @@ def _render_code_run_text(text: str, in_table: bool) -> str:
     return "<br>".join(spans)
 
 
+# A GFM delimiter row can only carry what Markdown can express (#1337): a
+# JUSTIFIED cell has no GFM form and stays `---`. START reaches it only from a
+# table where it isn't Docs' default, such as a Drive `.docx` import
+# (`doc_to_ast._start_is_default`, #1503).
+_GFM_COLUMN_DELIMITERS = {"START": ":--", "CENTER": ":-:", "END": "--:"}
+
+
 def _render_table(table: Table) -> str:
     if not table.rows:
         return ""
@@ -628,16 +730,37 @@ def _render_table(table: Table) -> str:
 
     phantom = _build_phantom_set(table)
     grid: list[list[str]] = [["" for _ in range(ncols)] for _ in range(len(table.rows))]
+    # A column only carries an alignment when every cell in it that has text
+    # agrees on one (#1337): Docs aligns per cell and Markdown per column, so
+    # a mixed or unaligned column stays `---`. Cells without text never vote.
+    votes: list[set[str]] = [set() for _ in range(ncols)]
+    unaligned_text: list[bool] = [False] * ncols
     for r, row in enumerate(table.rows):
         col = 0
         for cell in row.cells:
             while (r, col) in phantom:
                 col += 1
             if col < ncols:
-                grid[r][col] = _render_cell(cell)
+                text = _render_cell(cell)
+                grid[r][col] = text
+                if text:
+                    span = min(cell.colspan, ncols - col)
+                    for c in range(col, col + span):
+                        if cell.alignment:
+                            votes[c].add(cell.alignment)
+                        else:
+                            unaligned_text[c] = True
             col += cell.colspan
 
-    lines = ["| " + " | ".join(grid[0]) + " |", "| " + " | ".join(["---"] * ncols) + " |"]
+    delimiters = [
+        # JUSTIFIED has no GFM form, so .get falls back to --- (#1337).
+        _GFM_COLUMN_DELIMITERS.get(next(iter(votes[c])), "---")
+        if len(votes[c]) == 1 and not unaligned_text[c]
+        else "---"
+        for c in range(ncols)
+    ]
+
+    lines = ["| " + " | ".join(grid[0]) + " |", "| " + " | ".join(delimiters) + " |"]
     for row_cells in grid[1:]:
         lines.append("| " + " | ".join(row_cells) + " |")
     return "\n".join(lines)
@@ -645,7 +768,7 @@ def _render_table(table: Table) -> str:
 
 def _render_cell(cell: Cell) -> str:
     parts: list[str] = []
-    for child in _coalesce_code_runs(cell.children):
+    for child in _coalesce_plain_runs(_coalesce_code_runs(cell.children)):
         if isinstance(child, Table):
             parts.append(_NESTED_TABLE_PLACEHOLDER)
         elif isinstance(child, Image):

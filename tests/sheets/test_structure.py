@@ -6,13 +6,14 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from mcp_gee_sweet.cache import SheetInfo
+from mcp_gee_sweet.deprecation import tool_deprecation
 from mcp_gee_sweet.tools.sheets import structure as sheets_structure_module
 
 
 def _make_tool_registry():
     captured = {}
 
-    def tool(annotations=None, local_only=False):
+    def tool(annotations=None, local_only=False, **_):
         def decorator(func):
             captured[func.__name__] = func
             return func
@@ -2657,3 +2658,194 @@ class TestSortRange:
         )
         assert "error" in result
         svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+
+
+# --- The *_rows_or_columns tools (#1525) ------------------------------------------
+
+
+def _dimension_service():
+    mock = MagicMock()
+    mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+        "sheets": [{"properties": {"title": "Sheet1", "sheetId": 0}}]
+    }
+    mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+    return mock
+
+
+def _sent_request(svc):
+    body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+    (request,) = body["requests"]
+    return request
+
+
+async def _run_dimension_tool(name, **kwargs):
+    svc = _dimension_service()
+    ctx = _make_ctx(sheets_service=svc, cache=None)
+    kwargs.setdefault("sheet", "Sheet1")
+    result = await _structure_tools[name](spreadsheet_id="ss1", ctx=ctx, **kwargs)
+    return svc, result
+
+
+_API_DIMENSION = {"rows": "ROWS", "columns": "COLUMNS"}
+
+# Each deprecated tool with a call in its own parameters, and its replacement with
+# the same call in the new parameters. Both must send the same request.
+_REPLACED_CALLS = [
+    ("add_rows", {"count": 2, "start_row": 4}, "add_rows_or_columns",
+     {"dimension": "rows", "count": 2, "start": 4}),
+    ("add_columns", {"count": 2, "start_column": 4}, "add_rows_or_columns",
+     {"dimension": "columns", "count": 2, "start": 4}),
+    ("add_rows", {"count": 1}, "add_rows_or_columns", {"dimension": "rows", "count": 1}),
+    ("delete_rows", {"start_row": 1, "end_row": 3}, "delete_rows_or_columns",
+     {"dimension": "rows", "start": 1, "end": 3}),
+    ("delete_columns", {"start_column": 1}, "delete_rows_or_columns",
+     {"dimension": "columns", "start": 1}),
+    ("hide_rows", {"start_row": 2, "end_row": 5}, "hide_rows_or_columns",
+     {"dimension": "rows", "start": 2, "end": 5}),
+    ("unhide_rows", {"start_row": 2}, "hide_rows_or_columns",
+     {"dimension": "rows", "start": 2, "hidden": False}),
+    ("hide_columns", {"start_column": 0, "end_column": 1}, "hide_rows_or_columns",
+     {"dimension": "columns", "start": 0, "end": 1, "hidden": True}),
+    ("unhide_columns", {"start_column": 3}, "hide_rows_or_columns",
+     {"dimension": "columns", "start": 3, "hidden": False}),
+    ("resize_rows", {"start_row": 3, "pixel_size": 40}, "resize_rows_or_columns",
+     {"dimension": "rows", "start": 3, "pixel_size": 40}),
+    ("resize_columns", {"start_column": 0, "end_column": 2, "auto_resize": True},
+     "resize_rows_or_columns",
+     {"dimension": "columns", "start": 0, "end": 2, "auto_resize": True}),
+]  # fmt: skip
+
+# The minimum arguments each new tool needs beyond spreadsheet_id/sheet/dimension.
+_ROWS_OR_COLUMNS_TOOLS = {
+    "add_rows_or_columns": {"count": 1},
+    "delete_rows_or_columns": {"start": 0},
+    "hide_rows_or_columns": {"start": 0},
+    "resize_rows_or_columns": {"start": 0, "pixel_size": 9},
+}
+
+
+class TestRowsOrColumnsTools:
+    @pytest.mark.parametrize(("old", "old_kwargs", "new", "new_kwargs"), _REPLACED_CALLS)
+    async def test_sends_the_same_request_as_the_tool_it_replaces(
+        self, old, old_kwargs, new, new_kwargs
+    ):
+        old_svc, _ = await _run_dimension_tool(old, **old_kwargs)
+        new_svc, _ = await _run_dimension_tool(new, **new_kwargs)
+        assert _sent_request(new_svc) == _sent_request(old_svc)
+
+    @pytest.mark.parametrize("dimension", ["rows", "columns"])
+    async def test_add_inserts_count_at_start(self, dimension):
+        svc, _ = await _run_dimension_tool(
+            "add_rows_or_columns", dimension=dimension, count=3, start=2
+        )
+        insert = _sent_request(svc)["insertDimension"]
+        assert insert["range"] == {
+            "sheetId": 0,
+            "dimension": _API_DIMENSION[dimension],
+            "startIndex": 2,
+            "endIndex": 5,
+        }
+        assert insert["inheritFromBefore"] is True
+
+    async def test_add_defaults_to_the_beginning_without_inheriting(self):
+        svc, _ = await _run_dimension_tool("add_rows_or_columns", dimension="rows", count=1)
+        insert = _sent_request(svc)["insertDimension"]
+        assert (insert["range"]["startIndex"], insert["range"]["endIndex"]) == (0, 1)
+        assert insert["inheritFromBefore"] is False
+
+    @pytest.mark.parametrize("dimension", ["rows", "columns"])
+    async def test_delete_end_is_inclusive(self, dimension):
+        svc, _ = await _run_dimension_tool(
+            "delete_rows_or_columns", dimension=dimension, start=1, end=3
+        )
+        assert _sent_request(svc)["deleteDimension"]["range"] == {
+            "sheetId": 0,
+            "dimension": _API_DIMENSION[dimension],
+            "startIndex": 1,
+            "endIndex": 4,
+        }
+
+    @pytest.mark.parametrize("dimension", ["rows", "columns"])
+    @pytest.mark.parametrize("hidden", [True, False])
+    async def test_hide_sets_hidden_by_user(self, dimension, hidden):
+        svc, _ = await _run_dimension_tool(
+            "hide_rows_or_columns", dimension=dimension, start=4, hidden=hidden
+        )
+        update = _sent_request(svc)["updateDimensionProperties"]
+        assert update["range"]["dimension"] == _API_DIMENSION[dimension]
+        assert (update["range"]["startIndex"], update["range"]["endIndex"]) == (4, 5)
+        assert update["properties"] == {"hiddenByUser": hidden}
+        assert update["fields"] == "hiddenByUser"
+
+    async def test_hide_hides_by_default(self):
+        svc, _ = await _run_dimension_tool("hide_rows_or_columns", dimension="columns", start=0)
+        update = _sent_request(svc)["updateDimensionProperties"]
+        assert update["properties"] == {"hiddenByUser": True}
+
+    @pytest.mark.parametrize("dimension", ["rows", "columns"])
+    async def test_resize_pixel_size(self, dimension):
+        svc, _ = await _run_dimension_tool(
+            "resize_rows_or_columns", dimension=dimension, start=2, end=4, pixel_size=30
+        )
+        update = _sent_request(svc)["updateDimensionProperties"]
+        assert update["range"]["dimension"] == _API_DIMENSION[dimension]
+        assert (update["range"]["startIndex"], update["range"]["endIndex"]) == (2, 5)
+        assert update["properties"] == {"pixelSize": 30}
+
+    @pytest.mark.parametrize("dimension", ["rows", "columns"])
+    async def test_resize_auto_resize(self, dimension):
+        svc, _ = await _run_dimension_tool(
+            "resize_rows_or_columns", dimension=dimension, start=0, auto_resize=True
+        )
+        dims = _sent_request(svc)["autoResizeDimensions"]["dimensions"]
+        assert dims["dimension"] == _API_DIMENSION[dimension]
+        assert (dims["startIndex"], dims["endIndex"]) == (0, 1)
+
+    @pytest.mark.parametrize(
+        ("name", "kwargs", "message"),
+        [
+            ("add_rows_or_columns", {"count": 1, "start": -1}, "start must be non-negative"),
+            ("add_rows_or_columns", {"count": 0}, "count"),
+            ("delete_rows_or_columns", {"start": -1}, "start must be non-negative"),
+            ("delete_rows_or_columns", {"start": 5, "end": 2}, "end"),
+            ("hide_rows_or_columns", {"start": -1}, "start must be non-negative"),
+            ("hide_rows_or_columns", {"start": 5, "end": 2}, "end"),
+            ("resize_rows_or_columns", {"start": 0}, "pixel_size or set auto_resize"),
+            ("resize_rows_or_columns", {"start": 5, "end": 2, "pixel_size": 9}, "end"),
+            ("resize_rows_or_columns", {"start": 0, "pixel_size": 0}, "pixel_size"),
+        ],
+    )
+    async def test_invalid_arguments_return_error_without_api_call(self, name, kwargs, message):
+        svc, result = await _run_dimension_tool(name, dimension="rows", **kwargs)
+        assert message in result["error"]
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    @pytest.mark.parametrize("name", sorted(_ROWS_OR_COLUMNS_TOOLS))
+    async def test_unknown_dimension_returns_error_before_any_api_call(self, name):
+        svc, result = await _run_dimension_tool(
+            name, dimension="ROWS", **_ROWS_OR_COLUMNS_TOOLS[name]
+        )
+        assert "dimension must be 'rows' or 'columns'" in result["error"]
+        # Checked before the sheet lookup: it never reaches the API at all.
+        assert not svc.spreadsheets.return_value.get.called
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    @pytest.mark.parametrize("name", sorted(_ROWS_OR_COLUMNS_TOOLS))
+    async def test_missing_sheet_returns_error_without_api_call(self, name):
+        svc, result = await _run_dimension_tool(
+            name, sheet="Missing", dimension="rows", **_ROWS_OR_COLUMNS_TOOLS[name]
+        )
+        assert "not found" in result["error"]
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    @pytest.mark.parametrize("old", sorted({call[0] for call in _REPLACED_CALLS}))
+    def test_replaced_tool_is_deprecated_naming_its_replacement(self, old):
+        deprecation = tool_deprecation(_structure_tools[old])
+        replacement = next(new for o, _, new, _ in _REPLACED_CALLS if o == old)
+        assert deprecation is not None
+        assert deprecation.use.startswith(f"`{replacement}` with `dimension=")
+        assert _structure_tools[old].__doc__.startswith(f"Deprecated: use `{replacement}`")
+
+    @pytest.mark.parametrize("name", sorted(_ROWS_OR_COLUMNS_TOOLS))
+    def test_new_tool_is_not_deprecated(self, name):
+        assert tool_deprecation(_structure_tools[name]) is None

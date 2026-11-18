@@ -43,6 +43,22 @@ GitLab-style scheme is delegated to `python-markdown`'s own `toc` extension slug
 project dependency, confirmed live to collapse hyphens the same way); GitHub's non-collapsing
 convention has no known off-the-shelf Python equivalent, so it's hand-rolled.
 
+A heading's hard break is the second place the schemes meet. #1230 stores an HTML `<br>`
+inside the heading text as a `"\v"`. (A Markdown `\` hard break cannot sit inside a `#`
+heading — a `#` heading is a single line, so a trailing `\` there is literal text; a Markdown
+hard break can only appear in an underlined `===`/`---` heading.) Both sites actually slug an
+inline `<br>` the same way: GitHub's anchor ignores the break — no text and no separator, so
+"Heading one<br>heading two" is `#heading-oneheading-two` — and GitLab's comrak-based anchor
+does too, because an inline `<br>` is an `HtmlInline` node with no text and no children, so
+`collect_text_append` adds nothing: GitLab's anchor for the same heading is also
+`#heading-oneheading-two`. What comrak does give a space is a Markdown
+`LineBreak`/`SoftBreak` (`collect_text_append` pushes `" "` for those, and `anchorize` maps
+the space to `-`), which can only reach an underlined heading. The collapsed GitLab scheme
+here still turns a stored `"\v"` into that single hyphen — not a faithful reproduction of
+GitLab's `<br>` slug, but extra tolerance for an anchor spelled with the separator (#1357) —
+while the GitHub scheme produces the separator-free form, so an anchor spelled either way
+resolves.
+
 A normalized word-token comparison is the last-resort fallback for a slug that doesn't exactly
 match either scheme but clearly names the same heading — e.g. the heading was reworded slightly
 after the source anchors were generated. It tries the anchor's tokens literally first (a

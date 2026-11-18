@@ -1,6 +1,10 @@
 """Tests for GitHub/GitLab-style heading-anchor slug resolution (issue #409)."""
 
-from mcp_gee_sweet.tools.docs.anchors import compute_scheme_slugs, resolve_heading_anchor
+from mcp_gee_sweet.tools.docs.anchors import (
+    _github_style_slugify,
+    compute_scheme_slugs,
+    resolve_heading_anchor,
+)
 
 
 class TestResolveHeadingAnchor:
@@ -13,6 +17,36 @@ class TestResolveHeadingAnchor:
     def test_gitlab_style_collapsed_hyphens(self):
         headings = ["Appendix A - Approved Hashing Algorithms"]
         assert resolve_heading_anchor("#appendix-a-approved-hashing-algorithms", headings) == 0
+
+    def test_github_style_drops_a_hard_break_no_separator(self):
+        # #1357: a heading's stored "\v" hard break (#1230) adds nothing to
+        # GitHub's slug — "Heading one<br>heading two" is "heading-oneheading-two",
+        # with no hyphen where the break sits.
+        headings = ["Heading one\vheading two"]
+        assert resolve_heading_anchor("#heading-oneheading-two", headings) == 0
+
+    def test_gitlab_style_keeps_a_hyphen_for_a_hard_break(self):
+        # The collapsed GitLab scheme slugifies a heading's stored "\v" break
+        # to a single hyphen (#1357), pinned on the scheme's own slug list —
+        # resolving "#heading-one-heading-two" would pass even if the scheme
+        # dropped the break, because the fuzzy pass resolves the hyphen form
+        # anyway (#1460). GitLab's own <br> anchor is separator-free too; the
+        # hyphen form is tolerance, not reproduction — see
+        # docs/design/heading-anchor-resolution.md.
+        headings = ["Heading one\vheading two"]
+        assert compute_scheme_slugs(headings)[1] == ["heading-one-heading-two"]
+
+    def test_hard_break_heading_still_matches_right_heading_among_several(self):
+        headings = ["Introduction", "Heading one\vheading two", "Appendix"]
+        assert resolve_heading_anchor("#heading-oneheading-two", headings) == 1
+
+    def test_hard_break_heading_and_plain_heading_have_distinct_anchors(self):
+        # #1435 review: GitHub's scheme drops the break entirely, so a heading
+        # with a hard break and a plain-space heading slug differently, and
+        # each anchor must find its own heading — never the other's.
+        headings = ["Heading one\vheading two", "Heading one heading two"]
+        assert resolve_heading_anchor("#heading-oneheading-two", headings) == 0
+        assert resolve_heading_anchor("#heading-one-heading-two", headings) == 1
 
     def test_leading_hash_is_optional(self):
         headings = ["Overview"]
@@ -129,3 +163,30 @@ class TestComputeSchemeSlugs:
         assert resolve_heading_anchor("#new-heading", headings, stale) == resolve_heading_anchor(
             "#new-heading", headings
         )
+
+
+class TestGithubSchemeStripsOtherWhitespace:
+    r"""#1460: the GitHub scheme hyphenated every whitespace run, where GitHub's
+    own anchor (github-slugger) strips a tab, an NBSP and a heading's "<br>"
+    break with no hyphen at all, so a "#pricelist" link to a heading written
+    "Price\xa0List" — HTML input with `&nbsp;` — resolved to nothing."""
+
+    def test_nbsp_and_tab_slug_separator_free(self):
+        # Checked against github-slugger master: its disallowed-character regex
+        # removes \t (\0-\x1F) and \xa0 (\xA0-\xA9), so GitHub's real
+        # anchor for both is "pricelist".
+        assert _github_style_slugify("Price\xa0List") == "pricelist"
+        assert _github_style_slugify("Price\tList") == "pricelist"
+
+    def test_issue_repro_resolves_the_nbsp_heading(self):
+        assert resolve_heading_anchor("#pricelist", ["Price\xa0List"]) == 0
+
+    def test_hard_break_heading_slug_is_separator_free(self):
+        assert _github_style_slugify("Heading one\vheading two") == "heading-oneheading-two"
+
+    def test_space_runs_still_become_matching_hyphens(self):
+        assert _github_style_slugify("A - Approved") == "a---approved"
+        assert _github_style_slugify("a  b") == "a--b"
+
+    def test_slash_still_strips_with_no_separator(self):
+        assert _github_style_slugify("Setup/Installation") == "setupinstallation"
