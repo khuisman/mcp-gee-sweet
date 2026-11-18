@@ -231,7 +231,7 @@ class TestCrossPrincipalInvalidation:
 
         registry = {}
 
-        def tool(annotations=None, local_only=False):
+        def tool(annotations=None, local_only=False, **_):
             def decorator(func):
                 registry[func.__name__] = func
                 return func

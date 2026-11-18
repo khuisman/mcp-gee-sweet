@@ -828,7 +828,7 @@ def _list_page(
     enforce_response_size_cap(
         out,
         tool_name=tool_name,
-        hint="Lower max_results and paginate via next_page_token, or ",
+        hint="Lower max_results and paginate via next_page_token. ",
         local_path_available=False,
     )
     return out
@@ -1387,7 +1387,7 @@ async def _confirm_and_send_steps(
 
 
 def register(tool):
-    @tool(annotations=ToolAnnotations(title="List Messages", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="List Messages", readOnlyHint=True), default=True)
     async def list_messages(
         query: str | None = None,
         label_ids: list[str] | None = None,
@@ -1559,7 +1559,7 @@ def register(tool):
         ]
         return _list_page(result, "threads", threads, "list_threads")
 
-    @tool(annotations=ToolAnnotations(title="Get Thread", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="Get Thread", readOnlyHint=True), default=True)
     async def get_thread(
         thread_id: str,
         local_path: str | None = None,
@@ -1640,7 +1640,7 @@ def register(tool):
         enforce_response_size_cap(shaped, tool_name="get_thread", hint=hint)
         return shaped
 
-    @tool(annotations=ToolAnnotations(title="List Labels", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="List Labels", readOnlyHint=True), default=True)
     async def list_labels(ctx: Context = None) -> list[dict[str, Any]] | dict[str, Any]:
         """
         List all labels in the authenticated user's mailbox (system and user-defined).
@@ -1662,7 +1662,7 @@ def register(tool):
 
         return [_shape_label(label) for label in result.get("labels", [])]
 
-    @tool(annotations=ToolAnnotations(title="Send Message", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Send Message", destructiveHint=True), default=True)
     async def send_message(
         to: str | list[str],
         subject: str,
@@ -1733,7 +1733,7 @@ def register(tool):
         logger.debug("Sent message %s", sent.get("id"))
         return {**_message_summary(sent), "sent": True}
 
-    @tool(annotations=ToolAnnotations(title="Create Draft", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Create Draft", destructiveHint=True), default=True)
     async def create_draft(
         to: str | list[str],
         subject: str,
@@ -1788,7 +1788,7 @@ def register(tool):
         logger.debug("Created draft %s", draft.get("id"))
         return _draft_summary(draft)
 
-    @tool(annotations=ToolAnnotations(title="Send Draft", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Send Draft", destructiveHint=True), default=True)
     async def send_draft(draft_id: str, ctx: Context = None) -> dict[str, Any]:
         """
         Send an existing draft by ID, after the user confirms it (by default).
@@ -1829,7 +1829,7 @@ def register(tool):
         logger.debug("Sent draft %s as message %s", draft_id, sent.get("id"))
         return {**_message_summary(sent), "sent": True}
 
-    @tool(annotations=ToolAnnotations(title="List Drafts", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="List Drafts", readOnlyHint=True), default=True)
     async def list_drafts(
         query: str | None = None,
         max_results: int = 50,
@@ -2073,7 +2073,7 @@ def register(tool):
         logger.debug("Deleted draft %s", draft_id)
         return {"id": draft_id, "action": "deleted"}
 
-    @tool(annotations=ToolAnnotations(title="Reply to Message", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Reply to Message", destructiveHint=True), default=True)
     async def reply_to_message(
         message_id: str,
         body: str,
@@ -2191,7 +2191,7 @@ def register(tool):
             out["warning"] = own_warning
         return out
 
-    @tool(annotations=ToolAnnotations(title="Modify Labels", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Modify Labels", destructiveHint=True), default=True)
     async def modify_labels(
         add_label_ids: list[str] | None = None,
         remove_label_ids: list[str] | None = None,

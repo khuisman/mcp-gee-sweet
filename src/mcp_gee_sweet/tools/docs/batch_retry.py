@@ -24,7 +24,7 @@ async def send_dropping_failed_images(
     """Send `requests`, dropping each image Google can't fetch, and return what was applied.
 
     drop(remaining, error) pops the image request `error` names (and anything that goes
-    with it, such as its link request) from `remaining` and returns the index it was at,
+    with it, such as its style request) from `remaining` and returns the index it was at,
     or returns None for any other error, which is then raised. From the second dropped
     image on, split_point(remaining, index) gives where to split the batch, with 0 for
     no split: remaining[:cut] is sent on its own and only remaining[cut:] is retried.

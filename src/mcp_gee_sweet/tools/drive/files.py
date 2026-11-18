@@ -92,7 +92,11 @@ async def _list_drive_files(
 
 
 def register(tool):
-    @tool(annotations=ToolAnnotations(title="Create Spreadsheet", destructiveHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Create Spreadsheet", destructiveHint=True),
+        default=True,
+        groups=("sheets",),
+    )
     async def create_spreadsheet(
         title: str, folder_id: str | None = None, ctx: Context = None
     ) -> dict[str, Any]:
@@ -156,6 +160,7 @@ def register(tool):
     @tool(
         annotations=ToolAnnotations(title="Import CSV to Sheet", destructiveHint=True),
         local_only=True,
+        groups=("sheets",),
     )
     async def import_csv_to_sheet(
         local_path: str,
@@ -172,9 +177,9 @@ def register(tool):
         the data (avoiding the default 1000-row/26-column limit), and writes
         every row in one or more batched value updates.
 
-        Row chunks write concurrently rather than one at a time (#183). If the
+        Row chunks write concurrently rather than one at a time. If the
         caller supplied a progressToken, a `notifications/progress` update is sent
-        as each chunk finishes (#355).
+        as each chunk finishes.
 
         Args:
             local_path: Absolute path to the local .csv file.
@@ -411,7 +416,10 @@ def register(tool):
             "rows_written": len(rows),
         }
 
-    @tool(annotations=ToolAnnotations(title="List Spreadsheets", readOnlyHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="List Spreadsheets", readOnlyHint=True),
+        groups=("sheets",),
+    )
     async def list_spreadsheets(
         folder_id: str | None = None, max_results: int = 100, ctx: Context = None
     ) -> list[dict[str, str]]:
@@ -577,7 +585,7 @@ def register(tool):
         logger.debug("Found %d shared drives", len(drives))
         return drives[:max_results]
 
-    @tool(annotations=ToolAnnotations(title="List Files", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="List Files", readOnlyHint=True), default=True)
     async def list_files(
         folder_id: str,
         mime_type: str | None = None,
@@ -669,7 +677,7 @@ def register(tool):
         except Exception as e:
             return [{"error": f"List files failed: {e!s}"}]
 
-    @tool(annotations=ToolAnnotations(title="Search Files", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="Search Files", readOnlyHint=True), default=True)
     async def search_files(
         query: str,
         mime_type: str | None = None,
@@ -749,7 +757,8 @@ def register(tool):
     @tool(
         annotations=ToolAnnotations(
             title="Search Spreadsheets by Name or Content", readOnlyHint=True
-        )
+        ),
+        groups=("sheets",),
     )
     async def search_spreadsheets(
         query: str, max_results: int = 20, ctx: Context = None
@@ -815,7 +824,7 @@ def register(tool):
         except Exception as e:
             return [{"error": f"Search failed: {e!s}"}]
 
-    @tool(annotations=ToolAnnotations(title="Get File Metadata", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="Get File Metadata", readOnlyHint=True), default=True)
     async def get_file_metadata(file_id: str, ctx: Context = None) -> dict[str, Any]:
         """
         Get metadata for any file or folder in Google Drive.
@@ -831,8 +840,8 @@ def register(tool):
             for them. Compare it to a local file's md5 to detect real content
             drift instead of inferring change from modifiedTime alone;
             sync_folder(use_checksum=True) does that comparison itself (see its
-            docstring for the cases where modifiedTime misleads). starred reflects star_file/unstar_file's own effect
-            (#388) — previously there was no way to read a file's starred state
+            docstring for the cases where modifiedTime misleads). starred reflects star_file/unstar_file's own effect.
+            Previously there was no way to read a file's starred state
             independently of calling one of those two mutating tools.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
@@ -867,7 +876,7 @@ def register(tool):
             result["size"] = f["size"]
         return result
 
-    @tool(annotations=ToolAnnotations(title="Create Folder", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Create Folder", destructiveHint=True), default=True)
     async def create_folder(
         name: str, parent_folder_id: str | None = None, ctx: Context = None
     ) -> dict[str, Any]:
@@ -982,7 +991,7 @@ def register(tool):
             "targetMimeType": details.get("targetMimeType"),
         }
 
-    @tool(annotations=ToolAnnotations(title="Copy File", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Copy File", destructiveHint=True), default=True)
     async def copy_file(
         file_id: str,
         new_name: str | None = None,
@@ -1096,7 +1105,7 @@ def register(tool):
             "parent": parents[0] if parents else "root",
         }
 
-    @tool(annotations=ToolAnnotations(title="Rename File", destructiveHint=True))
+    @tool(annotations=ToolAnnotations(title="Rename File", destructiveHint=True), default=True)
     async def rename_file(file_id: str, new_name: str, ctx: Context = None) -> dict[str, Any]:
         """
         Rename a file or folder in Google Drive.

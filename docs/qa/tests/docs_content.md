@@ -2981,6 +2981,9 @@ One paragraph with \v and correct line_ranges; setup inserts at the placeholder'
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — Placeholder written, its text deleted (1–12), insert at 1 returned start 1, end 49, line_ranges 1–24 (23 chars) and 25–49 (24 chars). Structure: one paragraph 1–50, text "Document ID: KH-OPS-001\vCategory: AWS / Database\n", no placeholder left, HEADING_2, first run bold only. Playwright: two tight lines in one heading, only line 1 bold (shot tc-doc116.png).
 
+**Result (2026-11-14) ✅ PASS — after PR #1495 (API; visual check pending — no browser in this session)**
+Run in an isolated service-account sandbox on a Shared Drive, as part of TC-DOC258. Placeholder emptied (41–52), insert at 41 returned line_ranges 41–64 and 65–89. Raw read: one paragraph, `Document ID: KH-OPS-001\vCategory: AWS / Database\n`, `HEADING_2`, only the first line bold.
+
 ---
 
 ### TC-DOC117: Invalid named_style_type rejected without mutating the doc
@@ -6759,9 +6762,9 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 
 **Checks**
 - Step 1 returns no `error` key
-- Step 2, Docs' own numbering: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, then the table, `3. c`, `Aside`, `1. x`, `2. y`. If Docs numbers any item differently, the case's premise has changed: report it rather than checking step 3 against this list
-- Raw `documents().get()` read: `a` through `c` share one `listId`, and `x`/`y` share a different one
-- Step 3: every list item's marker matches step 2's number for that item, including `3. c` after the table and `1. x` starting the second list. (The sublist's indent is #1128, not checked here)
+- Step 2, Docs' own numbering: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, then the table, `1. c`, `Aside`, `1. x`, `2. y`. If Docs numbers any item differently, the case's premise has changed: report it rather than checking step 3 against this list. Since #1118 (PR #1368) the write side keeps the `1. c` after the table as a list of its own starting at 1, as CommonMark reads it; before that it joined `a`'s list as `3. c`. A Docs list continuing past a table is TC-DOC233 step 5
+- Raw `documents().get()` read: `a` through `b1` share one `listId`, `c` has its own, and `x`/`y` share a third
+- Step 3: every list item's marker matches step 2's number for that item, including `1. c` after the table and `1. x` starting the last list. Each sublist item is indented 3 spaces, under its parent's text (#1128)
 
 **Cleanup:** trash the doc
 
@@ -6772,6 +6775,9 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 `sky`, after `/mcp reconnect`, on a fresh doc (trashed afterward). Steps 1–3 read the same as round 1: txt export `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, the table, `3. c`, `Aside`, `1. x`, `2. y`. `a`–`c` share one `listId` and `x`/`y` another. `get_doc_as_markdown` matches item for item. No sublist here starts past 1, so the new `1.` fallback isn't exercised live: the API can't write `startNumber`, and the case is unit-tested.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard C2 on `jay`** — No `error`. Docs' txt export: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, table, `1. c`, `Aside`, `1. x`, `2. y` — the premise changed for `c` (Docs says `1.`, the case expected `3.`; source `1. c` starts a new list under #1118, see top). Raw read: a–b1 share listId …3p5s90, `c` has its own (…4bbk7l), x/y share …d4968y. Step 3's markers match Docs for every item: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, `1. c`, `1. x`, `2. y`.
+
+**Result (2026-11-17) ✅ PASS — Kit, PR #1539 round 2 @ 5b48603d**
+`mcp-gee-sweet-kit`, reconnected after the reset. No `error`. Docs' txt export: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, the table, `1. c`, `Aside`, `1. x`, `2. y`. `get_doc_structure`: `a`–`b1` share one `listId`, `c` has its own, `x`/`y` share a third. Same premise change the release pass found. This round updated the checks to match (#1118, PR #1368). Step 3: `1. a`, `   1. a1`, `   2. a2`, `2. b`, `   1. b1`, then `1. c`, `1. x`, `2. y`. Every marker matches Docs, and each sublist item is at 3 spaces (#1128). Doc trashed.
 
 ### TC-DOC237: A Docs edit tool cancelled while its edit is in flight re-invalidates the doc cache once the edit lands (#1030) ⚠️ requires-oauth ⚠️ destructive
 
@@ -6935,6 +6941,9 @@ Run against PR #1164's merge in an isolated service-account sandbox on a Shared 
 `mcp-gee-sweet-jay` (OAuth) at `develop` b2f868f2's code (markdown-it), in `{FOLDER_ID}`, raw `documents().get()` from a fresh interpreter. `tc-doc242-loose.md`: `a\n`/`b\n` (●), `a\n`/`b\n` (`DECIMAL`), `a\n`/`b\n` with a left border at `indentStart` 72pt, `a`/`a1`/`b` at levels 0/1/0, `☑ done`/`☐ todo`, then `t1`/`t2`. Each group has a `listId` of its own shared by its items, and the only empty paragraphs are the five separators and the body's final paragraph. `tc-doc242-loose.html`: `a\n`/`b\n` in one list with no padding, `styled` a `SUBTITLE` paragraph with no bullet, `plain` a bullet item, then the final empty paragraph. Docs trashed.
 
 **Result (2026-11-08) ❌ FAIL — ornithomimus release pass, shard C2 on `jay`** — Markdown Doc passes every check: `a`/`b` one ● list; `a`/`b` one DECIMAL list; quoted `a`/`b` one list with `borderLeft`; `a`/`a1`/`b` levels 0/1/0; `☑ done`/`☐ todo`; tight `t1`/`t2` one list; the only empty paragraphs are the five rule separators and the final one; item text `a\n`/`b\n`. HTML Doc: the first list is `a\n`/`b\n` in one list with no padding, and `styled` is SUBTITLE with no bullet, but an **empty bulleted paragraph** (listId …uv5e4o, the same list as `plain`) now sits before `styled`, and `styled` is indented 36pt as a block inside that item. That breaks "In the HTML Doc, the only [empty paragraph] is the body's final paragraph" (the 2026-10-29 run had none). Cause: #1075 (PR #1322, after that run) makes an `<li>` that holds only a block an empty bullet. A browser draws `<li><p data-style="subtitle">styled</p></li>` with the marker on "styled"'s own line, not as an empty bullet line above it. Filed as #1414, a regression from #1075 (PR #1322); if Aziz decides #1075's behavior is intended here, this check is stale instead.
+
+**Result (2026-11-14) ✅ PASS — after PR #1447**
+Run in an isolated service-account sandbox on a Shared Drive, HTML fixture only (`create_doc_from_file`), raw `documents().get()`. `a\n`/`b\n` are one list with no padding. `styled` is a `SUBTITLE` paragraph with no bullet, and no empty bulleted paragraph sits before it. `plain` is a bullet item, then the final empty paragraph. The Markdown fixture wasn't re-run (#1414 doesn't touch it). TC-DOC257 has #1414's other shapes. Doc trashed.
 
 ---
 
@@ -7116,10 +7125,10 @@ asyncio.run(main())
 - LB-11: `   > First quote.` and `   > Second quote.`, separated by at least two blank lines, before `2. Next item`
 - LB-12: `    Inner second paragraph` (4 spaces), then `- Outer two`
 - LB-13: `> 1. Quoted one`, `>`, `>    More of quoted one`, `>`, `> 2. Quoted two`
-- LB-14: the table at the margin (no leading spaces), then `1. Step two`: the write side makes two Docs lists here, so the table is outside the list. The second list starts at 1, not 2, because the write side ignores `start` (#1118)
+- LB-14: the table at the margin (no leading spaces), then `2. Step two`: the table is outside the list. Since #1118 (PR #1368) the write side keeps the source's `2.`, so the export writes it too
 - Step 3's export equals step 2's. (Until #1096, LB-10's rule exported as an empty paragraph, which the re-import dropped, so step 3 had two fewer blank lines there.)
 - Step 4, W-1: every line from `> - a` through `> - c` starts with `>`; the table lines are `>   | …` (the quote, then 2 spaces)
-- W-2: the table lines indented 3 spaces between `1. a` and `- b`, then `2. c`. (`- b` itself is indented 2 spaces, which is #1128)
+- W-2: the table lines indented 3 spaces between `1. a` and `   - b` (also 3 spaces, under `a`'s text, #1128), then `2. c`
 - W-3: the table lines indented 2 spaces (in a), not 4 (in b), before `- c`
 - W-4: `> > b` at the margin, not `  > b`
 - An ambiguous block that ends a list's last item reads as outside the list (`docs/known-limitations.md`)
@@ -7136,6 +7145,9 @@ asyncio.run(main())
 `mcp-gee-sweet-sky` at 28c464a4, reconnected, on scratch docs in `{FOLDER_ID}`. Run because the PR rewrote the export's block separator (`_OpenItems.separator`). Step 2: every LB check holds, LB-10 now `   ---`, a blank line, `   After the rule`, then `2. Next item`. Step 3's export is byte-identical to step 2's (diffed). Step 4: W-1 keeps `>` on every line, with the table at `>   | …`; W-2 has the table at 3 spaces, `  - b` (#1128), then `2. c`; W-3 has the table at 2 spaces, then `- c`; W-4 is `> > b` at the margin, then `After.`. Scratch docs trashed.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard C2 on `jay`** — All three creates without error. Step 2: LB-04 `   Second paragraph…` (3 spaces) between items; LB-05 fence and code at 3 spaces; LB-06 `  > Quoted text inside the item.` (one `>`; no `> >` anywhere except W-4's source); LB-07 table lines at 3 spaces between items; LB-08 `- # Heading inside an item` then `- Plain item after it`; LB-10 `   ---`, blank, `   After the rule` before `2. Next item`; LB-11 `   > First quote.` and `   > Second quote.` with three blank lines between; LB-12 `    Inner second paragraph` (4) then `- Outer two`; LB-13 `> 1. Quoted one`, `>`, `>    More of quoted one`, `>`, `> 2. Quoted two`; LB-14 table at the margin, then `2. Step two` (the check's `1.` is stale since #1118, see top). Step 3 (re-import via `create_doc_from_file` of the saved step-2 export rather than pasting it into `create_doc`; same converter): export byte-identical to step 2. Step 4: W-1 every line `>`-prefixed, table `>   | …`; W-2 table at 3 spaces between `1. a` and `  - b` (#1128), then `2. c`; W-3 table at 2 spaces before `- c`; W-4 `> > b` at the margin.
+
+**Result (2026-11-17) ✅ PASS — Kit, PR #1539 round 2 @ 5b48603d**
+`mcp-gee-sweet-kit`, reconnected after the reset. Steps 1 and 3 ran through `create_doc_from_file`, the same converter as the release pass. Step 2: every LB check holds. LB-09's children are now `   - Child of one` (3 spaces, under `1. `'s text; they were at 2 before #1128). LB-14 is the table at the margin, then `2. Step two`. This round updated that check, which had been stale since #1118. Step 3: byte-identical to step 2 (`cmp`). Step 4: W-1 has `>` on every line and the table at `>   | …`; W-2 has the table at 3 spaces, then `   - b` (3 spaces, #1128), then `2. c`; W-3 has the table at 2 spaces before `- c`; W-4 has `> > b` at the margin. Docs trashed.
 
 ### TC-DOC245: A file's relative image path resolves against the file, and a replace uploads its local images to folder_id, the server default, or the doc's own folder (#1121, #1139) ⚠️ requires-oauth ⚠️ destructive
 **Purpose:** `create_doc_from_file`/`update_doc_from_file` resolved a relative image path against the server's working directory, so a README's images never embedded (#1121). `update_doc_from_file` had no `folder_id`, so on a server with no default folder every local image failed after the doc was cleared, leaving it without its images (#1139). A relative path is now joined to the file's own folder; `write_doc_content`/`update_doc_from_file` take `folder_id`, fall back to the server's default folder and then to the doc's own folder, and refuse before touching the doc when none is known. The doc's-folder fallback only runs on a server with no `DRIVE_FOLDER_ID`, so parts B and C use a scratch script against the checkout under test with `folder_id=None`, the way TC-DOC243 part B does.
@@ -7384,3 +7396,257 @@ Live on `mcp-gee-sweet-kit` at 4eb1a2e6, after `/mcp reconnect` (OAuth, Shared D
 
 ---
 Cleanup: run folder QA-orn-C2-2026-11-08 trashed (not permanent), with everything in it. TC-DOC242's evidence doc (HTML Doc <evidence doc, in the trashed run folder>) is in the trash and can be restored; the failure also reproduces with one `create_doc_from_file` of `docs/qa/fixtures/tc-doc242-loose.html`. Scratch scripts are in tmp/C2/scripts; no large local files are left behind.
+
+---
+
+## Live coverage for merged PRs #1360, #1435, #1447, #1448, #1457, #1458 and #1495
+
+Run on 2026-11-14 in an isolated service-account sandbox on a Shared Drive, against `develop` with all seven PRs merged (`d5879ad`). Each case says which checks it read through the tools and which through a raw `documents().get()` from a read-only script (`get_doc_structure` doesn't report fonts, alignment or `baselineOffset`). This session had no browser, so a check that only shows on screen is recorded as pending.
+
+### TC-DOC252: A heading's hard break adds nothing to its GitHub anchor, on write and on revision export (#1357) ⚠️ destructive
+
+**Purpose:** a `<br>` in a heading is stored as `"\v"`. The GitHub anchor scheme used to treat it as a word separator, so `[a](#heading-oneheading-two)` matched no heading and was dropped as `no_matching_heading`. The `"\v"` is now dropped from the GitHub slug, and `export_revision`'s heading-link slugs use the same rule.
+
+**Steps**
+1. `create_doc(title="TC-DOC252", folder_id={FOLDER_ID}, content_format="markdown", content="## Heading one<br>heading two\n\n## Heading one heading two\n\n## Intro\n\n## Intro\n\n## Plain heading\n\nLinks: [a](#heading-oneheading-two) and [b](#heading-one-heading-two), [c](#intro), [d](#intro-1), [e](#plain-heading).\n")` → `{DOC}`
+2. `get_doc_structure(doc_id={DOC})`: note each heading's `headingId`
+3. `get_doc_as_markdown(doc_id={DOC})`
+4. Relink a–e by heading ID, as the Docs UI does (no tool sets an ID-only link; see TC-D281 step 2): a scratch script sending `updateTextStyle` with `textStyle: {"link": {"headingId": "<id>"}}` over each letter, to the heading its URL points at
+5. `list_revisions(file_id={DOC})`, then `export_revision(file_id={DOC}, revision_id=<last>)`
+
+**Checks**
+- Step 1: no `error` and no `dropped_links`
+- Step 2: `a` links to the break heading's `headingId`, `b` to the plain heading's, `c` and `d` to the first and second `Intro`, and `e` to `Plain heading`
+- Step 3: the break heading reads `## Heading one<br>heading two`. Links keep their `docs.google.com/…#heading=h.…` URLs: `get_doc_as_markdown` doesn't slug heading links. Only `export_revision` does (its docstring)
+- Step 5: the links read `[a](#heading-oneheading-two)`, `[b](#heading-one-heading-two)`, `[c](#intro)`, `[d](#intro-1)` and `[e](#plain-heading)`, and the break heading reads `## Heading one<br>heading two`
+
+**Cleanup:** `delete_file` the doc
+
+**Result (2026-11-14) ✅ PASS**
+Step 1 returned no `dropped_links`. Step 2: a → `h.xrg9…` (the break heading), b → `h.c63h…` (the plain one), c and d → the first and second `Intro`, e → `Plain heading`. Step 3 rendered `## Heading one<br>heading two` with each link as its same-document URL. An `export_revision` of the URL links (before step 4) returned the URLs unchanged: the write side stores a URL, and only an ID-only link is slugged. After step 4, `export_revision` on revision 5 returned exactly `[a](#heading-oneheading-two) and [b](#heading-one-heading-two), [c](#intro), [d](#intro-1), [e](#plain-heading)`. The headings come first, `## Heading one<br>heading two` included. Doc trashed.
+
+**Result (2026-11-14) ✅ PASS (steps 1–3 only) — Rio's re-run for PR #1505's review, on `mcp-gee-sweet-rio` (OAuth, Shared Drive default folder) at `f569d024`**
+Step 1: no `error`, no `dropped_links`. Step 2: `a` → the break heading's `headingId` (`Heading one\vheading two`), `b` → `Heading one heading two`'s, `c`/`d` → the first and second `Intro`, `e` → `Plain heading`. Step 3: `## Heading one<br>heading two`, each link its same-document URL. Steps 4–5 (relink by ID through a script, then `export_revision`) weren't re-run; they rest on the run above. Doc trashed.
+
+### TC-DOC253: A `<pre>` in a table cell is Courier New, like a body `<pre>` (#1417) ⚠️ destructive
+
+**Purpose:** a cell `<pre>` kept its line breaks (#1215) but rendered in the doc's normal font. Its runs now get the Courier New a body `<pre>` gets.
+
+**Playwright: required**
+
+**Steps**
+1. `create_doc(title="TC-DOC253", folder_id={FOLDER_ID}, content="<table><tr><td><pre>x\n  y</pre></td><td>plain</td></tr></table><p>sep1</p><table><tr><td><pre>a<br>b</pre>tail</td></tr></table><p>sep2</p><table><tr><td><pre>code</table><p>after</p><pre>body pre</pre><table><tr><td>inline <code>cc</code> end</td></tr></table>")` (a real newline after `x`) → `{DOC}`
+2. `get_doc_as_markdown(doc_id={DOC})`
+3. `write_doc_content` into a second doc with step 1's first table only
+
+**Checks** (raw `documents().get()`, and on screen)
+- The first cell's `x` and `  y` are Courier New, on separate lines, with the two leading spaces kept. `plain` has no font set
+- `a` and `b` are Courier New on separate lines, and `tail` has no font set
+- `code` is Courier New, and `after` has no font set
+- `body pre` is Courier New, and the inline `cc` in a cell is Courier New between plain `inline ` and ` end`
+- Step 2: the first cell reads `` `x`<br>`  y` ``, and each table keeps its rows
+- Step 3: the same runs and fonts as the first table in step 1
+- 🔍 On screen: the same fonts and line breaks
+
+**Cleanup:** `delete_file` both docs
+
+**Result (2026-11-14) ✅ PASS (API); on-screen check pending — no browser in this session**
+Raw read: cell 1 is `x\n` and `  y\n`, both `weightedFontFamily` Courier New; `plain` has an empty `textStyle`. `a\n` and `b` are Courier New, and `tail` follows `b` in the same paragraph with no font. Text sharing a line with a cell `<pre>` is out of scope (follow-up work). `code` is Courier New and `after` plain. `body pre` is Courier New, and `cc` is Courier New between plain runs. Step 2 exported `` | `x`<br>`  y` | plain | `` with every table's rows intact. Its delimiter rows read `:--`, which is #1503. Step 3's raw read matches step 1's first table run for run. Docs trashed.
+
+### TC-DOC254: Text after a nested table in a cell starts flush (#1418) ⚠️ destructive
+
+**Purpose:** the source space between a nested `</table>` and the text after it was kept, so that text started one character in. It now collapses. An empty nested table collapses nothing, and an authored `&nbsp;` stays.
+
+**Playwright: required**
+
+**Steps**
+1. `create_doc(title="TC-DOC254", folder_id={FOLDER_ID}, content="<table><tr><td>Before <table><tr><td>inner</td></tr></table> After</td></tr></table><p>sep1</p><table><tr><td><table><tr><td>x</td></tr></table> <b> After</b></td></tr></table><p>sep2</p><table><tr><td><table><tr><td>x</td></tr></table>&nbsp; After</td></tr></table><p>sep3</p><table><tr><td>Before<table></table> After</td></tr></table><p>sep4</p><table><tr><td> spaced</td></tr></table><p>sep5</p>")`, then the pretty-printed table `<table>\n  <tr>\n    <td>\n      line one\n    </td>\n    <td>\n      <p>para</p>\n    </td>\n  </tr>\n</table>`, all as one `content` string → `{DOC}`
+2. `write_doc_content` into a second doc with step 1's first table only
+
+**Checks** (raw `documents().get()`, and on screen)
+- Table 1: after the nested table, the cell's paragraph is `After\n`, with no leading space
+- Table 2: `After\n` is bold, with no leading space
+- Table 3: the paragraph is `  After\n` (the no-break space stays)
+- Table 4: one paragraph, `Before After\n`
+- Table 5: ` spaced\n` keeps its own leading space
+- The pretty-printed table's cells are `line one\n` and `para\n`, with no empty paragraphs (#1073)
+- Step 2: the same as table 1
+- 🔍 On screen: `After` sits at the cell's left edge
+
+**Cleanup:** `delete_file` both docs
+
+**Result (2026-11-14) ✅ PASS (API); on-screen check pending — no browser in this session**
+Raw read, each as the checks list: `After\n`, bold `After\n`, `\xa0 After\n`, `Before After\n`, ` spaced\n`, and `line one\n` / `para\n` with no empty paragraphs. Step 2's cell after the nested table is `After\n`. Docs trashed.
+
+### TC-DOC255: `get_doc_as_markdown` keeps a table's column alignment (#1337) ⚠️ destructive
+
+**Purpose:** the GFM delimiter row now writes `:--`, `:-:` or `--:` for a column whose non-empty cells agree on an alignment, read from each cell's paragraphs. A column with no alignment should stay `---`.
+
+**Steps**
+1. `create_doc(title="TC-DOC255", folder_id={FOLDER_ID}, content_format="markdown", content="| a | b | c |\n|:-:|--:|---|\n| 1 | 2 | 3 |\n\n> | a | b | c |\n> |:-:|--:|---|\n> | 1 | 2 | 3 |\n\n| p | q |\n|---|---|\n| 1 | 2 |\n")` → `{DOC}`
+2. `get_doc_as_markdown(doc_id={DOC})`
+3. Build a `.docx` holding a 2×2 table with no `w:jc` anywhere, and `upload_local_file(convert=True)` it → `{IMPORTED}`; `get_doc_as_markdown(doc_id={IMPORTED})`
+4. `export_revision` on `{IMPORTED}` and on `{DOC}` (each one's last revision)
+
+**Checks**
+- Step 2: the first table's delimiter row is `| :-: | --: | --- |`, and the quoted one is the same inside its `> `
+- Step 2: the `p | q` table is `| --- | --- |`
+- Step 3: every column is `---`. Record the raw `paragraphStyle.alignment` of the imported cells
+- Step 4: each export's delimiter rows match that doc's `get_doc_as_markdown`
+
+**Cleanup:** `delete_file` both docs
+
+**Result (2026-11-14) ❌ FAIL — unaligned columns export `:--` (#1503)**
+Step 2: `| :-: | --: | :-- |` for both the plain and the quoted table (quote kept), and `| :-- | :-- |` for `p | q`. The CENTER and END columns are right, but every unaligned column reads `:--`. Raw read: every cell paragraph of a table written through the API carries `"alignment": "START"`. A bare `insertTable` sent to the API on its own gives the same `START` on its empty cells, so the PR's assumption that an unaligned cell leaves `alignment` unset doesn't hold. The same `:--` shows on HTML tables (TC-DOC253 step 2). Step 3: the `.docx` import stores no `alignment` field on its cells, and exports `| --- | --- |` (pass). Step 4: `export_revision` matches `get_doc_as_markdown` for both docs, `:--` included (pass). Docs trashed.
+
+**Result (2026-11-14) ❌ FAIL (steps 1, 2 and 4 on `{DOC}`) — Rio's re-run for PR #1505's review, on `mcp-gee-sweet-rio` (OAuth, Shared Drive default folder) at `f569d024`; reproduces #1503**
+Step 2: `| :-: | --: | :-- |` for the plain and the quoted table (inside its `> `), and `| :-- | :-- |` for `p | q`. Step 4: `export_revision` of the last revision returned the same delimiter rows. Step 3 (the `.docx` import) wasn't re-run; it rests on the run above. Doc trashed.
+
+**Result (2026-11-15) ✅ PASS — Kit, PR #1524 round 1 @ 50d18d37 (fixes #1503)**
+Step 2: `| :-: | --: | --- |` for the plain table and for the quoted one inside its `> `, and `| --- | --- |` for `p | q`. Step 3: a `.docx` with no `w:jc` on column 3 stores no `alignment` there, and that column exports `---` (TC-DOC260's extra probe). Step 4: `export_revision` of the last revision gives the same delimiter rows for `{DOC}` and the import. Docs trashed.
+
+**Result (2026-11-16) ✅ PASS — Kit, PR #1524 round 2 @ c15fe204**
+Step 2: `| :-: | --: | --- |` plain and quoted (inside its `> `), and `| --- | --- |` for `p | q`. Step 3: the `.docx` column with no `w:jc` stores no `alignment` and exports `---` (TC-DOC260 step 6). Step 4: `export_revision` of the last revision matches for `{DOC}` and the import. Docs trashed.
+
+### TC-DOC256: An embedded image and its fallback text keep only their own character styles (#1334) ⚠️ requires-network ⚠️ destructive
+
+**Purpose:** an image or its alt-text fallback took the character styles of the run before it, so an image after `<sup>` was raised and shrunk, and fallback text after bold was bold. Each now gets a style request clearing bold, italic, underline, strikethrough, `baselineOffset`, `smallCaps` and `backgroundColor`, keeping its link.
+
+**Playwright: required**
+
+**Steps** (`{IMG}` = `https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png`; `{BAD}` = an image URL that returns 404)
+1. `create_doc(title="TC-DOC256", folder_id={FOLDER_ID}, content_format="markdown", content="C1 Note<sup>1</sup>![badge]({IMG})\n\nC2 **bold** ![x]({BAD})\n\nC3 <mark>hi</mark><img src=\"{BAD}\" alt=\"fallback\">\n\nC4 *ital* [![badge]({IMG})](https://example.com) and *ital* [![lfb]({BAD})](https://example.com/l)\n\nC5 [site](https://example.com)![x]({BAD})\n\n- ![badge]({IMG})\n")` → `{DOC}`
+2. `write_doc_content` into a second doc: `| cell |\n|---|\n| Note<sup>1</sup>![badge]({IMG}) |\n` (Markdown)
+
+**Checks** (raw `documents().get()`, and on screen)
+- Step 1: no `error`. `images` has an `error` and `fallback_text` for each `{BAD}` image only
+- C1: the image's `textStyle` has no `baselineOffset`. 🔍 It sits on the baseline at full size
+- C2 and C3: the fallback text has no `bold` and no `backgroundColor`, and no font of its own
+- C4: the image keeps `link` and has no `italic`. The linked fallback `lfb` has the link plus the link color and underline an ordinary link gets
+- C5: the fallback after a link has no link, color or underline
+- The image-only list item is a bulleted paragraph
+- Step 2: the cell's image has no `baselineOffset`
+
+**Cleanup:** `delete_file` both docs
+
+**Result (2026-11-14) ❌ FAIL — the linked fallback has no underline (#1504)**
+Step 1: no `error`, with four fallbacks (`x`, `fallback`, `lfb`, `x`) and three embedded images. C1: the image's `textStyle` is empty after the `SUPERSCRIPT` run. Docs accepted the clearing request on an inline image. C2's ` x` and C3's `fallback` have an empty `textStyle`. C4: the image has `link` and the link color, and no `italic`. **`lfb` has `link` and `foregroundColor` but no `underline`**, while `site` in C5 has `underline: true`. The request clears `underline` while setting the link. C5's `x` has an empty `textStyle`. The list item is bulleted, holding the image. Step 2: the cell's image has an empty `textStyle` after the superscript. On screen (the image on the baseline at full size): pending — no browser in this session. Docs trashed.
+
+### TC-DOC257: A first `<li>` holding only a named-style block is that block; every other such item keeps its empty bullet (#1414) ⚠️ destructive
+
+**Purpose:** #1075 made an `<li>` holding only a block an empty bullet, which put an empty bullet above TC-DOC242's `data-style` item. A first item of a `<ul>` whose only content is a `title`/`subtitle` block (no `&nbsp;` before it) is now that block, indented under the list with no bullet. Every other item keeps #1075's empty bullet.
+
+**Steps**
+1. `create_doc_from_file` on `docs/qa/fixtures/tc-doc242-loose.html` into `{FOLDER_ID}`, then `get_doc_as_markdown` on it
+2. `create_doc(title="TC-DOC257", folder_id={FOLDER_ID}, content=...)` with these groups, each after a `<p>` label: a pretty-printed `<ul>\n  <li>\n    <p data-style="subtitle">styled</p>\n  </li>\n  <li>plain</li>\n</ul>`; `<ol start="3"><li><p data-style="subtitle">s</p></li><li>b</li></ol>`; `<ol><li value="5"><p data-style="title">T</p></li><li>x</li></ol>`; `<ul><li>a</li><li><p data-style="subtitle">s</p></li><li>b</li></ul>`; `<ul><li>&nbsp;<p data-style="subtitle">s</p></li></ul>`; `<ul><li></li><li>&nbsp;</li><li><ul><li>nested</li></ul></li><li><blockquote><p>q</p></blockquote></li><li><pre>code</pre></li><li><hr></li></ul>`
+
+**Checks** (raw `documents().get()`)
+- Step 1 and the pretty-printed group: `styled` is `SUBTITLE` with no bullet and no empty bulleted paragraph before it, and `plain` is a bullet
+- `start="3"`: an empty `3.` item, then `s`, then `4.` `b`
+- `value="5"`: an empty `5.` item, then `T` (`TITLE`), then `6.` `x`
+- `a`, then an empty bullet, then `s`, then `b`, all in one list
+- The `&nbsp;` item keeps its empty bullet before `s`
+- #1075's rows (`<li></li>`, `<li>&nbsp;</li>`, and an item holding only a nested list, quote, code block or rule) are each an empty bullet
+- Record step 1's `get_doc_as_markdown`. The styled block is expected to read back nested under the previous list's last item (#1468)
+
+**Cleanup:** `delete_file` both docs
+
+**Result (2026-11-14) ✅ PASS**
+Step 1: `a`/`b` bulleted, `styled` a `SUBTITLE` at `indentStart` 36pt with no bullet and nothing before it, then `plain` bulleted. The pretty-printed group reads the same. `start="3"` gives `3.\t` (empty), `s` (`SUBTITLE`), then `4.\tb`. `value="5"` gives `5.\t`, `T` (`TITLE`), then `6.\tx`. A custom start is drawn as literal number text, as before. The `a`/empty/`s`/`b` group shares one `listId`. The `&nbsp;` item is an empty bullet before `s`. The #1075 rows are six empty bullets, each followed by its nested item, quote, code or rule. Step 1's export, recorded: `- a\n- b\n\n  ## styled\n\n- plain`, with `styled` nested under `b` as #1468 expects. Docs trashed.
+
+### TC-DOC258: `insert_softbreak_paragraph` with no `named_style_type` leaves the paragraph's style and inline styles alone (#1489) ⚠️ destructive
+
+**Purpose:** the default used to send `updateParagraphStyle` with `NORMAL_TEXT`, which wiped the paragraph's inline text styles. Without a `named_style_type` no paragraph-style request is sent now.
+
+**Steps**
+1. `create_doc(title="TC-DOC258", folder_id={FOLDER_ID}, content="<h3><s>struck</s> mid <b>bold</b></h3><p><s>s2</s> plain <b>b2</b></p><h1>Heading one</h1><p>placeholder</p>")`; `get_doc_structure` for indices
+2. Bottom-up, so earlier indices stay put: empty `placeholder` with `delete_doc_range` (keeping its `\n`) and insert TC-DOC116's two lines there with `HEADING_2`; insert `N1`/`N2` with `named_style_type='NORMAL_TEXT'` at the start of `Heading one`; insert `H2 line one` (bold) / `H2 line two` with `HEADING_2` at the start of the `s2` paragraph; insert `First line`/`Second line` with no `named_style_type` at the start of the `H3`
+
+**Checks** (`get_doc_structure`, raw `documents().get()`)
+- The `H3` paragraph is still `HEADING_3`, one paragraph with the lines joined by `\v`, and `struck` is still struck and `bold` still bold
+- The `s2` paragraph is `HEADING_2`, and `H2 line one` is bold
+- The `Heading one` paragraph is `NORMAL_TEXT`
+- TC-DOC116's paragraph is one `HEADING_2` paragraph with only the first line bold
+
+**Cleanup:** `delete_file` the doc
+
+**Result (2026-11-14) ✅ PASS**
+Raw read: `First line\vSecond linestruck` (struck) + ` mid ` + `bold\n` (bold), in `HEADING_3`. The inserted lines took the struck neighbour's strikethrough, which is inheritance and out of scope (#1499). `H2 line one` is bold (and struck, inherited), followed by `\vH2 line twos2 plain b2` in `HEADING_2`. `N1\vN2Heading one` is `NORMAL_TEXT`. `Document ID: KH-OPS-001` (bold) `\vCategory: AWS / Database` is one `HEADING_2` paragraph. Doc trashed.
+
+### TC-DOC259: An image and its fallback text take the style of their own span, and a list marker stays plain (#1475) ⚠️ requires-network ⚠️ destructive
+
+**Purpose:** after TC-DOC256's fix (#1334) an image's style request only cleared, so an image or its fallback text inside a bold, struck, highlighted or superscript span came out plain in the middle of it, and fallback text after an inline code span was in Courier New. Each image now records its own span's style, set explicitly on the image or its fallback text, with every other character style cleared, the font included. In a list item whose whole text is a styled image, styling it must not bold the bullet marker.
+
+**Playwright: required**
+
+**Steps** (`{IMG}` = `https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png`; `{BAD}` = `https://img.shields.io/badge/build-passing-brightgreen.svg`, an SVG Docs can't fetch)
+1. `create_doc(title="TC-DOC259", folder_id={FOLDER_ID}, content_format="markdown", content="S1 **Build: ![status]({BAD}) passing**\n\nS2 Run `make` ![build]({BAD}) now\n\nS3 **bold ![logo]({IMG}) image**\n\nS4 <mark>hi ![logo]({IMG})</mark> ~~gone ![struck]({BAD})~~\n\nS5 <code>c <img alt=\"codealt\" src=\"{BAD}\"></code> after\n\n- **![logo]({IMG})**\n- **![badge]({BAD})**\n- [![linked]({BAD})](https://example.com)\n- plain item\n\n| cell |\n|---|\n| **![cellalt]({BAD})** tail |\n")` → `{DOC}`
+
+**Checks** (raw `documents().get()`, and on screen)
+- Step 1: no `error`. `images` has an `error` and `fallback_text` for each `{BAD}` image only
+- S1: `status` is bold, in one bold run with `Build: ` and ` passing`
+- S2: ` build now` has no `weightedFontFamily`. 🔍 `build` is in the paragraph's font, not Courier New
+- S3: the image's `textStyle` is `{"bold": true}`
+- S4: the image's `textStyle` has the yellow `backgroundColor`. `struck` is `strikethrough`
+- S5: `codealt` has `weightedFontFamily` Courier New, like `c `
+- Each of the four list items is bulleted, and each item's `bullet.textStyle` has no `bold`. The first item's image is bold, the second item's `badge` is bold, and the third item's `linked` has the link, the link color and `underline: true`, as an ordinary link does (#1504). 🔍 Every marker is a plain bullet
+- The table cell's `cellalt` is bold and ` tail` isn't
+
+**Cleanup:** `delete_file` the doc
+
+**Result (2026-11-14) ⚠️ PARTIAL — Kit, PR #1508 round 1 @ 3b84ce87**
+Every listed check passes. Step 1: no `error`, `images` has `error` + `fallback_text` for the seven `{BAD}` images only (`status`, `build`, `struck`, `codealt`, `badge`, `linked`, `cellalt`). Raw read: S1 `Build: status passing` is one bold run. S2 ` build now` has no `weightedFontFamily` (only `make` is Courier New). S3 image `textStyle` `{"bold": true}`. S4 image has the yellow `backgroundColor`, `gone struck` is one struck run. S5 `c codealt` is one Courier New run. All four items bulleted, each `bullet.textStyle` only `{"underline": false}` (no `bold`); item 1's image `{"bold": true}`, `badge` bold, `linked` has the link. Cell: `cellalt` bold, ` tail` plain. Screenshot (URL-verified, `.playwright-mcp/tc-doc259.png`): every marker is a plain bullet, `build` in Arial. Not PASS because of one defect seen in the same doc and outside the listed checks: `linked` has the link and link color but no `underline`, while an ordinary Markdown link in the same doc has `underline: true` (#1504). Doc trashed.
+
+**Result (2026-11-14) ✅ PASS — Kit, PR #1508 round 2 @ 57437115**
+Step 1 as written: `images` has `error` + `fallback_text` for the seven `{BAD}` images only. Raw read: every check as in round 1, and the third item's `linked` now has `link`, the link color and `underline: true` (#1504). Extra probes (HTML): an unlinked fallback after `<u>under</u>` has no underline; a linked one inside `<u>` keeps underline and link; a bare `<b><sup><img>` fallback is bold and superscript, a bare `<s><mark><img>` one struck and highlighted. Screenshot (URL-verified, `.playwright-mcp/tc-doc259-r2.png`): `linked` underlined and blue, every marker a plain bullet, `build` in Arial. Doc trashed.
+
+### TC-DOC260: `get_doc_as_markdown` reads a Docs table's START cells as unaligned (#1503) ⚠️ destructive
+
+**Purpose:** `insertTable` stores `alignment: START` on every cell paragraph it creates, so every unaligned column of a table written through the API exported `:--`. START now reads as unset in a table where every cell paragraph carries an alignment, as there it's the default: an unaligned column exports `---`, and so does a `:--` column, which Docs stores the same way. A `.docx` import leaves an unaligned cell's alignment out, so when some cell in the table has no alignment of its own, its START cells keep `:--`. CENTER and END columns keep `:-:` and `--:`. TC-DOC255 reproduces the original failure; this case adds an explicit `:--` column, a column mixing CENTER with unaligned cells, an HTML table, and a `.docx` import.
+
+**Steps**
+1. `create_doc(title="TC-DOC260", folder_id={FOLDER_ID}, content_format="markdown", content="| l | c | n | m |\n|:--|:-:|---|---|\n| 1 | 2 | 3 | 4 |\n")` → `{MD}`
+2. `get_doc_as_markdown(doc_id={MD})`
+3. `create_doc(title="TC-DOC260 html", folder_id={FOLDER_ID}, content="<table><tr><th>x</th><th style=\"text-align:center\">y</th><th style=\"text-align:right\">z</th></tr><tr><td>1</td><td style=\"text-align:center\">2</td><td>3</td></tr></table>")` → `{HTML}`
+4. `get_doc_as_markdown(doc_id={HTML})`
+5. Re-run TC-DOC255 steps 1, 2 and 4
+6. Build a `.docx` holding a 2×3 table with `w:jc w:val="left"` on every column-1 paragraph, `w:jc w:val="center"` on every column-2 paragraph and no `w:jc` in column 3, and `upload_local_file(convert=True)` it → `{DOCX}`; `get_doc_as_markdown(doc_id={DOCX})` and `export_revision` on its last revision
+
+**Checks**
+- Step 2: the delimiter row is `| --- | :-: | --- | --- |`
+- Step 4: the delimiter row is `| --- | :-: | --- |`: `y` and `2` agree on CENTER, and `z`'s column mixes END with an unaligned `3`
+- Step 5: TC-DOC255's step 2 and step 4 checks pass (`| :-: | --: | --- |` plain and quoted, `| --- | --- |` for `p | q`)
+- Step 6: both exports' delimiter rows are `| :-- | :-: | --- |`. Record the raw `paragraphStyle.alignment` of each row's cells (expected `START`, `CENTER`, and no field)
+
+**Cleanup:** `delete_file` every doc
+
+**Result (2026-11-15) ⚠️ PARTIAL — Kit, PR #1524 round 1 @ 50d18d37**
+Every listed check passes. Step 2: `| --- | :-: | --- | --- |`. Step 4: `| --- | :-: | --- |`. Step 5: TC-DOC255 steps 2 and 4 pass (see its Result). Extra probe, not in the steps: a `.docx` built with `w:jc="left"` on column 1, `center` on column 2 and no `w:jc` on column 3, uploaded with `upload_local_file(convert=True)`, stores raw `[START] [CENTER] [None]` on every row. `get_doc_as_markdown` and `export_revision` both give `| --- | :-: | --- |`, so the explicit left column, which `develop` exported as `:--`, is lost (sent back). A `.md` with `|:--|:-:|---|` uploaded the same way stores START on every cell, the `insertTable` shape, and exports `| --- | :-: | --- |`. Docs trashed.
+
+**Result (2026-11-16) ⚠️ PARTIAL — Kit, PR #1524 round 2 @ c15fe204**
+Every listed check passes. Step 2: `| --- | :-: | --- | --- |`. Step 4: `| --- | :-: | --- |`. Step 5: TC-DOC255 steps 2 and 4 pass (see its Result). Step 6: raw `[START] [CENTER] [None]` on both rows; `get_doc_as_markdown` and `export_revision` both give `| :-- | :-: | --- |`. Extra probe, not in the steps: a `.docx` with `w:jc` on every cell (`left`, `center`, `left`) stores raw `[START] [CENTER] [START]`, the `insertTable` shape, and exports `| --- | :-: | --- |`. That loss is the designed trade-off, but this case's Purpose and the known-limitations entry both say a `.docx` import keeps its `:--` columns without that condition (sent back). Docs trashed.
+
+### TC-DOC261: `get_doc_as_markdown` indents a nested list to its parent item's text, so it nests in CommonMark (#1128) ⚠️ destructive
+
+**Purpose:** The export indented every nested item 2 spaces per level, whatever its parent's marker. Under `1. ` (text at column 3) a child at 2 spaces is a sibling in CommonMark, so a numbered outline exported flat for any CommonMark reader. This server's own import repairs that indent (`md_to_html` rule D1), so a round trip through it doesn't show the bug: check the export with plain CommonMark. Each item now starts at its parent's text column: 2 under `- `, 3 under `1. `, 4 under `10. `. A task item's text column is 2, after `- `: the `[ ] ` is the item's text, and the export had put a block inside a task item at 6 spaces, which CommonMark reads as an indented code block.
+
+**Steps**
+1. `create_doc(title="TC-DOC261", folder_id={FOLDER_ID}, content_format="markdown", content="1. Top\n   1. Nested\n      - deep bullet\n2. Next\n\nBreak\n\n- a\n  - b\n    1. c\n\nBreak\n\n1. one\n2. two\n3. three\n4. four\n5. five\n6. six\n7. seven\n8. eight\n9. nine\n10. ten\n    1. ten child\n\nBreak\n\n- [ ] task\n  - [x] subtask\n\n  more in task\n\nBreak\n\n1. p\n   1. q\n\n      more in q\n\n2. r\n")` → `{DOC}`
+2. `get_doc_as_markdown(doc_id={DOC}, local_path="<scratch dir>/tc-doc261.md")`
+3. Render step 2's file with plain CommonMark: `uv run python -c "import sys; from markdown_it import MarkdownIt; print(MarkdownIt('commonmark').render(open(sys.argv[1]).read()))" <scratch dir>/tc-doc261.md`
+4. `create_doc(title="TC-DOC261 round trip", folder_id={FOLDER_ID}, content_format="markdown", content=<step 2's file>)` → `{RT}`, then `get_doc_as_markdown(doc_id={RT})`
+5. Items Markdown can't nest under their parent (PR #1539 QA round 1): `create_doc(title="TC-DOC261 can't nest", folder_id={FOLDER_ID}, content_format="markdown", content="1. one\n2. two\n3. three\n4. four\n5. five\n6. six\n7. seven\n8. eight\n9. nine\n10. ten\n    > - quoted child\n\nBreak\n\n- a\n  - b\n    - c\n      - d\n")` → `{NN}`, then `get_doc_as_markdown(doc_id={NN}, local_path="<scratch dir>/tc-doc261-nn.md")` and render it as in step 3
+
+**Checks**
+- Step 2's lines, in order: `1. Top`, `   1. Nested` (3 spaces), `      - deep bullet` (6), `2. Next`; `- a`, `  - b` (2), `    1. c` (4); `10. ten`, `    1. ten child` (4); `- [ ] task`, `  - [x] subtask` (2), a blank line, `  more in task` (2); `1. p`, `   1. q` (3), a blank line, `      more in q` (6), a blank line, `2. r`
+- Step 3: each child list sits inside its parent's `<li>`: `Nested` and `deep bullet` inside `Top`'s, `c` inside `b`'s inside `a`'s, `ten child` inside `ten`'s, `subtask` inside `task`'s, `q` inside `p`'s. `more in task` and `more in q` are `<p>`s inside their items. There's no `<pre>` anywhere
+- Step 4's export is identical to step 2's
+- Step 5: `quoted child` is a depth-1 item in a quote under the unquoted `10. ten`, and Markdown can't put a quoted line inside an unquoted item's indent. It exports as `> - quoted child` at the margin, after a blank line, never `>` followed by 4+ spaces. `- a` through `      - d` keep 2 more spaces per level. The render has no `<pre>`: `quoted child` is an `<li>` in a `<blockquote>`, and `d` is inside `c`'s `<li>`
+
+**Cleanup:** `delete_file` all three docs; delete the scratch files
+
+**Result (2026-11-16) ✅ PASS — Kit, PR #1539 round 1 @ 3da51399**
+Step 2 matches every listed line (`   1. Nested`, `      - deep bullet`, `  - b`, `    1. c`, `    1. ten child`, `  - [x] subtask`, `  more in task`, `   1. q`, `      more in q`). Step 3: every child list sits inside its parent's `<li>`, both blocks are `<p>`s in their items, and there's no `<pre>`. Step 4: byte-identical to step 2. Both docs trashed. The round was sent back for code-review findings this case doesn't cover (a quoted child under `10.`, a depth jump of 3, an orphan item).
+
+**Result (2026-11-17) ✅ PASS — Kit, PR #1539 round 2 @ 5b48603d**
+`mcp-gee-sweet-kit`, reconnected after the reset. Steps 1–2: the export is byte-identical to round 1's, so the step 2 and step 3 checks hold as in round 1. Step 4 wasn't re-run: its input is that same text, and round 1's round trip was byte-identical. Step 5: `10. ten`, a blank line, `> - quoted child` at the margin (no `>` followed by 4+ spaces), then `- a`, `  - b`, `    - c`, `      - d`. CommonMark render: `quoted child` is an `<li>` in a `<blockquote>`, `d` is inside `c`'s `<li>`, and there's no `<pre>`. Both docs trashed.

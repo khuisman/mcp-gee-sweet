@@ -135,6 +135,17 @@ def test_lane_server_points_at_its_own_worktree(written):
     assert entry["env"]["TOKEN_PATH"] == f"{worktree}/token.json"
 
 
+def test_every_gee_sweet_server_registers_every_tool(written):
+    # #1364: unset ENABLED_TOOLS loads only `default`, and QA covers every tool.
+    root, _ = written
+    servers = _load(root / ".claude/mcp-configs/team.mcp.json")
+    gee_sweet = {k: v for k, v in servers.items() if k.startswith("mcp-gee-sweet-")}
+    assert gee_sweet
+    assert {k: v["env"].get("ENABLED_TOOLS") for k, v in gee_sweet.items()} == dict.fromkeys(
+        gee_sweet, "all"
+    )
+
+
 def _qa_browser(*args: str, **env: str) -> str:
     result = subprocess.run(
         ["bash", str(_QA_BROWSER), *args],

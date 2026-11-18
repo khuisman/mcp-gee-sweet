@@ -483,7 +483,10 @@ def _bold_runs_in_range(doc: dict, start_index: int, end_index: int) -> list[dic
 
 
 def register(tool):
-    @tool(annotations=ToolAnnotations(title="Style Document Range", destructiveHint=True))
+    @tool(
+        annotations=ToolAnnotations(title="Style Document Range", destructiveHint=True),
+        default=True,
+    )
     async def style_doc_range(
         doc_id: str,
         ranges: list[dict],
@@ -517,13 +520,15 @@ def register(tool):
 
         Note:
             Setting named_style_type also clears the paragraph's existing inline text
-            styles. The v0.9.2 release QA pass reproduced an existing strikethrough being
-            removed, including in a control that set no other style fields, and it
-            reproduces when the named style written is the one the paragraph already
-            had. The cause is the Docs API's updateParagraphStyle(namedStyleType)
-            re-applying the named style's own text properties, not this tool's request
-            building: set the named style first, then re-apply text styles in a second
-            call. Passing only text-style fields never takes that path.
+            styles: updateParagraphStyle re-applies the named style's own text
+            properties to the paragraph's runs, even when the named style written is
+            the one the paragraph already had. Within one call, a range dict carrying
+            named_style_type plus text-style fields is applied paragraph-style-first,
+            text-style-after, so the text styles named in the same dict are applied
+            after the named style's re-application — no second call is needed for
+            those. A separate call only restores per-run formatting the paragraph
+            already had elsewhere, and only after reading the runs to know it.
+            Passing only text-style fields never takes the updateParagraphStyle path.
         """
         lc = ctx.request_context.lifespan_context
         if not ranges:
@@ -685,9 +690,9 @@ def register(tool):
             ]
 
         For form-style column alignment (labels/values lined up without a visible
-        table, since tabStops is read-only — #404), zero padding on every cell is
+        table, since tabStops is read-only), zero padding on every cell is
         the confirmed part of the recipe; whether border_width: 0 also suppresses
-        a table's default visible border is not yet confirmed live. See
+        a table's default visible border is not yet verified against the live API. See
         docs/design/borderless-table-columns.md.
         """
         lc = ctx.request_context.lifespan_context
@@ -808,7 +813,7 @@ def register(tool):
         explicit nesting depth.
 
         Wraps the Docs API's createParagraphBullets/deleteParagraphBullets
-        requests, working around two confirmed-live API quirks:
+        requests:
 
         - createParagraphBullets is a no-op on a paragraph that's already
           part of a list — it neither changes the existing nesting level nor
@@ -827,7 +832,7 @@ def register(tool):
           *same* call. A paragraph immediately adjacent to an existing list
           item that call doesn't also cover gets pulled back to that
           neighbor's level regardless of its own tabs (the same class of bug
-          PR #432 fixed in this project's own markdown-to-Doc converter).
+          that this project's own markdown-to-Doc converter already fixed).
           To keep every requested paragraph's relative depth correct, this
           tool fetches the document, resolves each requested range to the
           paragraph(s) it covers, and — for any that are already part of a
@@ -842,7 +847,7 @@ def register(tool):
           depth inference) is wrapped with a throwaway 0-tab anchor paragraph
           that is bulleted alongside the real items and then deleted, so the
           items land at their true nesting level instead of collapsing to 0
-          (issue #713; the same fix emitter.py carries for #439).
+          (the same fix emitter.py carries).
 
         Use get_doc_structure to obtain start_index/end_index for each target
         range — typically one paragraph's own startIndex/endIndex, or a
@@ -857,7 +862,7 @@ def register(tool):
                     must overlap at least one existing paragraph.
                 bullet_preset (str, optional): "BULLET_DISC_CIRCLE_SQUARE"
                     (unordered) or "NUMBERED_DECIMAL_ALPHA_ROMAN" (ordered) —
-                    the only two presets this codebase has confirmed live
+                    the only two presets this codebase has verified live
                     (see emitter.py). The Docs API defines additional
                     glyph/numbering presets not exercised here; pass the
                     literal API enum string to use one anyway. If omitted,

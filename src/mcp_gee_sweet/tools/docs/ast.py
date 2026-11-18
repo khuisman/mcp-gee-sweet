@@ -52,6 +52,19 @@ class Image:
     # The image element's own textStyle.link: read by doc_to_ast.py, and written
     # by emitter.py as an updateTextStyle over the image's one-character range (#977).
     link_url: str | None = None
+    # The character style of the span the image sits in (`**![a](b)**`, `<mark>`,
+    # `<sup>`, a code span), recorded by html_parser.py the way it styles a Run. The
+    # emitter sets these explicitly on the embedded image and on its fallback text,
+    # since an insert otherwise takes the styles of the character before it
+    # (emitter._image_text_style).
+    bold: bool | None = None
+    italic: bool | None = None
+    underline: bool | None = None
+    strikethrough: bool | None = None
+    background_color: RGBColor | None = None
+    baseline_offset: str | None = None  # SUPERSCRIPT, SUBSCRIPT
+    small_caps: bool | None = None
+    font_family: str | None = None
 
 
 # image_source_kind's values.

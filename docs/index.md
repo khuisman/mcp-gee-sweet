@@ -5,8 +5,8 @@ An MCP server that gives AI clients deep, direct access to Google Workspace — 
 ## What it does
 
 - **Read and write Google Sheets** — cell values, formulas, sheet structure, batch updates
-- **Manage Google Drive** — list, search, upload, download, move, copy, and sync files and folders
-- **Work with Google Docs** — create documents, read content, write formatted content from HTML or Markdown
+- **Manage Google Drive** — list, search, upload, download, move, copy, and sync files and folders (local-folder upload, download and sync need the `local-files` [tool group](configuration.md#tool-groups))
+- **Work with Google Docs** — create documents, read content, write formatted content from HTML or Markdown (a Doc from a local Markdown file needs the `local-files` [tool group](configuration.md#tool-groups))
 - **Access Google Calendar** — list calendars and events, create and update events, find free slots
 - **Use Gmail** — search and read messages and threads, send and reply, manage drafts and labels (OAuth only)
 
