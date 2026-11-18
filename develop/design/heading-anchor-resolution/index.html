@@ -1386,13 +1386,20 @@ document's own real heading list and accepts whichever produces an exact match. 
 GitLab-style scheme is delegated to <code>python-markdown</code>'s own <code>toc</code> extension slugify (already a
 project dependency, confirmed live to collapse hyphens the same way); GitHub's non-collapsing
 convention has no known off-the-shelf Python equivalent, so it's hand-rolled.</p>
-<p>A heading's hard break is the second divergence. #1230 stores a <code>&lt;br&gt;</code> (or a Markdown <code>\</code>)
-inside the heading text as a <code>"\v"</code>, and the two sites slug it differently: GitHub's anchor
-ignores the break entirely — it adds no text and no separator, so "Heading one<br>heading two"
-is <code>#heading-oneheading-two</code> — while GitLab's Comrak-based anchor collects the break as a plain
-space (<code>collect_text_append</code> pushes <code>" "</code> for <code>LineBreak</code>/<code>SoftBreak</code>) and slugifies it to a
-single hyphen, <code>#heading-one-heading-two</code>. So the GitHub scheme drops <code>"\v"</code> before slugging
-and the GitLab scheme keeps turning it into a separator (#1357) — an anchor spelled either way
+<p>A heading's hard break is the second place the schemes meet. #1230 stores an HTML <code>&lt;br&gt;</code>
+inside the heading text as a <code>"\v"</code>. (A Markdown <code>\</code> hard break cannot sit inside a <code>#</code>
+heading — a <code>#</code> heading is a single line, so a trailing <code>\</code> there is literal text; a Markdown
+hard break can only appear in an underlined <code>===</code>/<code>---</code> heading.) Both sites actually slug an
+inline <code>&lt;br&gt;</code> the same way: GitHub's anchor ignores the break — no text and no separator, so
+"Heading one<br>heading two" is <code>#heading-oneheading-two</code> — and GitLab's comrak-based anchor
+does too, because an inline <code>&lt;br&gt;</code> is an <code>HtmlInline</code> node with no text and no children, so
+<code>collect_text_append</code> adds nothing: GitLab's anchor for the same heading is also
+<code>#heading-oneheading-two</code>. What comrak does give a space is a Markdown
+<code>LineBreak</code>/<code>SoftBreak</code> (<code>collect_text_append</code> pushes <code>" "</code> for those, and <code>anchorize</code> maps
+the space to <code>-</code>), which can only reach an underlined heading. The collapsed GitLab scheme
+here still turns a stored <code>"\v"</code> into that single hyphen — not a faithful reproduction of
+GitLab's <code>&lt;br&gt;</code> slug, but extra tolerance for an anchor spelled with the separator (#1357) —
+while the GitHub scheme produces the separator-free form, so an anchor spelled either way
 resolves.</p>
 <p>A normalized word-token comparison is the last-resort fallback for a slug that doesn't exactly
 match either scheme but clearly names the same heading — e.g. the heading was reworded slightly
