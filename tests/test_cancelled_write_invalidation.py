@@ -528,12 +528,16 @@ _SHEET_TOOL_CALLS = {
     ),
     "copy_sheet": (
         {
-            "src_spreadsheet": "sid",
-            "src_sheet": "Sheet1",
-            "dst_spreadsheet": "dst",
-            "dst_sheet": "Renamed",
+            "spreadsheet_id": "sid",
+            "sheet": "Sheet1",
+            "destination_spreadsheet_id": "dst",
+            "new_name": "Renamed",
         },
         {("structure", "dst")},
+    ),
+    "copy_sheet_in_place": (
+        {"spreadsheet_id": "sid", "sheet": "Sheet1", "insert_index": 1},
+        {("structure", "sid")},
     ),
     "duplicate_sheet": (
         {"spreadsheet_id": "sid", "sheet": "Sheet1", "insert_index": 1},
@@ -591,6 +595,7 @@ _SHEET_CASE_TOOL = {
     "update_cells_rich_text": "update_cells",
     "update_cells_mixed": "update_cells",
     "format_cells_bold": "format_cells",
+    "copy_sheet_in_place": "copy_sheet",
 }
 
 _sheets_tool, _sheets_tools = _make_tool_registry()
@@ -598,7 +603,8 @@ sheets_data_module.register(_sheets_tool)
 sheets_structure_module.register(_sheets_tool)
 
 # Every response a sheets write can need: the new sheet's properties for
-# duplicate_sheet/create_sheet, and copy_sheet's new sheetId.
+# copy_sheet in place, duplicate_sheet and create_sheet, and copy_sheet's new
+# sheetId across spreadsheets.
 _SHEET_WRITE_RESPONSE = {
     "sheetId": 7,
     "title": "Copy of Sheet1",

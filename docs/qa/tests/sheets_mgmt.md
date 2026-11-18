@@ -108,7 +108,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 > "Copy the Sales sheet from {SPREADSHEET_ID} into a different spreadsheet — use {SPREADSHEET_ID} as both source and destination for this test, but note the tool supports different IDs"
 
 **Checks**
-- Tool accepts `src_spreadsheet` and `dst_spreadsheet` as separate params
+- Tool accepts `spreadsheet_id` and `destination_spreadsheet_id` as separate params (named `src_spreadsheet`/`dst_spreadsheet` before #1526)
 - Copy operation completes without error
 - 🔍 **Note:** requires a second spreadsheet ID to fully verify cross-spreadsheet copy
 
@@ -129,7 +129,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Checks**
 - Sheet is named 'My Custom Name', not Google's default 'Copy of Sales'
-- Rename was triggered automatically after the copy
+- The response's `title` is 'My Custom Name' (before #1526 the response held a `rename` key instead)
 
 **Result (2026-09-04) ✅ PASS**
 copy_sheet(dst_sheet="My Custom Name") → sheet named "My Custom Name" not "Copy of Sales"; response included "rename" key confirming auto-rename triggered
@@ -148,7 +148,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Checks**
 - Sheet is named 'Copy of Sales'
-- No unnecessary rename API call (names already match)
+- No unnecessary rename API call (names already match). Since #1526 the response is `{sheetId, title, index, spreadsheetId}` either way, so this is covered by `TestCopySheet::test_rename_skipped_when_title_already_matches` (`tests/sheets/test_structure.py`), not by the response
 
 **Result (2026-09-04) ✅ PASS**
 copy_sheet(dst_sheet="Copy of Sales") matching Google's own default name → response has no "rename" key, confirming no extra rename API call
@@ -167,7 +167,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Checks**
 - Returns `{"error": ...}` before calling the copy API
-- Error references the missing sheet name
+- Error references the missing sheet name (`Sheet 'DoesNotExist' not found` since #1526; `Source sheet ...` before)
 
 **Result (2026-09-04) ✅ PASS**
 copy_sheet(src_sheet="DoesNotExist") → {"error":"Source sheet 'DoesNotExist' not found"}, before API call
@@ -205,7 +205,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Checks**
 - `list_sheets` includes 'PostCopyCache'
-- Confirms `cache.mark_dirty(dst_spreadsheet)` fires after copy
+- Confirms the cache of the spreadsheet the copy lands in is marked dirty after the copy
 
 **Result (2026-09-04) ✅ PASS**
 copy_sheet(dst_sheet="PostCopyCache") then immediate list_sheets includes it — mark_dirty confirmed
@@ -3010,3 +3010,83 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 **Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — All ten served descriptions begin with the stated `Deprecated: use ...` line (`unhide_*` with `hidden=False`); none of the four new ones does. `add_rows` and `unhide_columns` each returned `replies: [{}]`, no `error`. `server://auth-status` `tool_selection.deprecated_tools` lists all ten. Both scratch tabs deleted.
 
 **Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on `mcp-gee-sweet-sky` @ 6e5b0616** — Beyond the case's two calls, all ten deprecated tools were called on `Deprecated1525` (the fix changed the dimension each passes): each returned `replies`, no `error`; `hide_rows`/`hide_columns` hid row 2/column B and `unhide_rows`/`unhide_columns` cleared them; `resize_rows` set row 3 to 40 and `resize_columns` column C to 150. `server://auth-status` `deprecated_tools` lists all ten. Scratch tabs deleted.
+
+---
+
+## `copy_sheet` absorbs `duplicate_sheet` (#1526)
+
+`copy_sheet(spreadsheet_id, sheet, destination_spreadsheet_id=None, new_name=None, insert_index=None)` copies a tab in place (a `duplicateSheet`, the request `duplicate_sheet` sends) when there's no destination, and into another spreadsheet (`copyTo`, then one `updateSheetProperties` for `new_name` and `insert_index`) when there is. Both return `{sheetId, title, index, spreadsheetId}`. `duplicate_sheet` stays registered for one release, deprecated, and `copy_sheet`'s old parameter names (`src_spreadsheet`, `src_sheet`, `dst_spreadsheet`, `dst_sheet`) still work for one release. `TestCopySheetInPlace` (`tests/sheets/test_structure.py`) runs every in-place test against both tools, so these cases don't repeat the `duplicate_sheet` cases above.
+
+### TC-S141: copy_sheet with no destination duplicates in place, right after the source ⚠️ destructive
+
+**Prompt**
+> "Call these in order and report each raw result:
+> 1. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\")`
+> 2. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", new_name=\"Sales Dup 1526\", insert_index=0)`
+> 3. `list_sheets(spreadsheet_id={SPREADSHEET_ID})`
+> 4. `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales Dup 1526\")`"
+
+**Checks**
+- 1 returns exactly the keys `sheetId`, `title`, `index`, `spreadsheetId`: `title` is `Copy of Sales`, `index` is Sales' index + 1, `spreadsheetId` is {SPREADSHEET_ID}
+- 2 returns `title` `Sales Dup 1526`, `index` 0, the same `spreadsheetId`
+- 3 lists `Sales Dup 1526` first and `Copy of Sales` immediately after `Sales`, with no `deprecation_warnings` in either result
+- 4 returns the same rows as Sales (header + 5 rows, 4 columns)
+
+**Cleanup:** `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Copy of Sales")` and `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales Dup 1526")`.
+
+### TC-S142: copy_sheet into another spreadsheet renames and places the copy ⚠️ destructive
+
+**Setup:** `create_spreadsheet(title="QA copy_sheet dest 1526")`; call its ID `{DEST}`. It starts with one tab, `Sheet1`.
+
+**Prompt**
+> "Call these in order and report each raw result:
+> 1. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={DEST})`
+> 2. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={DEST}, new_name=\"Sales Q\", insert_index=0)`
+> 3. `list_sheets(spreadsheet_id={DEST})`
+> 4. `get_sheet_data(spreadsheet_id={DEST}, sheet=\"Sales Q\")`
+> 5. `list_sheets(spreadsheet_id={SPREADSHEET_ID})`"
+
+**Checks**
+- 1 returns `{sheetId, title: "Copy of Sales", index: 1, spreadsheetId: {DEST}}`: no `new_name` keeps Google's name, and `copyTo` appends
+- 2 returns `title` `Sales Q`, `index` 0, `spreadsheetId` {DEST}
+- 3 is `["Sales Q", "Sheet1", "Copy of Sales"]`
+- 4 returns the same rows as Sales
+- 5 is unchanged from before the calls
+
+**Cleanup:** `delete_file(file_id={DEST})`.
+
+### TC-S143: copy_sheet rejects a bad insert_index or sheet without copying anything
+
+**Setup:** as TC-S142 (or reuse its `{DEST}` before its cleanup).
+
+**Prompt**
+> "Call each and report the raw result, then `list_sheets` on both spreadsheets:
+> 1. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", insert_index=-1)`
+> 2. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={DEST}, insert_index=-1)`
+> 3. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"DoesNotExist\", destination_spreadsheet_id={DEST})`
+> 4. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", src_sheet=\"Sales\")`"
+
+**Checks**
+- 1 and 2 → `{"error": "insert_index must be non-negative, got -1"}`
+- 3 → `{"error": "Sheet 'DoesNotExist' not found"}`
+- 4 → a tool error: `Pass only \`sheet\`: \`src_sheet\` is its deprecated old name.`
+- Neither spreadsheet gained a tab
+
+**Cleanup:** `delete_file(file_id={DEST})` if created here.
+
+### TC-S144: duplicate_sheet and copy_sheet's old parameter names are deprecated, and still work ⚠️ destructive
+
+**Prompt**
+> "Read the tool descriptions this server serves for `duplicate_sheet` and `copy_sheet`, and `copy_sheet`'s input schema. Then call these and report each raw result:
+> 1. `duplicate_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", new_name=\"Dup Old 1526\")`
+> 2. `copy_sheet(src_spreadsheet={SPREADSHEET_ID}, src_sheet=\"Sales\", dst_spreadsheet={SPREADSHEET_ID}, dst_sheet=\"Copy Old 1526\")`
+> 3. Read `server://auth-status`."
+
+**Checks**
+- `duplicate_sheet`'s description begins ``Deprecated: use `copy_sheet` with no `destination_spreadsheet_id` instead. Removed in the next feature release.``; `copy_sheet`'s doesn't begin with `Deprecated`
+- `copy_sheet`'s schema has `src_spreadsheet`, `src_sheet`, `dst_spreadsheet` and `dst_sheet`, each optional and described ``Deprecated: use `<new name>`. Removed in the next feature release.``
+- 1 returns `{sheetId, title: "Dup Old 1526", index, spreadsheetId}`, the copy right after Sales
+- 2 returns `title` `Copy Old 1526` and a `deprecation_warnings` list with one entry for each of the four old names, e.g. ``"`src_sheet` is deprecated: use `sheet`. `src_sheet` is removed in the next feature release."``
+- 3: `tool_selection.deprecated_tools` includes `duplicate_sheet` and `get_sheet_formulas`
+
+**Cleanup:** `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Dup Old 1526")` and `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Copy Old 1526")`.

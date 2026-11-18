@@ -7,6 +7,7 @@ import pytest
 from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.cache import SheetDataCache
+from mcp_gee_sweet.deprecation import tool_deprecation
 from mcp_gee_sweet.tools import response_limits
 from mcp_gee_sweet.tools.sheets import data as sheets_data_module
 
@@ -277,7 +278,93 @@ class TestGetSheetData:
         svc.spreadsheets.return_value.get.assert_not_called()
 
 
+class TestGetSheetDataValueRender:
+    """get_sheet_data(value_render=) picks the values request's valueRenderOption,
+    which makes get_sheet_formulas redundant (#1526)."""
+
+    def _service(self, values=None):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.values.return_value.get.return_value.execute.return_value = {
+            "values": values or []
+        }
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {}
+        return mock
+
+    def _values_kwargs(self, svc):
+        return svc.spreadsheets.return_value.values.return_value.get.call_args.kwargs
+
+    async def test_default_sends_the_request_it_always_has(self):
+        svc = self._service()
+        ctx = _make_ctx(sheets_service=svc)
+        await _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1", sheet="Sheet1", range="A1", ctx=ctx
+        )
+        assert self._values_kwargs(svc) == {"spreadsheetId": "ss1", "range": "Sheet1!A1"}
+
+    @pytest.mark.parametrize(
+        ("value_render", "option"),
+        [("unformatted", "UNFORMATTED_VALUE"), ("formula", "FORMULA")],
+    )
+    async def test_value_render_sets_value_render_option(self, value_render, option):
+        svc = self._service(values=[["=SUM(A1:A2)"]])
+        ctx = _make_ctx(sheets_service=svc)
+        result = await _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1",
+            value_render=value_render,
+            ctx=ctx,
+        )
+        assert self._values_kwargs(svc)["valueRenderOption"] == option
+        assert result == {
+            "spreadsheetId": "ss1",
+            "valueRanges": [{"range": "Sheet1!A1", "values": [["=SUM(A1:A2)"]]}],
+        }
+
+    async def test_formula_sends_get_sheet_formulas_request(self):
+        """The replacement for get_sheet_formulas sends exactly its request."""
+        requests = []
+        for name, extra in (
+            ("get_sheet_formulas", {}),
+            ("get_sheet_data", {"value_render": "formula"}),
+        ):
+            svc = self._service()
+            ctx = _make_ctx(sheets_service=svc)
+            await _data_tools[name](
+                spreadsheet_id="ss1", sheet="My Sheet", range="A1:B2", ctx=ctx, **extra
+            )
+            requests.append(self._values_kwargs(svc))
+        assert requests[0] == requests[1]
+
+    async def test_ignored_with_include_grid_data(self):
+        svc = self._service()
+        ctx = _make_ctx(sheets_service=svc)
+        await _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1",
+            include_grid_data=True,
+            value_render="formula",
+            ctx=ctx,
+        )
+        assert not svc.spreadsheets.return_value.values.return_value.get.called
+        assert svc.spreadsheets.return_value.get.call_args.kwargs == {
+            "spreadsheetId": "ss1",
+            "ranges": ["Sheet1!A1"],
+            "includeGridData": True,
+        }
+
+
 class TestGetSheetFormulas:
+    def test_deprecated_for_get_sheet_data(self):
+        deprecation = tool_deprecation(_data_tools["get_sheet_formulas"])
+        assert deprecation is not None
+        assert deprecation.use == "`get_sheet_data` with `value_render='formula'`"
+        assert _data_tools["get_sheet_formulas"].__doc__.startswith(
+            "Deprecated: use `get_sheet_data`"
+        )
+        assert tool_deprecation(_data_tools["get_sheet_data"]) is None
+
     def _service(self, values=None):
         mock = MagicMock()
         mock.spreadsheets.return_value.values.return_value.get.return_value.execute.return_value = {

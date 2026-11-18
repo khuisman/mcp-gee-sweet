@@ -8,11 +8,14 @@ All notable changes to this project are documented in this file.
 
 ### Breaking change
 
-- **An unset or empty `ENABLED_TOOLS` now loads the `default` tool group, 40 everyday tools across Sheets, Docs, Drive, Calendar and Gmail, instead of every tool.** To keep every tool, set `ENABLED_TOOLS=all` (or `--include-tools all`). `default` leaves out the tools that only work on local files (local upload, download and `sync_folder`, `import_csv_to_sheet`, `create_doc_from_file`, `update_doc_from_file`, `insert_local_images`); add the `local-files` group, e.g. `ENABLED_TOOLS=default,local-files`, to keep them. v0.9.6 announced this change — #1364
+- **An unset or empty `ENABLED_TOOLS` now loads the `default` tool group, 39 everyday tools across Sheets, Docs, Drive, Calendar and Gmail, instead of every tool.** To keep every tool, set `ENABLED_TOOLS=all` (or `--include-tools all`). `default` leaves out the tools that only work on local files (local upload, download and `sync_folder`, `import_csv_to_sheet`, `create_doc_from_file`, `update_doc_from_file`, `insert_local_images`); add the `local-files` group, e.g. `ENABLED_TOOLS=default,local-files`, to keep them. v0.9.6 announced this change — #1364
+- **`copy_sheet` returns `{sheetId, title, index, spreadsheetId}` for the new tab**, where `spreadsheetId` is the spreadsheet it landed in, in place of the raw `copy` and `rename` API responses it returned before. A caller that read `copy` or `rename` needs the new keys. A missing source tab's error now reads `Sheet '<name>' not found` — #1526
 
 ### New features
 
 - `ENABLED_TOOLS` and `--include-tools` take tool group names as well as tool names, and register their union: `default`, `all`, one group per service (`sheets`, `drive`, `docs`, `calendar`, `gmail`, `cache`), `local-files` and `comments`. Every group but `all` is under the lowest documented client tool cap (100). An entry that names no tool or group, such as `ALL` or a misspelled name, logs a startup warning instead of being dropped silently. The startup log, the server's instructions to the client, and `server://auth-status` (`tool_selection`) say which tools loaded. `docs/tools.md` lists each tool's groups, and [Tool filtering](https://khuisman.github.io/mcp-gee-sweet/latest/configuration/#tool-filtering) replaces the suggested subsets with the groups. [Client Setup](https://khuisman.github.io/mcp-gee-sweet/latest/client-setup/#choosing-tools-for-your-client) gives the setting for each client — #1364
+- `get_sheet_data` takes `value_render`: `formatted` (the default, as before) returns values as the sheet displays them, `unformatted` returns the underlying values (numbers unformatted, dates as serial numbers), and `formula` returns each cell's formula, as `get_sheet_formulas` did. It applies to the values read; with `include_grid_data=True` the grid already carries each cell's formula, value and displayed text — #1526
+- `copy_sheet` also copies a tab within its own spreadsheet, as `duplicate_sheet` did: omit `destination_spreadsheet_id` to duplicate in place, right after the source tab unless `insert_index` says otherwise. Copying into another spreadsheet takes `insert_index` too, moving the copy from the end, where Google puts it — #1526
 
 ### New tools
 
@@ -20,11 +23,15 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- **`copy_sheet`'s parameters are renamed.** `src_spreadsheet` is now `spreadsheet_id`, `src_sheet` is `sheet`, `dst_spreadsheet` is `destination_spreadsheet_id` and `dst_sheet` is `new_name`; the old names keep working for one release, with a `deprecation_warnings` entry in the result. `new_name` is optional where `dst_sheet` was required, so a call that names neither now makes the copy under Google's own name ("Copy of Sales") instead of failing. A call with neither `destination_spreadsheet_id` nor `dst_spreadsheet` now duplicates the tab in place. Its result changes shape too (see **Breaking change**) — #1526
 - Renamed and removed tools now get one release of notice. A renamed tool's old name keeps working for one release when it's listed in `ENABLED_TOOLS` or the server runs with `all`, with a startup warning naming the new tool; a tool due for removal says so at the start of its description and warns at startup when `ENABLED_TOOLS` names it; and a renamed parameter's old name keeps working, with a `deprecation_warnings` entry in the result. Each one is listed here under **Deprecated** in the release that deprecates it and under **Removed** in the release after. `server://auth-status` lists deprecated tools under `tool_selection.deprecated_tools`. See the [deprecation policy](https://khuisman.github.io/mcp-gee-sweet/latest/design/#renaming-or-removing-a-tool) — #1209
 
 ### Deprecated
 
 - The ten row-only and column-only Sheets tools are deprecated and removed in the next feature release. Use `add_rows_or_columns` for `add_rows`/`add_columns`, `delete_rows_or_columns` for `delete_rows`/`delete_columns`, `resize_rows_or_columns` for `resize_rows`/`resize_columns`, and `hide_rows_or_columns` for `hide_rows`/`hide_columns` and, with `hidden=False`, `unhide_rows`/`unhide_columns`, passing `dimension='rows'` or `'columns'`. `start_row`/`start_column` become `start` and `end_row`/`end_column` become `end`; nothing else changes — #1525
+- `get_sheet_formulas` is deprecated and removed in the next feature release: use `get_sheet_data` with `value_render='formula'`, which returns `get_sheet_data`'s usual `{spreadsheetId, valueRanges}` dict instead of a bare list. It's no longer in the `default` tool group — #1526
+- `duplicate_sheet` is deprecated and removed in the next feature release: use `copy_sheet` with no `destination_spreadsheet_id`, which takes the same `spreadsheet_id`, `sheet`, `new_name` and `insert_index` and returns the same result — #1526
+- `copy_sheet`'s `src_spreadsheet`, `src_sheet`, `dst_spreadsheet` and `dst_sheet` parameters are deprecated and removed in the next feature release: use `spreadsheet_id`, `sheet`, `destination_spreadsheet_id` and `new_name` — #1526
 
 ### Bug fixes
 
