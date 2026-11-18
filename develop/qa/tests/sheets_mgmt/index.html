@@ -3175,6 +3175,89 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#add_rows_or_columns-delete_rows_or_columns-hide_rows_or_columns-resize_rows_or_columns-1525" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_rows_or_columns / delete_rows_or_columns / hide_rows_or_columns / resize_rows_or_columns (#1525)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="add_rows_or_columns / delete_rows_or_columns / hide_rows_or_columns / resize_rows_or_columns (#1525)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s135-add_rows_or_columns-inserts-rows-and-columns-at-start-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S135: add_rows_or_columns inserts rows and columns at start ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s136-delete_rows_or_columns-removes-an-inclusive-range-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S136: delete_rows_or_columns removes an inclusive range ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s137-hide_rows_or_columns-hides-by-default-and-unhides-with-hiddenfalse-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S137: hide_rows_or_columns hides by default and unhides with hidden=False ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s138-resize_rows_or_columns-sets-a-pixel-size-and-auto-fits-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S138: resize_rows_or_columns sets a pixel size and auto-fits ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s139-the-four-tools-reject-bad-arguments-without-changing-the-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S139: the four tools reject bad arguments without changing the sheet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s140-the-ten-replaced-tools-are-deprecated-and-still-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S140: the ten replaced tools are deprecated, and still work
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -5290,6 +5373,89 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.</p>
 <p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on <code>kai-oauth</code></strong> — BLANK, NOT_BLANK, TEXT_STARTS_WITH, TEXT_ENDS_WITH → each <code>Invalid condition_type '&lt;type&gt;'. Must be one of: …</code>, and the list has none of the four; no 404. Control DATE_IS_VALID → HttpError 404 on the fake ID (it reached the lookup). The served <code>add_data_validation</code> description (loaded schema) lists none of the four.</p>
+<hr />
+<h2 id="add_rows_or_columns-delete_rows_or_columns-hide_rows_or_columns-resize_rows_or_columns-1525"><code>add_rows_or_columns</code> / <code>delete_rows_or_columns</code> / <code>hide_rows_or_columns</code> / <code>resize_rows_or_columns</code> (#1525)<a class="headerlink" href="#add_rows_or_columns-delete_rows_or_columns-hide_rows_or_columns-resize_rows_or_columns-1525" title="Permanent link">&para;</a></h2>
+<p>These four tools replace the ten row-only and column-only tools above. Those ten stay registered for one release, deprecated. Each new tool sends the same request its old counterpart did (<code>TestRowsOrColumnsTools::test_sends_the_same_request_as_the_tool_it_replaces</code>), so these cases check the new parameters end to end rather than repeating every old case.</p>
+<p><strong>Fixture for TC-S135–TC-S139:</strong> a scratch tab, so the shared Sales sheet isn't touched. Before TC-S135, call <code>create_sheet(spreadsheet_id={SPREADSHEET_ID}, title="RowsCols1525")</code>, then <code>update_cells(spreadsheet_id={SPREADSHEET_ID}, sheet="RowsCols1525", range="A1:C4", data=[["a1","b1","c1"],["a2","b2","c2"],["a3","b3","c3"],["a4","b4","c4"]])</code>. Each case reads the layout back with <code>get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="RowsCols1525", range="A1:F8")</code>, or with <code>include_grid_data=True</code> where it needs <code>rowMetadata</code>/<code>columnMetadata</code>. <strong>Cleanup after TC-S139:</strong> <code>delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="RowsCols1525")</code>.</p>
+<h3 id="tc-s135-add_rows_or_columns-inserts-rows-and-columns-at-start-destructive">TC-S135: add_rows_or_columns inserts rows and columns at <code>start</code> ⚠️ destructive<a class="headerlink" href="#tc-s135-add_rows_or_columns-inserts-rows-and-columns-at-start-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call these in order and report each raw result, then read the sheet back:
+1. <code>add_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", count=2, start=1)</code>
+2. <code>add_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"columns\", count=1, start=1)</code>
+3. <code>get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", range=\"A1:F8\")</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Calls 1 and 2 each return a <code>batchUpdate</code> result (<code>replies</code>), no <code>error</code>
+- Call 3: row 1 is <code>a1</code>, empty, <code>b1</code>, <code>c1</code> (column B inserted); rows 2 and 3 are empty (two rows inserted at index 1); row 4 is <code>a2</code>, empty, <code>b2</code>, <code>c2</code></p>
+<p><strong>Cleanup:</strong> none here. TC-S136's first two calls remove the inserted rows and column and check the restored layout, so run TC-S136 next; don't delete them separately, or TC-S136 deletes fixture rows instead.</p>
+<p><strong>Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on <code>mcp-gee-sweet-sky</code> @ 7620841b</strong> — Calls 1 and 2 each returned <code>replies: [{}]</code>, no <code>error</code>. Read-back: <code>[a1,"",b1,c1]</code>, <code>[]</code>, <code>[]</code>, <code>[a2,"",b2,c2]</code>, <code>[a3,"",b3,c3]</code>, <code>[a4,"",b4,c4]</code>.</p>
+<p><strong>Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on <code>mcp-gee-sweet-sky</code> @ 6e5b0616</strong> — Same read-back as round 1: <code>[a1,"",b1,c1]</code>, <code>[]</code>, <code>[]</code>, <code>[a2,"",b2,c2]</code>, <code>[a3,"",b3,c3]</code>, <code>[a4,"",b4,c4]</code>; both calls returned <code>replies</code>, no <code>error</code>.</p>
+<h3 id="tc-s136-delete_rows_or_columns-removes-an-inclusive-range-destructive">TC-S136: delete_rows_or_columns removes an inclusive range ⚠️ destructive<a class="headerlink" href="#tc-s136-delete_rows_or_columns-removes-an-inclusive-range-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call <code>delete_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", start=1, end=2)</code>, then <code>delete_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"columns\", start=1)</code> (undoing TC-S135's inserts), read back <code>get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", range=\"A1:F8\")</code>, then call <code>delete_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", start=1, end=2)</code> and read back again."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- After the two undo calls: A1:C4 is back to <code>a1</code>…<code>c4</code> exactly, with no empty row or column between them
+- After the delete: two rows are left, <code>a1 b1 c1</code> and <code>a4 b4 c4</code> (indices 1 and 2 deleted, <code>end</code> inclusive)</p>
+<p><strong>Cleanup:</strong> <code>update_cells(..., range="A1:C4", data=&lt;the fixture's four rows&gt;)</code> to restore rows 2 and 3.</p>
+<p><strong>Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on <code>mcp-gee-sweet-sky</code> @ 7620841b</strong> — Run from this round's corrected prompt (the original re-ran TC-S135's own Cleanup step, which would have deleted fixture rows). After the two undo deletes: A1:C4 = <code>a1</code>…<code>c4</code> exactly. After <code>delete_rows_or_columns(rows, start=1, end=2)</code>: <code>[a1,b1,c1]</code>, <code>[a4,b4,c4]</code>.</p>
+<p><strong>Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on <code>mcp-gee-sweet-sky</code> @ 6e5b0616</strong> — After the two undo deletes: A1:C4 = <code>a1</code>…<code>c4</code> exactly. After the inclusive delete: <code>[a1,b1,c1]</code>, <code>[a4,b4,c4]</code>.</p>
+<h3 id="tc-s137-hide_rows_or_columns-hides-by-default-and-unhides-with-hiddenfalse-destructive">TC-S137: hide_rows_or_columns hides by default and unhides with <code>hidden=False</code> ⚠️ destructive<a class="headerlink" href="#tc-s137-hide_rows_or_columns-hides-by-default-and-unhides-with-hiddenfalse-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>"Call <code>hide_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", start=1, end=2)</code> and <code>hide_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"columns\", start=1)</code>, then read <code>get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", range=\"A1:D4\", include_grid_data=True)</code> and screenshot the tab. Then call the same two with <code>hidden=False</code> and read back again."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- After hiding: <code>rowMetadata[1]</code> and <code>rowMetadata[2]</code> have <code>hiddenByUser: true</code>, <code>rowMetadata[3]</code> doesn't; <code>columnMetadata[1]</code> has <code>hiddenByUser: true</code>, <code>columnMetadata[2]</code> doesn't
+- The screenshot shows row headers 1 → 4 and column headers A → C, with show chevrons at both boundaries
+- After <code>hidden=False</code>: no row or column in A1:D4 has <code>hiddenByUser: true</code></p>
+<p><strong>Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on <code>mcp-gee-sweet-sky</code> @ 7620841b</strong> — After hiding: rows <code>hiddenByUser</code> <code>[false,true,true,false]</code>, columns <code>[false,true,false,false]</code>. Screenshot (default <code>playwright</code> server under the mutex, account check passed): row headers 1 → 4, column headers A → C, show chevrons at both boundaries. After <code>hidden=False</code>: no row or column in A1:D4 hidden.</p>
+<p><strong>Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on <code>mcp-gee-sweet-sky</code> @ 6e5b0616</strong> — Hidden: rows <code>[false,true,true,false]</code>, columns <code>[false,true,false,false]</code>; screenshot (URL-verified on the tab's gid, under the mutex) shows rows 1 → 4 and columns A → C with show chevrons. After <code>hidden=False</code>: nothing hidden in A1:D4.</p>
+<h3 id="tc-s138-resize_rows_or_columns-sets-a-pixel-size-and-auto-fits-destructive">TC-S138: resize_rows_or_columns sets a pixel size and auto-fits ⚠️ destructive<a class="headerlink" href="#tc-s138-resize_rows_or_columns-sets-a-pixel-size-and-auto-fits-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call <code>resize_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"columns\", start=0, end=1, pixel_size=180)</code> and <code>resize_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", start=0, pixel_size=50)</code>, read <code>get_sheet_data(..., range=\"A1:C3\", include_grid_data=True)</code>, then call <code>resize_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"columns\", start=0, end=1, auto_resize=True)</code> and read back again."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- After the pixel sizes: <code>columnMetadata[0]</code> and <code>[1]</code> have <code>pixelSize: 180</code>, <code>columnMetadata[2]</code> doesn't; <code>rowMetadata[0]</code> has <code>pixelSize: 50</code>, <code>rowMetadata[1]</code> doesn't
+- After <code>auto_resize=True</code>: columns A and B are no longer 180 (auto-fit to the short <code>a1</code>/<code>b1</code> text)</p>
+<p><strong>Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on <code>mcp-gee-sweet-sky</code> @ 7620841b</strong> — After pixel sizes: columns <code>pixelSize</code> <code>[180,180,100]</code>, rows <code>[50,21,21]</code>. After <code>auto_resize=True</code>: columns <code>[21,21,100]</code>.</p>
+<p><strong>Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on <code>mcp-gee-sweet-sky</code> @ 6e5b0616</strong> — After pixel sizes: columns <code>[180,180,100]</code>, rows <code>[50,21,21]</code>. After <code>auto_resize=True</code>: columns <code>[21,21,100]</code>.</p>
+<h3 id="tc-s139-the-four-tools-reject-bad-arguments-without-changing-the-sheet">TC-S139: the four tools reject bad arguments without changing the sheet<a class="headerlink" href="#tc-s139-the-four-tools-reject-bad-arguments-without-changing-the-sheet" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call each and report the raw result:
+1. <code>add_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", count=0)</code>
+2. <code>delete_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"columns\", start=-1)</code>
+3. <code>hide_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", start=5, end=2)</code>
+4. <code>resize_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", start=0)</code>
+5. <code>hide_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"NoSuchSheet\", dimension=\"rows\", start=0)</code>
+6. <code>add_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"ROWS\", count=1)</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 1 → <code>{"error": "count must be positive, got 0"}</code>
+- 2 → <code>{"error": "start must be non-negative, got -1"}</code>
+- 3 → <code>{"error": "end (2) must be &gt;= start (5)"}</code>
+- 4 → <code>{"error": "Specify pixel_size or set auto_resize=True"}</code>
+- 5 → <code>{"error": "Sheet 'NoSuchSheet' not found"}</code>
+- 6 → rejected by the tool's input schema (<code>dimension</code> must be <code>rows</code> or <code>columns</code>); the sheet is unchanged
+- <code>get_sheet_data(..., range="A1:F8")</code> afterwards shows the same layout as before the calls</p>
+<p><strong>Unit coverage:</strong> <code>TestRowsOrColumnsTools::test_invalid_arguments_return_error_without_api_call</code>, <code>test_unknown_dimension_returns_error_before_any_api_call</code> and <code>test_missing_sheet_returns_error_without_api_call</code> (<code>tests/sheets/test_structure.py</code>) assert each error and that no <code>batchUpdate</code> is sent. The argument checks run after the sheet lookup (a <code>spreadsheets().get</code> on a cold cache), so a bad sheet name is reported first (#323, TC-S111); only an unknown <code>dimension</code> is rejected before any API call.</p>
+<p><strong>Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on <code>mcp-gee-sweet-sky</code> @ 7620841b</strong> — 1–5 returned exactly the listed errors. 6 was rejected by input validation: <code>Input should be 'rows' or 'columns' [type=literal_error, input_value='ROWS']</code>. Read-back afterwards unchanged (<code>a1</code>…<code>c4</code>).</p>
+<p><strong>Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on <code>mcp-gee-sweet-sky</code> @ 6e5b0616</strong> — 1–5 returned exactly the listed errors; 6 rejected by input validation (<code>literal_error</code>, <code>input_value='ROWS'</code>); read-back unchanged.</p>
+<h3 id="tc-s140-the-ten-replaced-tools-are-deprecated-and-still-work">TC-S140: the ten replaced tools are deprecated, and still work<a class="headerlink" href="#tc-s140-the-ten-replaced-tools-are-deprecated-and-still-work" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Read the tool descriptions this server serves for <code>add_rows</code>, <code>add_columns</code>, <code>delete_rows</code>, <code>delete_columns</code>, <code>hide_rows</code>, <code>unhide_rows</code>, <code>hide_columns</code>, <code>unhide_columns</code>, <code>resize_rows</code> and <code>resize_columns</code>, and for the four <code>*_rows_or_columns</code> tools. Then call <code>create_sheet(spreadsheet_id={SPREADSHEET_ID}, title=\"Deprecated1525\")</code>, <code>add_rows(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Deprecated1525\", count=1, start_row=0)</code> and <code>unhide_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Deprecated1525\", start_column=0)</code>, and report each raw result."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Each of the ten old descriptions begins <code>Deprecated: use \</code><new tool>` with `dimension='rows'`<code>(or</code>'columns'<code>;</code>unhide_*<code>add</code>hidden=False<code>)</code>instead. Removed in the next feature release.<code>- None of the four new descriptions begins with</code>Deprecated<code>-</code>add_rows<code>and</code>unhide_columns<code>each return a</code>batchUpdate<code>result, no</code>error<code>-</code>server://auth-status<code>'s</code>tool_selection.deprecated_tools` lists all ten old names</p>
+<p><strong>Cleanup:</strong> <code>delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Deprecated1525")</code>.</p>
+<p><strong>Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on <code>mcp-gee-sweet-sky</code> @ 7620841b</strong> — All ten served descriptions begin with the stated <code>Deprecated: use ...</code> line (<code>unhide_*</code> with <code>hidden=False</code>); none of the four new ones does. <code>add_rows</code> and <code>unhide_columns</code> each returned <code>replies: [{}]</code>, no <code>error</code>. <code>server://auth-status</code> <code>tool_selection.deprecated_tools</code> lists all ten. Both scratch tabs deleted.</p>
+<p><strong>Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on <code>mcp-gee-sweet-sky</code> @ 6e5b0616</strong> — Beyond the case's two calls, all ten deprecated tools were called on <code>Deprecated1525</code> (the fix changed the dimension each passes): each returned <code>replies</code>, no <code>error</code>; <code>hide_rows</code>/<code>hide_columns</code> hid row 2/column B and <code>unhide_rows</code>/<code>unhide_columns</code> cleared them; <code>resize_rows</code> set row 3 to 40 and <code>resize_columns</code> column C to 150. <code>server://auth-status</code> <code>deprecated_tools</code> lists all ten. Scratch tabs deleted.</p>
 
 
 
