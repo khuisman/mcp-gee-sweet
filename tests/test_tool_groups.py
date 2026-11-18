@@ -552,5 +552,17 @@ class TestAuthStatusToolSelection:
             "configured": False,
             "registered_tools": len(server._registered_tools),
             "deprecated_aliases": [],
-            "deprecated_tools": [],
+            # The suite registers every tool, deprecated ones included (#1525).
+            "deprecated_tools": [
+                "add_columns",
+                "add_rows",
+                "delete_columns",
+                "delete_rows",
+                "hide_columns",
+                "hide_rows",
+                "resize_columns",
+                "resize_rows",
+                "unhide_columns",
+                "unhide_rows",
+            ],
         }
