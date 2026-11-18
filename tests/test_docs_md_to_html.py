@@ -176,6 +176,28 @@ class TestStrikethrough:
             (" c~", None, None),
         ]
 
+    def test_single_tilde_pair_does_not_cross_a_double_tilde_pair(self):
+        # balance_pairs never pairs an opener that sits inside an already-matched
+        # span, so GFM strikes "a ~~b" and leaves the closing `~~` literal; a pass
+        # that pairs the tilde runs itself crossed the pairs and struck "a b c"
+        # with no literal tildes (#1502).
+        (para,) = _ast("~a ~~b~ c~~")
+        assert [(r.text, r.strikethrough) for r in para.runs] == [
+            ("a ~~b", True),
+            (" c~~", None),
+        ]
+
+    def test_tilde_pairing_is_linear_on_a_paragraph_of_unmatched_runs(self):
+        # One-tilde openers that can never close, then 2-tilde runs pairing among
+        # themselves. Pairing that walks every earlier delimiter per closer is
+        # quadratic here (#1502); the per-width marking hands pairing to
+        # balance_pairs, whose openers-bottom bookkeeping keeps this linear in
+        # the text, as the module's other linear-in-the-text rules are.
+        md = " ~a" * 8000 + "b~~" * 8000
+        start = time.perf_counter()
+        assert "<s>" in _md_to_html(md)
+        assert time.perf_counter() - start < 2.0
+
     def test_single_tilde_pair_inside_a_bare_url_stays_text(self):
         # A `~` inside a GFM extended autolink is part of the URL, so the whole
         # URL links and nothing strikes, as on develop and GitHub (#1436 review).
