@@ -566,7 +566,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [x] An inline image (and its alt-text fallback) inherits the preceding run's style. Enhancement; from PR #1332 ([#1334](https://github.com/khuisman/mcp-gee-sweet/issues/1334)) (PR #1457)
 - [ ] Markdown single-tilde `~x~` isn't strikethrough (GFM accepts one or two). Enhancement; from PR #1332 ([#1335](https://github.com/khuisman/mcp-gee-sweet/issues/1335))
 - [x] `get_doc_as_markdown` drops table column alignment on export (writes `---` for every column). From PR #1336 ([#1337](https://github.com/khuisman/mcp-gee-sweet/issues/1337)) (PR #1360)
-- [ ] `get_doc_as_markdown` indents a numbered sub-list by only 2 spaces, so CommonMark renders it flat. Indent each child to its parent marker's width, which also covers parents numbered 100+. Reopened 2026-11-14: PR #1234's description closed it by accident, and it moved here from v0.9.6. Community PR #1145 (a first version, fixed 4 spaces) closed unmerged 2026-11-16; lane B takes it, crediting its author ([#1128](https://github.com/khuisman/mcp-gee-sweet/issues/1128))
+- [x] `get_doc_as_markdown` indents a numbered sub-list by only 2 spaces, so CommonMark renders it flat. Indent each child to its parent marker's width, which also covers parents numbered 100+. Reopened 2026-11-14: PR #1234's description closed it by accident, and it moved here from v0.9.6. Community PR #1145 (a first version, fixed 4 spaces) closed unmerged 2026-11-16; lane B takes it, crediting its author ([#1128](https://github.com/khuisman/mcp-gee-sweet/issues/1128)) (PR #1539)
 
 **Triaged in 2026-11-04**
 
