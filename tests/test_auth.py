@@ -929,6 +929,37 @@ class TestServeConsent:
             thread.join(5)
         assert box == {"result": flow.credentials}
 
+    def test_a_cancelled_consent_does_not_read_as_authorized(self, monkeypatch):
+        # #1513 review: the callback answers the browser before the token
+        # exchange, so a declined consent (?error=access_denied) must not be
+        # told it is authorized.
+        monkeypatch.setattr(auth_module, "_CONSENT_POLL_SECONDS", 0.05)
+        flow = self._flow()
+        with patch.object(auth_module.webbrowser, "get", side_effect=webbrowser.Error("none")):
+            thread, box = self._serve_in_thread(flow, 30, threading.Event())
+            redirect = self._wait_for_redirect_uri(flow)
+            with urllib.request.urlopen(
+                f"{redirect}?error=access_denied&state=st", timeout=5
+            ) as resp:
+                assert resp.headers["Content-Type"].startswith("text/html")
+                body = resp.read()
+            thread.join(5)
+        assert body == auth_module._CONSENT_CANCELLED_PAGE.encode()
+        assert b"mcp-gee-sweet is authorized" not in body
+
+    def test_a_callback_without_a_code_gets_the_cancelled_page(self):
+        # Same rule for a stray request that carries no code at all.
+        app = auth_module._CallbackApp()
+        environ = {
+            "wsgi.url_scheme": "http",
+            "HTTP_HOST": "localhost:0",
+            "PATH_INFO": "/",
+            "QUERY_STRING": "state=st",
+        }
+        body = b"".join(app(environ, lambda status, headers: None))
+        assert app.request_uri.endswith("?state=st")
+        assert body == auth_module._CONSENT_CANCELLED_PAGE.encode()
+
     def test_stop_ends_the_wait_and_closes_the_port(self, monkeypatch):
         monkeypatch.setattr(auth_module, "_CONSENT_POLL_SECONDS", 0.05)
         flow = self._flow()
@@ -984,6 +1015,17 @@ class TestConsentSuccessPage:
 
     def test_self_contained_and_light_and_dark(self):
         page = auth_module._CONSENT_SUCCESS_PAGE
+        assert "prefers-color-scheme:dark" in page
+        # No external assets: the page carries its own style and fetches nothing.
+        assert "http" not in page
+        assert "src=" not in page
+        assert "href=" not in page
+
+
+    def test_the_cancelled_page_is_self_contained_and_reads_as_unfinished(self):
+        page = auth_module._CONSENT_CANCELLED_PAGE
+        assert "Consent not completed" in page
+        assert "mcp-gee-sweet is authorized" not in page
         assert "prefers-color-scheme:dark" in page
         # No external assets: the page carries its own style and fetches nothing.
         assert "http" not in page
@@ -1530,9 +1572,10 @@ class TestRunConsentFlow:
         monkeypatch.setattr(auth_module, "CREDENTIALS_PATH", str(creds_path))
         return token_path
 
-    def test_passes_the_styled_page_as_the_library_success_message(self, monkeypatch, tmp_path):
-        # #1513: the terminal flow serves the same page as the server's own callback;
-        # the library's server just labels it text/plain.
+    def test_passes_a_plain_sentence_as_the_library_success_message(self, monkeypatch, tmp_path):
+        # #1513 review: google-auth-oauthlib's _RedirectWSGIApp answers every
+        # request as text/plain, so the terminal flow must not pass the HTML
+        # page — the browser would show its raw source.
         token_path = self._writable_paths(monkeypatch, tmp_path)
         fresh = MagicMock()
         fresh.to_json.return_value = json.dumps({"token": "new"})
@@ -1544,8 +1587,9 @@ class TestRunConsentFlow:
             assert auth_module.run_consent_flow(["scope"], open_browser=False) is fresh
         assert (
             mock_flow.run_local_server.call_args.kwargs["success_message"]
-            is auth_module._CONSENT_SUCCESS_PAGE
+            is auth_module._CONSENT_SUCCESS_TEXT
         )
+        assert "<" not in auth_module._CONSENT_SUCCESS_TEXT
         assert json.loads(token_path.read_text())["token"] == "new"
 
     def test_a_caller_success_message_wins(self, monkeypatch, tmp_path):

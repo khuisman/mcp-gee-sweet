@@ -7,6 +7,7 @@ import socket
 import sys
 import threading
 import time
+import urllib.parse
 import uuid
 import webbrowser
 import wsgiref.simple_server
@@ -472,10 +473,12 @@ def _run_server_consent(
 
 
 _CONSENT_PROMPT = "Please visit this URL to authorize this application: {url}"
-# The success page every consent path serves (#1513): the tab that just granted
-# access is the first page a new user sees, so it names the server and says what
-# to do next — self-contained HTML, light and dark, with the old plain message
-# kept as its text so a client that shows the raw response still reads correctly.
+# The success page the server's own callback serves (#1513): the tab that just
+# granted access is the first page a new user sees, so it names the server and
+# says what to do next — self-contained HTML, light and dark, with the old plain
+# message kept as its text so a client that shows the raw response still reads
+# correctly. The cancelled page answers a callback that carries an error or no
+# authorization code, so a declined consent does not read as granted.
 _CONSENT_SUCCESS_PAGE = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -502,6 +505,40 @@ main{background:#161b22;border-color:#30363d}}
 </main>
 </body>
 </html>"""
+# google-auth-oauthlib's own callback server (_RedirectWSGIApp) answers every
+# request as text/plain, so the terminal flow ("mcp-gee-sweet auth") gets this
+# plain sentence as its success message, not the page: passing the page there
+# would make the browser show its raw HTML and CSS source (#1513 review).
+_CONSENT_SUCCESS_TEXT = (
+    "The authentication flow has completed. You may close this window and go back "
+    "to the terminal, where mcp-gee-sweet prints the result."
+)
+_CONSENT_CANCELLED_PAGE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcp-gee-sweet consent not completed</title>
+<style>
+body{margin:0;min-height:100vh;display:grid;place-items:center;
+font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;
+background:#f6f8fa;color:#1f2328}
+main{max-width:36rem;margin:2rem;padding:2.5rem 3rem;text-align:center;
+background:#ffffff;border:1px solid #d0d7de;border-radius:12px}
+h1{font-size:1.3rem;margin:0 0 .75rem}
+p{margin:0}
+@media (prefers-color-scheme:dark){
+body{background:#0d1117;color:#e6edf3}
+main{background:#161b22;border-color:#30363d}}
+</style>
+</head>
+<body>
+<main>
+<h1>Consent not completed</h1>
+<p>No authorization code arrived on this tab, so mcp-gee-sweet did not get access. You may close this window and retry the consent from your MCP client.</p>
+</main>
+</body>
+</html>"""
 # How often the callback server's wait checks the deadline and the stop flag.
 _CONSENT_POLL_SECONDS = 0.5
 
@@ -514,10 +551,19 @@ class _CallbackApp:
         self.request_uri: str | None = None
 
     def __call__(self, environ, start_response):
-        # text/html, so the styled success page renders (#1513).
-        start_response("200 OK", [("Content-type", "text/html; charset=utf-8")])
         self.request_uri = wsgiref.util.request_uri(environ)
-        return [_CONSENT_SUCCESS_PAGE.encode()]
+        # A callback that carries an error (a declined consent) or no code at all
+        # must not read as authorized: it gets the cancelled page (#1513 review).
+        # The uri is recorded either way, so a stray request still ends the wait.
+        params = urllib.parse.parse_qs(urllib.parse.urlsplit(self.request_uri).query)
+        page = (
+            _CONSENT_SUCCESS_PAGE
+            if "code" in params and "error" not in params
+            else _CONSENT_CANCELLED_PAGE
+        )
+        # text/html, so the styled page renders (#1513).
+        start_response("200 OK", [("Content-type", "text/html; charset=utf-8")])
+        return [page.encode()]
 
 
 class _CallbackHandler(wsgiref.simple_server.WSGIRequestHandler):
@@ -1107,11 +1153,12 @@ def run_consent_flow(scopes: list[str], **run_kwargs: Any) -> Credentials:
     auth`), where the library's stdout prompt belongs; the server's own consent is
     _run_server_consent."""
     flow = _new_flow(scopes)
-    # All three consent paths serve the styled success page (#1513). The library's
-    # own callback server, which this terminal flow uses, labels it text/plain, so
-    # the page reads as text there; the server's own callback serves it as HTML.
-    # A caller's success_message still wins — the QA wrapper sets its own.
-    run_kwargs.setdefault("success_message", _CONSENT_SUCCESS_PAGE)
+    # All three consent paths end on the same message (#1513). The library's own
+    # callback server, which this terminal flow uses, answers every request as
+    # text/plain, so this path gets the plain sentence — the page would show as
+    # raw HTML there. The server's own callback serves the page as HTML. A
+    # caller's success_message still wins — the QA wrapper sets its own.
+    run_kwargs.setdefault("success_message", _CONSENT_SUCCESS_TEXT)
     creds = flow.run_local_server(port=0, **run_kwargs)
     _write_token(creds)
     logger.debug("OAuth flow completed successfully")
