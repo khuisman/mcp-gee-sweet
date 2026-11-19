@@ -209,8 +209,10 @@ def register(tool):
         strikethrough, link included), and a line can set a field to false to
         clear an inherited style. A font_family line that sends no bold of its
         own keeps the bold the insert inherited: the weightedFontFamily request
-        would clear it (#1273), so it is restored after, as style_doc_range
-        does.
+        would clear it, so it is restored after, as style_doc_range does. Not
+        when a named_style_type is passed, though: the paragraph-style request
+        clears inherited bold over the whole paragraph first, so the inherited
+        bold is neither read nor restored then.
 
         Args:
             doc_id: The Google Doc file ID.
@@ -259,12 +261,15 @@ def register(tool):
         # before the insert. Bold a run carries via its paragraph's named style
         # is not the run's and not affected by the font request, exactly as
         # _bold_runs_in_range's own docstring says, so only a directly bold
-        # preceding character restores anything.
+        # preceding character restores anything. Skipped entirely when
+        # named_style_type is set: the updateParagraphStyle request goes out
+        # first and clears the inherited bold over the whole paragraph, so a
+        # restore would re-bold the font-only lines alone.
         font_only_lines = {
             i for i, line in enumerate(lines) if "font_family" in line and "bold" not in line
         }
         inherits_bold = False
-        if font_only_lines:
+        if font_only_lines and named_style_type is None:
             try:
                 doc = await execute_in_thread(
                     lc.docs_service.documents().get(documentId=doc_id).execute,
@@ -315,9 +320,10 @@ def register(tool):
                 )
                 # Restore the direct bold the font request clears (#1273), in
                 # the same batchUpdate and after it, as style_doc_range does.
-                # Only a line that sends no bold of its own is restored, and
-                # only when the insert inherited bold at all.
-                if i in font_only_lines and inherits_bold:
+                # Only a line that sends no bold of its own is restored, only
+                # when the insert inherited bold at all — and never when
+                # named_style_type is set, per the skip above.
+                if named_style_type is None and i in font_only_lines and inherits_bold:
                     requests.append(
                         {
                             "updateTextStyle": {

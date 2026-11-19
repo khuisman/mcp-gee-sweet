@@ -25,7 +25,9 @@ All notable changes to this project are documented in this file.
   `weightedFontFamily` request used to clear it — the same restore `style_doc_range`
   already does after its font requests (#1273) is now shared, in the same batchUpdate,
   only when a directly bold character precedes the insert and only for lines without
-  bold of their own. The docstring now says the replace-recipe passes `named_style_type`
+  bold of their own. When a `named_style_type` is passed nothing is read and nothing
+  restored: the paragraph-style request clears the inherited bold first, so a restore
+  would re-bold the font-only lines alone. The docstring now says the replace-recipe passes `named_style_type`
   (the deletion's paragraph merge leaves the position styled by its neighbor), that
   inserted lines inherit the preceding character's inline style and a line field set to
   `false` clears it, and states the `None`/explicit rule once; the known-limitations
