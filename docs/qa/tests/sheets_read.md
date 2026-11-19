@@ -114,7 +114,7 @@ Note: cell *count* alone doesn't predict this — a live test found a 26,000-cel
 
 **Result (2026-07-02) ✅ PASS**
 Tested against a scratch sheet (temp tab, deleted after) rather than formatting the shared Sales fixture directly, to avoid leaving unwanted formatting on it — same effective setup (`format_cells(range="A1:Z1000", bold=True, background_color=..., number_format_type="NUMBER")`, then `get_sheet_data(range="A1:Z200", include_grid_data=True)`). Raised:
-`get_sheet_data(include_grid_data=True): the response is 4325100 characters, over the 40000-character safety cap. ... Narrow the range; pass local_path to write the result to disk instead of returning it inline (bypasses this cap); or set MAX_GRID_DATA_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).`
+`get_sheet_data(include_grid_data=True): the response is 4325100 characters, over the 40000-character safety cap. ... Narrow the range. Pass local_path to write the result to disk instead of returning it inline (bypasses this cap), or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).`
 Exact size (4,325,100 chars) confirms the fetch completed before the check ran, as designed.
 
 **Result (2026-09-04) ✅ PASS**

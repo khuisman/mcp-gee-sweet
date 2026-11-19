@@ -358,7 +358,7 @@ class TestDocToAstLinks:
 
 
 class TestStabilizedHeadingLinks:
-    """PR #1435 review: a revision's exported heading links are written as
+    """A revision's exported heading links are written as
     '#slug' anchors by _stabilize_internal_links, and that slug must be exactly
     what anchors.py's resolver (and GitHub itself) would produce for the same
     heading — hard breaks included. A link to the wrong section is worse than
@@ -415,9 +415,9 @@ class TestStabilizedHeadingLinks:
         assert self._link(doc, 2) == {"url": "#heading-oneheading-two"}
 
     def test_hard_break_and_plain_heading_links_stay_distinct(self):
-        # The regression khuisman caught in review: with the break slugified as
-        # a hyphen, BOTH headings' links read "#heading-one-heading-two" and
-        # the hard-break heading's link resolved to the plain heading.
+        # With the break slugified as a hyphen, BOTH headings' links read
+        # "#heading-one-heading-two" and the hard-break heading's link
+        # resolved to the plain heading.
         from mcp_gee_sweet.tools.docs.markdown_export import _stabilize_internal_links
 
         doc = self._doc()
@@ -450,9 +450,14 @@ class TestStabilizedHeadingLinks:
         doc = self._doc()
         _stabilize_internal_links(doc)
         slug = self._link(doc, 2)["url"]
-        # What the write side's _walk_headings_and_anchor_runs sees: raw
-        # textRun content, trailing "\n" stripped, "\v" intact.
-        raw_headings = ["Heading one\vheading two", "Heading one heading two"]
+        # Exactly what the write side's _walk_headings_and_anchor_runs
+        # collects for the same doc — raw textRun content, trailing "\n"
+        # stripped, "\v" intact — gathered here rather than hard-coded, so a
+        # change to the walker can't silently desync this round trip.
+        from mcp_gee_sweet.tools.docs.content import _walk_headings_and_anchor_runs
+
+        walked_headings, _anchor_runs = _walk_headings_and_anchor_runs(doc["body"]["content"])
+        raw_headings = [text for text, _heading_id in walked_headings]
         assert resolve_heading_anchor(slug, raw_headings) == 0
 
 
@@ -1129,9 +1134,10 @@ class TestAstToMarkdownBlocks:
         nodes = [BulletItem(runs=[Run(text="item")], depth=0, ordered=False)]
         assert ast_to_markdown(nodes) == "- item\n"
 
-    def test_bullet_item_nested_indents_by_depth(self):
+    def test_bullet_item_with_no_exported_parent_starts_at_the_margin(self):
+        """Four spaces would be an indented code block (PR #1539 QA round 1)."""
         nodes = [BulletItem(runs=[Run(text="item")], depth=2, ordered=False)]
-        assert ast_to_markdown(nodes) == "    - item\n"
+        assert ast_to_markdown(nodes) == "- item\n"
 
     def test_bullet_item_ordered_uses_numeral_marker(self):
         nodes = [BulletItem(runs=[Run(text="item")], depth=0, ordered=True)]
@@ -2244,10 +2250,7 @@ class TestOrderedListNumbering:
         assert "1. a1\n" in md
         assert "6. a2\n" in md
         html = "".join(_COMMONMARK.render(md).split())
-        assert "<li>a1</li><li>a2</li>" in html
-        if not parent_ordered:
-            # Under a numbered parent the 2-space indent doesn't nest at all (#1128).
-            assert "<li>a<ol><li>a1</li><li>a2</li></ol></li>" in html
+        assert "<li>a<ol><li>a1</li><li>a2</li></ol></li>" in html
 
     def test_item_at_same_or_shallower_depth_keeps_its_number(self):
         """Only an item deeper than the one before it starts a sublist mid-item.
@@ -3180,3 +3183,194 @@ class TestNestedStrikeImport:
             assert runs == [("a ~b~ c", True)]
         else:
             assert runs == [("~a ", None), ("b", True), (" c~", None)]
+
+
+def _bullet(text, depth=0, ordered=False, number=None, **kwargs):
+    if ordered and number is None:
+        number = 1
+    return BulletItem(runs=[Run(text=text)], depth=depth, ordered=ordered, number=number, **kwargs)
+
+
+def _tight_html(markdown_text: str) -> str:
+    return "".join(_COMMONMARK.render(markdown_text).split())
+
+
+class TestNestedListIndentsToParentContentColumn:
+    """#1128: a nested item was indented two spaces per depth whatever its
+    parent's marker, so a child of "1. " (content column 3) read as more of
+    the parent's list in CommonMark. Each item now starts at its parent's
+    content column. Checked against plain CommonMark, not a round trip through
+    our importer, whose pre-pass (md_to_html rule D1) repairs an under-indented
+    marker, so a round trip passes with or without the fix."""
+
+    def test_numbered_under_numbered(self):
+        nodes = [_bullet("Top", ordered=True), _bullet("Nested", 1, ordered=True)]
+        nodes.append(_bullet("Next", ordered=True, number=2))
+        md = ast_to_markdown(nodes)
+        assert md == "1. Top\n   1. Nested\n2. Next\n"
+        assert "<li>Top<ol><li>Nested</li></ol></li><li>Next</li>" in _tight_html(md)
+
+    def test_bullet_bullet_numbered(self):
+        nodes = [_bullet("a"), _bullet("b", 1), _bullet("c", 2, ordered=True)]
+        md = ast_to_markdown(nodes)
+        assert md == "- a\n  - b\n    1. c\n"
+        assert "<li>a<ul><li>b<ol><li>c</li></ol></li></ul></li>" in _tight_html(md)
+
+    def test_numbered_bullet(self):
+        md = ast_to_markdown([_bullet("a", ordered=True), _bullet("b", 1)])
+        assert md == "1. a\n   - b\n"
+        assert "<li>a<ul><li>b</li></ul></li>" in _tight_html(md)
+
+    def test_numbered_numbered_bullet(self):
+        nodes = [_bullet("a", ordered=True), _bullet("b", 1, ordered=True), _bullet("c", 2)]
+        md = ast_to_markdown(nodes)
+        assert md == "1. a\n   1. b\n      - c\n"
+        assert "<li>a<ol><li>b<ul><li>c</li></ul></li></ol></li>" in _tight_html(md)
+
+    @pytest.mark.parametrize("number", [10, 99, 100, 1000])
+    def test_wide_numbered_parent(self, number):
+        """The child clears the parent's real marker, "10. " or "100. ", where a
+        fixed 4-space indent would land short from 100 on (#1128's comment)."""
+        nodes = [
+            _bullet("p", ordered=True, number=number),
+            _bullet("c", 1, ordered=True),
+            _bullet("d", 2),
+        ]
+        md = ast_to_markdown(nodes)
+        column = len(f"{number}. ")
+        assert md == f"{number}. p\n{' ' * column}1. c\n{' ' * (column + 3)}- d\n"
+        assert "<li>p<ol><li>c<ul><li>d</li></ul></li></ol></li>" in _tight_html(md)
+
+    def test_children_of_different_width_parents(self):
+        nodes = [
+            _bullet("nine", ordered=True, number=9),
+            _bullet("n1", 1),
+            _bullet("ten", ordered=True, number=10),
+            _bullet("t1", 1),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "9. nine\n   - n1\n10. ten\n    - t1\n"
+        html = _tight_html(md)
+        assert "<li>nine<ul><li>n1</li></ul></li><li>ten<ul><li>t1</li></ul></li>" in html
+
+    def test_quoted_numbered_outline(self):
+        nodes = [
+            _bullet("a", ordered=True, blockquote_depth=1),
+            _bullet("b", 1, ordered=True, blockquote_depth=1),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "> 1. a\n>    1. b\n"
+        assert "<blockquote><ol><li>a<ol><li>b</li></ol></li></ol></blockquote>" in _tight_html(md)
+
+    def test_block_under_a_numbered_child_indents_to_its_column(self):
+        nodes = [
+            _bullet("a", ordered=True),
+            _bullet("b", 1, ordered=True),
+            Paragraph(runs=[Run(text="more")], list_depth=1),
+            _bullet("c", ordered=True, number=2),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "1. a\n   1. b\n\n      more\n\n2. c\n"
+        html = _tight_html(md)
+        assert "<li><p>a</p><ol><li><p>b</p><p>more</p></li></ol></li><li><p>c</p></li>" in html
+
+    def test_item_with_no_exported_parent_is_a_list_item(self):
+        """An orphan item has no column to nest under, and Markdown can't hold a
+        list 4+ columns in at the margin: that's an indented code block, which
+        develop wrote too (PR #1539 QA round 1)."""
+        md = ast_to_markdown([Paragraph(runs=[Run(text="p")]), _bullet("x", 2)])
+        assert md == "p\n\n- x\n"
+        assert "<p>p</p><ul><li>x</li></ul>" in _tight_html(md)
+
+    @pytest.mark.parametrize("depth", [2, 3, 5])
+    def test_skipped_depths_nest_in_the_deepest_open_item(self, depth):
+        """A skipped level has no marker of its own, so a step past the parent's
+        column per level put the child 4+ columns past it, lazy text of the
+        parent (PR #1539 QA round 1). It nests one level down instead."""
+        md = ast_to_markdown([_bullet("a", ordered=True), _bullet("x", depth)])
+        assert md == "1. a\n   - x\n"
+        assert "<li>a<ul><li>x</li></ul></li>" in _tight_html(md)
+
+    @pytest.mark.parametrize("parent_quote, child_quote", [(0, 1), (1, 0), (1, 2), (2, 1)])
+    def test_child_in_another_quote_starts_at_the_margin(self, parent_quote, child_quote):
+        """The child's quote markers go at the margin, outside any indent, so the
+        parent's column put it 4+ columns past its quote's margin, an indented
+        code block (PR #1539 QA round 1). It can't nest in the parent, so it
+        starts a list of its own."""
+        nodes = [
+            _bullet("ten", ordered=True, number=10, blockquote_depth=parent_quote),
+            _bullet("x", 1, blockquote_depth=child_quote),
+        ]
+        md = ast_to_markdown(nodes)
+        assert f"{'> ' * child_quote}- x\n" in md
+        html = _tight_html(md)
+        assert "<pre>" not in html
+        assert "<li>x</li>" in html
+
+    def test_after_a_child_in_another_quote_the_lists_above_are_closed(self):
+        """The quoted child ended the unquoted list in Markdown, so a later item
+        or block at that list's depth starts at the margin, not at its column."""
+        nodes = [
+            _bullet("ten", ordered=True, number=10),
+            _bullet("q", 1, blockquote_depth=1),
+            _bullet("c", 2),
+            Paragraph(runs=[Run(text="more")], list_depth=0),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "10. ten\n\n> - q\n\n- c\n\nmore\n"
+        assert "<pre>" not in _tight_html(md)
+
+    @pytest.mark.parametrize("quote", [0, 1])
+    def test_block_naming_a_skipped_depth(self, quote):
+        """A skipped depth sits at the column its item nests under, with that
+        item's quote, so a block naming it isn't pushed 4+ columns in (PR #1539
+        QA round 1)."""
+        nodes = [
+            _bullet("x", 2, blockquote_depth=quote),
+            Paragraph(runs=[Run(text="more")], list_depth=1, blockquote_depth=quote),
+        ]
+        md = ast_to_markdown(nodes)
+        prefix = "> " * quote
+        assert md.endswith(f"{prefix}more\n")
+        html = _tight_html(md)
+        assert "<pre>" not in html
+        assert "<p>more</p>" in html
+
+    def test_block_naming_a_skipped_depth_under_an_item_is_inside_it(self):
+        nodes = [
+            _bullet("a", ordered=True),
+            _bullet("x", 3),
+            Paragraph(runs=[Run(text="more")], list_depth=1),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "1. a\n   - x\n\n   more\n"
+        assert "<li><p>a</p><ul><li>x</li></ul><p>more</p></li>" in _tight_html(md)
+
+
+class TestTaskItemContentColumn:
+    """A checkbox's "[ ] " is the item's text in CommonMark, so a task item's
+    content column is 2, after "- ". Counting the box put a block inside the item
+    at column 6, an indented code block (found while fixing #1128)."""
+
+    @pytest.mark.parametrize("checked", [False, True])
+    def test_block_inside_a_task_item(self, checked):
+        nodes = [_bullet("a", checked=checked), Paragraph(runs=[Run(text="more")], list_depth=0)]
+        md = ast_to_markdown(nodes)
+        box = "[x]" if checked else "[ ]"
+        assert md == f"- {box} a\n\n  more\n"
+        html = _tight_html(md)
+        assert "<pre>" not in html
+        assert f"<li><p>{box.replace(' ', '')}a</p><p>more</p></li>" in html
+
+    def test_child_of_a_task_item(self):
+        nodes = [
+            _bullet("a", checked=False),
+            _bullet("b", 1, checked=True),
+            _bullet("c", 2, ordered=True),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "- [ ] a\n  - [x] b\n    1. c\n"
+        assert "<li>[]a<ul><li>[x]b<ol><li>c</li></ol></li></ul></li>" in _tight_html(md)
+
+    def test_ordered_task_item_keeps_a_dash_marker(self):
+        assert ast_to_markdown([_bullet("a", ordered=True, checked=False)]) == "- [ ] a\n"

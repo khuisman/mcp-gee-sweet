@@ -2198,10 +2198,9 @@ class TestExportFile:
         assert "local_path" not in msg
 
     async def test_cap_error_hint_reads_as_full_sentences(self, monkeypatch):
-        # #1430 follow-up (PR #1442 review): export_file's hint is a complete
-        # sentence, so the shared env-var clause starts a fresh sentence after
-        # it — never spliced onto a trailing ", or " ("…overhead, or Set
-        # MAX_TOOL_RESPONSE_CHARS…", the wording khuisman caught in review).
+        # #1430: export_file's hint is a complete sentence, so the shared
+        # env-var clause starts a fresh sentence after it — never spliced onto
+        # a trailing ", or " fragment ("…overhead, or Set MAX_TOOL_RESPONSE_CHARS…").
         monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 10)
         ctx = self._ctx(self._workspace_svc(b"x" * 1000))
         with pytest.raises(ValueError) as exc_info:
@@ -7060,6 +7059,10 @@ class TestSyncFolderResponseSizeCap:
                 ctx=self._ctx(fs),
             )
         assert "result_local_path" in str(exc_info.value)
+        # #1465: pin the hint/shared-text sentence boundary too — the hint is a
+        # complete sentence naming actions the caller can actually take, and
+        # the shared clause starts fresh after it.
+        assert "set recursive=False. Pass result_local_path" in str(exc_info.value)
 
     async def test_result_local_path_bypasses_cap_and_writes_to_disk(self, tmp_path, monkeypatch):
         # #512: unlike the sync destination local_path, result_local_path is the

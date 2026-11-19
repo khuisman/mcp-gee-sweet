@@ -37,6 +37,7 @@ from .response_limits import (
     clamp_max_results,
     enforce_response_size_cap,
     enforce_response_size_floor,
+    pagination_hint,
     write_capped_result_to_disk,
 )
 
@@ -828,7 +829,7 @@ def _list_page(
     enforce_response_size_cap(
         out,
         tool_name=tool_name,
-        hint="Lower max_results and paginate via next_page_token. ",
+        hint=pagination_hint("max_results"),
         local_path_available=False,
     )
     return out

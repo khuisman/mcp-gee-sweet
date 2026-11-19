@@ -43,13 +43,20 @@ GitLab-style scheme is delegated to `python-markdown`'s own `toc` extension slug
 project dependency, confirmed live to collapse hyphens the same way); GitHub's non-collapsing
 convention has no known off-the-shelf Python equivalent, so it's hand-rolled.
 
-A heading's hard break is the second divergence. #1230 stores a `<br>` (or a Markdown `\`)
-inside the heading text as a `"\v"`, and the two sites slug it differently: GitHub's anchor
-ignores the break entirely — it adds no text and no separator, so "Heading one<br>heading two"
-is `#heading-oneheading-two` — while GitLab's Comrak-based anchor collects the break as a plain
-space (`collect_text_append` pushes `" "` for `LineBreak`/`SoftBreak`) and slugifies it to a
-single hyphen, `#heading-one-heading-two`. So the GitHub scheme drops `"\v"` before slugging
-and the GitLab scheme keeps turning it into a separator (#1357) — an anchor spelled either way
+A heading's hard break is the second place the schemes meet. #1230 stores an HTML `<br>`
+inside the heading text as a `"\v"`. (A Markdown `\` hard break cannot sit inside a `#`
+heading — a `#` heading is a single line, so a trailing `\` there is literal text; a Markdown
+hard break can only appear in an underlined `===`/`---` heading.) Both sites actually slug an
+inline `<br>` the same way: GitHub's anchor ignores the break — no text and no separator, so
+"Heading one<br>heading two" is `#heading-oneheading-two` — and GitLab's comrak-based anchor
+does too, because an inline `<br>` is an `HtmlInline` node with no text and no children, so
+`collect_text_append` adds nothing: GitLab's anchor for the same heading is also
+`#heading-oneheading-two`. What comrak does give a space is a Markdown
+`LineBreak`/`SoftBreak` (`collect_text_append` pushes `" "` for those, and `anchorize` maps
+the space to `-`), which can only reach an underlined heading. The collapsed GitLab scheme
+here still turns a stored `"\v"` into that single hyphen — not a faithful reproduction of
+GitLab's `<br>` slug, but extra tolerance for an anchor spelled with the separator (#1357) —
+while the GitHub scheme produces the separator-free form, so an anchor spelled either way
 resolves.
 
 A normalized word-token comparison is the last-resort fallback for a slug that doesn't exactly
@@ -61,12 +68,30 @@ fails, and the anchor does end in digits, is the suffix treated as a duplicate-o
 and used to pick the matching heading at that specific occurrence — never just "the first
 match" once duplicates are in play, and never a guess when the claimed occurrence doesn't exist.
 
+The schemes' foundations also differ in which characters survive slugging at all. github-slugger's
+strip set is generated (its `script/generate-regex.js`, built on Unicode 13.0.0) from whole general
+categories — Other_Number, every punctuation category, every symbol category, Control, Format,
+Unassigned, Private_Use and every Separator — minus the Alphabetic property, minus the literal
+space and hyphen. Python's `\w` disagrees on both ends: it keeps superscript and fraction digits
+("²" in "Area in m²", "½") that github-slugger strips, and drops combining marks ("cafe\u0301")
+that github-slugger keeps. `anchors.py` therefore strips by category, with the four
+enclosed-Latin-letter ranges (the Alphabetic property's only members inside the stripped
+categories) carved back out (#1482).
+
 **Known limitation, flagged inline (`anchors.py`, `TODO(#409 follow-up)`):** this is a
 cascading try-each-scheme-then-fall-back approach — a reasonable first pass, not the most
 precise or efficient possible mechanism. A more targeted design might resolve the scheme once
 per document (from the first anchor that disambiguates it) rather than re-deriving every
 scheme's full slug list per anchor. Revisit if this becomes a real cost or accuracy problem in
 practice.
+
+**Known limitation, ambiguous separators across sites:** the GitHub scheme is tried first, so
+with two headings that differ only by a separator GitHub strips — `Price\xa0List` and
+`Pricelist` — a `#pricelist` anchor names the NBSP heading on GitHub (its NBSP is stripped with
+no separator) and the plain heading when the anchor was sourced from GitLab, whose own anchors
+for the two differ. The anchor alone cannot say which site produced it, so the resolver takes
+the GitHub reading — `['Price\xa0List', 'Pricelist']` resolves `#pricelist` to index 0.
+Genuinely ambiguous between the two sites; documented rather than fixed (#1482).
 
 ## Product decision: an opinionated layer, not just a primitive
 
