@@ -13,33 +13,89 @@ comparison when no scheme matches confidently.
 """
 
 import re
+import unicodedata
 
 from markdown.extensions.toc import slugify as _markdown_toc_slugify
 
-_STRIP_CHARS = re.compile(r"[^\w\s-]", re.UNICODE)
-_WHITESPACE_RUN = re.compile(r"\s+")
 _TRAILING_DEDUP_SUFFIX = re.compile(r"-(\d+)$")
 _WORD_CHARS = re.compile(r"[a-z0-9]+")
 
 
-def _github_style_slugify(text: str) -> str:
-    """GitHub's markdown heading-anchor convention: lowercase, strip
-    punctuation (keeping any literal hyphen already present), and turn each
-    run of whitespace into a matching-length run of hyphens — consecutive
-    hyphens are NOT collapsed (" - " -> "---", confirmed against issue #409's
-    own real example). No known maintained Python package reproduces this;
-    GitHub's own reference implementation (`github-slugger`) is JS-only.
+# github-slugger's strip set is generated (its script/generate-regex.js, built
+# on Unicode 13.0.0) from whole general categories: Other_Number, every
+# punctuation category, every symbol category, Control, Format, Unassigned,
+# Private_Use, and every Separator — from which the Alphabetic binary
+# property, the literal space and the literal hyphen are then removed.
+# (Connector punctuation — "_" — is the one punctuation category it keeps.)
+# Python's `unicodedata` exposes the categories but not the property, and the
+# property's only members inside the stripped categories are the enclosed
+# Latin letters (all Symbol-other), so those four ranges are spelled out
+# below. The rule is expressed as categories rather than a frozen port of the
+# generated regex.js because code-point assignments drift with the
+# interpreter's own Unicode data as new characters are assigned.
+_GITHUB_STRIP_CATEGORIES = frozenset(
+    (
+        "No",  # Other_Number — Python's \w kept these; GitHub strips them.
+        "Pe",
+        "Pf",
+        "Pi",
+        "Ps",
+        "Po",
+        "Pd",
+        "Sm",
+        "Sc",
+        "Sk",
+        "So",
+        "Cc",
+        "Cf",
+        "Cn",
+        "Co",
+        "Zl",
+        "Zp",
+        "Zs",
+    )
+)
+_GITHUB_ALPHABETIC_IN_STRIP_CATEGORIES = (
+    (0x24B6, 0x24E9),  # circled Latin letters
+    (0x1F130, 0x1F149),  # squared Latin capitals
+    (0x1F150, 0x1F169),  # negative squared Latin capitals
+    (0x1F170, 0x1F189),  # negative squared white Latin capitals
+)
 
-    A heading's hard break adds nothing to GitHub's own anchor ("Heading
-    one<br>heading two" -> "heading-oneheading-two", #1357), so the "\v"
-    break marker (#1230) is dropped here, inside the scheme itself — both
-    consumers that must agree (this resolver and markdown_export.py's
-    exported heading links) call this one function, and only the read side's
-    raw heading text carries "\v"; the export side drops the "\n" its
-    doc_to_ast-normalized text carries at the same place."""
-    slug = text.lower().replace("\v", "")
-    slug = _STRIP_CHARS.sub("", slug)
-    return _WHITESPACE_RUN.sub(lambda m: "-" * len(m.group(0)), slug)
+
+def _github_strips(ch: str) -> bool:
+    """Whether github-slugger's strip set drops `ch` (see that set's comment)."""
+    if ch == " " or ch == "-":
+        return False
+    if unicodedata.category(ch) not in _GITHUB_STRIP_CATEGORIES:
+        return False
+    code_point = ord(ch)
+    return not any(
+        start <= code_point <= end for start, end in _GITHUB_ALPHABETIC_IN_STRIP_CATEGORIES
+    )
+
+
+def _github_style_slugify(text: str) -> str:
+    r"""GitHub's markdown heading-anchor convention (github-slugger, GitHub's
+    own reference implementation): lowercase, drop every character in the
+    strip set defined above, keep literal spaces and hyphens, and turn each
+    space into a hyphen — consecutive hyphens are NOT collapsed (" - " ->
+    "---", confirmed against issue #409's own real example; a run of spaces
+    still becomes a matching-length run of hyphens, one per space).
+
+    Stripping by category rather than Python's \w is what keeps the match
+    where the two disagree: \w kept Other_Number characters ("²" in "Area in
+    m²", "½") that GitHub strips, and dropped combining marks ("\u0301")
+    that GitHub keeps, so a heading's real anchor resolved to nothing
+    (#1482). Non-space whitespace — tab, NBSP, a heading's stored "\v" hard
+    break — sits in stripped categories, matching github-slugger's own
+    removal of them (#1460, #1357); the full story of the break and
+    whitespace shapes lives in docs/design/heading-anchor-resolution.md.
+    No known maintained Python package reproduces this; github-slugger is
+    JS-only."""
+    slug = text.lower()
+    slug = "".join(ch for ch in slug if not _github_strips(ch))
+    return slug.replace(" ", "-")
 
 
 # One callable per known slugification scheme. The GitLab/Kramdown-style
@@ -52,17 +108,12 @@ def _github_style_slugify(text: str) -> str:
 # exactly one scheme's slug list for a well-formed document — only which
 # scheme wins a pathological tie.
 #
-# The two schemes also disagree on a heading's hard break (`<br>` / a Markdown
-# "\"), which #1230 stores inside the heading text as a "\v": GitHub's slug
-# ignores the break — it adds no text and no separator ("Heading one<br>heading
-# two" slugs to "heading-oneheading-two", #1357) — a drop made inside
-# _github_style_slugify itself so every caller of the GitHub scheme agrees,
-# while GitLab's Comrak-based
-# anchor collects the break as a plain space and slugifies it to a single
-# hyphen (comrak's collect_text_append pushes " " for LineBreak | SoftBreak,
-# and anchorize maps it to "-"), which this collapsed scheme already
-# reproduces via python-markdown's slugify. So only the GitHub scheme drops
-# the break; the GitLab one keeps turning it into a separator.
+# Both schemes also touch a heading's hard break ("<br>", stored inside the
+# heading text as a "\v", #1230): the GitHub scheme drops it with no separator
+# (#1357), the collapsed GitLab scheme slugifies it to a single hyphen — extra
+# tolerance for an anchor spelled with the separator, not a reproduction of
+# GitLab's own <br> slug. The full story, including which break shapes can
+# actually reach a heading, lives in docs/design/heading-anchor-resolution.md.
 _SLUGIFY_FUNCS = [
     _github_style_slugify,
     lambda text: _markdown_toc_slugify(text, "-"),
@@ -70,19 +121,25 @@ _SLUGIFY_FUNCS = [
 
 
 def _slugs_with_dedup(heading_texts: list[str], slugify_func) -> list[str]:
-    """Slugify every heading, appending a numeric -1, -2, ... suffix to the
-    second and later occurrence of an identical base slug — both GitHub and
-    GitLab disambiguate repeated headings this way, leaving the first
-    occurrence bare. (python-markdown's own toc-extension dedup instead uses
-    '_1', '_2' — deliberately not reused here, since it doesn't match either
-    GitHub's or GitLab's actual convention.)"""
-    seen: dict[str, int] = {}
+    """Slugify every heading, keeping every slug unique the way github-slugger
+    does (BananaSlug.slug): the first occurrence of a base slug is left bare,
+    and every later repeat gets "-1", "-2", ... appended. Where a numbered
+    form is itself already taken — by a heading literally titled that way —
+    the counter keeps incrementing until the slug is free: "Pricelist", an
+    NBSP-spelled "Price\xa0List" and a literal "Pricelist-1" yield "pricelist",
+    "pricelist-1" and "pricelist-1-1" (#1482). (python-markdown's own
+    toc-extension dedup instead uses '_1', '_2' — deliberately not reused
+    here, since it doesn't match either GitHub's or GitLab's actual
+    convention.)"""
+    occurrences: dict[str, int] = {}
     slugs = []
     for text in heading_texts:
-        base = slugify_func(text)
-        count = seen.get(base, 0)
-        seen[base] = count + 1
-        slugs.append(base if count == 0 else f"{base}-{count}")
+        slug = original = slugify_func(text)
+        while slug in occurrences:
+            occurrences[original] = occurrences[original] + 1
+            slug = f"{original}-{occurrences[original]}"
+        occurrences[slug] = 0
+        slugs.append(slug)
     return slugs
 
 
@@ -182,6 +239,12 @@ def resolve_heading_anchor(
     list) is recomputed rather than trusted — a mismatched-but-same-shaped
     scheme_slugs could otherwise silently resolve to the wrong heading
     index instead of raising or visibly failing.
+
+    A genuinely ambiguous anchor can't be resolved by ordering: with
+    headings "Price\xa0List" and "Pricelist", a "#pricelist" anchor names
+    the first heading on GitHub and the second on GitLab, so the GitHub
+    scheme, tried first, wins — documented rather than fixed in
+    docs/design/heading-anchor-resolution.md (#1482).
     """
     anchor = anchor.lstrip("#")
     if not anchor or not heading_texts:
