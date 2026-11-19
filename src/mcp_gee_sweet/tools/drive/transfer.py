@@ -4388,8 +4388,8 @@ def register(tool):
             enforce_response_size_cap(
                 result,
                 tool_name="sync_folder",
-                hint="Recursive syncs can produce very large result lists. Narrow "
-                "folder_id, direction, or recursive scope. ",
+                hint="Recursive syncs can produce very large result lists. Sync a "
+                "narrower subfolder, a single direction, or set recursive=False. ",
                 local_path_param="result_local_path",
             )
             return result
