@@ -3034,6 +3034,8 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 
 **Cleanup:** `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Copy of Sales")` and `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales Dup 1526")`.
 
+**Result (2026-11-18) ✅ PASS — PR #1544 round 1, Sky on `mcp-gee-sweet-sky` @ a6bdcfaa** — 1 returned `{sheetId, title: "Copy of Sales", index: 1, spreadsheetId}` (Sales was at 0). 2 returned `title` `Sales Dup 1526`, `index` 0. `list_sheets` was `["Sales Dup 1526", "Sales", "Copy of Sales", "Notes & Misc", "Empty"]`, no `deprecation_warnings` in either result. 4 returned the six Sales rows. Extra probe: an in-place copy with `insert_index=99` landed at the end and reported the real `index` (5), from the API reply. Tabs deleted.
+
 ### TC-S142: copy_sheet into another spreadsheet renames and places the copy ⚠️ destructive
 
 **Setup:** `create_spreadsheet(title="QA copy_sheet dest 1526")`; call its ID `{DEST}`. It starts with one tab, `Sheet1`.
@@ -3055,6 +3057,8 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 
 **Cleanup:** `delete_file(file_id={DEST})`.
 
+**Result (2026-11-18) ❌ FAIL — PR #1544 round 1, Sky on `mcp-gee-sweet-sky` @ a6bdcfaa** — Checks 1–5 all met: 1 → `{title: "Copy of Sales", index: 1, spreadsheetId: {DEST}}`, 2 → `Sales Q` at 0, `list_sheets({DEST})` `["Sales Q", "Sheet1", "Copy of Sales"]`, the six Sales rows, source unchanged. Two extra probes on the cross-spreadsheet path failed: `insert_index=9` (past the last tab) raised `HttpError 400 "The new sheet index is too high"` after `copyTo` landed, leaving an unrenamed `Copy of Sales 1` in {DEST}; `new_name="Sales Q"` (already in {DEST}) raised `A sheet with the name "Sales Q" already exists` and left `Copy of Sales 2`. Also: `destination_spreadsheet_id` equal to `spreadsheet_id` put the copy at the end (index 6), not right after Sales as the docstring says for a copy within one spreadsheet. Sent back on PR #1544. {DEST} trashed.
+
 ### TC-S143: copy_sheet rejects a bad insert_index or sheet without copying anything
 
 **Setup:** as TC-S142 (or reuse its `{DEST}` before its cleanup).
@@ -3074,6 +3078,8 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 
 **Cleanup:** `delete_file(file_id={DEST})` if created here.
 
+**Result (2026-11-18) ✅ PASS — PR #1544 round 1, Sky on `mcp-gee-sweet-sky` @ a6bdcfaa** — 1 and 2 → `{"error": "insert_index must be non-negative, got -1"}`; 3 → `{"error": "Sheet 'DoesNotExist' not found"}`; 4 → tool error ``Pass only `sheet`: `src_sheet` is its deprecated old name.`` Neither spreadsheet gained a tab. Ran against TC-S142's {DEST}.
+
 ### TC-S144: duplicate_sheet and copy_sheet's old parameter names are deprecated, and still work ⚠️ destructive
 
 **Prompt**
@@ -3090,3 +3096,5 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 - 3: `tool_selection.deprecated_tools` includes `duplicate_sheet` and `get_sheet_formulas`
 
 **Cleanup:** `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Dup Old 1526")` and `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Copy Old 1526")`.
+
+**Result (2026-11-18) ✅ PASS — PR #1544 round 1, Sky on `mcp-gee-sweet-sky` @ a6bdcfaa** — Served descriptions and schema as stated: `duplicate_sheet` begins with the Deprecated line, `copy_sheet` doesn't, and its schema has the four old names optional with `Deprecated: use ...` descriptions. 1 → `{title: "Dup Old 1526", index: 2}` (right after Sales, which was at 1). 2 → `title` `Copy Old 1526`, `index` 8 (copyTo appends, as before #1526), and four `deprecation_warnings`. `deprecated_tools` includes `duplicate_sheet` and `get_sheet_formulas`. Tabs deleted.

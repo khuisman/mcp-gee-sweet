@@ -1121,6 +1121,8 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 - 3: A2 is `=TODAY()`, B2 is `Setup complete`
 - 4: row 6 B–D are `=SUM(B2:B5)`, `=SUM(C2:C5)`, `=SUM(D2:D5)`; the data rows are literal values (100, 200, …), the same values `get_sheet_formulas(sheet="Sales")` returns as a bare list
 
+**Result (2026-11-18) ✅ PASS — PR #1544 round 1, Sky on `mcp-gee-sweet-sky` @ a6bdcfaa** — Each returned `{spreadsheetId, valueRanges}`. 1: `["11/19/2026", "Setup complete"]` (the sheet's time zone is `Etc/GMT`, so its TODAY() can be a day ahead of local time). 2: `[46345, "Setup complete"]`. 3: `["=TODAY()", "Setup complete"]`. 4: row 6 `=SUM(B2:B5)`, `=SUM(C2:C5)`, `=SUM(D2:D5)`, data rows as numbers, identical to `get_sheet_formulas(sheet="Sales")`'s bare list.
+
 ---
 
 ### TC-R46: value_render is validated, ignored with include_grid_data, and get_sheet_formulas is deprecated (#1526)
@@ -1137,6 +1139,8 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 - 2 returns grid data whose B6 cell carries `userEnteredValue.formulaValue` `=SUM(B2:B5)` and its computed `effectiveValue`, the same as without `value_render`
 - 3 still returns the bare list `[["=SUM(B2:B5)"]]`
 - `get_sheet_formulas` isn't in the `default` group: `docs/tools.md` lists it under `sheets` only
+
+**Result (2026-11-18) ✅ PASS — PR #1544 round 1, Sky on `mcp-gee-sweet-sky` @ a6bdcfaa** — Descriptions as stated. 1 rejected: `Input should be 'formatted', 'unformatted' or 'formula'`. 2: B6 `userEnteredValue.formulaValue` `=SUM(B2:B5)`, `effectiveValue.numberValue` 650. 3: `[["=SUM(B2:B5)"]]`. `docs/tools.md` lists `get_sheet_formulas` with group `sheets` only.
 
 ---
 Cleanup: run folder QA-orn-S5-2026-11-08 trashed (it held the fixture copy; the two QA-Summary-183 throwaways were trashed first). Nothing kept. Remaining local scratch: small grid JSONs r03/r03b/r31–r33 in tmp/S5 (≤21 KB each).
