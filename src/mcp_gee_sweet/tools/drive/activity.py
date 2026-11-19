@@ -6,7 +6,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
-from ..response_limits import enforce_response_size_cap
+from ..response_limits import enforce_response_size_cap, pagination_hint
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,7 @@ def register(tool):
         enforce_response_size_cap(
             result,
             tool_name="list_file_activity",
-            hint="Lower page_size and paginate via next_page_token. ",
+            hint=pagination_hint("page_size"),
             local_path_available=False,
         )
 
