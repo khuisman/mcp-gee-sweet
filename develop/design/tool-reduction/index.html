@@ -1902,6 +1902,14 @@
 <li><code>add_dimension</code>, <code>delete_dimension</code>, <code>resize_dimension</code>, <code>hide_dimension</code>: shorter, and the API's own word, but not found by a search for "rows" or "columns".</li>
 </ol>
 <p><strong>Recommendation:</strong> <code>*_rows_or_columns</code>. Rule 5 asks that a merged tool stay findable by the words a model searches for, and Claude Code and VS Code both find tools by search.</p>
+<h2 id="implementation-notes-1526">Implementation notes (#1526)<a class="headerlink" href="#implementation-notes-1526" title="Permanent link">&para;</a></h2>
+<p>Recorded as <code>get_sheet_data(value_render=)</code> and the merged <code>copy_sheet</code> landed (PR #1544).</p>
+<ul>
+<li><strong><code>copy_sheet</code>'s result.</strong> The two tools returned different shapes: <code>copy_sheet</code> the raw <code>copyTo</code> and rename responses (<code>{copy, rename}</code>), <code>duplicate_sheet</code> <code>{sheetId, title, index, spreadsheetId}</code>. Rule 4 asks for one shape, and the maintainer chose <code>duplicate_sheet</code>'s for both modes (2026-11-18). The deprecation policy covers renamed parameters, not a changed result, so the CHANGELOG lists it under <strong>Breaking change</strong>.</li>
+<li><strong><code>renamed_params</code>' first use.</strong> <code>copy_sheet</code>'s <code>src_*</code>/<code>dst_*</code> parameters are the first renamed through <code>deprecation.renamed_params</code> (#1209). The renamed <code>spreadsheet_id</code> and <code>sheet</code> show as optional in the published schema, since an old-name caller passes neither; a call passing neither name gets <code>Missing required argument</code>.</li>
+<li><strong>Orphan copies (PR #1544 QA round 1).</strong> <code>copyTo</code> lands before the rename or move can be refused, so a refused update left an unrenamed <code>Copy of …</code> tab behind. Live: a move past the end gets <code>The new sheet index is too high</code>, and a name another tab has gets <code>A sheet with the name … already exists</code>, compared ignoring case (<code>sales q</code> collides with <code>Sales Q</code>; <code>Sales Q</code> doesn't). The fix checks a negative index and a taken name before <code>copyTo</code>, leaves the copy last for an index at or past the end (as <code>duplicateSheet</code> does), and deletes the copy if the update fails anyway. The old <code>copy_sheet</code> had the same orphan.</li>
+<li><strong>The source's own ID as destination (PR #1544 QA round 1)</strong> is a copy in place, through <code>duplicateSheet</code>, so the copy lands right after the source. Before #1526 an old-name call with <code>dst_spreadsheet == src_spreadsheet</code> went through <code>copyTo</code> and appended.</li>
+</ul>
 
 
 

@@ -3258,6 +3258,78 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#copy_sheet-absorbs-duplicate_sheet-1526" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        copy_sheet absorbs duplicate_sheet (#1526)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="copy_sheet absorbs duplicate_sheet (#1526)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tc-s141-copy_sheet-with-no-destination-duplicates-in-place-right-after-the-source-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S141: copy_sheet with no destination duplicates in place, right after the source ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s142-copy_sheet-into-another-spreadsheet-renames-and-places-the-copy-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S142: copy_sheet into another spreadsheet renames and places the copy ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s143-copy_sheet-rejects-a-bad-insert_index-or-sheet-without-copying-anything" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S143: copy_sheet rejects a bad insert_index or sheet without copying anything
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s144-duplicate_sheet-and-copy_sheets-old-parameter-names-are-deprecated-and-still-work-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S144: duplicate_sheet and copy_sheet's old parameter names are deprecated, and still work ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-s145-copy_sheet-into-another-spreadsheet-leaves-no-stray-tab-when-the-rename-or-move-cant-apply-destructive" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-S145: copy_sheet into another spreadsheet leaves no stray tab when the rename or move can't apply ⚠️ destructive
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -3409,7 +3481,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <p>"Copy the Sales sheet from {SPREADSHEET_ID} into a different spreadsheet — use {SPREADSHEET_ID} as both source and destination for this test, but note the tool supports different IDs"</p>
 </blockquote>
 <p><strong>Checks</strong>
-- Tool accepts <code>src_spreadsheet</code> and <code>dst_spreadsheet</code> as separate params
+- Tool accepts <code>spreadsheet_id</code> and <code>destination_spreadsheet_id</code> as separate params (named <code>src_spreadsheet</code>/<code>dst_spreadsheet</code> before #1526)
 - Copy operation completes without error
 - 🔍 <strong>Note:</strong> requires a second spreadsheet ID to fully verify cross-spreadsheet copy</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
@@ -3425,7 +3497,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 </blockquote>
 <p><strong>Checks</strong>
 - Sheet is named 'My Custom Name', not Google's default 'Copy of Sales'
-- Rename was triggered automatically after the copy</p>
+- The response's <code>title</code> is 'My Custom Name' (before #1526 the response held a <code>rename</code> key instead)</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 copy_sheet(dst_sheet="My Custom Name") → sheet named "My Custom Name" not "Copy of Sales"; response included "rename" key confirming auto-rename triggered</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
@@ -3439,7 +3511,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 </blockquote>
 <p><strong>Checks</strong>
 - Sheet is named 'Copy of Sales'
-- No unnecessary rename API call (names already match)</p>
+- No unnecessary rename API call (names already match). Since #1526 the response is <code>{sheetId, title, index, spreadsheetId}</code> either way, so this is covered by <code>TestCopySheet::test_rename_skipped_when_title_already_matches</code> (<code>tests/sheets/test_structure.py</code>), not by the response</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 copy_sheet(dst_sheet="Copy of Sales") matching Google's own default name → response has no "rename" key, confirming no extra rename API call</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
@@ -3453,7 +3525,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 </blockquote>
 <p><strong>Checks</strong>
 - Returns <code>{"error": ...}</code> before calling the copy API
-- Error references the missing sheet name</p>
+- Error references the missing sheet name (<code>Sheet 'DoesNotExist' not found</code> since #1526; <code>Source sheet ...</code> before)</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 copy_sheet(src_sheet="DoesNotExist") → {"error":"Source sheet 'DoesNotExist' not found"}, before API call</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
@@ -3481,7 +3553,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 </blockquote>
 <p><strong>Checks</strong>
 - <code>list_sheets</code> includes 'PostCopyCache'
-- Confirms <code>cache.mark_dirty(dst_spreadsheet)</code> fires after copy</p>
+- Confirms the cache of the spreadsheet the copy lands in is marked dirty after the copy</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 copy_sheet(dst_sheet="PostCopyCache") then immediate list_sheets includes it — mark_dirty confirmed</p>
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
@@ -5456,6 +5528,100 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 <p><strong>Cleanup:</strong> <code>delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Deprecated1525")</code>.</p>
 <p><strong>Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on <code>mcp-gee-sweet-sky</code> @ 7620841b</strong> — All ten served descriptions begin with the stated <code>Deprecated: use ...</code> line (<code>unhide_*</code> with <code>hidden=False</code>); none of the four new ones does. <code>add_rows</code> and <code>unhide_columns</code> each returned <code>replies: [{}]</code>, no <code>error</code>. <code>server://auth-status</code> <code>tool_selection.deprecated_tools</code> lists all ten. Both scratch tabs deleted.</p>
 <p><strong>Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on <code>mcp-gee-sweet-sky</code> @ 6e5b0616</strong> — Beyond the case's two calls, all ten deprecated tools were called on <code>Deprecated1525</code> (the fix changed the dimension each passes): each returned <code>replies</code>, no <code>error</code>; <code>hide_rows</code>/<code>hide_columns</code> hid row 2/column B and <code>unhide_rows</code>/<code>unhide_columns</code> cleared them; <code>resize_rows</code> set row 3 to 40 and <code>resize_columns</code> column C to 150. <code>server://auth-status</code> <code>deprecated_tools</code> lists all ten. Scratch tabs deleted.</p>
+<hr />
+<h2 id="copy_sheet-absorbs-duplicate_sheet-1526"><code>copy_sheet</code> absorbs <code>duplicate_sheet</code> (#1526)<a class="headerlink" href="#copy_sheet-absorbs-duplicate_sheet-1526" title="Permanent link">&para;</a></h2>
+<p><code>copy_sheet(spreadsheet_id, sheet, destination_spreadsheet_id=None, new_name=None, insert_index=None)</code> copies a tab in place (a <code>duplicateSheet</code>, the request <code>duplicate_sheet</code> sends) when there's no destination, and into another spreadsheet (<code>copyTo</code>, then one <code>updateSheetProperties</code> for <code>new_name</code> and <code>insert_index</code>) when there is. Both return <code>{sheetId, title, index, spreadsheetId}</code>. <code>duplicate_sheet</code> stays registered for one release, deprecated, and <code>copy_sheet</code>'s old parameter names (<code>src_spreadsheet</code>, <code>src_sheet</code>, <code>dst_spreadsheet</code>, <code>dst_sheet</code>) still work for one release. <code>TestCopySheetInPlace</code> (<code>tests/sheets/test_structure.py</code>) runs every in-place test against both tools, so these cases don't repeat the <code>duplicate_sheet</code> cases above.</p>
+<h3 id="tc-s141-copy_sheet-with-no-destination-duplicates-in-place-right-after-the-source-destructive">TC-S141: copy_sheet with no destination duplicates in place, right after the source ⚠️ destructive<a class="headerlink" href="#tc-s141-copy_sheet-with-no-destination-duplicates-in-place-right-after-the-source-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call these in order and report each raw result:
+1. <code>copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\")</code>
+2. <code>copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", new_name=\"Sales Dup 1526\", insert_index=0)</code>
+3. <code>list_sheets(spreadsheet_id={SPREADSHEET_ID})</code>
+4. <code>get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales Dup 1526\")</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 1 returns exactly the keys <code>sheetId</code>, <code>title</code>, <code>index</code>, <code>spreadsheetId</code>: <code>title</code> is <code>Copy of Sales</code>, <code>index</code> is Sales' index + 1, <code>spreadsheetId</code> is {SPREADSHEET_ID}
+- 2 returns <code>title</code> <code>Sales Dup 1526</code>, <code>index</code> 0, the same <code>spreadsheetId</code>
+- 3 lists <code>Sales Dup 1526</code> first and <code>Copy of Sales</code> immediately after <code>Sales</code>, with no <code>deprecation_warnings</code> in either result
+- 4 returns the same rows as Sales (header + 5 rows, 4 columns)</p>
+<p><strong>Cleanup:</strong> <code>delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Copy of Sales")</code> and <code>delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales Dup 1526")</code>.</p>
+<p><strong>Result (2026-11-18) ✅ PASS — PR #1544 round 1, Sky on <code>mcp-gee-sweet-sky</code> @ a6bdcfaa</strong> — 1 returned <code>{sheetId, title: "Copy of Sales", index: 1, spreadsheetId}</code> (Sales was at 0). 2 returned <code>title</code> <code>Sales Dup 1526</code>, <code>index</code> 0. <code>list_sheets</code> was <code>["Sales Dup 1526", "Sales", "Copy of Sales", "Notes &amp; Misc", "Empty"]</code>, no <code>deprecation_warnings</code> in either result. 4 returned the six Sales rows. Extra probe: an in-place copy with <code>insert_index=99</code> landed at the end and reported the real <code>index</code> (5), from the API reply. Tabs deleted.</p>
+<h3 id="tc-s142-copy_sheet-into-another-spreadsheet-renames-and-places-the-copy-destructive">TC-S142: copy_sheet into another spreadsheet renames and places the copy ⚠️ destructive<a class="headerlink" href="#tc-s142-copy_sheet-into-another-spreadsheet-renames-and-places-the-copy-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> <code>create_spreadsheet(title="QA copy_sheet dest 1526")</code>; call its ID <code>{DEST}</code>. It starts with one tab, <code>Sheet1</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call these in order and report each raw result:
+1. <code>copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={DEST})</code>
+2. <code>copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={DEST}, new_name=\"Sales Q\", insert_index=0)</code>
+3. <code>list_sheets(spreadsheet_id={DEST})</code>
+4. <code>get_sheet_data(spreadsheet_id={DEST}, sheet=\"Sales Q\")</code>
+5. <code>list_sheets(spreadsheet_id={SPREADSHEET_ID})</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 1 returns <code>{sheetId, title: "Copy of Sales", index: 1, spreadsheetId: {DEST}}</code>: no <code>new_name</code> keeps Google's name, and <code>copyTo</code> appends
+- 2 returns <code>title</code> <code>Sales Q</code>, <code>index</code> 0, <code>spreadsheetId</code> {DEST}
+- 3 is <code>["Sales Q", "Sheet1", "Copy of Sales"]</code>
+- 4 returns the same rows as Sales
+- 5 is unchanged from before the calls</p>
+<p><strong>Cleanup:</strong> <code>delete_file(file_id={DEST})</code>.</p>
+<p><strong>Result (2026-11-18) ❌ FAIL — PR #1544 round 1, Sky on <code>mcp-gee-sweet-sky</code> @ a6bdcfaa</strong> — Checks 1–5 all met: 1 → <code>{title: "Copy of Sales", index: 1, spreadsheetId: {DEST}}</code>, 2 → <code>Sales Q</code> at 0, <code>list_sheets({DEST})</code> <code>["Sales Q", "Sheet1", "Copy of Sales"]</code>, the six Sales rows, source unchanged. Two extra probes on the cross-spreadsheet path failed: <code>insert_index=9</code> (past the last tab) raised <code>HttpError 400 "The new sheet index is too high"</code> after <code>copyTo</code> landed, leaving an unrenamed <code>Copy of Sales 1</code> in {DEST}; <code>new_name="Sales Q"</code> (already in {DEST}) raised <code>A sheet with the name "Sales Q" already exists</code> and left <code>Copy of Sales 2</code>. Also: <code>destination_spreadsheet_id</code> equal to <code>spreadsheet_id</code> put the copy at the end (index 6), not right after Sales as the docstring says for a copy within one spreadsheet. Sent back on PR #1544. {DEST} trashed.</p>
+<h3 id="tc-s143-copy_sheet-rejects-a-bad-insert_index-or-sheet-without-copying-anything">TC-S143: copy_sheet rejects a bad insert_index or sheet without copying anything<a class="headerlink" href="#tc-s143-copy_sheet-rejects-a-bad-insert_index-or-sheet-without-copying-anything" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> as TC-S142 (or reuse its <code>{DEST}</code> before its cleanup).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call each and report the raw result, then <code>list_sheets</code> on both spreadsheets:
+1. <code>copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", insert_index=-1)</code>
+2. <code>copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={DEST}, insert_index=-1)</code>
+3. <code>copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"DoesNotExist\", destination_spreadsheet_id={DEST})</code>
+4. <code>copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", src_sheet=\"Sales\")</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 1 and 2 → <code>{"error": "insert_index must be non-negative, got -1"}</code>
+- 3 → <code>{"error": "Sheet 'DoesNotExist' not found"}</code>
+- 4 → a tool error: <code>Pass only \</code>sheet`: `src_sheet` is its deprecated old name.`
+- Neither spreadsheet gained a tab</p>
+<p><strong>Cleanup:</strong> <code>delete_file(file_id={DEST})</code> if created here.</p>
+<p><strong>Result (2026-11-18) ✅ PASS — PR #1544 round 1, Sky on <code>mcp-gee-sweet-sky</code> @ a6bdcfaa</strong> — 1 and 2 → <code>{"error": "insert_index must be non-negative, got -1"}</code>; 3 → <code>{"error": "Sheet 'DoesNotExist' not found"}</code>; 4 → tool error <code>Pass only `sheet`: `src_sheet` is its deprecated old name.</code> Neither spreadsheet gained a tab. Ran against TC-S142's {DEST}.</p>
+<h3 id="tc-s144-duplicate_sheet-and-copy_sheets-old-parameter-names-are-deprecated-and-still-work-destructive">TC-S144: duplicate_sheet and copy_sheet's old parameter names are deprecated, and still work ⚠️ destructive<a class="headerlink" href="#tc-s144-duplicate_sheet-and-copy_sheets-old-parameter-names-are-deprecated-and-still-work-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Read the tool descriptions this server serves for <code>duplicate_sheet</code> and <code>copy_sheet</code>, and <code>copy_sheet</code>'s input schema. Then call these and report each raw result:
+1. <code>duplicate_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", new_name=\"Dup Old 1526\")</code>
+2. <code>copy_sheet(src_spreadsheet={SPREADSHEET_ID}, src_sheet=\"Sales\", dst_spreadsheet={SPREADSHEET_ID}, dst_sheet=\"Copy Old 1526\")</code>
+3. Read <code>server://auth-status</code>."</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>duplicate_sheet</code>'s description begins <code>Deprecated: use `copy_sheet` with no `destination_spreadsheet_id` instead. Removed in the next feature release.</code>; <code>copy_sheet</code>'s doesn't begin with <code>Deprecated</code>
+- <code>copy_sheet</code>'s schema has <code>src_spreadsheet</code>, <code>src_sheet</code>, <code>dst_spreadsheet</code> and <code>dst_sheet</code>, each optional and described <code>Deprecated: use `&lt;new name&gt;`. Removed in the next feature release.</code>
+- 1 returns <code>{sheetId, title: "Dup Old 1526", index, spreadsheetId}</code>, the copy right after Sales
+- 2 returns <code>title</code> <code>Copy Old 1526</code> and a <code>deprecation_warnings</code> list with one entry for each of the four old names, e.g. <code>"`src_sheet` is deprecated: use `sheet`. `src_sheet` is removed in the next feature release."</code>
+- 3: <code>tool_selection.deprecated_tools</code> includes <code>duplicate_sheet</code> and <code>get_sheet_formulas</code></p>
+<p><strong>Cleanup:</strong> <code>delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Dup Old 1526")</code> and <code>delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Copy Old 1526")</code>.</p>
+<p><strong>Result (2026-11-18) ✅ PASS — PR #1544 round 1, Sky on <code>mcp-gee-sweet-sky</code> @ a6bdcfaa</strong> — Served descriptions and schema as stated: <code>duplicate_sheet</code> begins with the Deprecated line, <code>copy_sheet</code> doesn't, and its schema has the four old names optional with <code>Deprecated: use ...</code> descriptions. 1 → <code>{title: "Dup Old 1526", index: 2}</code> (right after Sales, which was at 1). 2 → <code>title</code> <code>Copy Old 1526</code>, <code>index</code> 8 (copyTo appends, as before #1526), and four <code>deprecation_warnings</code>. <code>deprecated_tools</code> includes <code>duplicate_sheet</code> and <code>get_sheet_formulas</code>. Tabs deleted.</p>
+<h3 id="tc-s145-copy_sheet-into-another-spreadsheet-leaves-no-stray-tab-when-the-rename-or-move-cant-apply-destructive">TC-S145: copy_sheet into another spreadsheet leaves no stray tab when the rename or move can't apply ⚠️ destructive<a class="headerlink" href="#tc-s145-copy_sheet-into-another-spreadsheet-leaves-no-stray-tab-when-the-rename-or-move-cant-apply-destructive" title="Permanent link">&para;</a></h3>
+<p>PR #1544 QA round 1 found that a refused rename or move left an unrenamed <code>Copy of Sales</code> behind, since <code>copyTo</code> lands first.</p>
+<p><strong>Setup:</strong> <code>create_spreadsheet(title="QA copy_sheet orphan 1526")</code>; call its ID <code>{DEST}</code>. Then <code>copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", destination_spreadsheet_id={DEST}, new_name="Sales Q")</code>, so <code>{DEST}</code> holds <code>Sheet1</code> and <code>Sales Q</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call these in order and report each raw result:
+1. <code>copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={DEST}, new_name=\"sales q\")</code>
+2. <code>copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={DEST}, insert_index=9)</code>
+3. <code>copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={DEST}, new_name=\"Far\", insert_index=9)</code>
+4. <code>list_sheets(spreadsheet_id={DEST})</code>
+5. <code>copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={SPREADSHEET_ID})</code>
+6. <code>list_sheets(spreadsheet_id={SPREADSHEET_ID})</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- 1 → <code>{"error": "The destination spreadsheet already has a sheet named 'sales q' (names are compared ignoring case)"}</code>, and nothing is copied
+- 2 → <code>{sheetId, title: "Copy of Sales", index: 2, spreadsheetId: {DEST}}</code>: an index past the end leaves the copy last instead of failing
+- 3 → <code>title</code> <code>Far</code>, <code>index</code> 3
+- 4 is <code>["Sheet1", "Sales Q", "Copy of Sales", "Far"]</code>: no stray <code>Copy of Sales 1</code>
+- 5 → <code>spreadsheetId</code> {SPREADSHEET_ID}, <code>index</code> Sales' index + 1: the source's own ID as the destination copies in place, right after Sales
+- 6 shows that copy immediately after <code>Sales</code></p>
+<p><strong>Unit coverage:</strong> a rename or move that fails anyway (a tab added between the check and the copy) can't be staged live; <code>TestCopySheet::test_failed_update_deletes_the_copy_and_raises</code> (<code>tests/sheets/test_structure.py</code>) checks the copy is deleted and the error raised.</p>
+<p><strong>Cleanup:</strong> <code>delete_file(file_id={DEST})</code>, and <code>delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=&lt;step 5's title&gt;)</code>.</p>
+<p><strong>Result (2026-11-19) ✅ PASS — PR #1544 round 2, Sky on <code>mcp-gee-sweet-sky</code> @ 5d470631</strong> — Setup copy returned <code>Sales Q</code> at index 1. 1 → <code>{"error": "The destination spreadsheet already has a sheet named 'sales q' (names are compared ignoring case)"}</code>. 2 → <code>{title: "Copy of Sales", index: 2}</code>. 3 → <code>title</code> <code>Far</code>, <code>index</code> 3. 4 → <code>["Sheet1", "Sales Q", "Copy of Sales", "Far"]</code>, no stray tab. 5 → <code>{title: "Copy of Sales", index: 1, spreadsheetId: {SPREADSHEET_ID}}</code>; 6 → <code>["Sales", "Copy of Sales", "Notes &amp; Misc", "Empty"]</code>. Extra probe: <code>new_name="Mid", insert_index=1</code> into {DEST} still moves the copy (index 1, <code>["Sheet1", "Mid", ...]</code>). Round 1's TC-S142 probes (index 9, taken name) are this case's steps 1–3. {DEST} trashed, the in-place copy deleted.</p>
 
 
 

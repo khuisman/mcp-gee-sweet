@@ -1552,15 +1552,15 @@
 <tbody>
 <tr>
 <td><code>get_sheet_data</code></td>
-<td>Get data from a specific sheet in a Google Spreadsheet.</td>
-<td><code>spreadsheet_id</code>, <code>sheet</code>, <code>range?</code>, <code>include_grid_data?</code>, <code>local_path?</code></td>
+<td>Get data from a specific sheet in a Google Spreadsheet: its values, as displayed or unformatted, or its formulas.</td>
+<td><code>spreadsheet_id</code>, <code>sheet</code>, <code>range?</code>, <code>include_grid_data?</code>, <code>local_path?</code>, <code>value_render?</code></td>
 <td><code>sheets</code>, <code>default</code></td>
 </tr>
 <tr>
 <td><code>get_sheet_formulas</code></td>
-<td>Get formulas from a specific sheet in a Google Spreadsheet.</td>
+<td>Deprecated: use <code>get_sheet_data</code> with <code>value_render='formula'</code> instead. Removed in the next feature release.</td>
 <td><code>spreadsheet_id</code>, <code>sheet</code>, <code>range?</code></td>
-<td><code>sheets</code>, <code>default</code></td>
+<td><code>sheets</code></td>
 </tr>
 <tr>
 <td><code>get_multiple_sheet_data</code></td>
@@ -1626,13 +1626,13 @@
 </tr>
 <tr>
 <td><code>copy_sheet</code></td>
-<td>Copy a sheet from one spreadsheet to another.</td>
-<td><code>src_spreadsheet</code>, <code>src_sheet</code>, <code>dst_spreadsheet</code>, <code>dst_sheet</code></td>
+<td>Copy a sheet tab, within its own spreadsheet or into another one.</td>
+<td><code>spreadsheet_id?</code>, <code>sheet?</code>, <code>destination_spreadsheet_id?</code>, <code>new_name?</code>, <code>insert_index?</code>, <code>src_spreadsheet?</code>, <code>src_sheet?</code>, <code>dst_spreadsheet?</code>, <code>dst_sheet?</code></td>
 <td><code>sheets</code></td>
 </tr>
 <tr>
 <td><code>duplicate_sheet</code></td>
-<td>Duplicate a sheet tab within the same spreadsheet.</td>
+<td>Deprecated: use <code>copy_sheet</code> with no <code>destination_spreadsheet_id</code> instead. Removed in the next feature release.</td>
 <td><code>spreadsheet_id</code>, <code>sheet</code>, <code>new_name?</code>, <code>insert_index?</code></td>
 <td><code>sheets</code></td>
 </tr>

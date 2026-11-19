@@ -1874,6 +1874,39 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#tc-r45-get_sheet_datas-value_render-returns-displayed-values-underlying-values-or-formulas-1526" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-R45: get_sheet_data's value_render returns displayed values, underlying values, or formulas (#1526)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-r46-value_render-is-validated-ignored-with-include_grid_data-and-get_sheet_formulas-is-deprecated-1526" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-R46: value_render is validated, ignored with include_grid_data, and get_sheet_formulas is deprecated (#1526)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tc-r47-get_sheet_datas-local_path-names-and-records-value_render-1526-local-filesystem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TC-R47: get_sheet_data's local_path names and records value_render (#1526) ⚠️ local-filesystem
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2813,6 +2846,54 @@ Stale: references retired 40,000 cap; ~42k-char 10-match response no longer trip
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC checks.</p>
 <p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on <code>kai-sa</code></strong> — Ran under the shard scratch dir instead of <code>/tmp</code>, with tabs <code>../x</code> and <code>a/b</code> on the copy. Step 1 returned <code>&lt;dir&gt;/qa-990-sheet/out/.._x_data.json</code> (117 bytes). Step 2 returned <code>&lt;dir&gt;/qa-990-sheet/out/a_b_data.json</code> (116 bytes). <code>qa-990-sheet</code> listed only <code>out</code>, and <code>out</code> listed exactly those two files: no <code>a/</code> subdirectory, nothing beside <code>out</code>. Both tabs deleted, dir removed.</p>
+<hr />
+<h3 id="tc-r45-get_sheet_datas-value_render-returns-displayed-values-underlying-values-or-formulas-1526">TC-R45: get_sheet_data's value_render returns displayed values, underlying values, or formulas (#1526)<a class="headerlink" href="#tc-r45-get_sheet_datas-value_render-returns-displayed-values-underlying-values-or-formulas-1526" title="Permanent link">&para;</a></h3>
+<p><code>get_sheet_data(value_render=)</code> replaces <code>get_sheet_formulas</code>. The fixture's <code>Notes &amp; Misc!A2</code> is <code>=TODAY()</code> and <code>B2</code> is the literal <code>Setup complete</code>; <code>Sales!B6</code> is <code>=SUM(B2:B5)</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Call these and report each raw result:
+1. <code>get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Notes &amp; Misc\", range=\"A2:B2\")</code>
+2. <code>get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Notes &amp; Misc\", range=\"A2:B2\", value_render=\"unformatted\")</code>
+3. <code>get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Notes &amp; Misc\", range=\"A2:B2\", value_render=\"formula\")</code>
+4. <code>get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", value_render=\"formula\")</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- Each returns <code>{"spreadsheetId": ..., "valueRanges": [{"range": ..., "values": [...]}]}</code>, not a bare list
+- 1: A2 is today's date as displayed (a string such as <code>11/17/2026</code>), B2 is <code>Setup complete</code>
+- 2: A2 is a number, today's date as a serial number (above 46000), B2 is <code>Setup complete</code>
+- 3: A2 is <code>=TODAY()</code>, B2 is <code>Setup complete</code>
+- 4: row 6 B–D are <code>=SUM(B2:B5)</code>, <code>=SUM(C2:C5)</code>, <code>=SUM(D2:D5)</code>; the data rows are literal values (100, 200, …), the same values <code>get_sheet_formulas(sheet="Sales")</code> returns as a bare list</p>
+<p><strong>Result (2026-11-18) ✅ PASS — PR #1544 round 1, Sky on <code>mcp-gee-sweet-sky</code> @ a6bdcfaa</strong> — Each returned <code>{spreadsheetId, valueRanges}</code>. 1: <code>["11/19/2026", "Setup complete"]</code> (the sheet's time zone is <code>Etc/GMT</code>, so its TODAY() can be a day ahead of local time). 2: <code>[46345, "Setup complete"]</code>. 3: <code>["=TODAY()", "Setup complete"]</code>. 4: row 6 <code>=SUM(B2:B5)</code>, <code>=SUM(C2:C5)</code>, <code>=SUM(D2:D5)</code>, data rows as numbers, identical to <code>get_sheet_formulas(sheet="Sales")</code>'s bare list.</p>
+<hr />
+<h3 id="tc-r46-value_render-is-validated-ignored-with-include_grid_data-and-get_sheet_formulas-is-deprecated-1526">TC-R46: value_render is validated, ignored with include_grid_data, and get_sheet_formulas is deprecated (#1526)<a class="headerlink" href="#tc-r46-value_render-is-validated-ignored-with-include_grid_data-and-get_sheet_formulas-is-deprecated-1526" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>"Read the tool descriptions this server serves for <code>get_sheet_formulas</code> and <code>get_sheet_data</code>. Then call these and report each raw result:
+1. <code>get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", range=\"B6\", value_render=\"FORMULA\")</code>
+2. <code>get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", range=\"B6\", include_grid_data=True, value_render=\"formula\")</code>
+3. <code>get_sheet_formulas(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", range=\"B6\")</code>"</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>get_sheet_formulas</code>' description begins <code>Deprecated: use `get_sheet_data` with `value_render='formula'` instead. Removed in the next feature release.</code>; <code>get_sheet_data</code>'s doesn't begin with <code>Deprecated</code>, and documents <code>value_render</code>
+- 1 is rejected by the tool's input schema (<code>value_render</code> must be <code>formatted</code>, <code>unformatted</code> or <code>formula</code>)
+- 2 returns grid data whose B6 cell carries <code>userEnteredValue.formulaValue</code> <code>=SUM(B2:B5)</code> and its computed <code>effectiveValue</code>, the same as without <code>value_render</code>
+- 3 still returns the bare list <code>[["=SUM(B2:B5)"]]</code>
+- <code>get_sheet_formulas</code> isn't in the <code>default</code> group: <code>docs/tools.md</code> lists it under <code>sheets</code> only</p>
+<p><strong>Result (2026-11-18) ✅ PASS — PR #1544 round 1, Sky on <code>mcp-gee-sweet-sky</code> @ a6bdcfaa</strong> — Descriptions as stated. 1 rejected: <code>Input should be 'formatted', 'unformatted' or 'formula'</code>. 2: B6 <code>userEnteredValue.formulaValue</code> <code>=SUM(B2:B5)</code>, <code>effectiveValue.numberValue</code> 650. 3: <code>[["=SUM(B2:B5)"]]</code>. <code>docs/tools.md</code> lists <code>get_sheet_formulas</code> with group <code>sheets</code> only.</p>
+<hr />
+<h3 id="tc-r47-get_sheet_datas-local_path-names-and-records-value_render-1526-local-filesystem">TC-R47: get_sheet_data's local_path names and records value_render (#1526) ⚠️ local-filesystem<a class="headerlink" href="#tc-r47-get_sheet_datas-local_path-names-and-records-value_render-1526-local-filesystem" title="Permanent link">&para;</a></h3>
+<p>PR #1544 QA round 1 found a <code>formula</code> dump and a <code>formatted</code> dump of one sheet written to the same file, with nothing saying which it held.</p>
+<p><strong>Setup:</strong> <code>rm -rf /tmp/qa-1526-render</code> (or a scratch dir under <code>$CLAUDE_JOB_DIR/tmp</code>, called <code>&lt;dir&gt;</code> below).</p>
+<p><strong>Steps</strong>
+1. <code>get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", local_path="&lt;dir&gt;/")</code>
+2. <code>get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", value_render="formula", local_path="&lt;dir&gt;/")</code>
+3. <code>get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", range="A1:B2", include_grid_data=True, value_render="formula", local_path="&lt;dir&gt;/grid/")</code></p>
+<p><strong>Checks</strong>
+- 1 returns <code>local_path</code> <code>&lt;dir&gt;/Sales_data.json</code> and <code>value_render</code> <code>formatted</code>
+- 2 returns <code>local_path</code> <code>&lt;dir&gt;/Sales_formula_data.json</code> and <code>value_render</code> <code>formula</code>; that file's row 6 holds <code>=SUM(B2:B5)</code>, and step 1's file still holds the computed totals
+- 3 returns <code>local_path</code> <code>&lt;dir&gt;/grid/Sales_data.json</code> with no <code>value_render</code> key, since the grid ignores it</p>
+<p><strong>Cleanup:</strong> <code>rm -rf &lt;dir&gt;</code></p>
+<p><strong>Result (2026-11-19) ✅ PASS — PR #1544 round 2, Sky on <code>mcp-gee-sweet-sky</code> @ 5d470631</strong> — <code>&lt;dir&gt;</code> under <code>$CLAUDE_JOB_DIR/tmp</code>. 1 → <code>&lt;dir&gt;/Sales_data.json</code>, <code>value_render</code> <code>formatted</code>. 2 → <code>&lt;dir&gt;/Sales_formula_data.json</code>, <code>value_render</code> <code>formula</code>; its Totals row is <code>=SUM(B2:B5)</code>, <code>=SUM(C2:C5)</code>, <code>=SUM(D2:D5)</code> while step 1's file still holds <code>650</code>, <code>670</code>, <code>705</code>. 3 → <code>&lt;dir&gt;/grid/Sales_data.json</code>, range <code>Sales!A1:B2</code>, no <code>value_render</code> key. Dir removed.</p>
 <hr />
 <p>Cleanup: run folder QA-orn-S5-2026-11-08 trashed (it held the fixture copy; the two QA-Summary-183 throwaways were trashed first). Nothing kept. Remaining local scratch: small grid JSONs r03/r03b/r31–r33 in tmp/S5 (≤21 KB each).
 Counts: 48 cases — 47 PASS, 0 FAIL, 0 PARTIAL, 1 SKIP (TC-R03e).
