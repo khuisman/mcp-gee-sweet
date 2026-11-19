@@ -574,8 +574,8 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 **Triaged in 2026-11-07**
 
-- [ ] HTML: a table's `<caption>` text is silently dropped — `wrong/narrow`; #1391 follow-up ([#1402](https://github.com/khuisman/mcp-gee-sweet/issues/1402))
-- [ ] HTML: a block container inside `<p>` or `<li>` runs its text into the block's — `wrong/narrow`; #1391 follow-up ([#1403](https://github.com/khuisman/mcp-gee-sweet/issues/1403))
+- [x] HTML: a table's `<caption>` text is silently dropped — `wrong/narrow`; #1391 follow-up ([#1402](https://github.com/khuisman/mcp-gee-sweet/issues/1402)) (PR #1459)
+- [x] HTML: a block container inside `<p>` or `<li>` runs its text into the block's — `wrong/narrow`; #1391 follow-up ([#1403](https://github.com/khuisman/mcp-gee-sweet/issues/1403)) (PR #1470)
 - [ ] HTML: a block container inside `<a>` or `<b>` loses the link or bold — `wrong/narrow`; #1391 follow-up ([#1404](https://github.com/khuisman/mcp-gee-sweet/issues/1404))
 - [ ] create_paragraph_bullets restyles neighbouring list markers from their item text — `wrong/narrow, observed`; #1383 review follow-up (bar 2) ([#1405](https://github.com/khuisman/mcp-gee-sweet/issues/1405))
 - [ ] Docs: `upload_local_file` should say how to get a converted Doc's title without `.md`; after community PR #1361 ([#1411](https://github.com/khuisman/mcp-gee-sweet/issues/1411))
