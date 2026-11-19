@@ -1,3 +1,4 @@
+import logging
 import textwrap
 from contextlib import nullcontext
 from itertools import groupby
@@ -18,6 +19,8 @@ from .helpers import (
     _parse_a1_notation_or_error,
     _quote_sheet_name,
 )
+
+logger = logging.getLogger(__name__)
 
 _VALID_CHART_TYPES = ["COLUMN", "BAR", "LINE", "AREA", "PIE", "SCATTER", "COMBO", "HISTOGRAM"]
 
@@ -851,6 +854,13 @@ async def _duplicate_sheet(
     return _new_sheet_result(result["replies"][0]["duplicateSheet"]["properties"], spreadsheet_id)
 
 
+def _tab_name_key(title: str) -> str:
+    """A tab name as Sheets compares it for uniqueness: case-insensitively, with
+    surrounding spaces significant ("sales q" collides with "Sales Q", "Sales Q "
+    doesn't; checked live, PR #1544 QA round 1)."""
+    return title.lower()
+
+
 async def _copy_sheet_to(
     lc,
     spreadsheet_id: str,
@@ -862,7 +872,14 @@ async def _copy_sheet_to(
     """Copy `sheet` into another spreadsheet with `copyTo`, which always appends the
     copy as "Copy of <sheet>", then rename and move it there with one
     `updateSheetProperties` when `new_name` or `insert_index` asks for something
-    else."""
+    else.
+
+    The copy lands before that update can fail, so everything the update could be
+    refused for is checked first: a negative `insert_index`, and a `new_name` the
+    destination already has. An `insert_index` at or past the end leaves the copy
+    last, where `copyTo` put it, as `duplicateSheet` does for one past its end. If
+    the update still fails (a tab added meanwhile), the copy is deleted before the
+    error is raised, so a failed call leaves no orphan tab (PR #1544 QA round 1)."""
     sheets_service = lc.sheets_service
 
     sheet_id = await _get_sheet_id(
@@ -871,10 +888,21 @@ async def _copy_sheet_to(
     if sheet_id is None:
         return {"error": f"Sheet '{sheet}' not found"}
     if insert_index is not None:
-        # Before the copy: a rejected move would leave the copy behind.
         error = _non_negative_value_error("insert_index", insert_index)
         if error:
             return error
+    if new_name is not None:
+        taken = {
+            _tab_name_key(s.title)
+            for s in await fetch_sheets(
+                sheets_service, destination_spreadsheet_id, lc.cache, lc.drive_service
+            )
+        }
+        if _tab_name_key(new_name) in taken:
+            return {
+                "error": f"The destination spreadsheet already has a sheet named "
+                f"'{new_name}' (names are compared ignoring case)"
+            }
 
     # Both writes land in the destination. The block also covers a copy that
     # lands before a rejected rename or move (#1265).
@@ -897,30 +925,61 @@ async def _copy_sheet_to(
         # a copy whose response omits its title still gets the name asked for.
         if new_name is not None and copied.get("title") != new_name:
             changes["title"] = new_name
-        if insert_index is not None and copied.get("index") != insert_index:
+        # The copy is the last tab, so a later index is where it already is.
+        last_index = copied.get("index")
+        if insert_index is not None and (last_index is None or insert_index < last_index):
             changes["index"] = insert_index
         if changes:
-            await execute_in_thread(
-                sheets_service.spreadsheets()
-                .batchUpdate(
-                    spreadsheetId=destination_spreadsheet_id,
-                    body={
-                        "requests": [
-                            {
-                                "updateSheetProperties": {
-                                    "properties": {"sheetId": copied["sheetId"], **changes},
-                                    "fields": ",".join(changes),
+            try:
+                await execute_in_thread(
+                    sheets_service.spreadsheets()
+                    .batchUpdate(
+                        spreadsheetId=destination_spreadsheet_id,
+                        body={
+                            "requests": [
+                                {
+                                    "updateSheetProperties": {
+                                        "properties": {"sheetId": copied["sheetId"], **changes},
+                                        "fields": ",".join(changes),
+                                    }
                                 }
-                            }
-                        ]
-                    },
+                            ]
+                        },
+                    )
+                    .execute,
+                    sheets_service,
                 )
-                .execute,
-                sheets_service,
-            )
+            except Exception:
+                await _delete_orphan_copy(
+                    sheets_service, destination_spreadsheet_id, copied["sheetId"]
+                )
+                raise
             properties.update(changes)
 
     return _new_sheet_result(properties, destination_spreadsheet_id)
+
+
+async def _delete_orphan_copy(sheets_service, spreadsheet_id: str, sheet_id: int) -> None:
+    """Delete a copy whose rename or move failed. Best effort: the caller raises the
+    update's own error either way, so a failed delete is only logged."""
+    try:
+        await execute_in_thread(
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={"requests": [{"deleteSheet": {"sheetId": sheet_id}}]},
+            )
+            .execute,
+            sheets_service,
+        )
+    except Exception:
+        logger.warning(
+            "copy_sheet: couldn't delete copied sheet %s from %s after its rename or move "
+            "failed; it is left in place",
+            sheet_id,
+            spreadsheet_id,
+            exc_info=True,
+        )
 
 
 def register(tool):
@@ -960,8 +1019,9 @@ def register(tool):
         """
         Copy a sheet tab, within its own spreadsheet or into another one.
 
-        With no destination_spreadsheet_id, the copy is made in the same spreadsheet
-        (Sheets' "Duplicate"). With one, the sheet is copied into that spreadsheet.
+        With no destination_spreadsheet_id, or with spreadsheet_id itself as the
+        destination, the copy is made in the same spreadsheet (Sheets' "Duplicate").
+        With another one, the sheet is copied into that spreadsheet.
 
         Args:
             spreadsheet_id: The ID of the spreadsheet holding the sheet to copy
@@ -972,16 +1032,21 @@ def register(tool):
                 auto-generated name (e.g. "Copy of Sheet1") if omitted.
             insert_index: Optional 0-based tab position for the copy. Defaults to
                 immediately after the source sheet within the same spreadsheet, and
-                to the last position in another spreadsheet.
+                to the last position in another spreadsheet. A position past the last
+                tab puts the copy last; the result's index says where it landed.
 
         Returns:
             {sheetId, title, index, spreadsheetId} for the new sheet, where
             spreadsheetId is the spreadsheet it was created in. Returns
-            {"error": ...} without copying anything if the sheet isn't found or
-            insert_index is negative.
+            {"error": ...} without copying anything if the sheet isn't found,
+            insert_index is negative, or another spreadsheet already has a sheet
+            named new_name (ignoring case). If renaming or moving a copy in another
+            spreadsheet fails anyway, the copy is deleted before the error is raised.
         """
         lc = ctx.request_context.lifespan_context
-        if destination_spreadsheet_id is None:
+        # The source's own ID as the destination is a copy in place too, so it lands
+        # right after the source rather than at the end (PR #1544 QA round 1).
+        if destination_spreadsheet_id in (None, spreadsheet_id):
             return await _duplicate_sheet(lc, spreadsheet_id, sheet, new_name, insert_index)
         return await _copy_sheet_to(
             lc, spreadsheet_id, sheet, destination_spreadsheet_id, new_name, insert_index

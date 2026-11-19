@@ -215,6 +215,47 @@ class TestGetSheetData:
         written = json.loads(dest.read_text())
         assert written["valueRanges"][0]["values"] == [["a", "b"]]
 
+    @pytest.mark.parametrize(
+        ("value_render", "filename"),
+        [
+            ("formatted", "Sheet1_data.json"),
+            ("unformatted", "Sheet1_unformatted_data.json"),
+            ("formula", "Sheet1_formula_data.json"),
+        ],
+    )
+    async def test_local_path_names_and_records_value_render(
+        self, tmp_path, value_render, filename
+    ):
+        """A formula dump and a values dump of one sheet don't share a file, and the
+        manifest says which one a file holds (PR #1544 QA round 1)."""
+        svc = self._service(values=[["=1+1"]])
+        ctx = _make_ctx(sheets_service=svc)
+        result = await _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            value_render=value_render,
+            local_path=str(tmp_path),
+            ctx=ctx,
+        )
+        assert result["local_path"] == str(tmp_path / filename)
+        assert result["value_render"] == value_render
+
+    async def test_local_path_with_grid_data_records_no_value_render(self, tmp_path):
+        """The grid ignores value_render, so its manifest doesn't claim one."""
+        svc = self._service(grid_result={"ok": True})
+        ctx = _make_ctx(sheets_service=svc)
+        result = await _data_tools["get_sheet_data"](
+            spreadsheet_id="ss1",
+            sheet="Sheet1",
+            range="A1",
+            include_grid_data=True,
+            value_render="formula",
+            local_path=str(tmp_path),
+            ctx=ctx,
+        )
+        assert result["local_path"] == str(tmp_path / "Sheet1_data.json")
+        assert "value_render" not in result
+
     async def test_without_grid_data_and_without_range_uses_sheet_name_only(self):
         svc = self._service(values=[["a"]])
         ctx = _make_ctx(sheets_service=svc)

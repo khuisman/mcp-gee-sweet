@@ -224,3 +224,12 @@ Tier C has no ticket here: it's held on #1522.
    - `add_dimension`, `delete_dimension`, `resize_dimension`, `hide_dimension`: shorter, and the API's own word, but not found by a search for "rows" or "columns".
 
    **Recommendation:** `*_rows_or_columns`. Rule 5 asks that a merged tool stay findable by the words a model searches for, and Claude Code and VS Code both find tools by search.
+
+## Implementation notes (#1526)
+
+Recorded as `get_sheet_data(value_render=)` and the merged `copy_sheet` landed (PR #1544).
+
+- **`copy_sheet`'s result.** The two tools returned different shapes: `copy_sheet` the raw `copyTo` and rename responses (`{copy, rename}`), `duplicate_sheet` `{sheetId, title, index, spreadsheetId}`. Rule 4 asks for one shape, and the maintainer chose `duplicate_sheet`'s for both modes (2026-11-18). The deprecation policy covers renamed parameters, not a changed result, so the CHANGELOG lists it under **Breaking change**.
+- **`renamed_params`' first use.** `copy_sheet`'s `src_*`/`dst_*` parameters are the first renamed through `deprecation.renamed_params` (#1209). The renamed `spreadsheet_id` and `sheet` show as optional in the published schema, since an old-name caller passes neither; a call passing neither name gets `Missing required argument`.
+- **Orphan copies (PR #1544 QA round 1).** `copyTo` lands before the rename or move can be refused, so a refused update left an unrenamed `Copy of …` tab behind. Live: a move past the end gets `The new sheet index is too high`, and a name another tab has gets `A sheet with the name … already exists`, compared ignoring case (`sales q` collides with `Sales Q`; `Sales Q ` doesn't). The fix checks a negative index and a taken name before `copyTo`, leaves the copy last for an index at or past the end (as `duplicateSheet` does), and deletes the copy if the update fails anyway. The old `copy_sheet` had the same orphan.
+- **The source's own ID as destination (PR #1544 QA round 1)** is a copy in place, through `duplicateSheet`, so the copy lands right after the source. Before #1526 an old-name call with `dst_spreadsheet == src_spreadsheet` went through `copyTo` and appended.

@@ -458,6 +458,103 @@ class TestCopySheet:
         await self._copy(mock_sheets, cache=cache)
         cache.mark_dirty.assert_called_with("dst")
 
+    @pytest.mark.parametrize("insert_index", [3, 4, 9])
+    async def test_insert_index_at_or_past_the_end_keeps_the_copy_last(self, insert_index):
+        """copyTo appends, and a move past the end gets "The new sheet index is too
+        high" after the copy has landed (PR #1544 QA round 1), so the copy stays
+        last, as duplicateSheet clamps one past its end, and the result says so."""
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1", "index": 3})
+        result = await self._copy(mock_sheets, insert_index=insert_index)
+        assert not mock_sheets.spreadsheets.return_value.batchUpdate.called
+        assert result["index"] == 3
+
+    async def test_insert_index_past_the_end_still_renames(self):
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1", "index": 3})
+        result = await self._copy(mock_sheets, new_name="Q3", insert_index=9)
+        assert self._update(mock_sheets)[1] == {
+            "properties": {"sheetId": 42, "title": "Q3"},
+            "fields": "title",
+        }
+        assert result == {"sheetId": 42, "title": "Q3", "index": 3, "spreadsheetId": "dst"}
+
+    @pytest.mark.parametrize("new_name", ["Sales Q", "sales q", "SALES Q"])
+    async def test_new_name_taken_in_destination_copies_nothing(self, new_name):
+        """Sheets refuses a tab name another tab has, ignoring case (checked live),
+        and the refusal would come after the copy landed (PR #1544 QA round 1)."""
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1", "index": 3})
+        cache = MagicMock()
+        cache.get_sheets.side_effect = lambda spreadsheet_id, **_: {
+            "src": [SheetInfo(title="Sheet1", sheet_id=0)],
+            "dst": [SheetInfo(title="Sales Q", sheet_id=5)],
+        }[spreadsheet_id]
+        result = await self._copy(mock_sheets, cache=cache, new_name=new_name)
+        assert result == {
+            "error": f"The destination spreadsheet already has a sheet named '{new_name}' "
+            "(names are compared ignoring case)"
+        }
+        copy_to = mock_sheets.spreadsheets.return_value.sheets.return_value.copyTo
+        assert not copy_to.called
+        assert not mock_sheets.spreadsheets.return_value.batchUpdate.called
+
+    async def test_new_name_differing_only_in_surrounding_spaces_is_free(self):
+        """A trailing space makes a different tab name to Sheets (checked live)."""
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1", "index": 3})
+        cache = MagicMock()
+        cache.get_sheets.return_value = [SheetInfo(title="Sales Q", sheet_id=5)]
+        result = await self._copy(mock_sheets, cache=cache, sheet="Sales Q", new_name="Sales Q ")
+        assert result["title"] == "Sales Q "
+
+    async def test_failed_update_deletes_the_copy_and_raises(self):
+        """A rename or move refused anyway (a tab added since the check) leaves no
+        orphan copy behind (PR #1544 QA round 1)."""
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1", "index": 3})
+        batch = mock_sheets.spreadsheets.return_value.batchUpdate
+        calls = []
+
+        def execute(**_):
+            body = batch.call_args.kwargs["body"]
+            calls.append(body["requests"][0])
+            if "updateSheetProperties" in body["requests"][0]:
+                raise RuntimeError("A sheet with the name already exists")
+            return {}
+
+        batch.return_value.execute.side_effect = execute
+        with pytest.raises(RuntimeError, match="already exists"):
+            await self._copy(mock_sheets, new_name="Q3")
+        assert calls[1] == {"deleteSheet": {"sheetId": 42}}
+        assert batch.call_args.kwargs["spreadsheetId"] == "dst"
+
+    async def test_failed_delete_still_raises_the_update_error(self):
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1", "index": 3})
+        batch = mock_sheets.spreadsheets.return_value.batchUpdate
+        errors = iter([RuntimeError("rename refused"), RuntimeError("delete refused")])
+
+        def execute(**_):
+            raise next(errors)
+
+        batch.return_value.execute.side_effect = execute
+        with pytest.raises(RuntimeError, match="rename refused"):
+            await self._copy(mock_sheets, new_name="Q3")
+
+    async def test_source_as_destination_copies_in_place(self):
+        """The source's own ID as destination is a copy in place: duplicateSheet,
+        right after the source, not copyTo's append (PR #1544 QA round 1)."""
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1"})
+        mock_sheets.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": 0, "index": 2}}]
+        }
+        mock_sheets.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": [
+                {"duplicateSheet": {"properties": {"sheetId": 9, "title": "Copy", "index": 3}}}
+            ]
+        }
+        result = await self._copy(mock_sheets, destination_spreadsheet_id="src")
+        copy_to = mock_sheets.spreadsheets.return_value.sheets.return_value.copyTo
+        assert not copy_to.called
+        body = mock_sheets.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        assert body["requests"][0]["duplicateSheet"]["insertSheetIndex"] == 3
+        assert result == {"sheetId": 9, "title": "Copy", "index": 3, "spreadsheetId": "src"}
+
 
 class TestCopySheetRenamedParams:
     """copy_sheet's src_/dst_ parameters keep working for one release (#1526)."""

@@ -146,7 +146,9 @@ def register(tool):
                 to instead of returning it inline. Bypasses the include_grid_data response-size cap.
                 A path ending in '/' is a directory, created if missing. A file in place
                 of a parent directory, or at a path ending in '/', raises ValueError; an
-                existing file at a plain file path is replaced.
+                existing file at a plain file path is replaced. In a directory the file is
+                named '<sheet>_data.json', or '<sheet>_<value_render>_data.json' for
+                'unformatted' or 'formula'.
                 Same caveat as download_file/download_folder: this path is resolved on the
                 *server's* filesystem, not the caller's — over SSE that's only useful if the
                 path is on a volume the caller can also reach; for stdio it's the same machine.
@@ -161,7 +163,8 @@ def register(tool):
         Returns:
             Grid data structure with either full metadata or just values from Google Sheets API,
             depending on include_grid_data parameter. If local_path is set, returns
-            {local_path, spreadsheet_id, sheet, range, bytes_written} instead.
+            {local_path, spreadsheet_id, sheet, range, bytes_written} instead, plus
+            value_render when include_grid_data is False.
         """
         if local_path:
             # Before any fetch, so a refused destination costs no API call (#796).
@@ -242,15 +245,23 @@ def register(tool):
             }
 
         if local_path:
+            # A rendering other than the default gets its own file name and says so in
+            # the manifest, so a formula dump doesn't replace a values dump of the same
+            # sheet (PR #1544 QA round 1). The grid ignores value_render.
+            rendered = None if include_grid_data else value_render
+            suffix = "" if rendered in (None, "formatted") else f"_{rendered}"
+            manifest_extra: dict[str, Any] = {
+                "spreadsheet_id": spreadsheet_id,
+                "sheet": sheet,
+                "range": full_range,
+            }
+            if rendered is not None:
+                manifest_extra["value_render"] = rendered
             return await write_capped_result_to_disk(
                 result,
                 local_path,
-                default_filename=f"{sheet}_data.json",
-                manifest_extra={
-                    "spreadsheet_id": spreadsheet_id,
-                    "sheet": sheet,
-                    "range": full_range,
-                },
+                default_filename=f"{sheet}{suffix}_data.json",
+                manifest_extra=manifest_extra,
             )
 
         return result

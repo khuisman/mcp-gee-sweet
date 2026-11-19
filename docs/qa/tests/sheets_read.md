@@ -1143,6 +1143,26 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 **Result (2026-11-18) ✅ PASS — PR #1544 round 1, Sky on `mcp-gee-sweet-sky` @ a6bdcfaa** — Descriptions as stated. 1 rejected: `Input should be 'formatted', 'unformatted' or 'formula'`. 2: B6 `userEnteredValue.formulaValue` `=SUM(B2:B5)`, `effectiveValue.numberValue` 650. 3: `[["=SUM(B2:B5)"]]`. `docs/tools.md` lists `get_sheet_formulas` with group `sheets` only.
 
 ---
+
+### TC-R47: get_sheet_data's local_path names and records value_render (#1526) ⚠️ local-filesystem
+
+PR #1544 QA round 1 found a `formula` dump and a `formatted` dump of one sheet written to the same file, with nothing saying which it held.
+
+**Setup:** `rm -rf /tmp/qa-1526-render` (or a scratch dir under `$CLAUDE_JOB_DIR/tmp`, called `<dir>` below).
+
+**Steps**
+1. `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", local_path="<dir>/")`
+2. `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", value_render="formula", local_path="<dir>/")`
+3. `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", range="A1:B2", include_grid_data=True, value_render="formula", local_path="<dir>/grid/")`
+
+**Checks**
+- 1 returns `local_path` `<dir>/Sales_data.json` and `value_render` `formatted`
+- 2 returns `local_path` `<dir>/Sales_formula_data.json` and `value_render` `formula`; that file's row 6 holds `=SUM(B2:B5)`, and step 1's file still holds the computed totals
+- 3 returns `local_path` `<dir>/grid/Sales_data.json` with no `value_render` key, since the grid ignores it
+
+**Cleanup:** `rm -rf <dir>`
+
+---
 Cleanup: run folder QA-orn-S5-2026-11-08 trashed (it held the fixture copy; the two QA-Summary-183 throwaways were trashed first). Nothing kept. Remaining local scratch: small grid JSONs r03/r03b/r31–r33 in tmp/S5 (≤21 KB each).
 Counts: 48 cases — 47 PASS, 0 FAIL, 0 PARTIAL, 1 SKIP (TC-R03e).
 Filed as #1430 (cosmetic): get_sheet_data(include_grid_data=True) cap error reads "Narrow the range, or Pass local_path …" (capital P mid-sentence; `tools/sheets/data.py` hint + `enforce_response_size_cap` text).

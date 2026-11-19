@@ -3098,3 +3098,30 @@ These four tools replace the ten row-only and column-only tools above. Those ten
 **Cleanup:** `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Dup Old 1526")` and `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Copy Old 1526")`.
 
 **Result (2026-11-18) ✅ PASS — PR #1544 round 1, Sky on `mcp-gee-sweet-sky` @ a6bdcfaa** — Served descriptions and schema as stated: `duplicate_sheet` begins with the Deprecated line, `copy_sheet` doesn't, and its schema has the four old names optional with `Deprecated: use ...` descriptions. 1 → `{title: "Dup Old 1526", index: 2}` (right after Sales, which was at 1). 2 → `title` `Copy Old 1526`, `index` 8 (copyTo appends, as before #1526), and four `deprecation_warnings`. `deprecated_tools` includes `duplicate_sheet` and `get_sheet_formulas`. Tabs deleted.
+
+### TC-S145: copy_sheet into another spreadsheet leaves no stray tab when the rename or move can't apply ⚠️ destructive
+
+PR #1544 QA round 1 found that a refused rename or move left an unrenamed `Copy of Sales` behind, since `copyTo` lands first.
+
+**Setup:** `create_spreadsheet(title="QA copy_sheet orphan 1526")`; call its ID `{DEST}`. Then `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", destination_spreadsheet_id={DEST}, new_name="Sales Q")`, so `{DEST}` holds `Sheet1` and `Sales Q`.
+
+**Prompt**
+> "Call these in order and report each raw result:
+> 1. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={DEST}, new_name=\"sales q\")`
+> 2. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={DEST}, insert_index=9)`
+> 3. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={DEST}, new_name=\"Far\", insert_index=9)`
+> 4. `list_sheets(spreadsheet_id={DEST})`
+> 5. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={SPREADSHEET_ID})`
+> 6. `list_sheets(spreadsheet_id={SPREADSHEET_ID})`"
+
+**Checks**
+- 1 → `{"error": "The destination spreadsheet already has a sheet named 'sales q' (names are compared ignoring case)"}`, and nothing is copied
+- 2 → `{sheetId, title: "Copy of Sales", index: 2, spreadsheetId: {DEST}}`: an index past the end leaves the copy last instead of failing
+- 3 → `title` `Far`, `index` 3
+- 4 is `["Sheet1", "Sales Q", "Copy of Sales", "Far"]`: no stray `Copy of Sales 1`
+- 5 → `spreadsheetId` {SPREADSHEET_ID}, `index` Sales' index + 1: the source's own ID as the destination copies in place, right after Sales
+- 6 shows that copy immediately after `Sales`
+
+**Unit coverage:** a rename or move that fails anyway (a tab added between the check and the copy) can't be staged live; `TestCopySheet::test_failed_update_deletes_the_copy_and_raises` (`tests/sheets/test_structure.py`) checks the copy is deleted and the error raised.
+
+**Cleanup:** `delete_file(file_id={DEST})`, and `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=<step 5's title>)`.
