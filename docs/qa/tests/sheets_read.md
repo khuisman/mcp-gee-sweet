@@ -1162,6 +1162,8 @@ PR #1544 QA round 1 found a `formula` dump and a `formatted` dump of one sheet w
 
 **Cleanup:** `rm -rf <dir>`
 
+**Result (2026-11-19) ✅ PASS — PR #1544 round 2, Sky on `mcp-gee-sweet-sky` @ 5d470631** — `<dir>` under `$CLAUDE_JOB_DIR/tmp`. 1 → `<dir>/Sales_data.json`, `value_render` `formatted`. 2 → `<dir>/Sales_formula_data.json`, `value_render` `formula`; its Totals row is `=SUM(B2:B5)`, `=SUM(C2:C5)`, `=SUM(D2:D5)` while step 1's file still holds `650`, `670`, `705`. 3 → `<dir>/grid/Sales_data.json`, range `Sales!A1:B2`, no `value_render` key. Dir removed.
+
 ---
 Cleanup: run folder QA-orn-S5-2026-11-08 trashed (it held the fixture copy; the two QA-Summary-183 throwaways were trashed first). Nothing kept. Remaining local scratch: small grid JSONs r03/r03b/r31–r33 in tmp/S5 (≤21 KB each).
 Counts: 48 cases — 47 PASS, 0 FAIL, 0 PARTIAL, 1 SKIP (TC-R03e).
