@@ -936,7 +936,7 @@ class TestServeConsent:
         monkeypatch.setattr(auth_module, "_CONSENT_POLL_SECONDS", 0.05)
         flow = self._flow()
         with patch.object(auth_module.webbrowser, "get", side_effect=webbrowser.Error("none")):
-            thread, box = self._serve_in_thread(flow, 30, threading.Event())
+            thread, _box = self._serve_in_thread(flow, 30, threading.Event())
             redirect = self._wait_for_redirect_uri(flow)
             with urllib.request.urlopen(
                 f"{redirect}?error=access_denied&state=st", timeout=5
@@ -1020,7 +1020,6 @@ class TestConsentSuccessPage:
         assert "http" not in page
         assert "src=" not in page
         assert "href=" not in page
-
 
     def test_the_cancelled_page_is_self_contained_and_reads_as_unfinished(self):
         page = auth_module._CONSENT_CANCELLED_PAGE
