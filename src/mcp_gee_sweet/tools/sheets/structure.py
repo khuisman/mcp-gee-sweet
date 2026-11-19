@@ -1,3 +1,4 @@
+import logging
 import textwrap
 from contextlib import nullcontext
 from itertools import groupby
@@ -8,7 +9,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from ...cache import fetch_sheets
-from ...deprecation import deprecated_tool
+from ...deprecation import deprecated_tool, renamed_params
 from ...http_transport import invalidating
 from .helpers import (
     _column_index_to_letter,
@@ -18,6 +19,8 @@ from .helpers import (
     _parse_a1_notation_or_error,
     _quote_sheet_name,
 )
+
+logger = logging.getLogger(__name__)
 
 _VALID_CHART_TYPES = ["COLUMN", "BAR", "LINE", "AREA", "PIE", "SCATTER", "COMBO", "HISTOGRAM"]
 
@@ -787,6 +790,198 @@ async def _hide_dimension(
     )
 
 
+# copy_sheet absorbs duplicate_sheet (#1526); duplicate_sheet and copy_sheet's old
+# parameter names go in the next feature release, per docs/design.md "Renaming or
+# Removing a Tool".
+_COPY_SHEET_REMOVED_IN = "the next feature release"
+
+
+def _new_sheet_result(properties: dict[str, Any], spreadsheet_id: str) -> dict[str, Any]:
+    """The one result shape of copy_sheet, in place or across spreadsheets."""
+    return {
+        "sheetId": properties["sheetId"],
+        "title": properties.get("title"),
+        "index": properties.get("index"),
+        "spreadsheetId": spreadsheet_id,
+    }
+
+
+async def _duplicate_sheet(
+    lc,
+    spreadsheet_id: str,
+    sheet: str,
+    new_name: str | None,
+    insert_index: int | None,
+) -> dict[str, Any]:
+    """Copy `sheet` within its own spreadsheet with one `duplicateSheet`, placed at
+    `insert_index`, else right after the source tab. Shared by copy_sheet with no
+    destination and the deprecated duplicate_sheet, so both send the same request."""
+    sheets_service = lc.sheets_service
+
+    sheet_id = await _get_sheet_id(
+        sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+    )
+    if sheet_id is None:
+        return {"error": f"Sheet '{sheet}' not found"}
+    if insert_index is not None:
+        error = _non_negative_value_error("insert_index", insert_index)
+        if error:
+            return error
+
+    duplicate_request: dict[str, Any] = {"sourceSheetId": sheet_id}
+    if insert_index is not None:
+        duplicate_request["insertSheetIndex"] = insert_index
+    else:
+        # The API's own default is index 0 wherever the source is; the Sheets UI
+        # puts the copy right after it.
+        source_index = await _get_sheet_index(sheets_service, spreadsheet_id, sheet_id)
+        if source_index is not None:
+            duplicate_request["insertSheetIndex"] = source_index + 1
+    if new_name is not None:
+        duplicate_request["newSheetName"] = new_name
+
+    with invalidating(lambda: lc.cache.mark_dirty(spreadsheet_id)):
+        result = await execute_in_thread(
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={"requests": [{"duplicateSheet": duplicate_request}]},
+            )
+            .execute,
+            sheets_service,
+        )
+
+    return _new_sheet_result(result["replies"][0]["duplicateSheet"]["properties"], spreadsheet_id)
+
+
+def _tab_name_key(title: str) -> str:
+    """A tab name as Sheets compares it for uniqueness: case-insensitively, with
+    surrounding spaces significant ("sales q" collides with "Sales Q", "Sales Q "
+    doesn't; checked live, PR #1544 QA round 1)."""
+    return title.lower()
+
+
+async def _copy_sheet_to(
+    lc,
+    spreadsheet_id: str,
+    sheet: str,
+    destination_spreadsheet_id: str,
+    new_name: str | None,
+    insert_index: int | None,
+) -> dict[str, Any]:
+    """Copy `sheet` into another spreadsheet with `copyTo`, which always appends the
+    copy as "Copy of <sheet>", then rename and move it there with one
+    `updateSheetProperties` when `new_name` or `insert_index` asks for something
+    else.
+
+    The copy lands before that update can fail, so everything the update could be
+    refused for is checked first: a negative `insert_index`, and a `new_name` the
+    destination already has. An `insert_index` at or past the end leaves the copy
+    last, where `copyTo` put it, as `duplicateSheet` does for one past its end. If
+    the update still fails (a tab added meanwhile), the copy is deleted before the
+    error is raised, so a failed call leaves no orphan tab (PR #1544 QA round 1)."""
+    sheets_service = lc.sheets_service
+
+    sheet_id = await _get_sheet_id(
+        sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+    )
+    if sheet_id is None:
+        return {"error": f"Sheet '{sheet}' not found"}
+    if insert_index is not None:
+        error = _non_negative_value_error("insert_index", insert_index)
+        if error:
+            return error
+    if new_name is not None:
+        taken = {
+            _tab_name_key(s.title)
+            for s in await fetch_sheets(
+                sheets_service, destination_spreadsheet_id, lc.cache, lc.drive_service
+            )
+        }
+        if _tab_name_key(new_name) in taken:
+            return {
+                "error": f"The destination spreadsheet already has a sheet named "
+                f"'{new_name}' (names are compared ignoring case)"
+            }
+
+    # Both writes land in the destination. The block also covers a copy that
+    # lands before a rejected rename or move (#1265).
+    with invalidating(lambda: lc.cache.mark_dirty(destination_spreadsheet_id)):
+        copied = await execute_in_thread(
+            sheets_service.spreadsheets()
+            .sheets()
+            .copyTo(
+                spreadsheetId=spreadsheet_id,
+                sheetId=sheet_id,
+                body={"destinationSpreadsheetId": destination_spreadsheet_id},
+            )
+            .execute,
+            sheets_service,
+        )
+
+        properties = dict(copied)
+        changes: dict[str, Any] = {}
+        # Compared with the response, not skipped when a key is missing from it:
+        # a copy whose response omits its title still gets the name asked for.
+        if new_name is not None and copied.get("title") != new_name:
+            changes["title"] = new_name
+        # The copy is the last tab, so a later index is where it already is.
+        last_index = copied.get("index")
+        if insert_index is not None and (last_index is None or insert_index < last_index):
+            changes["index"] = insert_index
+        if changes:
+            try:
+                await execute_in_thread(
+                    sheets_service.spreadsheets()
+                    .batchUpdate(
+                        spreadsheetId=destination_spreadsheet_id,
+                        body={
+                            "requests": [
+                                {
+                                    "updateSheetProperties": {
+                                        "properties": {"sheetId": copied["sheetId"], **changes},
+                                        "fields": ",".join(changes),
+                                    }
+                                }
+                            ]
+                        },
+                    )
+                    .execute,
+                    sheets_service,
+                )
+            except Exception:
+                await _delete_orphan_copy(
+                    sheets_service, destination_spreadsheet_id, copied["sheetId"]
+                )
+                raise
+            properties.update(changes)
+
+    return _new_sheet_result(properties, destination_spreadsheet_id)
+
+
+async def _delete_orphan_copy(sheets_service, spreadsheet_id: str, sheet_id: int) -> None:
+    """Delete a copy whose rename or move failed. Best effort: the caller raises the
+    update's own error either way, so a failed delete is only logged."""
+    try:
+        await execute_in_thread(
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={"requests": [{"deleteSheet": {"sheetId": sheet_id}}]},
+            )
+            .execute,
+            sheets_service,
+        )
+    except Exception:
+        logger.warning(
+            "copy_sheet: couldn't delete copied sheet %s from %s after its rename or move "
+            "failed; it is left in place",
+            sheet_id,
+            spreadsheet_id,
+            exc_info=True,
+        )
+
+
 def register(tool):
     @tool(annotations=ToolAnnotations(title="List Sheets", readOnlyHint=True), default=True)
     async def list_sheets(spreadsheet_id: str, ctx: Context = None) -> list[str]:
@@ -806,77 +1001,62 @@ def register(tool):
         return [s.title for s in sheets]
 
     @tool(annotations=ToolAnnotations(title="Copy Sheet", destructiveHint=True))
+    @renamed_params(
+        removed_in=_COPY_SHEET_REMOVED_IN,
+        src_spreadsheet="spreadsheet_id",
+        src_sheet="sheet",
+        dst_spreadsheet="destination_spreadsheet_id",
+        dst_sheet="new_name",
+    )
     async def copy_sheet(
-        src_spreadsheet: str,
-        src_sheet: str,
-        dst_spreadsheet: str,
-        dst_sheet: str,
+        spreadsheet_id: str,
+        sheet: str,
+        destination_spreadsheet_id: str | None = None,
+        new_name: str | None = None,
+        insert_index: int | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
-        Copy a sheet from one spreadsheet to another.
+        Copy a sheet tab, within its own spreadsheet or into another one.
+
+        With no destination_spreadsheet_id, or with spreadsheet_id itself as the
+        destination, the copy is made in the same spreadsheet (Sheets' "Duplicate").
+        With another one, the sheet is copied into that spreadsheet.
 
         Args:
-            src_spreadsheet: Source spreadsheet ID
-            src_sheet: Source sheet name
-            dst_spreadsheet: Destination spreadsheet ID
-            dst_sheet: Destination sheet name
+            spreadsheet_id: The ID of the spreadsheet holding the sheet to copy
+            sheet: The name of the sheet to copy
+            destination_spreadsheet_id: Optional ID of the spreadsheet to copy into.
+                Omit it to copy within spreadsheet_id.
+            new_name: Optional title for the copy. Defaults to Google's
+                auto-generated name (e.g. "Copy of Sheet1") if omitted.
+            insert_index: Optional 0-based tab position for the copy. Defaults to
+                immediately after the source sheet within the same spreadsheet, and
+                to the last position in another spreadsheet. A position past the last
+                tab puts the copy last; the result's index says where it landed.
 
         Returns:
-            Result of the operation
+            {sheetId, title, index, spreadsheetId} for the new sheet, where
+            spreadsheetId is the spreadsheet it was created in. Returns
+            {"error": ...} without copying anything if the sheet isn't found,
+            insert_index is negative, or another spreadsheet already has a sheet
+            named new_name (ignoring case). If renaming or moving a copy in another
+            spreadsheet fails anyway, the copy is deleted before the error is raised.
         """
         lc = ctx.request_context.lifespan_context
-        sheets_service = lc.sheets_service
-
-        src_sheet_id = await _get_sheet_id(
-            sheets_service, src_spreadsheet, src_sheet, lc.cache, lc.drive_service
+        # The source's own ID as the destination is a copy in place too, so it lands
+        # right after the source rather than at the end (PR #1544 QA round 1).
+        if destination_spreadsheet_id in (None, spreadsheet_id):
+            return await _duplicate_sheet(lc, spreadsheet_id, sheet, new_name, insert_index)
+        return await _copy_sheet_to(
+            lc, spreadsheet_id, sheet, destination_spreadsheet_id, new_name, insert_index
         )
 
-        if src_sheet_id is None:
-            return {"error": f"Source sheet '{src_sheet}' not found"}
-
-        with invalidating(lambda: lc.cache.mark_dirty(dst_spreadsheet)):
-            copy_result = await execute_in_thread(
-                sheets_service.spreadsheets()
-                .sheets()
-                .copyTo(
-                    spreadsheetId=src_spreadsheet,
-                    sheetId=src_sheet_id,
-                    body={"destinationSpreadsheetId": dst_spreadsheet},
-                )
-                .execute,
-                sheets_service,
-            )
-
-            result = {"copy": copy_result}
-
-            if copy_result.get("title") != dst_sheet:
-                rename_result = await execute_in_thread(
-                    sheets_service.spreadsheets()
-                    .batchUpdate(
-                        spreadsheetId=dst_spreadsheet,
-                        body={
-                            "requests": [
-                                {
-                                    "updateSheetProperties": {
-                                        "properties": {
-                                            "sheetId": copy_result["sheetId"],
-                                            "title": dst_sheet,
-                                        },
-                                        "fields": "title",
-                                    }
-                                }
-                            ]
-                        },
-                    )
-                    .execute,
-                    sheets_service,
-                )
-                result["rename"] = rename_result
-
-        return result
-
     @tool(annotations=ToolAnnotations(title="Duplicate Sheet", destructiveHint=True))
+    @deprecated_tool(
+        use="`copy_sheet` with no `destination_spreadsheet_id`",
+        removed_in=_COPY_SHEET_REMOVED_IN,
+    )
     async def duplicate_sheet(
         spreadsheet_id: str,
         sheet: str,
@@ -887,8 +1067,6 @@ def register(tool):
         """
         Duplicate a sheet tab within the same spreadsheet.
 
-        Distinct from copy_sheet, which copies a sheet across spreadsheets.
-
         Args:
             spreadsheet_id: The ID of the spreadsheet
             sheet: The name of the sheet to duplicate
@@ -898,45 +1076,13 @@ def register(tool):
                 Defaults to immediately after the source sheet if omitted.
 
         Returns:
-            Information about the newly created sheet
+            Information about the newly created sheet. Returns {"error": ...}
+            without copying anything if the sheet isn't found or insert_index is
+            negative.
         """
-        lc = ctx.request_context.lifespan_context
-        sheets_service = lc.sheets_service
-
-        sheet_id = await _get_sheet_id(
-            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        return await _duplicate_sheet(
+            ctx.request_context.lifespan_context, spreadsheet_id, sheet, new_name, insert_index
         )
-        if sheet_id is None:
-            return {"error": f"Sheet '{sheet}' not found"}
-
-        duplicate_request: dict[str, Any] = {"sourceSheetId": sheet_id}
-        if insert_index is not None:
-            duplicate_request["insertSheetIndex"] = insert_index
-        else:
-            source_index = await _get_sheet_index(sheets_service, spreadsheet_id, sheet_id)
-            if source_index is not None:
-                duplicate_request["insertSheetIndex"] = source_index + 1
-        if new_name is not None:
-            duplicate_request["newSheetName"] = new_name
-
-        with invalidating(lambda: lc.cache.mark_dirty(spreadsheet_id)):
-            result = await execute_in_thread(
-                sheets_service.spreadsheets()
-                .batchUpdate(
-                    spreadsheetId=spreadsheet_id,
-                    body={"requests": [{"duplicateSheet": duplicate_request}]},
-                )
-                .execute,
-                sheets_service,
-            )
-
-        new_sheet_props = result["replies"][0]["duplicateSheet"]["properties"]
-        return {
-            "sheetId": new_sheet_props["sheetId"],
-            "title": new_sheet_props["title"],
-            "index": new_sheet_props.get("index"),
-            "spreadsheetId": spreadsheet_id,
-        }
 
     @tool(annotations=ToolAnnotations(title="Rename Sheet", destructiveHint=True))
     async def rename_sheet(
