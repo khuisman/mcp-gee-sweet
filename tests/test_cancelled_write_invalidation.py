@@ -555,6 +555,14 @@ _SHEET_TOOL_CALLS = {
         {"spreadsheet_id": "sid", "sheet": "Sheet1", "start_column": 0},
         {("data", "sid")},
     ),
+    "add_rows_or_columns": (
+        {"spreadsheet_id": "sid", "sheet": "Sheet1", "dimension": "rows", "count": 1},
+        {("data", "sid")},
+    ),
+    "delete_rows_or_columns": (
+        {"spreadsheet_id": "sid", "sheet": "Sheet1", "dimension": "columns", "start": 0},
+        {("data", "sid")},
+    ),
     "sort_range": (
         {"spreadsheet_id": "sid", "sheet": "Sheet1", "range": "A1:B5"},
         {("data", "sid")},
@@ -647,6 +655,8 @@ def test_every_sheets_write_is_covered():
         "add_columns",
         "delete_rows",
         "delete_columns",
+        "add_rows_or_columns",
+        "delete_rows_or_columns",
         "sort_range",
         "format_cells",
         "merge_cells",

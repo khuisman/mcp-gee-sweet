@@ -16,30 +16,31 @@ import re
 
 from markdown.extensions.toc import slugify as _markdown_toc_slugify
 
-_STRIP_CHARS = re.compile(r"[^\w\s-]", re.UNICODE)
-_WHITESPACE_RUN = re.compile(r"\s+")
+_STRIP_CHARS = re.compile(r"[^\w -]", re.UNICODE)
 _TRAILING_DEDUP_SUFFIX = re.compile(r"-(\d+)$")
 _WORD_CHARS = re.compile(r"[a-z0-9]+")
 
 
 def _github_style_slugify(text: str) -> str:
-    """GitHub's markdown heading-anchor convention: lowercase, strip
-    punctuation (keeping any literal hyphen already present), and turn each
-    run of whitespace into a matching-length run of hyphens — consecutive
-    hyphens are NOT collapsed (" - " -> "---", confirmed against issue #409's
-    own real example). No known maintained Python package reproduces this;
-    GitHub's own reference implementation (`github-slugger`) is JS-only.
+    r"""GitHub's markdown heading-anchor convention: lowercase, keep word
+    characters, hyphens and literal spaces, strip everything else, and turn
+    each space into a hyphen — consecutive hyphens are NOT collapsed
+    (" - " -> "---", confirmed against issue #409's own real example; a run
+    of spaces still becomes a matching-length run of hyphens, one per space).
 
-    A heading's hard break adds nothing to GitHub's own anchor ("Heading
-    one<br>heading two" -> "heading-oneheading-two", #1357), so the "\v"
-    break marker (#1230) is dropped here, inside the scheme itself — both
-    consumers that must agree (this resolver and markdown_export.py's
-    exported heading links) call this one function, and only the read side's
-    raw heading text carries "\v"; the export side drops the "\n" its
-    doc_to_ast-normalized text carries at the same place."""
-    slug = text.lower().replace("\v", "")
+    Every other whitespace character is stripped like any other non-word
+    character, never hyphenated (#1460): github-slugger's own
+    disallowed-character regex (master) removes \t and \x0b in its \0-\x1f
+    range and \xa0 in its \xa0-\xa9 range, so GitHub's real anchor for
+    "Price\xa0List" — a heading from HTML with `&nbsp;` — and for
+    "Price\tList" is "pricelist", where hyphenating every whitespace run used to
+    read it as "price-list". That also covers the "\v" a heading's `<br>`
+    hard break leaves in a Doc's heading text (#1357): GitHub's anchor there
+    is separator-free. No known maintained Python package reproduces this;
+    GitHub's own reference implementation (`github-slugger`) is JS-only."""
+    slug = text.lower()
     slug = _STRIP_CHARS.sub("", slug)
-    return _WHITESPACE_RUN.sub(lambda m: "-" * len(m.group(0)), slug)
+    return slug.replace(" ", "-")
 
 
 # One callable per known slugification scheme. The GitLab/Kramdown-style
@@ -52,17 +53,18 @@ def _github_style_slugify(text: str) -> str:
 # exactly one scheme's slug list for a well-formed document — only which
 # scheme wins a pathological tie.
 #
-# The two schemes also disagree on a heading's hard break (`<br>` / a Markdown
-# "\"), which #1230 stores inside the heading text as a "\v": GitHub's slug
-# ignores the break — it adds no text and no separator ("Heading one<br>heading
-# two" slugs to "heading-oneheading-two", #1357) — a drop made inside
-# _github_style_slugify itself so every caller of the GitHub scheme agrees,
-# while GitLab's Comrak-based
-# anchor collects the break as a plain space and slugifies it to a single
-# hyphen (comrak's collect_text_append pushes " " for LineBreak | SoftBreak,
-# and anchorize maps it to "-"), which this collapsed scheme already
-# reproduces via python-markdown's slugify. So only the GitHub scheme drops
-# the break; the GitLab one keeps turning it into a separator.
+# Both schemes also touch a heading's hard break ("<br>", stored inside the
+# heading text as a "\v", #1230): GitHub's slug ignores the break — it adds
+# no text and no separator ("Heading one<br>heading two" slugs to
+# "heading-oneheading-two", #1357) — a drop made inside
+# _github_style_slugify itself so every caller of the GitHub scheme agrees.
+# GitLab's own anchor ignores an inline <br> the same way — comrak parses it
+# as an HtmlInline node, no text and no children, so collect_text_append adds
+# nothing — but the collapsed GitLab scheme still slugifies a stored "\v" to
+# a single hyphen: extra tolerance for an anchor spelled with the separator,
+# not a reproduction of GitLab's own <br> slug. The full story — including
+# which break shapes can actually reach a heading — lives in
+# docs/design/heading-anchor-resolution.md (#1460).
 _SLUGIFY_FUNCS = [
     _github_style_slugify,
     lambda text: _markdown_toc_slugify(text, "-"),

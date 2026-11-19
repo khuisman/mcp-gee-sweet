@@ -15,6 +15,8 @@ from mcp.server.mcpserver import MCPServer
 from mcp_gee_sweet import server, tool_groups
 from mcp_gee_sweet.tool_groups import Renamed, Selection
 
+from .test_gen_tool_docs import gen_tool_docs
+
 ROOT = Path(__file__).resolve().parent.parent
 
 # The snapshot the issue pins: a change to `default` is a deliberate edit here.
@@ -50,7 +52,9 @@ DEFAULT_SNAPSHOT = {
     "create_draft",
     "list_drafts",
     "send_draft",
+    "list_labels",
     "modify_labels",
+    "list_calendars",
     "list_events",
     "get_event",
     "create_event",
@@ -62,16 +66,20 @@ DEFAULT_CAP = 40
 SERVICE_GROUP_CAP = 100
 
 
-def _registrations() -> dict[str, frozenset[str]]:
-    """Every tool with its groups, from the decorator flags, as server.tool computes them."""
+def _captured() -> dict[str, tuple[str, frozenset[str]]]:
+    """Every tool with its module and its groups, from the decorator flags, as
+    server.tool computes them."""
     from mcp_gee_sweet.tools import register_all
 
     captured = {}
 
     def capture(annotations=None, *, local_only=False, default=False, groups=()):
         def decorator(func):
-            captured[func.__name__] = tool_groups.tool_groups(
-                func.__module__, default=default, local_only=local_only, groups=groups
+            captured[func.__name__] = (
+                func.__module__,
+                tool_groups.tool_groups(
+                    func.__module__, default=default, local_only=local_only, groups=groups
+                ),
             )
             return func
 
@@ -79,6 +87,11 @@ def _registrations() -> dict[str, frozenset[str]]:
 
     register_all(capture)
     return captured
+
+
+def _registrations() -> dict[str, frozenset[str]]:
+    """Every tool with its groups."""
+    return {name: groups for name, (_, groups) in _captured().items()}
 
 
 def _members(group: str) -> set[str]:
@@ -134,6 +147,52 @@ class TestGroupGuards:
     def test_an_unknown_declared_group_fails_at_import(self):
         with pytest.raises(ValueError, match="unknown tool group"):
             tool_groups.tool_groups("mcp_gee_sweet.tools.gmail", groups=("coments",))
+
+    @pytest.mark.parametrize("group", ["default", "all", "local-files", "Sheets"])
+    def test_a_non_declarable_group_fails_at_import(self, group):
+        # Only DECLARED_GROUPS and the service groups go in `groups=`; `default` and
+        # `local-files` have their own flags, and names are case-sensitive.
+        with pytest.raises(ValueError, match="unknown tool group") as raised:
+            tool_groups.tool_groups("mcp_gee_sweet.tools.drive.files", groups=(group,))
+        message = str(raised.value)
+        assert "sheets, drive" in message and "comments" in message
+        assert "default=True" in message and "local_only=True" in message
+
+    def test_a_declared_service_group_adds_to_the_module_one(self):
+        assert tool_groups.tool_groups(
+            "mcp_gee_sweet.tools.drive.files", groups=("sheets",)
+        ) == frozenset({"drive", "sheets"})
+
+
+# The spreadsheet tools that live under tools/drive/ (#1511): the list the generated
+# docs make claims about, so there's one copy.
+SPREADSHEET_DRIVE_TOOLS = set(gen_tool_docs.SPREADSHEET_FILE_TOOLS)
+
+
+class TestSpreadsheetToolsInSheets:
+    def test_in_sheets_and_still_in_drive(self):
+        registrations = _registrations()
+        for name in SPREADSHEET_DRIVE_TOOLS:
+            assert {"sheets", "drive"} <= registrations[name], name
+
+    def test_every_spreadsheet_tool_outside_tools_sheets_is_in_sheets(self):
+        # A new spreadsheet tool added under another service has to opt into `sheets`.
+        # Name-based: a tool's name is the only sign a test has that it's a
+        # spreadsheet tool, so one named otherwise isn't caught.
+        outside = {
+            name
+            for name, (module, _) in _captured().items()
+            if re.search(r"sheet|spreadsheet", name)
+            and tool_groups.service_group(module) != "sheets"
+        }
+        assert outside == SPREADSHEET_DRIVE_TOOLS
+        assert outside <= _members("sheets")
+
+    def test_sheets_selection_selects_them(self):
+        selection = Selection.from_entries(["sheets"])
+        registrations = _registrations()
+        for name in SPREADSHEET_DRIVE_TOOLS:
+            assert selection.selects(name, registrations[name]), name
 
 
 # Values in the user docs: `ENABLED_TOOLS=...` or the JSON `"ENABLED_TOOLS": "..."`.
@@ -416,7 +475,7 @@ class TestLaunch:
         assert set(names) == DEFAULT_SNAPSHOT
         assert gmail is True
         assert instructions.startswith(
-            f"Tools: this server loads 38 of {len(_registrations())} tools (the default tool group)."
+            f"Tools: this server loads {len(DEFAULT_SNAPSHOT)} of {len(_registrations())} tools (the default tool group)."
         )
 
     def test_empty_is_unset(self):
@@ -493,5 +552,17 @@ class TestAuthStatusToolSelection:
             "configured": False,
             "registered_tools": len(server._registered_tools),
             "deprecated_aliases": [],
-            "deprecated_tools": [],
+            # The suite registers every tool, deprecated ones included (#1525).
+            "deprecated_tools": [
+                "add_columns",
+                "add_rows",
+                "delete_columns",
+                "delete_rows",
+                "hide_columns",
+                "hide_rows",
+                "resize_columns",
+                "resize_rows",
+                "unhide_columns",
+                "unhide_rows",
+            ],
         }
