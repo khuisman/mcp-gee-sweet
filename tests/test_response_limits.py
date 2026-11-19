@@ -1,8 +1,11 @@
 """Tests for tools/response_limits.py — shared response-size safety net (issue #242)."""
 
+import ast
 import importlib
 import json
 import os
+import re
+from pathlib import Path
 
 import pytest
 
@@ -59,9 +62,9 @@ class TestEnforceResponseSizeCap:
 
     def test_hint_is_included_in_message(self, monkeypatch):
         monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
-        with pytest.raises(ValueError, match="lower max_results"):
+        with pytest.raises(ValueError, match="Lower max_results"):
             response_limits.enforce_response_size_cap(
-                {"a": "bb"}, tool_name="some_tool", hint="lower max_results, or "
+                {"a": "bb"}, tool_name="some_tool", hint="Lower max_results and paginate. "
             )
 
     def test_local_path_mentioned_when_available(self, monkeypatch):
@@ -132,6 +135,97 @@ class TestEnforceResponseSizeCap:
         finally:
             monkeypatch.delenv("MAX_TOOL_RESPONSE_CHARS", raising=False)
             importlib.reload(response_limits)
+
+
+def _collect_cap_hints() -> list[str]:
+    """Every hint string reachable from a size-cap call site in src/ (#1465):
+    constant `hint=` arguments, plus the string constants of local `hint = ...`
+    assignments those calls read by name (gmail builds its get_message/
+    get_thread/get_draft hints conditionally). Call sites with no hint (the
+    empty default) contribute nothing."""
+    src = Path(__file__).resolve().parents[1] / "src" / "mcp_gee_sweet"
+    hints: set[str] = set()
+    for path in sorted(src.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        assigned: dict[str, list[str]] = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        assigned.setdefault(target.id, []).extend(
+                            const.value
+                            for const in ast.walk(node.value)
+                            if isinstance(const, ast.Constant) and isinstance(const.value, str)
+                        )
+            elif (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id in ("enforce_response_size_cap", "enforce_response_size_floor")
+            ):
+                for kw in node.keywords:
+                    if kw.arg != "hint":
+                        continue
+                    if isinstance(kw.value, ast.Name):
+                        hints.update(assigned.get(kw.value.id, []))
+                    elif (
+                        isinstance(kw.value, ast.Call)
+                        and isinstance(kw.value.func, ast.Name)
+                        and kw.value.func.id == "pagination_hint"
+                        and all(
+                            isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+                            for arg in kw.value.args
+                        )
+                    ):
+                        hints.add(
+                            response_limits.pagination_hint(*[arg.value for arg in kw.value.args])
+                        )
+                    else:
+                        hints.update(
+                            const.value
+                            for const in ast.walk(kw.value)
+                            if isinstance(const, ast.Constant) and isinstance(const.value, str)
+                        )
+    return sorted(hints)
+
+
+class TestCapHintsAreCompleteSentences:
+    """#1465: nothing enforced #1430's full-sentence hint form — two callers
+    shipped old ", or " fragments before anyone noticed. These pin the form for
+    every hint in src/, so a new call site can't quietly reintroduce one."""
+
+    def test_collects_the_known_call_sites(self):
+        hints = _collect_cap_hints()
+        assert len(hints) >= 9, hints
+        assert all(hints), hints
+        assert "Lower max_results and paginate via next_page_token. " in hints
+        assert "Lower page_size and paginate via next_page_token. " in hints
+        assert "The message body is large. " in hints
+
+    def test_every_hint_ends_a_complete_sentence(self):
+        for hint in _collect_cap_hints():
+            assert hint.endswith(". "), repr(hint)
+
+    def test_no_composed_message_splices_sentences(self, monkeypatch):
+        # The composed message must never contain ", or " followed by a capital
+        # letter — the shape the old fragments read as ("…overhead, or Set
+        # MAX_TOOL_RESPONSE_CHARS…").
+        for hint in _collect_cap_hints():
+            for usable in (True, False):
+
+                def _usable(value: bool = usable) -> bool:
+                    return value
+
+                monkeypatch.setattr(response_limits.local_files, "local_paths_usable", _usable)
+                message = str(
+                    response_limits._over_cap_error(
+                        "the response is 2 characters",
+                        tool_name="some_tool",
+                        hint=hint,
+                        local_path_available=True,
+                        local_path_param="local_path",
+                    )
+                )
+                assert not re.search(r", or [A-Z]", message), message
 
 
 class TestWriteCappedResultToDisk:
