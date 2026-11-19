@@ -37,6 +37,7 @@ from .response_limits import (
     clamp_max_results,
     enforce_response_size_cap,
     enforce_response_size_floor,
+    pagination_hint,
     write_capped_result_to_disk,
 )
 
@@ -828,7 +829,7 @@ def _list_page(
     enforce_response_size_cap(
         out,
         tool_name=tool_name,
-        hint="Lower max_results and paginate via next_page_token. ",
+        hint=pagination_hint("max_results"),
         local_path_available=False,
     )
     return out
@@ -1640,7 +1641,7 @@ def register(tool):
         enforce_response_size_cap(shaped, tool_name="get_thread", hint=hint)
         return shaped
 
-    @tool(annotations=ToolAnnotations(title="List Labels", readOnlyHint=True))
+    @tool(annotations=ToolAnnotations(title="List Labels", readOnlyHint=True), default=True)
     async def list_labels(ctx: Context = None) -> list[dict[str, Any]] | dict[str, Any]:
         """
         List all labels in the authenticated user's mailbox (system and user-defined).
