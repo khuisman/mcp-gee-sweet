@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Callable
 from contextlib import nullcontext
-from typing import Any
+from typing import Any, Literal
 
 from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import Context
@@ -9,6 +9,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME, SheetInfo, fetch_sheets, get_modified_time
+from ...deprecation import deprecated_tool
 from ...http_transport import invalidating
 from ...local_files import check_write
 from ..concurrency import gather_with_fallback, report_progress_safe
@@ -93,6 +94,18 @@ def _build_rich_text_cell(runs: list[dict[str, Any]]) -> dict[str, Any]:
     return cell
 
 
+# get_sheet_data's value_render, as the Sheets API's valueRenderOption (#1526).
+_VALUE_RENDER_OPTIONS = {
+    "formatted": "FORMATTED_VALUE",
+    "unformatted": "UNFORMATTED_VALUE",
+    "formula": "FORMULA",
+}
+
+# get_sheet_formulas, folded into get_sheet_data(value_render="formula") (#1526), goes
+# in the next feature release, per docs/design.md "Renaming or Removing a Tool".
+_GET_SHEET_FORMULAS_REMOVED_IN = "the next feature release"
+
+
 def register(tool):
     @tool(annotations=ToolAnnotations(title="Get Sheet Data", readOnlyHint=True), default=True)
     async def get_sheet_data(
@@ -101,10 +114,12 @@ def register(tool):
         range: str | None = None,
         include_grid_data: bool = False,
         local_path: str | None = None,
+        value_render: Literal["formatted", "unformatted", "formula"] = "formatted",
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
-        Get data from a specific sheet in a Google Spreadsheet.
+        Get data from a specific sheet in a Google Spreadsheet: its values, as
+        displayed or unformatted, or its formulas.
 
         Args:
             spreadsheet_id: The ID of the spreadsheet (found in the URL)
@@ -131,15 +146,25 @@ def register(tool):
                 to instead of returning it inline. Bypasses the include_grid_data response-size cap.
                 A path ending in '/' is a directory, created if missing. A file in place
                 of a parent directory, or at a path ending in '/', raises ValueError; an
-                existing file at a plain file path is replaced.
+                existing file at a plain file path is replaced. In a directory the file is
+                named '<sheet>_data.json', or '<sheet>_<value_render>_data.json' for
+                'unformatted' or 'formula'.
                 Same caveat as download_file/download_folder: this path is resolved on the
                 *server's* filesystem, not the caller's — over SSE that's only useful if the
                 path is on a volume the caller can also reach; for stdio it's the same machine.
+            value_render: How each cell's value is returned when include_grid_data is False:
+                'formatted' (default) as displayed in the sheet, e.g. "$1,234.50" or "3/14/2026";
+                'unformatted' as the underlying value, e.g. 1234.5, with dates and times
+                as serial numbers; 'formula' as the cell's formula (e.g. "=SUM(A1:A3)"),
+                or its value for a cell without one. Ignored with include_grid_data=True,
+                whose grid already carries each cell's formula (userEnteredValue),
+                underlying value (effectiveValue) and displayed text (formattedValue).
 
         Returns:
             Grid data structure with either full metadata or just values from Google Sheets API,
             depending on include_grid_data parameter. If local_path is set, returns
-            {local_path, spreadsheet_id, sheet, range, bytes_written} instead.
+            {local_path, spreadsheet_id, sheet, range, bytes_written} instead, plus
+            value_render when include_grid_data is False.
         """
         if local_path:
             # Before any fetch, so a refused destination costs no API call (#796).
@@ -198,10 +223,17 @@ def register(tool):
                     "connection. Narrow the range. ",
                 )
         else:
+            # The API's own default is FORMATTED_VALUE, so the default call sends the
+            # same request it always has.
+            render_kwargs = (
+                {}
+                if value_render == "formatted"
+                else {"valueRenderOption": _VALUE_RENDER_OPTIONS[value_render]}
+            )
             error, values_result = await _execute_or_error(
                 sheets_service.spreadsheets()
                 .values()
-                .get(spreadsheetId=spreadsheet_id, range=full_range)
+                .get(spreadsheetId=spreadsheet_id, range=full_range, **render_kwargs)
                 .execute,
                 sheets_service,
             )
@@ -213,20 +245,33 @@ def register(tool):
             }
 
         if local_path:
+            # A rendering other than the default gets its own file name and says so in
+            # the manifest, so a formula dump doesn't replace a values dump of the same
+            # sheet (PR #1544 QA round 1). The grid ignores value_render.
+            rendered = None if include_grid_data else value_render
+            suffix = "" if rendered in (None, "formatted") else f"_{rendered}"
+            manifest_extra: dict[str, Any] = {
+                "spreadsheet_id": spreadsheet_id,
+                "sheet": sheet,
+                "range": full_range,
+            }
+            if rendered is not None:
+                manifest_extra["value_render"] = rendered
             return await write_capped_result_to_disk(
                 result,
                 local_path,
-                default_filename=f"{sheet}_data.json",
-                manifest_extra={
-                    "spreadsheet_id": spreadsheet_id,
-                    "sheet": sheet,
-                    "range": full_range,
-                },
+                default_filename=f"{sheet}{suffix}_data.json",
+                manifest_extra=manifest_extra,
             )
 
         return result
 
-    @tool(annotations=ToolAnnotations(title="Get Sheet Formulas", readOnlyHint=True), default=True)
+    # Out of `default`: get_sheet_data(value_render="formula") replaces it there (#1526).
+    @tool(annotations=ToolAnnotations(title="Get Sheet Formulas", readOnlyHint=True))
+    @deprecated_tool(
+        use="`get_sheet_data` with `value_render='formula'`",
+        removed_in=_GET_SHEET_FORMULAS_REMOVED_IN,
+    )
     async def get_sheet_formulas(
         spreadsheet_id: str, sheet: str, range: str | None = None, ctx: Context = None
     ) -> list[list[Any]] | dict[str, Any]:

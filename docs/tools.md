@@ -8,8 +8,8 @@
 
 | Tool | Description | Key parameters | Groups |
 |---|---|---|---|
-| `get_sheet_data` | Get data from a specific sheet in a Google Spreadsheet. | `spreadsheet_id`, `sheet`, `range?`, `include_grid_data?`, `local_path?` | `sheets`, `default` |
-| `get_sheet_formulas` | Get formulas from a specific sheet in a Google Spreadsheet. | `spreadsheet_id`, `sheet`, `range?` | `sheets`, `default` |
+| `get_sheet_data` | Get data from a specific sheet in a Google Spreadsheet: its values, as displayed or unformatted, or its formulas. | `spreadsheet_id`, `sheet`, `range?`, `include_grid_data?`, `local_path?`, `value_render?` | `sheets`, `default` |
+| `get_sheet_formulas` | Deprecated: use `get_sheet_data` with `value_render='formula'` instead. Removed in the next feature release. | `spreadsheet_id`, `sheet`, `range?` | `sheets` |
 | `get_multiple_sheet_data` | Get data from multiple specific ranges in Google Spreadsheets. | `queries`, `local_path?` | `sheets` |
 | `get_multiple_spreadsheet_summary` | Get a summary of multiple Google Spreadsheets, including sheet names, headers, and the first few rows of data for each sheet. | `spreadsheet_ids`, `rows_to_fetch?`, `local_path?` | `sheets` |
 | `find_in_spreadsheet` | Find cells containing a specific value in a Google Spreadsheet. | `spreadsheet_id`, `query`, `sheet?`, `case_sensitive?`, `max_results?`, `local_path?` | `sheets`, `default` |
@@ -25,8 +25,8 @@
 | Tool | Description | Key parameters | Groups |
 |---|---|---|---|
 | `list_sheets` | List all sheets in a Google Spreadsheet. | `spreadsheet_id` | `sheets`, `default` |
-| `copy_sheet` | Copy a sheet from one spreadsheet to another. | `src_spreadsheet`, `src_sheet`, `dst_spreadsheet`, `dst_sheet` | `sheets` |
-| `duplicate_sheet` | Duplicate a sheet tab within the same spreadsheet. | `spreadsheet_id`, `sheet`, `new_name?`, `insert_index?` | `sheets` |
+| `copy_sheet` | Copy a sheet tab, within its own spreadsheet or into another one. | `spreadsheet_id?`, `sheet?`, `destination_spreadsheet_id?`, `new_name?`, `insert_index?`, `src_spreadsheet?`, `src_sheet?`, `dst_spreadsheet?`, `dst_sheet?` | `sheets` |
+| `duplicate_sheet` | Deprecated: use `copy_sheet` with no `destination_spreadsheet_id` instead. Removed in the next feature release. | `spreadsheet_id`, `sheet`, `new_name?`, `insert_index?` | `sheets` |
 | `rename_sheet` | Rename a sheet in a Google Spreadsheet. | `spreadsheet`, `sheet`, `new_name` | `sheets` |
 | `create_sheet` | Create a new sheet tab in an existing Google Spreadsheet. | `spreadsheet_id`, `title` | `sheets` |
 | `add_rows_or_columns` | Add (insert) rows or columns to a sheet in a Google Spreadsheet. | `spreadsheet_id`, `sheet`, `dimension`, `count`, `start?` | `sheets` |
