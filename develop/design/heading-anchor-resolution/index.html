@@ -1409,12 +1409,28 @@ stripping it caused PR #453's own QA round to catch a wrong-heading resolution);
 fails, and the anchor does end in digits, is the suffix treated as a duplicate-occurrence index
 and used to pick the matching heading at that specific occurrence — never just "the first
 match" once duplicates are in play, and never a guess when the claimed occurrence doesn't exist.</p>
+<p>The schemes' foundations also differ in which characters survive slugging at all. github-slugger's
+strip set is generated (its <code>script/generate-regex.js</code>, built on Unicode 13.0.0) from whole general
+categories — Other_Number, every punctuation category, every symbol category, Control, Format,
+Unassigned, Private_Use and every Separator — minus the Alphabetic property, minus the literal
+space and hyphen. Python's <code>\w</code> disagrees on both ends: it keeps superscript and fraction digits
+("²" in "Area in m²", "½") that github-slugger strips, and drops combining marks ("cafe\u0301")
+that github-slugger keeps. <code>anchors.py</code> therefore strips by category, with the four
+enclosed-Latin-letter ranges (the Alphabetic property's only members inside the stripped
+categories) carved back out (#1482).</p>
 <p><strong>Known limitation, flagged inline (<code>anchors.py</code>, <code>TODO(#409 follow-up)</code>):</strong> this is a
 cascading try-each-scheme-then-fall-back approach — a reasonable first pass, not the most
 precise or efficient possible mechanism. A more targeted design might resolve the scheme once
 per document (from the first anchor that disambiguates it) rather than re-deriving every
 scheme's full slug list per anchor. Revisit if this becomes a real cost or accuracy problem in
 practice.</p>
+<p><strong>Known limitation, ambiguous separators across sites:</strong> the GitHub scheme is tried first, so
+with two headings that differ only by a separator GitHub strips — <code>Price\xa0List</code> and
+<code>Pricelist</code> — a <code>#pricelist</code> anchor names the NBSP heading on GitHub (its NBSP is stripped with
+no separator) and the plain heading when the anchor was sourced from GitLab, whose own anchors
+for the two differ. The anchor alone cannot say which site produced it, so the resolver takes
+the GitHub reading — <code>['Price\xa0List', 'Pricelist']</code> resolves <code>#pricelist</code> to index 0.
+Genuinely ambiguous between the two sites; documented rather than fixed (#1482).</p>
 <h2 id="product-decision-an-opinionated-layer-not-just-a-primitive">Product decision: an opinionated layer, not just a primitive<a class="headerlink" href="#product-decision-an-opinionated-layer-not-just-a-primitive" title="Permanent link">&para;</a></h2>
 <p>The original ask could have been satisfied by exposing <code>headingId</code> and leaving matching to
 the calling agent (construct the URL, decide which heading an anchor means, call
