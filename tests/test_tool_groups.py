@@ -39,7 +39,6 @@ DEFAULT_SNAPSHOT = {
     "copy_file",
     "share_file",
     "get_sheet_data",
-    "get_sheet_formulas",
     "list_sheets",
     "find_in_spreadsheet",
     "update_cells",
@@ -552,12 +551,14 @@ class TestAuthStatusToolSelection:
             "configured": False,
             "registered_tools": len(server._registered_tools),
             "deprecated_aliases": [],
-            # The suite registers every tool, deprecated ones included (#1525).
+            # The suite registers every tool, deprecated ones included (#1525, #1526).
             "deprecated_tools": [
                 "add_columns",
                 "add_rows",
                 "delete_columns",
                 "delete_rows",
+                "duplicate_sheet",
+                "get_sheet_formulas",
                 "hide_columns",
                 "hide_rows",
                 "resize_columns",
