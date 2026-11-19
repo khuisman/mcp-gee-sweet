@@ -398,7 +398,10 @@ def _render_inline_parts(items: list, in_table: bool, cell: bool = False) -> lis
 
     A group never forms across a line break at an image's boundary, the same
     edge `_coalesce_plain_runs keeps apart for runs, so a break never lands
-    inside markers it didn't before. Code runs never join a group: their
+    inside markers it didn't before. A group whose markers would flank an
+    image edge beside a letter or digit never forms either: the markers
+    wouldn't read as emphasis there, so the members fall back to the split
+    rendering, the image bare. Code runs never join a group: their
     backticks aren't emphasis markers."""
     parts: list[str] = []
     i = 0
@@ -436,12 +439,33 @@ def _render_inline_parts(items: list, in_table: bool, cell: bool = False) -> lis
                     break
                 group.append(nxt)
                 i += 1
-        if any(isinstance(m, Image) for m in group):
+        if any(isinstance(m, Image) for m in group) and not _markers_flank_image_edge(
+            group, parts, items, i
+        ):
             parts.append(_render_span(group, style, in_table))
         else:
-            # No image, or nothing a marker could span: one item at a time.
+            # No image, nothing a marker could span, or markers that would
+            # flank an image edge beside a letter or digit: one item at a
+            # time, the image bare.
             parts.extend(_render_ungrouped(group, in_table))
     return parts
+
+
+def _markers_flank_image_edge(group: list, parts: list[str], items: list, next_i: int) -> bool:
+    """True when the span's markers would sit beside a letter or digit with
+    an image edge between them, where CommonMark cannot read them as emphasis
+    (#1509 review): `see**![logo](u)**` keeps its literal asterisks (an
+    opening `**` after an alphanumeric is not left-flanking when `!`
+    follows), and `**a ![logo](u)**b` loses its bold (a closing `**` before an
+    alphanumeric is not right-flanking when `)` precedes). Only an image at
+    the span's edge puts a marker there — a run's edge whitespace already
+    renders outside the markers — and only a letter or digit outside breaks
+    the flanking; whitespace or punctuation there leaves the rule satisfied.
+    The caller falls back to the split rendering, the image bare, as before."""
+    if isinstance(group[0], Image) and parts and parts[-1][-1:].isalnum():
+        return True
+    nxt = items[next_i] if next_i < len(items) else None
+    return isinstance(group[-1], Image) and isinstance(nxt, Run) and nxt.text[:1].isalnum()
 
 
 def _render_ungrouped(group: list, in_table: bool) -> list[str]:
@@ -462,10 +486,12 @@ def _render_span(group: list[Run | Image], style: tuple, in_table: bool) -> str:
     trips through the write pipeline back to the same styled span.
 
     Whitespace at the span's outer edges stays outside the markers, with its
-    line breaks rendered as <br> outside them, the way _render_plain_run keeps
-    a run's edges from breaking CommonMark's flanking rule; whitespace beside
-    an image is inside the span, never at a marker edge. A break inside a run
-    renders as <br> inside the markers, as _render_run does.
+    line breaks rendered as <br> outside the markers and the span's link, the
+    way _render_plain_run keeps a run's edges from breaking CommonMark's
+    flanking rule and _render_run keeps a break out of the <a>;
+    whitespace beside an image is inside the span, never at a marker edge.
+    A break inside a run renders as <br> inside the markers, as _render_run
+    does.
 
     The span's own link wraps the whole body when a run joins it, and the
     images then render bare: their link is the span's (their style matched),
@@ -488,6 +514,17 @@ def _render_span(group: list[Run | Image], style: tuple, in_table: bool) -> str:
             trail = core[len(core.rstrip()) :]
             core = core[: len(core) - len(trail)]
         inner.append(_escape(core))
+    # The span's outer edges follow _render_run's _split_edge_breaks rule:
+    # the breaks themselves render outside the link too, so a span starting
+    # or ending with a line break (a table cell's second paragraph, an edge
+    # soft break) keeps its <br> out of the <a> (#1509 review). Whitespace on
+    # the inner side of a break stays with the span, inside the link but
+    # outside the markers.
+    lead_breaks = lead[: lead.rfind("\n") + 1] if "\n" in lead else ""
+    lead = lead[len(lead_breaks) :]
+    trail_cut = trail.find("\n")
+    trail_breaks = trail[trail_cut:] if trail_cut != -1 else ""
+    trail = trail[:trail_cut] if trail_cut != -1 else trail
     body = _join_inline(inner).replace("\n", "<br>")
     if strike:
         body = f"~~{body}~~"
@@ -499,6 +536,7 @@ def _render_span(group: list[Run | Image], style: tuple, in_table: bool) -> str:
     if link_url and has_run:
         dest = _md_link_dest(link_url)
         body = f"[{body}]({_table_safe(dest) if in_table else dest})"
+    body = f"{_render_breaks(lead_breaks, in_table)}{body}{_render_breaks(trail_breaks, in_table)}"
     return _table_safe(body) if in_table else body
 
 

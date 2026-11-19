@@ -891,6 +891,119 @@ class TestImageSpanStyle:
         ast = html_to_ast(md_to_html._md_to_html(source))
         assert ast_to_markdown(ast) == source + "\n"
 
+    def test_a_styled_image_touching_a_word_falls_back_to_split(self):
+        # #1509 review: `see**![logo](u)**` — the opening ** sits between "e"
+        # and "!", is not left-flanking, and CommonMark reads literal asterisks.
+        # A digit before it breaks the same way. The span falls back to the
+        # split rendering, the image bare, as before.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "see", "textStyle": {}}},
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True},
+                                    }
+                                },
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == f"see![logo]({self._URI})\n"
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        assert "strong_open" not in [c.type for c in inline.children]
+
+    def test_a_span_ending_in_an_image_falls_back_before_a_word(self):
+        # The closing marker's mirror case: `**a ![logo](u)**b` — a closing **
+        # before an alphanumeric, preceded by ")", is not right-flanking, and
+        # the bold is lost. Split rendering keeps the run bold and the image
+        # bare, as before.
+        doc = self._doc("a ", {}, "b\n")
+        doc["body"]["content"][0]["paragraph"]["elements"][2]["textRun"]["textStyle"] = {}
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == f"**a** ![logo]({self._URI})b\n"
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        assert types.index("strong_close") < types.index("image")
+
+    def test_an_edge_break_stays_outside_the_spans_link(self):
+        # #1509 review: a span starting with a line break (a table cell's
+        # second paragraph) put its <br> inside the link. The span's outer
+        # edges now keep the breaks outside, as _render_run does for a run.
+        link = {"url": "https://u"}
+        style = {"bold": True, "link": link}
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "table": {
+                            "tableRows": [
+                                {
+                                    "tableCells": [
+                                        {
+                                            "content": [
+                                                {
+                                                    "paragraph": {
+                                                        "elements": [
+                                                            {
+                                                                "textRun": {
+                                                                    "content": "x\n",
+                                                                    "textStyle": {},
+                                                                }
+                                                            }
+                                                        ]
+                                                    }
+                                                },
+                                                {
+                                                    "paragraph": {
+                                                        "elements": [
+                                                            {
+                                                                "textRun": {
+                                                                    "content": "a ",
+                                                                    "textStyle": style,
+                                                                }
+                                                            },
+                                                            {
+                                                                "inlineObjectElement": {
+                                                                    "inlineObjectId": "img1",
+                                                                    "textStyle": style,
+                                                                }
+                                                            },
+                                                            {
+                                                                "textRun": {
+                                                                    "content": " b\n",
+                                                                    "textStyle": style,
+                                                                }
+                                                            },
+                                                        ]
+                                                    }
+                                                },
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        assert ast_to_markdown(document_to_ast(doc)) == (
+            f"| x<br>[**a ![logo]({self._URI}) b**](https://u) |\n| --- |\n"
+        )
+
 
 class TestDocToAstTables:
     def test_simple_table_round_trips_rows_and_cells(self):
