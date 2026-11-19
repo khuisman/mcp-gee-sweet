@@ -600,7 +600,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [x] Writing a named style wipes inline text styles: `insert_softbreak_paragraph` always sends one, and `style_doc_range` orders paragraph and text requests per range. Code follow-up to community PR #1148's docs; item 2 can join #1338. `wrong/narrow`, observed ([#1489](https://github.com/khuisman/mcp-gee-sweet/issues/1489)) (PR #1495; item 2 carried to #1499)
 - [ ] Live QA for PR #1360 (table column alignment kept through `get_doc_as_markdown`) ([#1494](https://github.com/khuisman/mcp-gee-sweet/issues/1494))
 - [x] Live QA for PR #1435 (a heading's hard break is dropped, not hyphenated, in anchors and export) ([#1474](https://github.com/khuisman/mcp-gee-sweet/issues/1474)) (PR #1505)
-- [ ] Response-size cap: enforce the full-sentence hint form, follow-up of community PR #1442 ([#1465](https://github.com/khuisman/mcp-gee-sweet/issues/1465))
+- [x] Response-size cap: enforce the full-sentence hint form, follow-up of community PR #1442 ([#1465](https://github.com/khuisman/mcp-gee-sweet/issues/1465)) (PR #1546)
 - [x] Anchor pass: slugging gaps from PR #1435's review; community PR #1471 claims item 1 ([#1460](https://github.com/khuisman/mcp-gee-sweet/issues/1460)) (PR #1471)
 - [ ] `insert_softbreak_paragraph` follow-ups from community PR #1495's review, plus #1489 item 2 (`style_doc_range` cross-range ordering, premise unconfirmed). `wrong/narrow`, not observed ([#1499](https://github.com/khuisman/mcp-gee-sweet/issues/1499))
 - [x] Live QA for community PR #1495 (`insert_softbreak_paragraph` writes a paragraph style only when asked) ([#1500](https://github.com/khuisman/mcp-gee-sweet/issues/1500)) (PR #1505)
