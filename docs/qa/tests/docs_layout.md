@@ -197,4 +197,7 @@ Run 2 (sa) on a throwaway doc.
 
 **Cleanup:** `delete_file` the doc
 
+**Result (2026-11-19) ✅ PASS — Kit, PR #1548 round 1 @ 1f5fd10b**
+`mcp-gee-sweet-kit`, reconnected after the reset. Step 2: `{docId, kind: "header", headerId: "kix.…"}`, no `warning`. Step 3: `{docId, kind: "footer", footerId: "kix.…"}`. Step 4: the same `headerId` as step 2. Step 5: both return the first-page `error` pointing to Insert > Headers & footers. Step 6 (default `playwright`, sign-in check passed on the fixture doc's title; URL-verified both captures): header `More Top text`, footer `Bottom text` on the doc's one page, no first-page header or footer. Doc trashed.
+
 ---

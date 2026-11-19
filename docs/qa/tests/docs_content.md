@@ -7670,6 +7670,9 @@ Step 2 matches every listed line (`   1. Nested`, `      - deep bullet`, `  - b`
 
 **Cleanup:** `delete_file` the doc
 
+**Result (2026-11-19) ✅ PASS — Kit, PR #1548 round 1 @ 1f5fd10b**
+`mcp-gee-sweet-kit`, reconnected after the reset. Step 2: `{docId, namedRangeId: "kix.…", name: "anchor", startIndex: 3, endIndex: 4}`. Step 3: `{docId, namedRangeId: "kix.…", name: "old", index: 3}`. Step 4: `create_bookmark`'s description starts `Deprecated: use \`create_named_range\` with \`start_index\` set to \`index\` and \`end_index\` omitted`. Extra probe (review finding on astral characters): with `😀` inserted at index 1, `create_named_range(start_index=1)` with no `end_index` returned `startIndex: 1, endIndex: 2` with no error, so a range ending mid-surrogate-pair isn't rejected. Doc trashed.
+
 ---
 
 ### TC-DOC266: `get_doc_as_markdown` is cached, and an edit is seen at once ⚠️ destructive
@@ -7687,12 +7690,15 @@ Step 2 matches every listed line (`   1. Nested`, `      - deep bullet`, `  - b`
 6. `get_doc_content(file_id={DOC})`, and read its description in the client's tool list
 
 **Checks**
-- Step 2: both calls return the same `markdown`, `# Title\n\nFirst paragraph\n`
+- Step 2: both calls return the same `markdown`, `# Title\n\nFirst paragraph\n\n` (the last `\n` is the empty paragraph `create_doc` leaves at the end)
 - Step 3: the export reads `First paragraph edited`
 - Step 4: the export reads `First paragraph edited typed` (the UI edit changed the doc's modified time)
 - Step 5: the `## Comments` section lists `cached?`
 - Step 6: it still returns the doc's plain text; its description starts with `Deprecated: use` and names `get_doc_as_markdown` and `export_file` with `export_format='txt'`
 
 **Cleanup:** `delete_file` the doc
+
+**Result (2026-11-19) ❌ FAIL — Kit, PR #1548 round 1 @ 1f5fd10b**
+`mcp-gee-sweet-kit`, reconnected after the reset. Step 2: both calls `# Title\n\nFirst paragraph\n\n` (check corrected for the trailing empty paragraph). Step 3: `First paragraph edited`. Step 4 fails, the defect this case exists to catch. Done with the default `playwright` (sign-in check passed): after a fresh cached export reading `… typed`, ` again` was typed in the Docs editor ("Saved to Drive" shown), and 20 seconds later `get_doc_structure` read `… typed again` while `get_doc_as_markdown` still returned `… typed`. Drive's `modifiedTime` lags a Docs edit: after an edit sent straight to the Docs API, `modifiedTime` and `version` stayed unchanged for at least 24 s, and the new `modifiedTime` was first seen about 2.5 minutes after the edit. Throughout, `get_doc_as_markdown` served the pre-edit export. A first UI-edit attempt read fresh only because that earlier edit's lagging `modifiedTime` had just come through. A `documents.get(fields="revisionId")` changed immediately after the same kind of edit. Step 5: `## Comments` lists `cached?` (the export above it was still stale: `ext` without the ` v2 v3` edits made 2–3 minutes earlier). Step 6: plain text returned; the description starts `Deprecated: use \`get_doc_as_markdown\` … or \`export_file\` with \`export_format='txt'\``. Doc trashed.
 
 ---

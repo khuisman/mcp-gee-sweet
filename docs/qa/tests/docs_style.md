@@ -890,9 +890,12 @@ Cleanup: run folder QA-orn-D-2026-11-08 trashed (not permanent), along with ever
 
 **Checks**
 - Step 3: the default call returns the same dict as `source="body"` would (keyed by named style type, no `body`/`named_styles` keys). `source="named_styles"` returns exactly what `get_doc_named_styles` returns, with `HEADING_1.font_family` `Georgia`. `source="both"` is `{"body": <the default call's dict>, "named_styles": <the named_styles call's dict>}`
-- Step 4: `{"error": "source must be 'body', 'named_styles' or 'both', got 'theme'"}`
+- Step 4: the call is refused with an input validation error naming `source` (`Input should be 'body', 'named_styles' or 'both'`): `source` is a `Literal`, so the MCP argument check rejects it before the tool's own check runs
 - Step 5: `get_doc_theme` has `readOnlyHint: true`; `get_doc_named_styles`' description starts with `Deprecated: use` and names `get_doc_theme` with `source='named_styles'`
 
 **Cleanup:** `delete_file` the doc
+
+**Result (2026-11-19) ✅ PASS — Kit, PR #1548 round 1 @ 1f5fd10b**
+`mcp-gee-sweet-kit`, reconnected after the reset. Step 2: `{requests: 1}`. Step 3: the default call returned `{}` (the Markdown write sets no explicit body styles), and `source="both"` returned `{"body": {}, "named_styles": …}`; `source="named_styles"` and `get_doc_named_styles` returned identical dicts with `HEADING_1.font_family` `Georgia`. Step 4: refused with `Input should be 'body', 'named_styles' or 'both'` from the argument check (check corrected this round: it expected the tool's own `{"error"}`, which a `Literal` parameter never reaches). Step 5: `readOnlyHint=True` on `get_doc_theme`'s decorator; `get_doc_named_styles`' description starts `Deprecated: use \`get_doc_theme\` with \`source='named_styles'\``. Doc trashed.
 
 ---

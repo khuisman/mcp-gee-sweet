@@ -346,9 +346,12 @@ Run 2 (sa) on a throwaway doc.
 - Step 4: back to 2 rows: `a`/`b` and `1`/`2`, with the empty column still first
 - Step 5: back to 2 columns, `a | b` over `1 | 2`
 - Step 6: both return the pre-merge shape (`row_index` and `column_index`, no `dimension`), and the table ends 3 rows × 1 column, holding `a`, an empty cell, `1`
-- Step 7: `{"error": "dimension must be 'row' or 'column', got 'cell'"}`, and the table is unchanged
+- Step 7: the call is refused with an input validation error naming `dimension` (`Input should be 'row' or 'column'`): `dimension` is a `Literal`, so the MCP argument check rejects it before the tool's own check runs. The table is unchanged
 - Step 8: each description starts with `Deprecated: use` and names `insert_table_row_or_column` or `delete_table_row_or_column` with the matching `dimension`
 
 **Cleanup:** `delete_file` the doc
+
+**Result (2026-11-19) ✅ PASS — Kit, PR #1548 round 1 @ 1f5fd10b**
+`mcp-gee-sweet-kit`, reconnected after the reset. `{T}` = 2. Step 2: 3×2, row 1 empty, `a`/`b` in row 0. Step 3: 3×3, column 0 empty, `a` in column 1. Step 4: 2×3, `a`/`b` over `1`/`2` with the empty column first. Step 5: 2×2, `a | b` over `1 | 2`. Step 6: `{docId, table_start_index: 2, row_index: 0}` and `{docId, table_start_index: 2, column_index: 1}`; the table ends 3×1 holding `a`, an empty cell, `1`. Step 7: refused with `Input should be 'row' or 'column'` from the argument check (check corrected this round: it expected the tool's own `{"error"}`, which a `Literal` parameter never reaches). Step 8: all four descriptions start `Deprecated: use` and name the merged tool with the matching `dimension`. Doc trashed.
 
 ---
