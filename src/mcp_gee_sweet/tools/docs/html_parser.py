@@ -2098,8 +2098,10 @@ class _AstParser(HTMLParser):
         # counters' boundary reset stays the leak guard for a tag left unclosed
         # inside a block, where a browser would auto-close it
         # (test_unclosed_bold_does_not_leak_past_nested_list).
-        bare_side = not in_cell and not in_caption and (
-            self._block_tag is None or self._block_implicit or self._block_anonymous
+        bare_side = (
+            not in_cell
+            and not in_caption
+            and (self._block_tag is None or self._block_implicit or self._block_anonymous)
         )
         if self._block_tag or in_cell or in_caption:
             self._release_cell_whitespace()
