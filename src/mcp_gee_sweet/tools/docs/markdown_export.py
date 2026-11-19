@@ -23,6 +23,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread, thread_http
+from ...cache import CACHE_VALIDATE_MODIFIED_TIME
 from ...local_files import check_write
 from ..drive.transfer import (
     _DOCX_MIME,
@@ -48,6 +49,11 @@ _REVISION_IMAGE_CONCURRENCY = 8
 
 # googleapiclient retries a 5xx or 429 this many times, with exponential backoff.
 _CLEANUP_RETRIES = 3
+
+# How long a cached document holding images is served (#1527). Its image URLs
+# (contentUri) last about 30 minutes from the read that issued them, so an entry
+# older than half that is refetched rather than served with URLs about to expire.
+_IMAGE_DOCUMENT_MAX_AGE = 15 * 60
 
 
 async def _fetch_open_comments(drive_service, doc_id: str) -> list[dict[str, Any]]:
@@ -296,6 +302,49 @@ async def export_doc_revision_markdown(
     return result
 
 
+async def _read_document(lc, doc_id: str) -> dict:
+    """The Docs API document resource for get_doc_as_markdown, from the doc cache
+    when it holds a current one (#1527), else fetched and stored.
+
+    The same rules as get_doc_content's cache: validated against Drive's
+    modifiedTime when CACHE_VALIDATE_MODIFIED_TIME is on, and every Docs edit's
+    doc_cache.mark_dirty(doc_id) invalidates it. A document holding images is
+    served for at most _IMAGE_DOCUMENT_MAX_AGE, since its image URLs expire."""
+    docs_service = lc.docs_service
+    doc_cache = lc.doc_cache
+    modified_time = None
+    if CACHE_VALIDATE_MODIFIED_TIME:
+        drive_service = lc.drive_service
+        metadata = await execute_in_thread(
+            drive_service.files()
+            .get(fileId=doc_id, fields="modifiedTime", supportsAllDrives=True)
+            .execute,
+            drive_service,
+        )
+        modified_time = metadata.get("modifiedTime")
+
+    document = doc_cache.get_document(doc_id, current_modified_time=modified_time)
+    if document is not None:
+        return document
+    # After the cache read, not before it: get_document() marks a stale row dirty
+    # itself, which would also cancel this call's own store. Before the fetch, so
+    # an edit's mark_dirty landing during it stops the pre-edit document being
+    # stored over it (#1032).
+    epoch = doc_cache.snapshot_epoch()
+    document = await execute_in_thread(
+        docs_service.documents().get(documentId=doc_id).execute,
+        docs_service,
+    )
+    doc_cache.store_document(
+        doc_id,
+        document,
+        modified_time=modified_time,
+        max_age=_IMAGE_DOCUMENT_MAX_AGE if document.get("inlineObjects") else None,
+        epoch=epoch,
+    )
+    return document
+
+
 def register(tool):
     @tool(
         annotations=ToolAnnotations(title="Get Document as Markdown", readOnlyHint=True),
@@ -337,7 +386,9 @@ def register(tool):
         Returns:
             Dictionary with doc_id, title, and markdown (the full Markdown
             text) — or {local_path, doc_id, title, bytes_written} if local_path
-            is set.
+            is set. The document is cached, comments aside, which are read on
+            every call; call refresh_cache(doc_id=doc_id) to invalidate, or
+            refresh_cache() to clear all caches.
             Raises ValueError if the response exceeds a safety cap (see
             MAX_TOOL_RESPONSE_CHARS in docs/configuration.md) and local_path is
             not set.
@@ -349,7 +400,8 @@ def register(tool):
               docs/design/markdown-support.md's "What this does NOT do").
             - Inline images resolve to Drive's temporary contentUri, which
               expires (roughly 30 minutes) — re-export if the Markdown is
-              consumed well after generation.
+              consumed well after generation. A cached document with images is
+              reused for at most 15 minutes, so its URLs have about 15 left.
             - Only the document's default tab is read (matches
               get_doc_structure's existing scope) — multi-tab documents are
               out of scope.
@@ -363,12 +415,8 @@ def register(tool):
             # Before any fetch, so a refused destination costs no API call (#796).
             check_write(local_path)
         lc = ctx.request_context.lifespan_context
-        docs_service = lc.docs_service
         try:
-            document = await execute_in_thread(
-                docs_service.documents().get(documentId=doc_id).execute,
-                docs_service,
-            )
+            document = await _read_document(lc, doc_id)
         except Exception as e:
             return {"error": str(e)}
 

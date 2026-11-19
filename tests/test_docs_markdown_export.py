@@ -12,7 +12,7 @@ import pytest
 from markdown_it import MarkdownIt
 
 from mcp_gee_sweet.tools import docs as docs_module
-from mcp_gee_sweet.tools.docs import md_to_html
+from mcp_gee_sweet.tools.docs import markdown_export, md_to_html
 from mcp_gee_sweet.tools.docs.ast import (
     BulletItem,
     Cell,
@@ -85,6 +85,8 @@ def _make_tool_registry():
 def _make_ctx(**services):
     ctx = MagicMock()
     lc = ctx.request_context.lifespan_context
+    # get_doc_as_markdown reads through the doc cache (#1527): miss by default.
+    services.setdefault("doc_cache", MagicMock(get_document=MagicMock(return_value=None)))
     for k, v in services.items():
         setattr(lc, k, v)
     return ctx
@@ -1725,6 +1727,127 @@ class TestGetDocAsMarkdownTool:
         )
         assert result["local_path"] == str(tmp_path / "doc1.md")
         assert (tmp_path / "doc1.md").read_text(encoding="utf-8").startswith("Hello")
+
+
+_MD_CACHE_DOC = {"documentId": "doc1", "title": "My Doc", "body": {"content": [_para("Hello\n")]}}
+
+
+class TestGetDocAsMarkdownCache:
+    """get_doc_as_markdown reads through the doc cache (#1527), so get_doc_content
+    can be deprecated without losing a cached read."""
+
+    def _services(self, modified_time="2026-01-01T00:00:00Z", document=None):
+        from mcp_gee_sweet.cache import DocContentCache
+
+        docs_service = MagicMock()
+        get = docs_service.documents.return_value.get.return_value.execute
+        get.return_value = document or _MD_CACHE_DOC
+        drive_service = MagicMock()
+        drive_service.files.return_value.get.return_value.execute.return_value = {
+            "modifiedTime": modified_time
+        }
+        doc_cache = DocContentCache(db_path=":memory:", ttl=60, principal="test")
+        return docs_service, drive_service, doc_cache
+
+    def _ctx(self, docs_service, drive_service, doc_cache):
+        return _make_ctx(
+            docs_service=docs_service, drive_service=drive_service, doc_cache=doc_cache
+        )
+
+    def _docs_reads(self, docs_service):
+        return docs_service.documents.return_value.get.return_value.execute.call_count
+
+    @pytest.mark.parametrize("validate", [False, True])
+    async def test_second_call_is_served_from_the_cache(self, validate, monkeypatch):
+        monkeypatch.setattr(markdown_export, "CACHE_VALIDATE_MODIFIED_TIME", validate)
+        docs_service, drive_service, doc_cache = self._services()
+        ctx = self._ctx(docs_service, drive_service, doc_cache)
+        first = await _docs_tools["get_doc_as_markdown"](doc_id="doc1", ctx=ctx)
+        second = await _docs_tools["get_doc_as_markdown"](doc_id="doc1", ctx=ctx)
+        assert first == second == {"doc_id": "doc1", "title": "My Doc", "markdown": "Hello\n"}
+        assert self._docs_reads(docs_service) == 1
+
+    async def test_a_newer_modified_time_refetches(self, monkeypatch):
+        monkeypatch.setattr(markdown_export, "CACHE_VALIDATE_MODIFIED_TIME", True)
+        docs_service, drive_service, doc_cache = self._services()
+        ctx = self._ctx(docs_service, drive_service, doc_cache)
+        await _docs_tools["get_doc_as_markdown"](doc_id="doc1", ctx=ctx)
+        drive_service.files.return_value.get.return_value.execute.return_value = {
+            "modifiedTime": "2026-02-01T00:00:00Z"
+        }
+        await _docs_tools["get_doc_as_markdown"](doc_id="doc1", ctx=ctx)
+        assert self._docs_reads(docs_service) == 2
+
+    async def test_an_entry_without_a_modified_time_isnt_served_when_validating(self, monkeypatch):
+        monkeypatch.setattr(markdown_export, "CACHE_VALIDATE_MODIFIED_TIME", False)
+        docs_service, drive_service, doc_cache = self._services()
+        ctx = self._ctx(docs_service, drive_service, doc_cache)
+        await _docs_tools["get_doc_as_markdown"](doc_id="doc1", ctx=ctx)
+        monkeypatch.setattr(markdown_export, "CACHE_VALIDATE_MODIFIED_TIME", True)
+        await _docs_tools["get_doc_as_markdown"](doc_id="doc1", ctx=ctx)
+        assert self._docs_reads(docs_service) == 2
+
+    async def test_mark_dirty_invalidates_it(self, monkeypatch):
+        # Every Docs edit marks the doc dirty through doc_cache.mark_dirty(doc_id).
+        monkeypatch.setattr(markdown_export, "CACHE_VALIDATE_MODIFIED_TIME", True)
+        docs_service, drive_service, doc_cache = self._services()
+        ctx = self._ctx(docs_service, drive_service, doc_cache)
+        await _docs_tools["get_doc_as_markdown"](doc_id="doc1", ctx=ctx)
+        doc_cache.mark_dirty("doc1")
+        await _docs_tools["get_doc_as_markdown"](doc_id="doc1", ctx=ctx)
+        assert self._docs_reads(docs_service) == 2
+
+    async def test_edit_landing_mid_fetch_isnt_overwritten(self, monkeypatch):
+        # #1032: an edit's mark_dirty during the fetch stops the pre-edit store.
+        monkeypatch.setattr(markdown_export, "CACHE_VALIDATE_MODIFIED_TIME", True)
+        docs_service, drive_service, doc_cache = self._services()
+
+        def fetch_racing_an_edit(**kwargs):
+            doc_cache.mark_dirty("doc1")
+            return _MD_CACHE_DOC
+
+        get = docs_service.documents.return_value.get.return_value.execute
+        get.side_effect = fetch_racing_an_edit
+        ctx = self._ctx(docs_service, drive_service, doc_cache)
+        await _docs_tools["get_doc_as_markdown"](doc_id="doc1", ctx=ctx)
+        assert doc_cache.get_document("doc1", "2026-01-01T00:00:00Z") is None
+
+    async def test_comments_are_read_on_every_call(self, monkeypatch):
+        monkeypatch.setattr(markdown_export, "CACHE_VALIDATE_MODIFIED_TIME", True)
+        docs_service, drive_service, doc_cache = self._services()
+        drive_service.comments.return_value.list.return_value.execute.return_value = {
+            "comments": []
+        }
+        ctx = self._ctx(docs_service, drive_service, doc_cache)
+        for _ in range(2):
+            await _docs_tools["get_doc_as_markdown"](doc_id="doc1", include_comments=True, ctx=ctx)
+        assert self._docs_reads(docs_service) == 1
+        assert drive_service.comments.return_value.list.call_count == 2
+
+    async def test_a_document_with_images_expires_early(self, monkeypatch):
+        import time
+
+        monkeypatch.setattr(markdown_export, "CACHE_VALIDATE_MODIFIED_TIME", True)
+        document = {**_MD_CACHE_DOC, "inlineObjects": {"img1": {}}}
+        docs_service, drive_service, doc_cache = self._services(document=document)
+        doc_cache.set_ttl(3600)
+        ctx = self._ctx(docs_service, drive_service, doc_cache)
+        await _docs_tools["get_doc_as_markdown"](doc_id="doc1", ctx=ctx)
+        await _docs_tools["get_doc_as_markdown"](doc_id="doc1", ctx=ctx)
+        assert self._docs_reads(docs_service) == 1
+        later = time.time() + markdown_export._IMAGE_DOCUMENT_MAX_AGE + 1
+        monkeypatch.setattr(time, "time", lambda: later)
+        await _docs_tools["get_doc_as_markdown"](doc_id="doc1", ctx=ctx)
+        assert self._docs_reads(docs_service) == 2
+
+    async def test_get_doc_content_entry_is_untouched(self, monkeypatch):
+        # The two tools share the namespace under different keys.
+        monkeypatch.setattr(markdown_export, "CACHE_VALIDATE_MODIFIED_TIME", False)
+        docs_service, drive_service, doc_cache = self._services()
+        doc_cache.store("doc1", {"id": "doc1", "content": "plain"})
+        ctx = self._ctx(docs_service, drive_service, doc_cache)
+        await _docs_tools["get_doc_as_markdown"](doc_id="doc1", ctx=ctx)
+        assert doc_cache.get("doc1") == {"id": "doc1", "content": "plain"}
 
 
 @pytest.mark.parametrize("text", ["call(`value`)", "`leading", "trailing`", "``nested``"])

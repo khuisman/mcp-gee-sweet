@@ -7650,3 +7650,49 @@ Step 2 matches every listed line (`   1. Nested`, `      - deep bullet`, `  - b`
 
 **Result (2026-11-17) ✅ PASS — Kit, PR #1539 round 2 @ 5b48603d**
 `mcp-gee-sweet-kit`, reconnected after the reset. Steps 1–2: the export is byte-identical to round 1's, so the step 2 and step 3 checks hold as in round 1. Step 4 wasn't re-run: its input is that same text, and round 1's round trip was byte-identical. Step 5: `10. ten`, a blank line, `> - quoted child` at the margin (no `>` followed by 4+ spaces), then `- a`, `  - b`, `    - c`, `      - d`. CommonMark render: `quoted child` is an `<li>` in a `<blockquote>`, `d` is inside `c`'s `<li>`, and there's no `<pre>`. Both docs trashed.
+
+---
+
+### TC-DOC265: `create_named_range` with no `end_index` makes a one-character anchor, as `create_bookmark` did ⚠️ destructive
+
+**Purpose:** `create_bookmark` folds into `create_named_range`: an omitted `end_index` spans the single character at `start_index`. `create_bookmark` stays for one release, deprecated.
+
+**Steps**
+1. `create_doc(title="TC-DOC265", folder_id={FOLDER_ID}, content="Some paragraph text")` → `{DOC}`
+2. `create_named_range(doc_id={DOC}, name="anchor", start_index=3)`
+3. `create_bookmark(doc_id={DOC}, name="old", index=3)`
+4. In the client's tool list, read `create_bookmark`'s description
+
+**Checks**
+- Step 2: `{docId, namedRangeId, name: "anchor", startIndex: 3, endIndex: 4}` with a non-empty `namedRangeId`
+- Step 3: `{docId, namedRangeId, name: "old", index: 3}`, as before
+- Step 4: it starts with `Deprecated: use` and names `create_named_range` with `end_index` omitted
+
+**Cleanup:** `delete_file` the doc
+
+---
+
+### TC-DOC266: `get_doc_as_markdown` is cached, and an edit is seen at once ⚠️ destructive
+
+**Playwright: required**
+
+**Purpose:** `get_doc_as_markdown` now reads through the doc cache, as `get_doc_content` does, which is deprecated in its favor (#1527). Every edit through this server invalidates the entry, an edit made elsewhere is caught by the modified-time check (`CACHE_VALIDATE_MODIFIED_TIME`, on by default), and comments are read on every call.
+
+**Steps**
+1. `create_doc(title="TC-DOC266", folder_id={FOLDER_ID}, content_format="markdown", content="# Title\n\nFirst paragraph\n")` → `{DOC}`
+2. `get_doc_as_markdown(doc_id={DOC})` twice
+3. `get_doc_structure(doc_id={DOC})`, then `insert_doc_text(doc_id={DOC}, insertions=[{"index": <the endIndex of "First paragraph"> - 1, "text": " edited"}])`, then `get_doc_as_markdown(doc_id={DOC})`
+4. In Playwright, type ` typed` at the end of the paragraph in the Docs editor, wait 10 seconds, then `get_doc_as_markdown(doc_id={DOC})`
+5. `add_doc_comment(doc_id={DOC}, content="cached?")`, then `get_doc_as_markdown(doc_id={DOC}, include_comments=True)`
+6. `get_doc_content(file_id={DOC})`, and read its description in the client's tool list
+
+**Checks**
+- Step 2: both calls return the same `markdown`, `# Title\n\nFirst paragraph\n`
+- Step 3: the export reads `First paragraph edited`
+- Step 4: the export reads `First paragraph edited typed` (the UI edit changed the doc's modified time)
+- Step 5: the `## Comments` section lists `cached?`
+- Step 6: it still returns the doc's plain text; its description starts with `Deprecated: use` and names `get_doc_as_markdown` and `export_file` with `export_format='txt'`
+
+**Cleanup:** `delete_file` the doc
+
+---

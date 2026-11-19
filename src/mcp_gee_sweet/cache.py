@@ -807,7 +807,10 @@ class DriveFolderCache(_BaseCache):
 
 
 class DocContentCache(_BaseCache):
-    """Caches Google Doc content keyed by file_id."""
+    """Caches Google Doc content keyed by file_id: get_doc_content's plain-text
+    result under the bare file_id, and get_doc_as_markdown's Docs API document
+    resource under `<file_id>:document` (`get_document`/`store_document`, #1527).
+    `mark_dirty(file_id)` marks both."""
 
     _NS = "doc_content"
 
@@ -836,9 +839,56 @@ class DocContentCache(_BaseCache):
         if self._replace(file_id, doc, epoch):
             logger.debug("Cached doc %s", file_id)
 
+    def get_document(self, file_id: str, current_modified_time: str | None = None) -> dict | None:
+        """The cached Docs API document resource for `file_id`, or None on
+        miss/dirty/expired/stale-vs-source.
+
+        An entry stored without a modifiedTime is a miss when the caller has one
+        to compare, since it can't be shown current. An entry stored with a
+        `max_age` (a document whose image URLs expire) is a miss once older than
+        that, whatever the TTL."""
+        key = _document_key(file_id)
+        row = self._fetch_row("value, fetched_at, dirty", key)
+        if row is None or row["dirty"]:
+            return None
+        value = json.loads(row["value"])
+        if current_modified_time is not None and value.get("modified_time") is None:
+            return None
+        if not self._check_modified_time(value, current_modified_time, key):
+            return None
+        if not self._check_ttl(row["fetched_at"], key):
+            return None
+        max_age = value.get("max_age")
+        if max_age is not None and time.time() - row["fetched_at"] > max_age:
+            return None
+        logger.debug("Doc document cache hit: %s", file_id)
+        return value["document"]
+
+    def store_document(
+        self,
+        file_id: str,
+        document: dict,
+        modified_time: str | None = None,
+        max_age: float | None = None,
+        epoch: int | None = None,
+    ):
+        """Cache `document` for `file_id`. `modified_time` is the Drive
+        modifiedTime it was read at, when known; `max_age` caps the entry's
+        lifetime below the TTL (see `get_document`)."""
+        value = {"modified_time": modified_time, "max_age": max_age, "document": document}
+        if self._replace(_document_key(file_id), value, epoch):
+            logger.debug("Cached doc document %s", file_id)
+
     def mark_dirty(self, file_id: str):
         self._mark_dirty_key(file_id)
+        # Every derived entry (`<file_id>:document`), and any in-flight store of one.
+        self._mark_dirty_prefix(f"{file_id}:")
         logger.debug("Marked doc cache dirty for %s", file_id)
+
+
+def _document_key(file_id: str) -> str:
+    """DocContentCache's key for get_doc_as_markdown's document resource."""
+    return f"{file_id}:document"
 
 
 class CalendarCache(_BaseCache):
