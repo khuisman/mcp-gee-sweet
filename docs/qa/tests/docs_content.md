@@ -7508,6 +7508,9 @@ Step 2: `| :-: | --: | --- |` for the plain table and for the quoted one inside 
 **Result (2026-11-16) ✅ PASS — Kit, PR #1524 round 2 @ c15fe204**
 Step 2: `| :-: | --: | --- |` plain and quoted (inside its `> `), and `| --- | --- |` for `p | q`. Step 3: the `.docx` column with no `w:jc` stores no `alignment` and exports `---` (TC-DOC260 step 6). Step 4: `export_revision` of the last revision matches for `{DOC}` and the import. Docs trashed.
 
+**Result (2026-11-18) ✅ PASS — re-run after #1503's fix, in an isolated service-account sandbox on a Shared Drive, against `develop` at `d10215a`**
+Step 2: `| :-: | --: | --- |` for the plain table and for the quoted one inside its `> `, and `| --- | --- |` for `p | q`. Step 3: a `.docx` 2×2 table with no `w:jc` anywhere stores no `alignment` on any cell, and exports `| --- | --- |`. Step 4: `export_revision` of each doc's last revision gives the same delimiter rows as its `get_doc_as_markdown`. Docs trashed.
+
 ### TC-DOC256: An embedded image and its fallback text keep only their own character styles (#1334) ⚠️ requires-network ⚠️ destructive
 
 **Purpose:** an image or its alt-text fallback took the character styles of the run before it, so an image after `<sup>` was raised and shrunk, and fallback text after bold was bold. Each now gets a style request clearing bold, italic, underline, strikethrough, `baselineOffset`, `smallCaps` and `backgroundColor`, keeping its link.
@@ -7531,6 +7534,9 @@ Step 2: `| :-: | --: | --- |` plain and quoted (inside its `> `), and `| --- | -
 
 **Result (2026-11-14) ❌ FAIL — the linked fallback has no underline (#1504)**
 Step 1: no `error`, with four fallbacks (`x`, `fallback`, `lfb`, `x`) and three embedded images. C1: the image's `textStyle` is empty after the `SUPERSCRIPT` run. Docs accepted the clearing request on an inline image. C2's ` x` and C3's `fallback` have an empty `textStyle`. C4: the image has `link` and the link color, and no `italic`. **`lfb` has `link` and `foregroundColor` but no `underline`**, while `site` in C5 has `underline: true`. The request clears `underline` while setting the link. C5's `x` has an empty `textStyle`. The list item is bulleted, holding the image. Step 2: the cell's image has an empty `textStyle` after the superscript. On screen (the image on the baseline at full size): pending — no browser in this session. Docs trashed.
+
+**Result (2026-11-18) ✅ PASS (API); on-screen check not run — no browser in this session. Re-run after #1504's fix, in the same sandbox and at the same commit as TC-DOC255's 2026-11-18 run**
+`{BAD}` was a 404 URL. Step 1: no `error`, and `images` has `error` + `fallback_text` for the four `{BAD}` images only (`x`, `fallback`, `lfb`, `x`). Raw read: C1's image `textStyle` is empty after the `SUPERSCRIPT` `1`. C2's ` x` and C3's `fallback` have an empty `textStyle`. C4: the image has `link`, the link color and `underline`, and no `italic`. `lfb` has `link`, the link color and `underline: true`, like `site` in C5 (#1504 fixed). C5's `x` has an empty `textStyle`. The image-only list item is bulleted, and its `bullet.textStyle` is only `{"underline": false}`. Step 2: the cell's image has an empty `textStyle` after the superscript. Docs trashed.
 
 ### TC-DOC257: A first `<li>` holding only a named-style block is that block; every other such item keeps its empty bullet (#1414) ⚠️ destructive
 
@@ -7650,3 +7656,88 @@ Step 2 matches every listed line (`   1. Nested`, `      - deep bullet`, `  - b`
 
 **Result (2026-11-17) ✅ PASS — Kit, PR #1539 round 2 @ 5b48603d**
 `mcp-gee-sweet-kit`, reconnected after the reset. Steps 1–2: the export is byte-identical to round 1's, so the step 2 and step 3 checks hold as in round 1. Step 4 wasn't re-run: its input is that same text, and round 1's round trip was byte-identical. Step 5: `10. ten`, a blank line, `> - quoted child` at the margin (no `>` followed by 4+ spaces), then `- a`, `  - b`, `    - c`, `      - d`. CommonMark render: `quoted child` is an `<li>` in a `<blockquote>`, `d` is inside `c`'s `<li>`, and there's no `<pre>`. Both docs trashed.
+
+---
+
+## Live coverage for merged PRs #1459, #1470 and #1471
+
+Run on 2026-11-18 in an isolated service-account sandbox on a Shared Drive, against `develop` with all three PRs merged (`d10215a`). Raw reads are a `documents().get()` from a read-only script. This session had no browser, so on-screen checks were not run.
+
+### TC-DOC267: A table's `<caption>` is kept as a paragraph above the table (#1402) ⚠️ destructive
+
+**Purpose:** a `<caption>`'s text was dropped with the rest of a table's table-scope text. It now reads as a paragraph above the table, with its own inline styles. A caption left open closes at the table's first row, a caption on a nested table goes into the outer cell ahead of that table, a wrapped caption is one paragraph, a trailing `<br>` draws no empty line, and a table with no rows keeps its caption.
+
+**Playwright: required**
+
+**Steps**
+1. `create_doc(title="TC-DOC267", folder_id={FOLDER_ID}, content=...)` with these groups, each after a `<p>G1</p>`…`<p>G9</p>` label, then `<p>end</p>`: G1 `<table><caption>Quarterly <b>sales</b></caption><tr><td>a</td><td>b</td></tr></table>`; G2 `<table><caption><b>cap<tr><td>c</td></tr></table><p>after</p>`; G3 `<table><caption>Quarterly\n  sales</caption><tr><td>x</td></tr></table>` (a real newline); G4 `<table><caption>Sales<br></caption><tr><td>x</td></tr></table>`; G5 `<table><caption>Only a caption</caption></table>`; G6 `<table><tr><td>a<table><caption>inner</caption><tr><td>i</td></tr></table></td></tr></table>`; G7 `<table><caption>Title<table><tr><td>x</td></tr></table></caption><tr><td>y</td></tr></table>`; G8 `<table><tr><td>nocap</td></tr></table>`; G9 `<table><caption>cap</caption>lost<tr><td>c</td></tr></table>` → `{DOC}`
+2. `write_doc_content` (HTML) into a second doc with G1's table only
+
+**Checks** (raw `documents().get()`, and on screen)
+- G1: `Quarterly ` + bold `sales` is one paragraph above the table, with only the empty spacer paragraph every inserted table gets between them. The cells read `a` and `b`
+- G2: `cap` is bold; `c` and `after` aren't
+- G3: one paragraph, `Quarterly sales`
+- G4: `Sales`, then the table, with no empty paragraph besides the spacer
+- G5: a paragraph `Only a caption`, and no table
+- G6: the outer cell reads `a`, a soft break, `inner`, then the nested table
+- G7: `Title` above the outer table, which keeps its row `y`
+- G8: the table with `nocap`, with no paragraph above it besides the spacer
+- G9: `cap` above the table; `lost` appears nowhere
+- Step 2: the same as G1
+- 🔍 On screen: each caption sits directly above its table
+
+**Cleanup:** `delete_file` both docs
+
+**Result (2026-11-18) ✅ PASS (API); on-screen check not run — no browser in this session**
+Raw read, as the checks list: G1 `Quarterly ` + `sales\n` (bold), the 1pt spacer, then `a` / `b`. G2 `cap\n` bold, `c` and `after` plain. G3 `Quarterly sales\n`. G4 `Sales\n`, the spacer, the table. G5 `Only a caption\n` and no table. G6's cell is `a\vinner\n` followed by the nested `i` table. G7 `Title\n`, then the table with `y` (the table inside the caption doesn't render, which is out of this case's scope). G8 the spacer, then `nocap`. G9 `cap\n`, then the table, with `lost` nowhere. Step 2 matches G1. Docs trashed.
+
+### TC-DOC268: A block container inside an open block breaks its text as a browser draws it (#1403) ⚠️ destructive
+
+**Purpose:** a `<div>` (or another display:block tag the parser builds no node for) inside an open block ran its text into the block's: `<p>x<div>y</div>z</p>` read "xyz". The block's text now breaks around the container. A container holding the block's only text keeps the block whole, an empty or whitespace-only container draws no line, a `<br>` at the boundary is the boundary's break, a task-list marker before a container stays a checkbox item, and a container inside `<pre>` or a table cell is unchanged.
+
+**Playwright: required**
+
+**Steps**
+1. `create_doc(title="TC-DOC268", folder_id={FOLDER_ID}, content=...)` with these groups, each after a `<p>K1</p>`…`<p>K8</p>` label, then `<p>end</p>`: K1 `<p>x<div>y</div>z</p>`; K2 `<ul><li>a<div>b</div>c</li></ul>`; K3 `<ul><li><div>x</div></li></ul><h1><div>x</div></h1>`; K4 `<ul><li>a<div></div>c</li></ul>`; K5 `<ul><li><div> </div>c</li></ul>`; K6 `<p>a<br><div>b</div></p>`; K7 `<pre>a<div>b</div>c</pre>`; K8 `<table><tr><td>a<div>b</div>c</td></tr></table>` → `{DOC}`
+2. `write_doc_content` (HTML) into a second doc with K1's input
+3. `write_doc_content` (Markdown) into a third doc with `- [ ] <div>details</div>\n`, and `create_doc(content_format="markdown")` a fourth with `- [ ] details\n` as the control
+4. K7 and K8 "as before": run `html_parser.html_to_ast` on their inputs from clean exports of the merge commit and of its first parent, and compare
+
+**Checks** (raw `documents().get()`, and on screen)
+- K1: one paragraph, `x\vy\vz`
+- K2: one bullet, `a\vb\vc`
+- K3: one bullet `x` and one `HEADING_1` `x`, with no empty paragraph
+- K4: one bullet, `a\vc`. K5: one bullet with no empty line (record its text)
+- K6: one paragraph, `a\vb`
+- K7 and K8: step 4's two parses are identical
+- Step 2: the same as K1
+- Step 3: one bulleted paragraph `☐ details`, the same shape as the control, with no empty first line
+- 🔍 On screen: K1 and K2 read on three lines
+
+**Cleanup:** `delete_file` all four docs
+
+**Result (2026-11-18) ✅ PASS (API); on-screen check not run — no browser in this session**
+Raw read: K1 `x\vy\vz\n`. K2 one bullet, `a\vb\vc\n`. K3 one bullet `x\n` and a `HEADING_1` `x\n`, nothing between. K4 one bullet, `a\vc\n`. K5 one bullet, ` c\n`: the whitespace-only container draws no line, but its space stays as a leading space. That's unchanged by this PR (`html_to_ast` at the first parent also gives `[' ', 'c']`), and a single space beside a break is out of this case's scope. K6 `a\vb\n`. K7 `abc\n` in Courier New, and K8's cell `abc\n`. Step 4's parses of both are identical before and after the PR. Step 2 `x\vy\vz\n`. Step 3 is one bulleted `☐ details\n`, and the control is `☐ details\n` too. Docs trashed.
+
+### TC-DOC269: An NBSP or tab in a heading is dropped from its GitHub anchor, not turned into a hyphen (#1460) ⚠️ destructive
+
+**Purpose:** the GitHub anchor scheme keeps word characters, hyphens and literal spaces. It now strips every other character (a tab, an NBSP, a `<br>` break's `"\v"`) with no separator, and turns each space into a hyphen. The in-doc link resolver and `export_revision`'s heading-link slugs both use the rule.
+
+**Steps**
+1. `create_doc(title="TC-DOC269", folder_id={FOLDER_ID}, content="<h2>Price&nbsp;List</h2><h2>Price List</h2><p>Links: <a href=\"#pricelist\">a</a> and <a href=\"#price-list\">b</a>.</p>")` → `{DOC}`
+2. `get_doc_structure(doc_id={DOC})`, and a raw read of the first heading's text
+3. `create_doc(title="TC-DOC269 regressions", folder_id={FOLDER_ID}, content_format="markdown", content="## Heading one<br>heading two\n\n## A - Approved\n\n## Intro\n\n## Intro\n\nLinks: [a](#heading-oneheading-two) and [b](#heading-one-heading-two), [c](#a---approved), [d](#intro), [e](#intro-1).\n")` → `{REG}`, then `get_doc_structure`
+4. `get_doc_as_markdown` on both docs
+5. Relink each link by heading ID, as TC-DOC252 step 4 does, then `export_revision` of each doc's last revision
+
+**Checks**
+- Steps 1 and 3: no `error` and no `dropped_links`
+- Step 2: the first heading's text is `Price List` (if Docs normalizes the NBSP to a space, record that and stop). `a` links to the first heading's `headingId`, `b` to the second's
+- Step 3: `a` and `b` both link to the break heading (it has no plain twin), `c` to `A - Approved`, and `d` and `e` to the first and second `Intro`
+- Step 4: links keep their same-document URLs (only `export_revision` slugs heading links, see TC-DOC252)
+- Step 5: `[a](#pricelist)` and `[b](#price-list)`; `[a](#heading-oneheading-two)`, `[b](#heading-oneheading-two)`, `[c](#a---approved)`, `[d](#intro)` and `[e](#intro-1)`
+
+**Cleanup:** `delete_file` both docs
+
+**Result (2026-11-18) ✅ PASS**
+Steps 1 and 3 returned no `dropped_links`. Step 2: the raw text is `Price\xa0List\n`, so Docs keeps the NBSP. `a` → the NBSP heading's `headingId`, `b` → the plain one's. Step 3: `a` and `b` → the break heading, `c` → `A - Approved`, `d` / `e` → the first and second `Intro`. Step 4: every link is its same-document URL. Step 5: `export_revision` returned `Links: [a](#pricelist) and [b](#price-list).` and `Links: [a](#heading-oneheading-two) and [b](#heading-oneheading-two), [c](#a---approved), [d](#intro), [e](#intro-1).`, with `## Heading one<br>heading two` intact. Docs trashed.
