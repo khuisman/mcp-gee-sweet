@@ -2,6 +2,7 @@
 
 from mcp_gee_sweet.tools.docs.anchors import (
     _github_style_slugify,
+    _slugs_with_dedup,
     compute_scheme_slugs,
     resolve_heading_anchor,
 )
@@ -41,7 +42,7 @@ class TestResolveHeadingAnchor:
         assert resolve_heading_anchor("#heading-oneheading-two", headings) == 1
 
     def test_hard_break_heading_and_plain_heading_have_distinct_anchors(self):
-        # #1435 review: GitHub's scheme drops the break entirely, so a heading
+        # #1357: GitHub's scheme drops the break entirely, so a heading
         # with a hard break and a plain-space heading slug differently, and
         # each anchor must find its own heading — never the other's.
         headings = ["Heading one\vheading two", "Heading one heading two"]
@@ -190,3 +191,52 @@ class TestGithubSchemeStripsOtherWhitespace:
 
     def test_slash_still_strips_with_no_separator(self):
         assert _github_style_slugify("Setup/Installation") == "setupinstallation"
+
+
+class TestGithubSchemeMatchesGithubSlugger:
+    r"""#1482: Python's \w and github-slugger's strip set disagree on two
+    character classes — Other_Number ("²", "½"), which \w kept, and combining
+    marks ("\u0301"), which \w dropped — so the strip is category-based, built
+    from github-slugger's own generate-regex.js rule."""
+
+    def test_other_number_characters_are_stripped(self):
+        # github-slugger removes "²" in its \xAB-\xB4 range and "½" in
+        # \xBB-\xBF; Python's \w kept both, so the heading's real anchor
+        # "#area-in-m" was unreachable. The "½" leaves both its flanking
+        # spaces, which hyphenate one-per-space as GitHub's does.
+        assert _github_style_slugify("Area in m²") == "area-in-m"
+        assert _github_style_slugify("half ½ off") == "half--off"
+        assert resolve_heading_anchor("#area-in-m", ["Area in m²"]) == 0
+
+    def test_combining_marks_are_kept(self):
+        # github-slugger's strip set leaves combining marks alone, where \w
+        # dropped them: decomposed "cafe\u0301" must keep its accent, in
+        # either normalization form.
+        assert _github_style_slugify("cafe\u0301") == "cafe\u0301"
+        assert _github_style_slugify("café") == "café"
+
+    def test_enclosed_latin_letters_are_kept(self):
+        # The Alphabetic carve-out inside the stripped Symbol-other category:
+        # github-slugger keeps circled and squared Latin letters too.
+        assert _github_style_slugify("Ⓐ Team") == "ⓐ-team"
+
+
+class TestDedupKeepsEverySlugUnique:
+    """#1482: the -1, -2 suffix used to be assigned without checking the
+    numbered form was itself free, missing github-slugger's keep-incrementing
+    behavior (BananaSlug.slug)."""
+
+    def test_a_literal_suffixed_heading_after_duplicates_gets_a_free_slug(self):
+        # The NBSP heading slugs to the same base as "Pricelist", so the
+        # duplicate takes "pricelist-1" — and the heading literally titled
+        # "Pricelist-1" must not collide with it.
+        slugs = _slugs_with_dedup(
+            ["Pricelist", "Price\xa0List", "Pricelist-1"], _github_style_slugify
+        )
+        assert slugs == ["pricelist", "pricelist-1", "pricelist-1-1"]
+
+    def test_a_literal_suffixed_heading_before_duplicates_jumps_the_gap(self):
+        # The first "Pricelist" repeat claims "pricelist-1" in passing; the
+        # second must skip past it to a slug that is actually free.
+        slugs = _slugs_with_dedup(["Pricelist-1", "Pricelist", "Pricelist"], _github_style_slugify)
+        assert slugs == ["pricelist-1", "pricelist", "pricelist-2"]
