@@ -2117,7 +2117,7 @@ Apply formatting across a range with <code>format_cells(spreadsheet_id={SPREADSH
 - Clean up: remove the formatting from A1:Z200 afterward so it doesn't affect other test cases</p>
 <p><strong>Result (2026-07-02) ✅ PASS</strong>
 Tested against a scratch sheet (temp tab, deleted after) rather than formatting the shared Sales fixture directly, to avoid leaving unwanted formatting on it — same effective setup (<code>format_cells(range="A1:Z1000", bold=True, background_color=..., number_format_type="NUMBER")</code>, then <code>get_sheet_data(range="A1:Z200", include_grid_data=True)</code>). Raised:
-<code>get_sheet_data(include_grid_data=True): the response is 4325100 characters, over the 40000-character safety cap. ... Narrow the range; pass local_path to write the result to disk instead of returning it inline (bypasses this cap); or set MAX_GRID_DATA_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).</code>
+<code>get_sheet_data(include_grid_data=True): the response is 4325100 characters, over the 40000-character safety cap. ... Narrow the range. Pass local_path to write the result to disk instead of returning it inline (bypasses this cap), or set MAX_TOOL_RESPONSE_CHARS if your MCP client can handle larger responses (e.g. a raised MAX_MCP_OUTPUT_TOKENS).</code>
 Exact size (4,325,100 chars) confirms the fetch completed before the check ran, as designed.</p>
 <p><strong>Result (2026-09-04) ✅ PASS</strong>
 Fetch succeeded; size check raised ValueError naming actual size 4,085,918 chars, cap 1,000,000, and narrow-range/local_path/MAX_TOOL_RESPONSE_CHARS options. Cap default is now 1,000,000 (#519); Setup text in test doc citing 40,000 is stale, behavior correct</p>
