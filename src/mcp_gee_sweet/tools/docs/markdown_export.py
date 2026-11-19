@@ -55,6 +55,10 @@ _CLEANUP_RETRIES = 3
 # older than half that is refetched rather than served with URLs about to expire.
 _IMAGE_DOCUMENT_MAX_AGE = 15 * 60
 
+# The Docs API guarantees a returned revisionId only for 24 hours, so a cached
+# document is never compared by one older than that, whatever the TTL.
+_REVISION_ID_MAX_AGE = 24 * 60 * 60
+
 
 async def _fetch_open_comments(drive_service, doc_id: str) -> list[dict[str, Any]]:
     """Paginate through every non-deleted, non-resolved comment on doc_id,
@@ -306,30 +310,37 @@ async def _read_document(lc, doc_id: str) -> dict:
     """The Docs API document resource for get_doc_as_markdown, from the doc cache
     when it holds a current one (#1527), else fetched and stored.
 
-    The same rules as get_doc_content's cache: validated against Drive's
-    modifiedTime when CACHE_VALIDATE_MODIFIED_TIME is on, and every Docs edit's
-    doc_cache.mark_dirty(doc_id) invalidates it. A document holding images is
-    served for at most _IMAGE_DOCUMENT_MAX_AGE, since its image URLs expire."""
+    When CACHE_VALIDATE_MODIFIED_TIME is on, a cached document is served only if
+    the Docs API still reports the revisionId it was stored at. Not Drive's
+    modifiedTime, which lags a Docs edit by minutes, so an edit in the Docs
+    editor, another client's, or a write that doesn't mark the doc cache dirty
+    (a converted `.md` re-upload, an older server version sharing the DB) would
+    be served stale meanwhile (PR #1548 QA round 1). Every Docs edit's
+    doc_cache.mark_dirty(doc_id) also invalidates it. An entry lasts at most
+    _REVISION_ID_MAX_AGE, the time a revisionId stays valid, and one holding
+    images at most _IMAGE_DOCUMENT_MAX_AGE, since its image URLs expire."""
     docs_service = lc.docs_service
     doc_cache = lc.doc_cache
-    modified_time = None
+    revision_id = None
     if CACHE_VALIDATE_MODIFIED_TIME:
-        drive_service = lc.drive_service
-        metadata = await execute_in_thread(
-            drive_service.files()
-            .get(fileId=doc_id, fields="modifiedTime", supportsAllDrives=True)
-            .execute,
-            drive_service,
+        current = await execute_in_thread(
+            docs_service.documents().get(documentId=doc_id, fields="revisionId").execute,
+            docs_service,
         )
-        modified_time = metadata.get("modifiedTime")
-
-    document = doc_cache.get_document(doc_id, current_modified_time=modified_time)
-    if document is not None:
-        return document
-    # After the cache read, not before it: get_document() marks a stale row dirty
-    # itself, which would also cancel this call's own store. Before the fetch, so
-    # an edit's mark_dirty landing during it stops the pre-edit document being
-    # stored over it (#1032).
+        revision_id = current.get("revisionId")
+        # No revisionId to compare (none returned): read live rather than trust the entry.
+        if revision_id is not None:
+            document = doc_cache.get_document(doc_id, current_revision_id=revision_id)
+            if document is not None:
+                return document
+    else:
+        document = doc_cache.get_document(doc_id)
+        if document is not None:
+            return document
+    # After the cache read, not before it: a lookup that finds an expired row marks
+    # it dirty itself, which would also cancel this call's own store. Before the
+    # fetch, so an edit's mark_dirty landing during it stops the pre-edit document
+    # being stored over it (#1032).
     epoch = doc_cache.snapshot_epoch()
     document = await execute_in_thread(
         docs_service.documents().get(documentId=doc_id).execute,
@@ -338,8 +349,7 @@ async def _read_document(lc, doc_id: str) -> dict:
     doc_cache.store_document(
         doc_id,
         document,
-        modified_time=modified_time,
-        max_age=_IMAGE_DOCUMENT_MAX_AGE if document.get("inlineObjects") else None,
+        max_age=_IMAGE_DOCUMENT_MAX_AGE if document.get("inlineObjects") else _REVISION_ID_MAX_AGE,
         epoch=epoch,
     )
     return document

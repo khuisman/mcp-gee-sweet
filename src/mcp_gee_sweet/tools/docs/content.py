@@ -1846,8 +1846,10 @@ def register(tool):
 
     @tool(annotations=ToolAnnotations(title="Get Document Content", readOnlyHint=True))
     @deprecated_tool(
-        use="`get_doc_as_markdown` for the Doc's content, or `export_file` with "
-        "`export_format='txt'` for plain text",
+        use="`get_doc_as_markdown` for the Doc's content (with `local_path` for a large "
+        "Doc); `export_file` with `export_format='txt'` for plain text, or "
+        "`download_file` with `export_format='txt'` to write it to disk; and "
+        "`get_file_metadata` for its name, modified time and web link",
         removed_in="the next feature release",
     )
     async def get_doc_content(

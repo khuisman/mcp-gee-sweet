@@ -7679,7 +7679,7 @@ Step 2 matches every listed line (`   1. Nested`, `      - deep bullet`, `  - b`
 
 **Playwright: required**
 
-**Purpose:** `get_doc_as_markdown` now reads through the doc cache, as `get_doc_content` does, which is deprecated in its favor (#1527). Every edit through this server invalidates the entry, an edit made elsewhere is caught by the modified-time check (`CACHE_VALIDATE_MODIFIED_TIME`, on by default), and comments are read on every call.
+**Purpose:** `get_doc_as_markdown` now reads through the doc cache, as `get_doc_content` does, which is deprecated in its favor (#1527). Every edit through this server invalidates the entry, and an edit made elsewhere is caught at once by comparing the Docs API's `revisionId` (`CACHE_VALIDATE_MODIFIED_TIME`, on by default): Drive's `modifiedTime`, which the first version checked, lagged a Docs editor edit by about 2.5 minutes (PR #1548 QA round 1). Comments are read on every call.
 
 **Steps**
 1. `create_doc(title="TC-DOC266", folder_id={FOLDER_ID}, content_format="markdown", content="# Title\n\nFirst paragraph\n")` → `{DOC}`
@@ -7692,9 +7692,9 @@ Step 2 matches every listed line (`   1. Nested`, `      - deep bullet`, `  - b`
 **Checks**
 - Step 2: both calls return the same `markdown`, `# Title\n\nFirst paragraph\n\n` (the last `\n` is the empty paragraph `create_doc` leaves at the end)
 - Step 3: the export reads `First paragraph edited`
-- Step 4: the export reads `First paragraph edited typed` (the UI edit changed the doc's modified time)
+- Step 4: the export reads `First paragraph edited typed` (the UI edit changed the doc's `revisionId`)
 - Step 5: the `## Comments` section lists `cached?`
-- Step 6: it still returns the doc's plain text; its description starts with `Deprecated: use` and names `get_doc_as_markdown` and `export_file` with `export_format='txt'`
+- Step 6: it still returns the doc's plain text; its description starts with `Deprecated: use` and names `get_doc_as_markdown`, `export_file` and `download_file` with `export_format='txt'`, and `get_file_metadata`
 
 **Cleanup:** `delete_file` the doc
 

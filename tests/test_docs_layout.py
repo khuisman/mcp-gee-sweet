@@ -292,6 +292,39 @@ class TestCreateHeaderOrFooter:
         assert result["headerId"] == "header-1"
         assert "insert failed" in result["warning"]
 
+    @pytest.mark.parametrize("content", ["Text", None])
+    async def test_a_failed_id_lookup_is_a_warning_not_a_silent_none(self, content):
+        # PR #1548 QA round 1: the doc already has a header, so the create fails,
+        # and the documentStyle lookup that would name it fails too.
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = HttpError(
+            resp=MagicMock(status=400), content=b"Default header already exists."
+        )
+        docs_svc.documents.return_value.get.return_value.execute.side_effect = RuntimeError(
+            "lookup failed"
+        )
+        ctx = _make_ctx(docs_service=docs_svc, doc_cache=MagicMock())
+        result = await _docs_tools["create_header_or_footer"](
+            doc_id="doc1", kind="header", content=content, ctx=ctx
+        )
+        assert result["headerId"] is None
+        assert "lookup failed" in result["warning"]
+        assert ("not inserted" in result["warning"]) is (content is not None)
+        assert docs_svc.documents.return_value.batchUpdate.call_count == 1
+
+    async def test_no_default_id_in_document_style_is_a_warning(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": []
+        }
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "documentStyle": {}
+        }
+        ctx = _make_ctx(docs_service=docs_svc, doc_cache=MagicMock())
+        result = await _docs_tools["create_footer"](doc_id="doc1", content="x", ctx=ctx)
+        assert result["footerId"] is None
+        assert "no default footer" in result["warning"]
+
     async def test_invalid_kind_returns_error_without_a_call(self):
         docs_svc = MagicMock()
         ctx = _make_ctx(docs_service=docs_svc, doc_cache=MagicMock())

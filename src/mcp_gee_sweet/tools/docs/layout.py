@@ -32,8 +32,9 @@ async def _create_header_or_footer(
     """Shared implementation behind create_header_or_footer and
     create_header/create_footer, so both send the same requests.
 
-    Returns {"id": <headerId or footerId>} (None if none could be found), plus
-    "warning" if the content insert failed, or {"error": ...}."""
+    Returns {"id": <headerId or footerId>}, plus "warning" if the content insert
+    failed; {"id": None, "warning": ...} if the ID couldn't be found (no content
+    is inserted then); or {"error": ...}."""
     if kind not in ("header", "footer"):
         return {"error": f"kind must be 'header' or 'footer', got {kind!r}"}
     request_name = "createHeader" if kind == "header" else "createFooter"
@@ -62,6 +63,7 @@ async def _create_header_or_footer(
         return {"error": str(e)}
 
     # The doc already had one, or the reply didn't name it: read it from documentStyle.
+    lookup_error = None
     if segment_id is None:
         try:
             doc = await execute_in_thread(
@@ -71,10 +73,23 @@ async def _create_header_or_footer(
             segment_id = doc.get("documentStyle", {}).get(
                 "defaultHeaderId" if kind == "header" else "defaultFooterId"
             )
-        except Exception:
-            pass
+        except Exception as e:
+            lookup_error = str(e)
 
-    if content and segment_id:
+    if segment_id is None:
+        # Never a silent None: say why there's no ID, and that content wasn't written
+        # (PR #1548 QA round 1).
+        reason = (
+            f"its ID couldn't be read ({lookup_error})"
+            if lookup_error
+            else "the doc reports no default " + kind
+        )
+        warning = f"{kind.capitalize()} not confirmed: {reason}."
+        if content:
+            warning += " The content was not inserted."
+        return {"id": None, "warning": warning}
+
+    if content:
         try:
             with doc_invalidating(lc.doc_cache, doc_id):
                 await execute_in_thread(
@@ -133,7 +148,8 @@ def register(tool):
             Confirmation with docId, kind, and headerId (for a header) or footerId
             (for a footer). Use that ID as the segmentId in subsequent
             insert_doc_text calls to add formatted content. Includes "warning" if
-            it was created but the content insert failed.
+            it was created but the content insert failed, or if its ID couldn't be
+            read (the ID is then null and no content was inserted).
         """
         result = await _create_header_or_footer(
             ctx.request_context.lifespan_context, doc_id, kind, content
