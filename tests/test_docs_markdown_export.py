@@ -360,7 +360,7 @@ class TestDocToAstLinks:
 
 
 class TestStabilizedHeadingLinks:
-    """PR #1435 review: a revision's exported heading links are written as
+    """A revision's exported heading links are written as
     '#slug' anchors by _stabilize_internal_links, and that slug must be exactly
     what anchors.py's resolver (and GitHub itself) would produce for the same
     heading — hard breaks included. A link to the wrong section is worse than
@@ -417,9 +417,9 @@ class TestStabilizedHeadingLinks:
         assert self._link(doc, 2) == {"url": "#heading-oneheading-two"}
 
     def test_hard_break_and_plain_heading_links_stay_distinct(self):
-        # The regression khuisman caught in review: with the break slugified as
-        # a hyphen, BOTH headings' links read "#heading-one-heading-two" and
-        # the hard-break heading's link resolved to the plain heading.
+        # With the break slugified as a hyphen, BOTH headings' links read
+        # "#heading-one-heading-two" and the hard-break heading's link
+        # resolved to the plain heading.
         from mcp_gee_sweet.tools.docs.markdown_export import _stabilize_internal_links
 
         doc = self._doc()
@@ -452,9 +452,14 @@ class TestStabilizedHeadingLinks:
         doc = self._doc()
         _stabilize_internal_links(doc)
         slug = self._link(doc, 2)["url"]
-        # What the write side's _walk_headings_and_anchor_runs sees: raw
-        # textRun content, trailing "\n" stripped, "\v" intact.
-        raw_headings = ["Heading one\vheading two", "Heading one heading two"]
+        # Exactly what the write side's _walk_headings_and_anchor_runs
+        # collects for the same doc — raw textRun content, trailing "\n"
+        # stripped, "\v" intact — gathered here rather than hard-coded, so a
+        # change to the walker can't silently desync this round trip.
+        from mcp_gee_sweet.tools.docs.content import _walk_headings_and_anchor_runs
+
+        walked_headings, _anchor_runs = _walk_headings_and_anchor_runs(doc["body"]["content"])
+        raw_headings = [text for text, _heading_id in walked_headings]
         assert resolve_heading_anchor(slug, raw_headings) == 0
 
 
