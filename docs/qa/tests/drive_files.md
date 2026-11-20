@@ -981,7 +981,7 @@ Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 
 ---
 
-## `star_file` / `unstar_file` (issue #139)
+## `star_file` / `unstar_file` (issue #139; `unstar_file` deprecated by #1528)
 
 **Note:** TC-D202/TC-D203 below predate #388 — at the time they were run, neither `get_file_metadata` nor `list_files` exposed a `starred` field, so verification was round-trip only (the tool's own response was the only readable signal). #388 (TC-D260 below) fixed that; `get_file_metadata`/`list_files`/`search_files` all now surface `starred`.
 
@@ -1052,6 +1052,19 @@ Ensure {SPREADSHEET_ID} ends unstarred (matches TC-D202/TC-D203's own convention
 Run on a throwaway spreadsheet; starred state visible in metadata, list_files and search_files.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — on the copy: after star, `get_file_metadata` `starred: true`; `refresh_cache(run folder)`; `list_files(run folder)` entry `starred: true`; `search_files("G-copy-qa-fixtures-sheet")` `starred: true`; `unstar_file` then `get_file_metadata` `starred: false`. Also: the warm `list_files` with no refresh showed `starred: false` right after unstar (parent marked dirty).
+
+---
+
+### TC-D309: `star_file(starred=False)` unstars, and `list_files` shows it with no refresh (#1528)
+
+**Setup:** `create_spreadsheet(title="QA-Star-1528", folder_id={FOLDER_ID})`; note its id. `list_files({FOLDER_ID})` once, so the folder listing is cached.
+
+**Checks**
+- `star_file(file_id=<id>)` (no `starred`) returns `starred: true`; `list_files({FOLDER_ID})` with no `refresh_cache` shows the entry `starred: true`.
+- `star_file(file_id=<id>, starred=False)` returns `starred: false`; `list_files({FOLDER_ID})`, again with no refresh, shows `starred: false`; `get_file_metadata(<id>)` shows `starred: false`.
+- `unstar_file(file_id=<id>)` after a `star_file(file_id=<id>)` still returns `starred: false`.
+
+**Cleanup:** `delete_file(file_id=<id>, permanent=True)`.
 
 ---
 
@@ -1498,6 +1511,63 @@ Setup on `mcp-gee-sweet-sky` (OAuth); every check in a fresh interpreter in the 
 Rerun from scratch on the new head, because it moves the all-drives flags into `_list_drive_files`, which `list_recent_files` uses. Fresh fixtures, same method as round 1. Positive control found both. The raw query without `corpora` again returned neither, and with `allDrives` returned both. Unscoped `search_files` → both ids; `search_spreadsheets` → the spreadsheet; `list_recent_files` (spreadsheet / document, `days=1`, 100) → each id. Under OAuth, `list_recent_files(max_results=100)` → 41 results, no error. Cleanup: both permanently deleted.
 
 **Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — Every check has to run as the service account. This shard may call only the OAuth `ash` prefix, and rule 4 bars borrowing an SA key for a fresh-interpreter run, since Aziz's worktree config has no SA credentials of its own. Without the SA checks the OAuth setup proves nothing, so I didn't create the fixtures. Needs SA identity, deferred to Aziz (setup on an OAuth server, checks on kai-sa/sa).
+
+---
+
+### TC-D304: `search_files` finds without a query, and returns `{files, exhaustive}` (#1528)
+
+**Setup:** `create_spreadsheet(title="QA-Finder-1528-Sheet", folder_id={FOLDER_ID})` and `create_folder(name="QA-Finder-1528-Folder", parent_folder_id={FOLDER_ID})`; note both ids.
+
+**Checks**
+- `search_files(mime_type="application/vnd.google-apps.spreadsheet", folder_id={FOLDER_ID}, max_results=1000)` (no `query`) returns a dict with exactly the keys `files` and `exhaustive`; `files` includes the spreadsheet's id and no entry whose `mimeType` isn't a spreadsheet; `exhaustive` is `true`.
+- `search_files(mime_type="application/vnd.google-apps.folder", folder_id={FOLDER_ID}, max_results=1000)` includes the folder's id and no non-folder entry. This is `list_folders(parent_folder_id={FOLDER_ID})`'s set: its ids equal that call's.
+- Every entry in both calls has `id`, `name`, `mimeType`, `created_time`, `modified_time`, `owners`, `parent`, `web_link` and `starred`, and `parent` is `{FOLDER_ID}`.
+- `search_files(query="")` and `search_files(query="   ")` return `{files, exhaustive}`, not an error.
+- A failure is a dict: `search_files(folder_id="x' in parents or trashed=true or 'y")` returns `{"error": "Search failed: ..."}`, not a list.
+
+**Cleanup:** `delete_file(file_id=<id>, permanent=True)` on both.
+
+---
+
+### TC-D305: `search_files`' `exhaustive` is false when Drive has more (#1528, #1202)
+
+**Setup:** `{FOLDER_ID}` holds at least two non-trashed files (TC-D304's fixtures do, if it ran first).
+
+**Checks**
+- `search_files(folder_id={FOLDER_ID}, max_results=1)` returns one file and `exhaustive: false`.
+- `search_files(folder_id={FOLDER_ID}, max_results=1000)` returns every file `list_files({FOLDER_ID}, max_results=1000)` does (compare ids) and `exhaustive: true`.
+
+---
+
+### TC-D306: `search_files`' `modified_within_days` and `order_by` (#1528)
+
+**Setup:** `create_spreadsheet(title="QA-Finder-1528-A", folder_id={FOLDER_ID})`, then `create_spreadsheet(title="QA-Finder-1528-B", folder_id={FOLDER_ID})`, in that order; note both ids.
+
+**Checks**
+- `search_files(modified_within_days=1, mime_type="application/vnd.google-apps.spreadsheet", max_results=1000)` includes both ids, and every `modified_time` is within the last 24 hours.
+- `search_files(mime_type="application/vnd.google-apps.spreadsheet", folder_id={FOLDER_ID})` (default `order_by='modified'`, newest first) lists `-B` before `-A`; the same call with `order_by="name"` lists `-A` before `-B`.
+- `search_files(query="QA-Finder-1528", folder_id={FOLDER_ID}, order_by="name")` returns `{"error": ...}` naming `order_by='name'` and `query`, not a Drive 403: Drive refuses any sort but newest-first on a `fullText` query. The same call with the default `order_by` returns both.
+- `search_files(modified_within_days=0)` returns `{"error": ...}` naming `modified_within_days`; `search_files(order_by="size")` is refused before the tool runs (schema) or returns an error naming `order_by`.
+
+**Cleanup:** `delete_file(file_id=<id>, permanent=True)` on both.
+
+---
+
+### TC-D307: `search_files(shared_with_me=True)` matches `list_shared_with_me` (#1528)
+
+**Checks**
+- `search_files(shared_with_me=True, max_results=200)` and `list_shared_with_me(max_results=200)` return the same ids in the same order (both newest first).
+- With a `mime_type` filter (`application/vnd.google-apps.spreadsheet`) on both, the ids again match.
+- If the account has nothing shared with it, both return no files; record that, since the check then only shows they agree on empty.
+
+---
+
+### TC-D308: the deprecated finders still work, and their descriptions name the `search_files` call (#1528)
+
+**Checks**
+- In the tool list (`tools/list`, or the deferred-tool schema), each of `search_spreadsheets`, `list_spreadsheets`, `list_folders`, `list_recent_files`, `list_shared_with_me` and `unstar_file` has a description starting `Deprecated: use` and naming `search_files` (`star_file` for `unstar_file`).
+- `search_spreadsheets(query="QA", max_results=5)`, `list_spreadsheets(folder_id={FOLDER_ID})`, `list_folders(parent_folder_id={FOLDER_ID})`, `list_recent_files(max_results=5)` and `list_shared_with_me(max_results=5)` each return a bare list as before, not `{files, exhaustive}`, with no error.
+- `search_spreadsheets`' description doesn't say "special case", `list_spreadsheets`' doesn't open "List all spreadsheets", and `search_files`' doesn't say "convenience wrapper".
 
 ---
 

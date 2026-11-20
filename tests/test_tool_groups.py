@@ -551,7 +551,8 @@ class TestAuthStatusToolSelection:
             "configured": False,
             "registered_tools": len(server._registered_tools),
             "deprecated_aliases": [],
-            # The suite registers every tool, deprecated ones included (#1525, #1526, #1527).
+            # The suite registers every tool, deprecated ones included (#1525, #1526, #1527,
+            # #1528).
             "deprecated_tools": [
                 "add_columns",
                 "add_rows",
@@ -570,9 +571,15 @@ class TestAuthStatusToolSelection:
                 "hide_rows",
                 "insert_table_column",
                 "insert_table_row",
+                "list_folders",
+                "list_recent_files",
+                "list_shared_with_me",
+                "list_spreadsheets",
                 "resize_columns",
                 "resize_rows",
+                "search_spreadsheets",
                 "unhide_columns",
                 "unhide_rows",
+                "unstar_file",
             ],
         }

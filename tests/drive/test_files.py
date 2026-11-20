@@ -158,7 +158,7 @@ class TestSearchFiles:
         )
         ctx = _make_ctx(drive_service=svc)
         result = await _drive_tools["search_files"](query="budget", ctx=ctx)
-        assert result[0]["starred"] is True
+        assert result["files"][0]["starred"] is True
 
     async def test_single_quote_is_escaped(self):
         svc = self._drive_service()
@@ -238,14 +238,212 @@ class TestSearchFiles:
         assert self._captured_q(svc).endswith(" and 'a\\\\b' in parents")
 
     async def test_api_error_returns_error_dict_not_raised(self):
-        """An API/auth failure must surface as [{"error": ...}], not propagate."""
+        """An API/auth failure must surface as {"error": ...}, not propagate."""
         svc = self._drive_service()
         svc.files.return_value.list.return_value.execute.side_effect = RuntimeError(
             "simulated API failure"
         )
         ctx = _make_ctx(drive_service=svc)
         result = await _drive_tools["search_files"](query="budget", ctx=ctx)
-        _assert_error_list(result, "simulated API failure")
+        assert set(result) == {"error"}
+        assert "simulated API failure" in result["error"]
+
+
+class TestSearchFilesFinder:
+    """#1528: search_files absorbs search_spreadsheets, list_spreadsheets,
+    list_folders, list_recent_files and list_shared_with_me, and returns
+    {"files", "exhaustive"} (#1202)."""
+
+    def _drive_service(self, response=None):
+        mock = MagicMock()
+        mock.files.return_value.list.return_value.execute.return_value = (
+            response if response is not None else {"files": []}
+        )
+        return mock
+
+    async def _call(self, response=None, **kwargs):
+        svc = self._drive_service(response)
+        ctx = _make_ctx(drive_service=svc)
+        result = await _drive_tools["search_files"](ctx=ctx, **kwargs)
+        list_kwargs = svc.files.return_value.list.call_args
+        return result, (list_kwargs.kwargs if list_kwargs else None)
+
+    @pytest.mark.parametrize("query", [None, "", "   "])
+    async def test_no_query_drops_the_text_clause(self, query):
+        _, list_kwargs = await self._call(
+            query=query, mime_type="application/vnd.google-apps.spreadsheet"
+        )
+        assert list_kwargs["q"] == (
+            "trashed=false and mimeType='application/vnd.google-apps.spreadsheet'"
+        )
+
+    async def test_no_arguments_lists_everything_not_trashed(self):
+        _, list_kwargs = await self._call()
+        assert list_kwargs["q"] == "trashed=false"
+        assert list_kwargs["corpora"] == "allDrives"
+        assert list_kwargs["orderBy"] == "modifiedTime desc"
+        assert list_kwargs["pageSize"] == 20
+
+    @pytest.mark.parametrize(
+        ("order_by", "expected"), [("modified", "modifiedTime desc"), ("name", "name")]
+    )
+    async def test_order_by(self, order_by, expected):
+        _, list_kwargs = await self._call(order_by=order_by)
+        assert list_kwargs["orderBy"] == expected
+
+    async def test_name_order_with_query_is_an_error_without_a_call(self):
+        """Drive answers orderBy=name on a fullText query with a 403 ("Sorting is not
+        supported for queries with fullText terms", checked live)."""
+        result, list_kwargs = await self._call(query="plan", order_by="name")
+        assert "order_by='name'" in result["error"]
+        assert list_kwargs is None
+
+    async def test_blank_query_allows_name_order(self):
+        result, list_kwargs = await self._call(query="  ", order_by="name")
+        assert "error" not in result
+        assert list_kwargs["orderBy"] == "name"
+
+    async def test_invalid_order_by_is_an_error_without_a_call(self):
+        result, list_kwargs = await self._call(order_by="size")
+        assert "order_by" in result["error"]
+        assert list_kwargs is None
+
+    async def test_shared_with_me_keeps_default_corpus(self):
+        """The user corpus holds what's shared directly with the caller, and
+        sharedWithMe=true is the scope (#1127)."""
+        _, list_kwargs = await self._call(shared_with_me=True)
+        assert list_kwargs["q"] == "trashed=false and sharedWithMe=true"
+        assert "corpora" not in list_kwargs
+        assert list_kwargs["includeItemsFromAllDrives"] is True
+        assert list_kwargs["supportsAllDrives"] is True
+
+    async def test_modified_within_days_adds_a_cutoff(self, monkeypatch):
+        from datetime import UTC, datetime
+
+        class _FixedDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2026, 11, 19, 12, 0, 0, tzinfo=UTC)
+
+        monkeypatch.setattr(drive_files_module, "datetime", _FixedDatetime)
+        _, list_kwargs = await self._call(modified_within_days=7)
+        assert list_kwargs["q"] == "trashed=false and modifiedTime > '2026-11-12T12:00:00'"
+
+    @pytest.mark.parametrize("days", [0, -3])
+    async def test_non_positive_days_is_an_error_without_a_call(self, days):
+        result, list_kwargs = await self._call(modified_within_days=days)
+        assert "modified_within_days" in result["error"]
+        assert list_kwargs is None
+
+    async def test_filters_combine(self):
+        _, list_kwargs = await self._call(
+            query="plan",
+            mime_type="application/vnd.google-apps.folder",
+            folder_id="f1",
+            shared_with_me=True,
+        )
+        assert list_kwargs["q"] == (
+            "(name contains 'plan' or fullText contains 'plan') and trashed=false"
+            " and mimeType='application/vnd.google-apps.folder' and 'f1' in parents"
+            " and sharedWithMe=true"
+        )
+
+    async def test_max_results_clamped_at_1000(self):
+        _, list_kwargs = await self._call(max_results=5000)
+        assert list_kwargs["pageSize"] == 1000
+
+    async def test_requests_truncation_signals(self):
+        _, list_kwargs = await self._call()
+        assert "nextPageToken" in list_kwargs["fields"]
+        assert "incompleteSearch" in list_kwargs["fields"]
+
+    @pytest.mark.parametrize(
+        ("response_extra", "exhaustive"),
+        [
+            ({}, True),
+            ({"nextPageToken": "tok"}, False),
+            ({"incompleteSearch": True}, False),
+            ({"incompleteSearch": False}, True),
+        ],
+    )
+    async def test_exhaustive(self, response_extra, exhaustive):
+        result, _ = await self._call(response={"files": [], **response_extra})
+        assert result == {"files": [], "exhaustive": exhaustive}
+
+    async def test_file_fields_include_created_time(self):
+        result, _ = await self._call(
+            response={
+                "files": [
+                    {
+                        "id": "fid1",
+                        "name": "Budget",
+                        "mimeType": "application/vnd.google-apps.spreadsheet",
+                        "createdTime": "2026-01-01T00:00:00Z",
+                        "modifiedTime": "2026-06-01T00:00:00Z",
+                        "owners": [{"emailAddress": "a@example.com"}],
+                        "parents": ["par1"],
+                        "webViewLink": "https://docs.google.com/x",
+                        "starred": True,
+                    }
+                ]
+            }
+        )
+        assert result["files"] == [
+            {
+                "id": "fid1",
+                "name": "Budget",
+                "mimeType": "application/vnd.google-apps.spreadsheet",
+                "created_time": "2026-01-01T00:00:00Z",
+                "modified_time": "2026-06-01T00:00:00Z",
+                "owners": ["a@example.com"],
+                "parent": "par1",
+                "web_link": "https://docs.google.com/x",
+                "starred": True,
+            }
+        ]
+
+
+class TestFinderDeprecations:
+    """#1528: the absorbed tools stay callable for one release, each description
+    opening with what replaces it."""
+
+    @pytest.mark.parametrize(
+        ("tool_name", "replacement"),
+        [
+            ("search_spreadsheets", "`search_files` with `mime_type="),
+            ("list_spreadsheets", "`search_files` with `mime_type="),
+            ("list_folders", "`search_files` with `mime_type="),
+            ("list_recent_files", "`search_files`"),
+            ("list_shared_with_me", "`search_files` with `shared_with_me=True`"),
+            ("unstar_file", "`star_file` with `starred=False`"),
+        ],
+    )
+    def test_deprecated(self, tool_name, replacement):
+        from mcp_gee_sweet.deprecation import tool_deprecation
+
+        func = _drive_tools[tool_name]
+        assert tool_deprecation(func) is not None
+        assert func.__doc__.startswith(f"Deprecated: use {replacement}")
+
+    @pytest.mark.parametrize(
+        ("tool_name", "phrase"),
+        [
+            ("search_spreadsheets", "special case"),
+            ("list_spreadsheets", "List all spreadsheets"),
+            ("search_files", "convenience wrapper"),
+            ("list_files", "list_spreadsheets"),
+            ("list_files", "cache entry"),
+            ("list_spreadsheets", "nextPageToken"),
+        ],
+    )
+    def test_description_drops_stale_claim(self, tool_name, phrase):
+        assert phrase not in _drive_tools[tool_name].__doc__
+
+    @pytest.mark.parametrize("tool_name", ["star_file", "search_files", "list_files"])
+    def test_survivors_not_deprecated(self, tool_name):
+        from mcp_gee_sweet.deprecation import tool_deprecation
+
+        assert tool_deprecation(_drive_tools[tool_name]) is None
 
 
 class TestFileMutations:
@@ -594,6 +792,28 @@ class TestStarFile:
             fields="id, name, starred, parents",
         )
         assert result == {"fileId": "fid1", "name": "file.txt", "starred": False}
+        folder_cache.mark_dirty.assert_called_once_with("par1")
+
+    @pytest.mark.parametrize("starred", [True, False])
+    async def test_star_file_starred_param(self, starred):
+        """#1528: star_file(starred=False) is unstar_file."""
+        mock = MagicMock()
+        mock.files.return_value.update.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "file.txt",
+            "starred": starred,
+            "parents": ["par1"],
+        }
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache)
+        result = await _drive_tools["star_file"](file_id="fid1", starred=starred, ctx=ctx)
+        mock.files.return_value.update.assert_called_once_with(
+            fileId="fid1",
+            body={"starred": starred},
+            supportsAllDrives=True,
+            fields="id, name, starred, parents",
+        )
+        assert result == {"fileId": "fid1", "name": "file.txt", "starred": starred}
         folder_cache.mark_dirty.assert_called_once_with("par1")
 
     async def test_unstar_file_no_parents_no_dirty_call(self):
@@ -1238,6 +1458,8 @@ class TestCorporaSelection:
             ("list_folders", {}),
             ("search_files", {"query": "QA"}),
             ("search_files", {"query": "QA", "mime_type": "application/pdf"}),
+            ("search_files", {}),
+            ("search_files", {"modified_within_days": 3}),
             ("search_spreadsheets", {"query": "QA"}),
             ("list_recent_files", {}),
         ],
