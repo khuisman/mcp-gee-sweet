@@ -14,6 +14,7 @@ from mcp.types import ToolAnnotations
 from ...auth import SpreadsheetContext, after_abandoned_calls, execute_in_thread, invalidating
 from ...auth import is_rejection as _was_rejected
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME
+from ...deprecation import deprecated_tool
 from ...local_files import LocalFileAccessError, check_read, check_write
 from ..drive import _FolderInvalidation, _quota_error_text
 from ..drive.transfer import _GOOGLE_DOC_MIME
@@ -1844,6 +1845,13 @@ def register(tool):
         )
 
     @tool(annotations=ToolAnnotations(title="Get Document Content", readOnlyHint=True))
+    @deprecated_tool(
+        use="`get_doc_as_markdown` for the Doc's content (with `local_path` for a large "
+        "Doc); `export_file` with `export_format='txt'` for plain text, or "
+        "`download_file` with `export_format='txt'` to write it to disk; and "
+        "`get_file_metadata` for its name, modified time and web link",
+        removed_in="the next feature release",
+    )
     async def get_doc_content(
         file_id: str, local_path: str | None = None, ctx: Context = None
     ) -> dict[str, Any]:

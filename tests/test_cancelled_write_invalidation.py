@@ -122,9 +122,12 @@ _DOC_TOOL_CALLS = {
     "delete_table_row": {"table_start_index": 5, "row_index": 0},
     "insert_table_column": {"table_start_index": 5, "column_index": 0},
     "delete_table_column": {"table_start_index": 5, "column_index": 0},
+    "insert_table_row_or_column": {"dimension": "row", "table_start_index": 5, "index": 0},
+    "delete_table_row_or_column": {"dimension": "column", "table_start_index": 5, "index": 0},
     "merge_table_cells": {"table_start_index": 5, "row_index": 0, "column_index": 0},
     "create_header": {"content": "Header"},
     "create_footer": {"content": "Footer"},
+    "create_header_or_footer": {"kind": "header", "content": "Header"},
     "create_named_range": {"name": "r", "start_index": 1, "end_index": 3},
     "create_bookmark": {"name": "b", "index": 1},
 }

@@ -38,7 +38,7 @@ def register(tool):
                 text (str): text to insert. "\\n" creates a new paragraph.
               Optional keys:
                 segment_id (str): segmentId of the header or footer to insert into
-                    (the headerId / footerId returned by create_header / create_footer).
+                    (the headerId / footerId returned by create_header_or_footer).
                     Omit to insert into the document body.
 
         Returns:

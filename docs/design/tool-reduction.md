@@ -204,11 +204,11 @@ Every merge goes through `docs/design.md`'s "Renaming or Removing a Tool":
 
 ## Implementation tickets
 
-1. #1532, Sheets rows and columns: the four `*_rows_or_columns` tools (A).
-2. #1533, Sheets reads and copies: `get_sheet_data(value_render=)`, `copy_sheet` absorbing `duplicate_sheet` (A).
-3. #1534, Docs: the table row/column tools, `create_header_or_footer`, `get_doc_theme(source=)`, `create_bookmark` into `create_named_range` (A), and `get_doc_content` (B2), with the doc cache added to `get_doc_as_markdown` before `get_doc_content` is deprecated.
-4. #1535, Drive finder: `search_files` absorbing five tools and gaining `created_time`, `star_file(starred=)`, with #1202 (B1, A).
-5. #1536, investigation: `import_csv_to_sheet` against Drive's CSV import, live.
+1. #1525, Sheets rows and columns: the four `*_rows_or_columns` tools (A).
+2. #1526, Sheets reads and copies: `get_sheet_data(value_render=)`, `copy_sheet` absorbing `duplicate_sheet` (A).
+3. #1527, Docs: the table row/column tools, `create_header_or_footer`, `get_doc_theme(source=)`, `create_bookmark` into `create_named_range` (A), and `get_doc_content` (B2), with the doc cache added to `get_doc_as_markdown` before `get_doc_content` is deprecated.
+4. #1528, Drive finder: `search_files` absorbing five tools and gaining `created_time`, `star_file(starred=)`, with #1202 (B1, A).
+5. #1529, investigation: `import_csv_to_sheet` against Drive's CSV import, live.
 6. #1537: amend `decision-comments-first-class.md` for the six-tool shape; #663, #664 and #131 re-scoped to it.
 
 Tier C has no ticket here: it's held on #1522.
