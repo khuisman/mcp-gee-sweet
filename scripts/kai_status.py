@@ -323,6 +323,11 @@ STATUS_FILE = Path(".workspace") / "status.json"
 STATUS_FIELDS = ("name", "updated", "state", "pr", "issue", "round", "doing", "waiting_on")
 STATUS_STATES = frozenset({"working", "waiting-user", "waiting-agent", "idle"})
 
+# The persistent team slots under `.claude/worktrees/`. The source is
+# WORKTREE_ROLES in scripts/setup_team.sh, which creates them; keep the two
+# lists the same (tests/test_kai_status.py fails when they differ).
+TEAM_SLOTS = ("ash", "sky", "jay", "kit", "rio", "aziz", "amy", "joy", "bob")
+
 # A session writes its status at every turn end, so a `working` entry this old
 # means the session most likely died or stopped mid-turn without writing it
 # again. Two hours is longer than any single turn the team runs (a full live QA
@@ -416,15 +421,13 @@ def read_status(path: Path) -> tuple[dict | None, str | None]:
 
 
 def status_slots(root: Path) -> list[tuple[str, Path]]:
-    """(slot label, status file path) for the main checkout and every
-    directory under `.claude/worktrees/`, main checkout first."""
-    slots = [("main checkout", root / STATUS_FILE)]
+    """(slot label, status file path) for the main checkout (Kai's) and each
+    persistent team slot, main checkout first. Throwaway worktrees under
+    `.claude/worktrees/` (an `agent-*` one, say) hold no team session."""
     worktrees = root / ".claude" / "worktrees"
-    if worktrees.is_dir():
-        for d in sorted(worktrees.iterdir()):
-            if d.is_dir():
-                slots.append((d.name, d / STATUS_FILE))
-    return slots
+    return [("main checkout", root / STATUS_FILE)] + [
+        (name, worktrees / name / STATUS_FILE) for name in TEAM_SLOTS
+    ]
 
 
 def format_age(delta: timedelta) -> str:
@@ -459,6 +462,17 @@ def session_flags(
     """FLAG text for one well-formed status. `pr_view` is `fetch_pr_view`'s
     result for its claimed PR, or None if it claims none."""
     flags = []
+    if status["state"] == "idle":
+        held = [
+            f"{label} #{status[field]}"
+            for field, label in (("pr", "PR"), ("issue", "issue"))
+            if status[field] is not None
+        ]
+        if held:
+            flags.append(
+                f"idle but still names {' and '.join(held)}; letting go sets pr and issue "
+                "to null, so this claims nothing"
+            )
     updated = _parse_time(status["updated"])
     if updated - now > timedelta(minutes=5):
         flags.append("updated is in the future")
@@ -468,7 +482,7 @@ def session_flags(
             f"(threshold {format_age(STALE_WORKING)}); the session may have stopped"
         )
     pr = status["pr"]
-    if pr is None or pr_view is None:
+    if pr is None or pr_view is None or status["state"] == "idle":
         return flags
     state = (pr_view.get("state") or "").upper()
     if pr not in open_numbers and state in ("MERGED", "CLOSED"):
@@ -706,7 +720,9 @@ def section_sessions(
             lines.append(f"{slot:<14} no status published")
             continue
         lines.append(f"{slot:<14} {describe_status(status, now)}")
-        pr = status["pr"]
+        # An idle status naming a PR contradicts the letting-go rule
+        # (`session_flags` flags it), so it claims nothing.
+        pr = status["pr"] if status["state"] != "idle" else None
         view = None
         if pr is not None:
             claimed.add(pr)

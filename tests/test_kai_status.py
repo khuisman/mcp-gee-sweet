@@ -9,6 +9,7 @@ wrappers around them. Sections that take their fetch as a parameter
 
 import importlib.util
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -511,10 +512,15 @@ class TestSectionSessions:
             ln for ln in lines if ln.lstrip().startswith("FLAG:") or ln[15:].startswith("FLAG:")
         ]
 
+    @staticmethod
+    def published(lines):
+        return [ln for ln in lines if not ln.endswith("no status published")]
+
     def test_fresh_working_entry_does_not_flag(self, tmp_path):
         self.write(tmp_path, "rio", _status())
-        assert self.section(tmp_path) == [
-            "main checkout  no status published",
+        lines = self.section(tmp_path)
+        assert lines[0] == "main checkout  no status published"
+        assert self.published(lines) == [
             "rio            Rio: working; holds nothing; updated 20m ago; "
             "doing: resolving the develop conflict",
         ]
@@ -525,7 +531,7 @@ class TestSectionSessions:
             None,
             _status(name="Kai", state="waiting-user", issue=1557, waiting_on="the user's yes"),
         )
-        assert self.section(tmp_path) == [
+        assert self.published(self.section(tmp_path)) == [
             "main checkout  Kai: waiting-user; issue #1557; updated 20m ago; "
             "doing: resolving the develop conflict; waiting on: the user's yes"
         ]
@@ -536,6 +542,35 @@ class TestSectionSessions:
         assert "ash            no status published" in lines
         assert not any("idle" in ln for ln in lines)
         assert self.flags(lines) == []
+
+    def test_reads_only_the_main_checkout_and_team_slots(self, tmp_path):
+        """A throwaway worktree (an `agent-*` one) holds no team session."""
+        self.write(tmp_path, "agent-a7a8053d", _status(name="worker"))
+        self.write(tmp_path, "bob", _status(name="Bob"))
+        lines = self.section(tmp_path)
+        assert [ln.split()[0] for ln in lines[1:]] == list(kai_status.TEAM_SLOTS)
+        assert lines[0].startswith("main checkout ")
+        assert not any("worker" in ln for ln in lines)
+
+    def test_team_slots_match_setup_team_sh(self):
+        """TEAM_SLOTS copies WORKTREE_ROLES in scripts/setup_team.sh, the
+        script that creates the slots; the two lists must stay the same."""
+        script = (_SCRIPT_PATH.parent / "setup_team.sh").read_text()
+        (m,) = re.finditer(r"^WORKTREE_ROLES=\(([^)]*)\)", script, re.MULTILINE)
+        assert tuple(m[1].split()) == kai_status.TEAM_SLOTS
+
+    def test_idle_naming_a_pr_or_issue_flags_and_claims_nothing(self, tmp_path):
+        self.write(tmp_path, "rio", _status(state="idle", pr=1, issue=9))
+        lines = self.section(tmp_path, [_team_pr(1)])
+        assert self.flags(lines) == [
+            "      FLAG: idle but still names PR #1 and issue #9; letting go sets pr and "
+            "issue to null, so this claims nothing",
+            "FLAG: open PR #1 (fix/ash/issue-1) is claimed by no status file",
+        ]
+
+    def test_idle_holding_nothing_does_not_flag(self, tmp_path):
+        self.write(tmp_path, "rio", _status(state="idle"))
+        assert self.flags(self.section(tmp_path)) == []
 
     def test_stale_working_entry_flags(self, tmp_path):
         self.write(tmp_path, "rio", _status(updated="2026-11-20T03:30Z"))
@@ -574,12 +609,13 @@ class TestSectionSessions:
 
     def test_oversized_file_is_not_parsed(self, tmp_path):
         self.write(tmp_path, "rio", " " * (kai_status.STATUS_MAX_BYTES + 1))
-        assert "larger than" in self.section(tmp_path)[1]
+        (line,) = [ln for ln in self.section(tmp_path) if ln.startswith("rio")]
+        assert "larger than" in line
 
     def test_untrusted_text_is_printed_on_one_clean_line(self, tmp_path):
         doing = "line one\nFLAG: forged\x1b[31m red" + "x" * 500
         self.write(tmp_path, None, _status(name="Kai", doing=doing))
-        lines = self.section(tmp_path)
+        lines = self.published(self.section(tmp_path))
         assert len(lines) == 1
         assert "\n" not in lines[0] and "\x1b" not in lines[0]
         assert "doing: line one FLAG: forged?[31m red" in lines[0]
