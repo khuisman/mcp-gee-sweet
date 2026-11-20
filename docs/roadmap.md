@@ -522,7 +522,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 - [ ] `batch_update_cells` empty input — validation error vs silent no-op — decided 2026-10-18: return `{"error": ...}` ([#32](https://github.com/khuisman/mcp-gee-sweet/issues/32))
 - [ ] `search_spreadsheets` empty query — return all or require non-empty input — decided 2026-10-18: return `{"error": ...}` pointing to `list_spreadsheets` ([#39](https://github.com/khuisman/mcp-gee-sweet/issues/39))
-- [ ] Deprecate `share_spreadsheet` in favor of `share_file`, and remove it before 1.0 (decided 2026-10-18). Under #1209's policy: `share_spreadsheet` keeps working for one release with the `deprecated=` marker, listed under the CHANGELOG's Deprecated section (moved from #1209, 2026-11-15) ([#665](https://github.com/khuisman/mcp-gee-sweet/issues/665))
+- [ ] Deprecate `share_spreadsheet` in favor of `share_file`, and remove it before 1.0 (decided 2026-10-18). Under #1209's policy: `share_spreadsheet` keeps working for one release through the `@deprecated_tool(use=, removed_in=)` decorator in `deprecation.py`, listed under the CHANGELOG's Deprecated section (moved from #1209, 2026-11-14) ([#665](https://github.com/khuisman/mcp-gee-sweet/issues/665))
 
 **Candidates**
 
@@ -608,8 +608,11 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [x] `get_doc_as_markdown` writes `:--` for every unaligned table column, since `insertTable` stores START on every cell. Regression since v0.9.6 (PR #1360) ([#1503](https://github.com/khuisman/mcp-gee-sweet/issues/1503)) (PR #1524)
 - [x] A linked image's fallback text keeps the link color but loses its underline. Regression since v0.9.6 (PR #1457) ([#1504](https://github.com/khuisman/mcp-gee-sweet/issues/1504)) (PR #1508)
 - [x] Anchor slugging follow-ups from community PRs #1435 and #1471: Unicode word characters differ from github-slugger, `-N` dedup collisions, a GitLab/GitHub ambiguity to document, test and comment cleanup. `wrong/narrow`, not observed; second follow-up in #1357's family, so the chain stop rule applies to a further one ([#1482](https://github.com/khuisman/mcp-gee-sweet/issues/1482)) (PR #1545; moved from velociraptor, merged early)
-- [ ] Size-cap hint follow-ups from community PR #1546's review: a historical QA result to restore, the hint collector to harden, `sync_folder`'s hint ignores its own arguments. `loud/narrow`, not observed; placed in ankylosaurus by the maintainer 2026-11-20; community PR #1555 claims it ([#1552](https://github.com/khuisman/mcp-gee-sweet/issues/1552))
-- [ ] Heading-anchor follow-ups from community PR #1545's review: a percent-encoded anchor never matches, Unicode version drift, a stale docstring, test and CLAUDE.md cleanup. `wrong/narrow`, not observed; third follow-up in #1357's family, placed in ankylosaurus by the maintainer 2026-11-20; community PR #1554 claims it ([#1553](https://github.com/khuisman/mcp-gee-sweet/issues/1553))
+
+**Triaged in 2026-11-19** _(review follow-ups from community PRs #1545 and #1546)_
+
+- [ ] Size-cap hint follow-ups from community PR #1546's review: a historical QA result to restore, the hint collector to harden, `sync_folder`'s hint ignores its own arguments. `loud/narrow`, not observed; placed in ankylosaurus by the maintainer 2026-11-19; community PR #1555 claims it ([#1552](https://github.com/khuisman/mcp-gee-sweet/issues/1552))
+- [ ] Heading-anchor follow-ups from community PR #1545's review: a percent-encoded anchor never matches, Unicode version drift, a stale docstring, test and CLAUDE.md cleanup. `wrong/narrow`, not observed; third follow-up in #1357's family, placed in ankylosaurus by the maintainer 2026-11-19; community PR #1554 claims it ([#1553](https://github.com/khuisman/mcp-gee-sweet/issues/1553))
 
 **Triaged in 2026-11-15** _(review and sweep tickets from 2026-11-01 to 11-06 that had no version)_
 
@@ -648,7 +651,7 @@ Queued after _ankylosaurus_ (maintainer, 2026-10-24): the first parity release. 
 - [ ] `update_doc_from_file`: opt-in incremental (`mode="patch"`) update that diffs block by block and rewrites only changed blocks, so comment anchors and revision history survive — lane A, after #878 (same write-path files) ([#957](https://github.com/khuisman/mcp-gee-sweet/issues/957))
 - [ ] **Bundle:** Calendar follow-ups from PR #912, one PR closing [#915](https://github.com/khuisman/mcp-gee-sweet/issues/915), [#918](https://github.com/khuisman/mcp-gee-sweet/issues/918) — lane B, after #892 ([#985](https://github.com/khuisman/mcp-gee-sweet/issues/985))
 - [ ] `get_doc_structure`: inline-image `link_url`, a run-type key, and images inside table cells. From PR review ([#1154](https://github.com/khuisman/mcp-gee-sweet/issues/1154))
-- [ ] Style the OAuth post-authorization page: name the server, say what happens next, light and dark mode. Placed 2026-11-15 by the maintainer ([#1513](https://github.com/khuisman/mcp-gee-sweet/issues/1513))
+- [ ] Style the OAuth post-authorization page: name the server, say what happens next, light and dark mode. Placed 2026-11-14 by the maintainer ([#1513](https://github.com/khuisman/mcp-gee-sweet/issues/1513))
 
 **Moved from ankylosaurus 2026-11-14** _(maintainer trim: the HTML-input cluster gated on #1329's parser-library pick, unobserved Markdown-export polish, and #1416; #1243 keeps its decided option A)_
 
