@@ -7059,10 +7059,41 @@ class TestSyncFolderResponseSizeCap:
                 ctx=self._ctx(fs),
             )
         assert "result_local_path" in str(exc_info.value)
-        # #1465: pin the hint/shared-text sentence boundary too — the hint is a
-        # complete sentence naming actions the caller can actually take, and
-        # the shared clause starts fresh after it.
-        assert "set recursive=False. Pass result_local_path" in str(exc_info.value)
+        # #1465/#1552: pin the hint/shared-text sentence boundary too — the
+        # hint is a complete sentence naming actions this call (bidirectional,
+        # non-recursive) can actually take, and the shared clause starts
+        # fresh after it.
+        assert "a single direction. Pass result_local_path" in str(exc_info.value)
+
+    async def test_over_cap_hint_matches_the_calls_own_arguments(self, tmp_path, monkeypatch):
+        # #1552: the hint is built from the call's own arguments — a call
+        # already syncing one way isn't told to narrow its direction, and a
+        # non-recursive call isn't told to set recursive=False.
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 10)
+
+        async def _raises(**kwargs):
+            fs = _FakeDriveFS({"root": [_drive_file("readme.txt", "f1")]})
+            with pytest.raises(ValueError) as exc_info:
+                await _transfer_tools["sync_folder"](
+                    folder_id="root",
+                    local_path=str(tmp_path),
+                    dry_run=True,
+                    ctx=self._ctx(fs),
+                    **kwargs,
+                )
+            return str(exc_info.value)
+
+        one_way_non_recursive = await _raises(direction="download")
+        assert "Sync a narrower subfolder. Pass result_local_path" in one_way_non_recursive
+        assert "single direction" not in one_way_non_recursive
+        assert "recursive=False" not in one_way_non_recursive
+
+        one_way_recursive = await _raises(direction="download", recursive=True)
+        assert "Sync a narrower subfolder or set recursive=False. Pass" in one_way_recursive
+        assert "single direction" not in one_way_recursive
+
+        both_recursive = await _raises(recursive=True)
+        assert "single direction, or set recursive=False. Pass" in both_recursive
 
     async def test_result_local_path_bypasses_cap_and_writes_to_disk(self, tmp_path, monkeypatch):
         # #512: unlike the sync destination local_path, result_local_path is the

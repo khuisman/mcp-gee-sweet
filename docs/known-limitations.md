@@ -15,11 +15,7 @@ the named style being written is the one the paragraph already had.
 
 **Why:** The Docs API's `updateParagraphStyle` with a `namedStyleType` re-applies the
 named style's own text properties to the paragraph's runs, so per-run formatting is not
-preserved — that part is API behaviour. (`insert_softbreak_paragraph` used to add a quirk
-of its own on top: it always sent the paragraph-style request, defaulting to
-`NORMAL_TEXT`, even when no paragraph style was asked for, so a plain insert wiped the
-paragraph's inline styles. It now sends the request only when `named_style_type` is
-passed.)
+preserved — that part is API behaviour.
 
 **Where it bites:** `style_doc_range(named_style_type=...)`, and
 `insert_softbreak_paragraph` when a `named_style_type` is passed.
@@ -89,7 +85,7 @@ the paragraph after the table is collapsed again only if the new content still e
 is written into the one cell of a 1x1 wrapper table, whose left border is the quote's
 gray bar (#1122). `get_doc_structure` reports the wrapper as the top-level table, with the
 quoted table nested in its cell, so table tools that take a table's position
-(`insert_table_row`, `merge_table_cells`, and so on) reach the wrapper, not the table you
+(`insert_table_row_or_column`, `merge_table_cells`, and so on) reach the wrapper, not the table you
 see. Removing the wrapper in the Docs editor removes the bar but leaves the table.
 
 **Why:** The Docs API can't give a table a paragraph border, so a bar beside a table has to
@@ -290,15 +286,30 @@ differences listed under Google Drive below).
 
 ---
 
-### `create_bookmark` doesn't create a bookmark Docs lists
+### A named range isn't a bookmark Docs lists
 
-**What:** `create_bookmark` creates a one-character named range. It doesn't appear under
-Insert > Link > "Headings, bookmarks, and tabs", and no link can point to it.
+**What:** `create_named_range` with no `end_index` (and the deprecated `create_bookmark`)
+creates a one-character named range. It doesn't appear under Insert > Link > "Headings,
+bookmarks, and tabs", and no link can point to it.
 
 **Why:** The Docs API has no request that creates a bookmark; only the Docs UI can.
 
 **Workaround:** Link to a heading instead: every heading has a `headingId` (`get_doc_structure`)
 that a link can target. Tracked in #1076.
+
+---
+
+### No first-page-only header or footer
+
+**What:** `create_header_or_footer` creates a doc's default header or footer, shown on every
+page. It can't create one shown only on the first page, and the deprecated `create_header`
+and `create_footer` return an error for `FIRST_PAGE_HEADER` and `FIRST_PAGE_FOOTER`.
+
+**Why:** The Docs API's header type takes only `DEFAULT`. Setting the doc's
+`useFirstPageHeaderFooter` and then creating a header still makes only the default one
+(checked live, #1527).
+
+**Workaround:** In the Docs UI, Insert > Headers & footers, then check "Different first page".
 
 ---
 

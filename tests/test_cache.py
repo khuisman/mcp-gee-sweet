@@ -406,6 +406,74 @@ class TestDocContentCache:
         self.cache.store("fid", doc)
         assert self.cache.get("fid", current_modified_time="v1") == doc
 
+    # get_doc_as_markdown's document entry (#1527)
+
+    def test_document_round_trip(self):
+        self.cache.store_document("fid", {"title": "T", "revisionId": "r1"})
+        expected = {"title": "T", "revisionId": "r1"}
+        assert self.cache.get_document("fid", current_revision_id="r1") == expected
+        assert self.cache.get_document("fid") == expected
+
+    def test_document_and_content_entries_are_separate(self):
+        self.cache.store("fid", self.doc)
+        assert self.cache.get_document("fid") is None
+        self.cache.store_document("fid", {"title": "T"})
+        assert self.cache.get("fid") == self.doc
+
+    def test_document_revision_mismatch_causes_miss(self):
+        self.cache.store_document("fid", {"title": "T", "revisionId": "r1"})
+        assert self.cache.get_document("fid", current_revision_id="r2") is None
+
+    def test_document_without_revision_misses_when_one_is_given(self):
+        self.cache.store_document("fid", {"title": "T"})
+        assert self.cache.get_document("fid", current_revision_id="r1") is None
+
+    def test_mark_dirty_covers_the_document_entry(self):
+        self.cache.store("fid", self.doc)
+        self.cache.store_document("fid", {"title": "T"})
+        self.cache.mark_dirty("fid")
+        assert self.cache.get("fid") is None
+        assert self.cache.get_document("fid") is None
+
+    def test_mark_dirty_mid_fetch_skips_the_document_store(self):
+        epoch = self.cache.snapshot_epoch()
+        self.cache.mark_dirty("fid")
+        self.cache.store_document("fid", {"title": "T"}, epoch=epoch)
+        assert self.cache.get_document("fid") is None
+
+    def test_another_docs_mark_dirty_leaves_the_document_entry(self):
+        self.cache.store_document("fid", {"title": "T"})
+        self.cache.mark_dirty("fi")
+        assert self.cache.get_document("fid") == {"title": "T"}
+
+    def test_mark_all_dirty_covers_the_document_entry(self):
+        self.cache.store_document("fid", {"title": "T"})
+        self.cache.mark_all_dirty()
+        assert self.cache.get_document("fid") is None
+
+    def test_document_max_age_expires_before_the_ttl(self, monkeypatch):
+        self.cache.set_ttl(3600)
+        self.cache.store_document("fid", {"title": "T"}, max_age=60)
+        assert self.cache.get_document("fid") == {"title": "T"}
+        later = time.time() + 61
+        monkeypatch.setattr(time, "time", lambda: later)
+        assert self.cache.get_document("fid") is None
+
+    def test_document_ttl_expiry(self):
+        self.cache.store_document("fid", {"title": "T"})
+        self.cache.set_ttl(0)
+        time.sleep(0.01)
+        assert self.cache.get_document("fid") is None
+
+    def test_oversized_document_isnt_cached_and_drops_the_old_entry(self, monkeypatch):
+        # PR #1548 QA round 1: cache I/O is on the event loop, so a huge entry stalls it.
+        from mcp_gee_sweet import cache as cache_module
+
+        self.cache.store_document("fid", {"title": "T", "revisionId": "r1"})
+        monkeypatch.setattr(cache_module, "MAX_DOCUMENT_BYTES", 50)
+        self.cache.store_document("fid", {"title": "T" * 100, "revisionId": "r2"})
+        assert self.cache.get_document("fid") is None
+
     def test_close(self):
         self.cache.close()
 
