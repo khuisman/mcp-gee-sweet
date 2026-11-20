@@ -2,11 +2,13 @@
 
 The script lives outside the mcp_gee_sweet package, so it's loaded here via
 importlib rather than a normal import (same pattern as test_gen_tool_docs.py).
-Only the pure classifiers are tested; the sections are thin `gh`/`git`/`uv`
-wrappers around them.
+Mostly the pure classifiers are tested; most sections are thin `gh`/`git`/`uv`
+wrappers around them. Sections that take their fetch as a parameter
+(Community intake, Sessions) are tested with a stub in its place.
 """
 
 import importlib.util
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -284,6 +286,7 @@ class TestRunAndMain:
         monkeypatch.setattr(kai_status, "section_worktrees", lambda: (["wt"], {}))
         monkeypatch.setattr(kai_status, "gh_json", lambda args: [])
         monkeypatch.setattr(kai_status, "section_dependabot", lambda prs: ["dep"])
+        monkeypatch.setattr(kai_status, "section_sessions", lambda prs, now: ["sessions"])
         assert kai_status.main(["--no-fetch"]) == 1
         out = capsys.readouterr().out
         assert "ERROR: ValueError: unexpected" in out
@@ -443,3 +446,226 @@ class TestSectionCommunityStalled:
             "stalled: PR #2 [c] 19d awaiting-contributor, maintainer edits allowed  t2",
             "needs intake: PR #3 [c] t3",
         ]
+
+
+SESSION_NOW = datetime(2026, 11, 20, 6, 0, tzinfo=UTC)
+
+
+def _status(**overrides):
+    status = {
+        "name": "Rio",
+        "updated": "2026-11-20T05:40Z",
+        "state": "working",
+        "pr": None,
+        "issue": None,
+        "round": None,
+        "doing": "resolving the develop conflict",
+        "waiting_on": None,
+    }
+    status.update(overrides)
+    return status
+
+
+def _team_pr(number, login="khuisman", labels=(), is_bot=False):
+    return {
+        "number": number,
+        "headRefName": f"fix/ash/issue-{number}",
+        "author": {"login": login, "is_bot": is_bot},
+        "labels": [{"name": n} for n in labels],
+    }
+
+
+def _verdict(at, verdict="approved", name="Rio", rnd=2):
+    body = f"## QA round {rnd} ({name}) @ abc1234: {verdict}\n\nResults.\n\n— {name}"
+    return {"createdAt": at, "body": body}
+
+
+def _view(state="OPEN", comments=(), reviews=()):
+    return {"state": state, "comments": list(comments), "reviews": list(reviews)}
+
+
+class TestSectionSessions:
+    """kai_status.py's Sessions section (#1557)."""
+
+    @staticmethod
+    def write(root, slot, content):
+        base = root if slot is None else root / ".claude" / "worktrees" / slot
+        path = base / ".workspace" / "status.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content if isinstance(content, str) else json.dumps(content))
+
+    @staticmethod
+    def no_fetch(number):
+        raise AssertionError(f"fetched PR #{number}")
+
+    def section(self, root, prs=(), fetch=None):
+        return kai_status.section_sessions(
+            list(prs), SESSION_NOW, root=root, fetch=fetch or self.no_fetch
+        )
+
+    @staticmethod
+    def flags(lines):
+        # A FLAG opens the line, or follows the slot column (a malformed file),
+        # never inside a status's own printed text.
+        return [
+            ln for ln in lines if ln.lstrip().startswith("FLAG:") or ln[15:].startswith("FLAG:")
+        ]
+
+    def test_fresh_working_entry_does_not_flag(self, tmp_path):
+        self.write(tmp_path, "rio", _status())
+        assert self.section(tmp_path) == [
+            "main checkout  no status published",
+            "rio            Rio: working; holds nothing; updated 20m ago; "
+            "doing: resolving the develop conflict",
+        ]
+
+    def test_held_items_and_waiting_on_are_shown(self, tmp_path):
+        self.write(
+            tmp_path,
+            None,
+            _status(name="Kai", state="waiting-user", issue=1557, waiting_on="the user's yes"),
+        )
+        assert self.section(tmp_path) == [
+            "main checkout  Kai: waiting-user; issue #1557; updated 20m ago; "
+            "doing: resolving the develop conflict; waiting on: the user's yes"
+        ]
+
+    def test_missing_file_is_no_status_never_idle(self, tmp_path):
+        (tmp_path / ".claude" / "worktrees" / "ash").mkdir(parents=True)
+        lines = self.section(tmp_path)
+        assert "ash            no status published" in lines
+        assert not any("idle" in ln for ln in lines)
+        assert self.flags(lines) == []
+
+    def test_stale_working_entry_flags(self, tmp_path):
+        self.write(tmp_path, "rio", _status(updated="2026-11-20T03:30Z"))
+        assert self.flags(self.section(tmp_path)) == [
+            "      FLAG: still working after 2h30m with no update (threshold 2h00m); "
+            "the session may have stopped"
+        ]
+
+    def test_stale_threshold_applies_only_to_working(self, tmp_path):
+        self.write(tmp_path, "rio", _status(updated="2026-11-19T03:30Z", state="idle"))
+        self.write(tmp_path, "ash", _status(updated="2026-11-19T03:30Z", state="waiting-user"))
+        assert self.flags(self.section(tmp_path)) == []
+
+    @pytest.mark.parametrize(
+        "content, problem",
+        [
+            ("{not json", "not valid JSON"),
+            ("[1, 2]", "not a JSON object"),
+            (json.dumps({"name": "Rio"}), "missing field(s): updated, state, pr"),
+            (json.dumps(_status(state="busy")), "state is not one of"),
+            (json.dumps(_status(updated="20 minutes ago")), "updated is not YYYY-MM-DDTHH:MMZ"),
+            (json.dumps(_status(updated="2026-13-40T05:40Z")), "updated is not a real UTC time"),
+            (json.dumps(_status(pr="1556")), "pr is not a positive integer or null"),
+            (json.dumps(_status(pr=True)), "pr is not a positive integer or null"),
+            (json.dumps(_status(doing=None)), "doing is not a non-empty string"),
+        ],
+    )
+    def test_malformed_file_flags_without_crashing(self, tmp_path, content, problem):
+        self.write(tmp_path, "rio", content)
+        self.write(tmp_path, "ash", _status(name="Ash"))
+        lines = self.section(tmp_path)
+        (bad,) = [ln for ln in lines if ln.startswith("rio")]
+        assert bad.startswith("rio            FLAG: malformed status file: ")
+        assert problem in bad
+        assert any(ln.startswith("ash            Ash: working") for ln in lines)
+
+    def test_oversized_file_is_not_parsed(self, tmp_path):
+        self.write(tmp_path, "rio", " " * (kai_status.STATUS_MAX_BYTES + 1))
+        assert "larger than" in self.section(tmp_path)[1]
+
+    def test_untrusted_text_is_printed_on_one_clean_line(self, tmp_path):
+        doing = "line one\nFLAG: forged\x1b[31m red" + "x" * 500
+        self.write(tmp_path, None, _status(name="Kai", doing=doing))
+        lines = self.section(tmp_path)
+        assert len(lines) == 1
+        assert "\n" not in lines[0] and "\x1b" not in lines[0]
+        assert "doing: line one FLAG: forged?[31m red" in lines[0]
+        assert lines[0].endswith("...")
+        assert self.flags(lines) == []
+
+    def test_waiting_agent_after_a_newer_verdict_flags(self, tmp_path):
+        self.write(tmp_path, "ash", _status(name="Ash", state="waiting-agent", pr=1556))
+        view = _view(
+            comments=[
+                _verdict("2026-11-20T04:00:00Z", "sent back", rnd=1),
+                {"createdAt": "2026-11-20T05:58:00Z", "body": "unrelated comment"},
+                _verdict("2026-11-20T05:50:12Z"),
+            ]
+        )
+        lines = self.section(tmp_path, [_team_pr(1556)], fetch=lambda n: view)
+        assert self.flags(lines) == [
+            "      FLAG: waiting-agent on PR #1556, but a QA verdict was posted after this "
+            "status (2026-11-20T05:50Z): ## QA round 2 (Rio) @ abc1234: approved"
+        ]
+
+    def test_older_verdict_does_not_flag(self, tmp_path):
+        self.write(tmp_path, "ash", _status(name="Ash", state="waiting-agent", pr=1556))
+        view = _view(comments=[_verdict("2026-11-20T05:00:00Z", "sent back")])
+        assert self.flags(self.section(tmp_path, [_team_pr(1556)], fetch=lambda n: view)) == []
+
+    def test_verdict_in_the_status_minute_does_not_flag(self, tmp_path):
+        """A QA session writes `updated` in the same minute it posts its
+        verdict; the minute-precision timestamp can't order them."""
+        self.write(tmp_path, "rio", _status(state="waiting-agent", pr=1556, round=2))
+        view = _view(comments=[_verdict("2026-11-20T05:40:45Z")])
+        assert self.flags(self.section(tmp_path, [_team_pr(1556)], fetch=lambda n: view)) == []
+
+    def test_verdict_as_a_review_counts(self, tmp_path):
+        self.write(tmp_path, "ash", _status(name="Ash", state="waiting-agent", pr=7))
+        review = {"submittedAt": "2026-11-20T05:45:00Z", "body": _verdict("x")["body"]}
+        view = _view(reviews=[review])
+        flags = self.flags(self.section(tmp_path, [_team_pr(7)], fetch=lambda n: view))
+        assert len(flags) == 1 and "waiting-agent on PR #7" in flags[0]
+
+    @pytest.mark.parametrize("state", ["MERGED", "CLOSED"])
+    def test_claimed_pr_that_is_no_longer_open_flags(self, tmp_path, state):
+        self.write(tmp_path, "rio", _status(pr=1500))
+        assert self.flags(self.section(tmp_path, fetch=lambda n: _view(state))) == [
+            f"      FLAG: claims PR #1500, which is {state.lower()}"
+        ]
+
+    def test_unclaimed_team_pr_flags_but_community_and_bot_prs_do_not(self, tmp_path):
+        self.write(tmp_path, "rio", _status(pr=1))
+        prs = [
+            _team_pr(1),
+            _team_pr(2),
+            _team_pr(3, login="kh-kev", labels=("community",)),
+            _team_pr(4, login="someone"),
+            _team_pr(5, login="app/dependabot", is_bot=True),
+        ]
+        assert self.flags(self.section(tmp_path, prs, fetch=lambda n: _view())) == [
+            "FLAG: open PR #2 (fix/ash/issue-2) is claimed by no status file"
+        ]
+
+    def test_a_malformed_file_claims_nothing(self, tmp_path):
+        self.write(tmp_path, "rio", json.dumps({"pr": 1}))
+        flags = self.flags(self.section(tmp_path, [_team_pr(1)]))
+        assert flags[-1] == "FLAG: open PR #1 (fix/ash/issue-1) is claimed by no status file"
+
+    def test_a_failed_pr_fetch_costs_only_that_entry(self, tmp_path):
+        self.write(tmp_path, "ash", _status(name="Ash", pr=1))
+        self.write(tmp_path, "rio", _status(pr=2, updated="2026-11-20T01:00Z"))
+
+        def fetch(number):
+            if number == 1:
+                raise kai_status.CommandError("rate limited")
+            return _view()
+
+        lines = self.section(tmp_path, [_team_pr(1), _team_pr(2)], fetch=fetch)
+        assert "      PR check failed: #1: CommandError: rate limited" in lines
+        assert any("still working after 5h00m" in ln for ln in lines)
+
+    def test_each_claimed_pr_is_fetched_once(self, tmp_path):
+        self.write(tmp_path, "ash", _status(name="Ash", pr=1))
+        self.write(tmp_path, "rio", _status(pr=1))
+        calls = []
+
+        def fetch(number):
+            calls.append(number)
+            return _view()
+
+        self.section(tmp_path, [_team_pr(1)], fetch=fetch)
+        assert calls == [1]

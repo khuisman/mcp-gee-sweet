@@ -31,7 +31,7 @@ import sys
 import tempfile
 import tomllib
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from packaging.utils import canonicalize_name
@@ -314,6 +314,195 @@ def waiting_days(activity: dict, author: str, now: datetime) -> int | None:
     return age_days(start, now)
 
 
+# --- Session status files (#1557) -------------------------------------------
+
+# Each session writes `.workspace/status.json` in its own checkout
+# (`team-member.md` §4 "Status file"): the main checkout's is Kai's, and each
+# `.claude/worktrees/<name>/` holds that slot's. Every field is required.
+STATUS_FILE = Path(".workspace") / "status.json"
+STATUS_FIELDS = ("name", "updated", "state", "pr", "issue", "round", "doing", "waiting_on")
+STATUS_STATES = frozenset({"working", "waiting-user", "waiting-agent", "idle"})
+
+# A session writes its status at every turn end, so a `working` entry this old
+# means the session most likely died or stopped mid-turn without writing it
+# again. Two hours is longer than any single turn the team runs (a full live QA
+# pass included), so a turn still in progress doesn't flag.
+STALE_WORKING = timedelta(hours=2)
+
+# A status file is written by a session, but anything with access to the
+# checkout can put one there: it's read as data and never trusted further.
+# Larger files aren't parsed, and printed text is cut to this many characters.
+STATUS_MAX_BYTES = 16 * 1024
+STATUS_TEXT_LIMIT = 160
+
+_UPDATED_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?Z")
+# `qa.md` steps 7-8: a verdict comment's first line.
+_QA_VERDICT_RE = re.compile(r"## QA round (\d+) \(([^)]*)\) @ ([0-9a-fA-F]+): (.+)")
+
+
+def clean_text(value: object, limit: int = STATUS_TEXT_LIMIT) -> str:
+    """Untrusted text made safe to print on one line: every control or other
+    non-printable character (an ANSI escape included) becomes `?`, whitespace
+    runs collapse to one space, and the result is cut to `limit` characters."""
+    text = " ".join(str(value).split())
+    text = "".join(c if c.isprintable() else "?" for c in text)
+    return text if len(text) <= limit else text[: limit - 3] + "..."
+
+
+def _parse_time(text: str) -> datetime:
+    return datetime.fromisoformat(text.replace("Z", "+00:00"))
+
+
+def _is_number(value: object) -> bool:
+    # bool is an int subclass; `true` is not a PR number.
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def parse_status(raw: str) -> tuple[dict | None, str | None]:
+    """(status, None) for a well-formed status file, else (None, problem).
+
+    The problem text describes the file's shape only and never echoes its
+    content, except cleaned field names.
+    """
+    try:
+        data = json.loads(raw)
+    except ValueError as e:
+        return None, f"not valid JSON ({type(e).__name__})"
+    if not isinstance(data, dict):
+        return None, f"not a JSON object ({type(data).__name__})"
+    missing = [f for f in STATUS_FIELDS if f not in data]
+    if missing:
+        return None, f"missing field(s): {', '.join(missing)}"
+    problems = []
+    for field in ("name", "doing"):
+        if not isinstance(data[field], str) or not data[field].strip():
+            problems.append(f"{field} is not a non-empty string")
+    if not isinstance(data["updated"], str) or not _UPDATED_RE.fullmatch(data["updated"]):
+        problems.append("updated is not YYYY-MM-DDTHH:MMZ")
+    else:
+        try:
+            _parse_time(data["updated"])
+        except ValueError:
+            problems.append("updated is not a real UTC time")
+    if data["state"] not in STATUS_STATES:
+        problems.append(f"state is not one of {', '.join(sorted(STATUS_STATES))}")
+    for field in ("pr", "issue", "round"):
+        if data[field] is not None and not _is_number(data[field]):
+            problems.append(f"{field} is not a positive integer or null")
+    if data["waiting_on"] is not None and not isinstance(data["waiting_on"], str):
+        problems.append("waiting_on is not a string or null")
+    if problems:
+        return None, "; ".join(problems)
+    return data, None
+
+
+def read_status(path: Path) -> tuple[dict | None, str | None]:
+    """`parse_status` for a file on disk. A missing file is (None, None): the
+    session published no status, which never means idle."""
+    try:
+        with path.open("rb") as f:
+            raw = f.read(STATUS_MAX_BYTES + 1)
+    except FileNotFoundError:
+        return None, None
+    except OSError as e:
+        return None, f"unreadable ({type(e).__name__})"
+    if len(raw) > STATUS_MAX_BYTES:
+        return None, f"larger than {STATUS_MAX_BYTES} bytes"
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return None, "not UTF-8"
+    return parse_status(text)
+
+
+def status_slots(root: Path) -> list[tuple[str, Path]]:
+    """(slot label, status file path) for the main checkout and every
+    directory under `.claude/worktrees/`, main checkout first."""
+    slots = [("main checkout", root / STATUS_FILE)]
+    worktrees = root / ".claude" / "worktrees"
+    if worktrees.is_dir():
+        for d in sorted(worktrees.iterdir()):
+            if d.is_dir():
+                slots.append((d.name, d / STATUS_FILE))
+    return slots
+
+
+def format_age(delta: timedelta) -> str:
+    minutes = int(delta.total_seconds() // 60)
+    if minutes < 60:
+        return f"{minutes}m"
+    if minutes < 48 * 60:
+        return f"{minutes // 60}h{minutes % 60:02d}m"
+    return f"{minutes // (24 * 60)}d"
+
+
+def newest_qa_verdict(pr_view: dict) -> tuple[datetime, str] | None:
+    """(posted at, first line) of the newest `## QA round ...` verdict on a PR,
+    from its comments or its reviews (an advisory fork PR's verdicts are
+    reviews, `security-advisory.md` rule 5), or None if it has none."""
+    found: list[tuple[datetime, str]] = []
+    for item in [*(pr_view.get("comments") or []), *(pr_view.get("reviews") or [])]:
+        lines = (item.get("body") or "").strip().splitlines()
+        at = item.get("createdAt") or item.get("submittedAt")
+        if not lines or not at or not _QA_VERDICT_RE.fullmatch(lines[0].strip()):
+            continue
+        try:
+            found.append((_parse_time(at), lines[0].strip()))
+        except ValueError:
+            continue
+    return max(found, key=lambda v: v[0]) if found else None
+
+
+def session_flags(
+    status: dict, now: datetime, open_numbers: set[int], pr_view: dict | None
+) -> list[str]:
+    """FLAG text for one well-formed status. `pr_view` is `fetch_pr_view`'s
+    result for its claimed PR, or None if it claims none."""
+    flags = []
+    updated = _parse_time(status["updated"])
+    if updated - now > timedelta(minutes=5):
+        flags.append("updated is in the future")
+    elif status["state"] == "working" and now - updated > STALE_WORKING:
+        flags.append(
+            f"still working after {format_age(now - updated)} with no update "
+            f"(threshold {format_age(STALE_WORKING)}); the session may have stopped"
+        )
+    pr = status["pr"]
+    if pr is None or pr_view is None:
+        return flags
+    state = (pr_view.get("state") or "").upper()
+    if pr not in open_numbers and state in ("MERGED", "CLOSED"):
+        flags.append(f"claims PR #{pr}, which is {state.lower()}")
+    if status["state"] == "waiting-agent" and (verdict := newest_qa_verdict(pr_view)):
+        # `updated` has minute precision, and a QA session writes it in the
+        # same minute it posts its verdict: only a verdict from a later minute
+        # is newer than the status.
+        posted, line = verdict
+        if posted.replace(second=0, microsecond=0) > updated:
+            flags.append(
+                f"waiting-agent on PR #{pr}, but a QA verdict was posted after this status "
+                f"({posted:%Y-%m-%dT%H:%MZ}): {clean_text(line)}"
+            )
+    return flags
+
+
+def describe_status(status: dict, now: datetime) -> str:
+    holds = [
+        f"{label} #{status[field]}"
+        for field, label in (("pr", "PR"), ("issue", "issue"), ("round", "round"))
+        if status[field] is not None
+    ]
+    age = format_age(max(now - _parse_time(status["updated"]), timedelta(0)))
+    text = (
+        f"{clean_text(status['name'], 40)}: {status['state']}; "
+        f"{', '.join(holds) or 'holds nothing'}; updated {age} ago; "
+        f"doing: {clean_text(status['doing'])}"
+    )
+    if status["waiting_on"]:
+        text += f"; waiting on: {clean_text(status['waiting_on'])}"
+    return text
+
+
 # --- Sections ---------------------------------------------------------------
 
 
@@ -489,6 +678,60 @@ def section_community(
     return lines or ["nothing to do"]
 
 
+def fetch_pr_view(number: int) -> dict:
+    """A claimed PR's state and the comments and reviews its QA verdicts are in."""
+    out = run(["gh", "pr", "view", str(number), "--json", "state,comments,reviews"])
+    return json.loads(out)
+
+
+def section_sessions(
+    prs: list[dict],
+    now: datetime,
+    root: Path | None = None,
+    fetch: Callable[[int], dict] = fetch_pr_view,
+) -> list[str]:
+    """One line per session status file (#1557), each followed by its FLAGs,
+    then a FLAG for every open team PR no status claims."""
+    root = root or main_checkout()
+    open_numbers = {p["number"] for p in prs}
+    views: dict[int, dict | Exception] = {}
+    claimed: set[int] = set()
+    lines = []
+    for slot, path in status_slots(root):
+        status, problem = read_status(path)
+        if problem:
+            lines.append(f"{slot:<14} FLAG: malformed status file: {problem}")
+            continue
+        if status is None:
+            lines.append(f"{slot:<14} no status published")
+            continue
+        lines.append(f"{slot:<14} {describe_status(status, now)}")
+        pr = status["pr"]
+        view = None
+        if pr is not None:
+            claimed.add(pr)
+            if pr not in views:
+                try:
+                    views[pr] = fetch(pr)
+                except Exception as e:  # one PR's failed fetch never hides the section
+                    views[pr] = e
+            if isinstance(views[pr], Exception):
+                err = views[pr]
+                lines.append(f"      PR check failed: #{pr}: {type(err).__name__}: {err}")
+            else:
+                view = views[pr]
+        for flag in session_flags(status, now, open_numbers, view):
+            lines.append(f"      FLAG: {flag}")
+    for p in prs:
+        author = p["author"]
+        team = not author.get("is_bot") and author.get("login") in MAINTAINERS
+        if team and "community" not in _labels(p) and p["number"] not in claimed:
+            lines.append(
+                f"FLAG: open PR #{p['number']} ({p['headRefName']}) is claimed by no status file"
+            )
+    return lines
+
+
 def section_advisories(now: datetime) -> list[str]:
     advisories = gh_json(["api", "repos/{owner}/{repo}/security-advisories?state=triage"])
     # ID, age, and summary only: nothing else about a report goes anywhere
@@ -628,6 +871,7 @@ def main(argv: list[str] | None = None) -> int:
         ("Worktrees", worktrees),
         ("Lanes", lambda: section_lanes(branches, prs(), rfd())),
         ("Open PRs", lambda: section_prs(prs())),
+        ("Sessions", lambda: section_sessions(prs(), now)),
         ("Ready for development", lambda: section_rfd(rfd())),
         ("Community intake", lambda: section_community(prs(), issues(), now)),
         ("Private vulnerability reports (triage)", lambda: section_advisories(now)),
