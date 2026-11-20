@@ -1,21 +1,36 @@
+"""Comments on any Drive file, through the Drive `comments`/`replies` resource (#663).
+
+The resource takes any `fileId` Drive supports comments on (Docs, Sheets, Slides,
+and other files), so nothing here is Docs-specific. The shape follows
+`docs/design/tool-reduction.md`, "Comments: a smaller shape": resolving and
+reopening are replies with an action, so they go through `reply_to_comment`.
+"""
+
 import html
 import logging
-from typing import Any
+from typing import Any, Literal
 
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
+from ...deprecation import deprecated_tool, renamed_params
 from ..response_limits import enforce_response_size_cap, pagination_hint
 
 logger = logging.getLogger(__name__)
 
+# When the deprecated names (`list_doc_comments`, `add_doc_comment`, their `doc_id`,
+# and `resolve_doc_comment`) go. Their RENAMED_TOOLS entries carry the same value.
+COMMENTS_RENAMED_IN = "the next feature release"
+
+# Only what _map_comment reads: `htmlContent` was requested and never used (#329).
 _COMMENT_FIELDS = (
-    "id,content,htmlContent,author(displayName,emailAddress),createdTime,"
+    "id,content,author(displayName,emailAddress),createdTime,"
     "modifiedTime,resolved,deleted,quotedFileContent(value),"
     "replies(id,content,author(displayName,emailAddress),createdTime,modifiedTime,"
     "action,deleted)"
 )
+_REPLY_FIELDS = "id,action,content,createdTime"
 
 
 def _map_author(author: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -64,30 +79,49 @@ def _map_comment(comment: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+async def _create_reply(
+    drive_service, file_id: str, comment_id: str, content: str | None, action: str | None
+) -> dict[str, Any]:
+    """Post one reply (`replies.create`), with `action` when given. The raw resource."""
+    body: dict[str, Any] = {}
+    if action:
+        body["action"] = action
+    if content:
+        body["content"] = content
+    return await execute_in_thread(
+        drive_service.replies()
+        .create(fileId=file_id, commentId=comment_id, body=body, fields=_REPLY_FIELDS)
+        .execute,
+        drive_service,
+    )
+
+
 def register(tool):
     @tool(
-        annotations=ToolAnnotations(title="List Document Comments", readOnlyHint=True),
+        annotations=ToolAnnotations(title="List File Comments", readOnlyHint=True),
         groups=("comments",),
     )
-    async def list_doc_comments(
-        doc_id: str,
+    @renamed_params(doc_id="file_id", removed_in=COMMENTS_RENAMED_IN)
+    async def list_file_comments(
+        file_id: str,
         page_size: int = 20,
         page_token: str | None = None,
         include_deleted: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
-        List comments (and their replies) on a Google Doc via the Drive comments resource.
+        List the comments (and their replies) on a Drive file: a Google Doc, Sheet,
+        or Slides deck, or any other file Drive supports comments on.
 
         Args:
-            doc_id: The Google Doc file ID.
+            file_id: The file's ID.
             page_size: Maximum number of comments to return per page (default 20).
             page_token: Continuation token from a previous response for pagination.
             include_deleted: Whether to include deleted comments (default False).
 
         Returns:
             Dictionary with:
-            - doc_id: echoed back for reference
+            - file_id: echoed back for reference
             - comments: list of comments, each with id, content, author
               (display_name, email_address), created_time, modified_time, resolved,
               deleted, quoted_text (the anchored text, if any), and replies. Each
@@ -106,7 +140,7 @@ def register(tool):
         response = await execute_in_thread(
             drive_service.comments()
             .list(
-                fileId=doc_id,
+                fileId=file_id,
                 pageSize=max(1, min(page_size, 100)),
                 pageToken=page_token,
                 includeDeleted=include_deleted,
@@ -117,7 +151,7 @@ def register(tool):
         )
 
         result: dict[str, Any] = {
-            "doc_id": doc_id,
+            "file_id": file_id,
             "comments": [_map_comment(c) for c in response.get("comments", [])],
         }
         if npt := response.get("nextPageToken"):
@@ -125,7 +159,7 @@ def register(tool):
 
         enforce_response_size_cap(
             result,
-            tool_name="list_doc_comments",
+            tool_name="list_file_comments",
             hint=pagination_hint("page_size"),
             local_path_available=False,
         )
@@ -133,22 +167,24 @@ def register(tool):
         return result
 
     @tool(
-        annotations=ToolAnnotations(title="Add Document Comment", destructiveHint=True),
+        annotations=ToolAnnotations(title="Add File Comment", destructiveHint=True),
         groups=("comments",),
     )
-    async def add_doc_comment(
-        doc_id: str,
+    @renamed_params(doc_id="file_id", removed_in=COMMENTS_RENAMED_IN)
+    async def add_file_comment(
+        file_id: str,
         content: str,
         quoted_text: str | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
-        Add a comment to a Google Doc via the Drive comments resource.
+        Add a comment to a Drive file: a Google Doc, Sheet, or Slides deck, or any
+        other file Drive supports comments on.
 
         Args:
-            doc_id: The Google Doc file ID.
+            file_id: The file's ID.
             content: The comment text.
-            quoted_text: Optional text from the document to anchor the comment to,
+            quoted_text: Optional text from the file to anchor the comment to,
                          shown as the quoted range the comment refers to.
 
         Returns:
@@ -164,7 +200,7 @@ def register(tool):
         result = await execute_in_thread(
             drive_service.comments()
             .create(
-                fileId=doc_id,
+                fileId=file_id,
                 body=body,
                 fields="id,content,author(displayName,emailAddress),createdTime,quotedFileContent(value)",
             )
@@ -172,7 +208,7 @@ def register(tool):
             drive_service,
         )
 
-        logger.debug("Added comment %s to doc %s", result.get("id"), doc_id)
+        logger.debug("Added comment %s to file %s", result.get("id"), file_id)
         return {
             "id": result.get("id"),
             "content": result.get("content"),
@@ -182,8 +218,59 @@ def register(tool):
         }
 
     @tool(
+        annotations=ToolAnnotations(title="Reply to Comment", destructiveHint=True),
+        groups=("comments",),
+    )
+    async def reply_to_comment(
+        file_id: str,
+        comment_id: str,
+        content: str | None = None,
+        action: Literal["resolve", "reopen"] | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Reply to a comment on a Drive file, and optionally resolve or reopen it.
+        Resolving and reopening are replies with an action, so they go through this
+        tool too.
+
+        Args:
+            file_id: The file's ID.
+            comment_id: The comment's ID (from list_file_comments).
+            content: The reply text. Required for a plain reply; optional with an
+                     action.
+            action: "resolve" to mark the comment resolved, "reopen" to reopen a
+                    resolved one, or omit for a plain reply.
+
+        Returns:
+            Dictionary with file_id, comment_id, reply_id, action (None for a plain
+            reply), content, and created_time. Returns {"error": ...} without
+            posting anything when neither content nor action is given.
+        """
+        if not content and not action:
+            return {
+                "error": "Pass content for a plain reply, or an action ('resolve' or "
+                "'reopen'); a reply with neither has nothing to post."
+            }
+        drive_service = ctx.request_context.lifespan_context.drive_service
+
+        result = await _create_reply(drive_service, file_id, comment_id, content, action)
+
+        logger.debug("Replied to comment %s on file %s (action %s)", comment_id, file_id, action)
+        return {
+            "file_id": file_id,
+            "comment_id": comment_id,
+            "reply_id": result.get("id"),
+            "action": result.get("action"),
+            "content": result.get("content"),
+            "created_time": result.get("createdTime"),
+        }
+
+    @tool(
         annotations=ToolAnnotations(title="Resolve Document Comment", destructiveHint=True),
         groups=("comments",),
+    )
+    @deprecated_tool(
+        use="`reply_to_comment` with `action='resolve'`", removed_in=COMMENTS_RENAMED_IN
     )
     async def resolve_doc_comment(
         doc_id: str,
@@ -197,7 +284,7 @@ def register(tool):
 
         Args:
             doc_id: The Google Doc file ID.
-            comment_id: The ID of the comment to resolve (from list_doc_comments).
+            comment_id: The ID of the comment to resolve (from list_file_comments).
             reply_content: Optional text to attach to the resolving reply.
 
         Returns:
@@ -205,21 +292,7 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        body: dict[str, Any] = {"action": "resolve"}
-        if reply_content:
-            body["content"] = reply_content
-
-        result = await execute_in_thread(
-            drive_service.replies()
-            .create(
-                fileId=doc_id,
-                commentId=comment_id,
-                body=body,
-                fields="id,action,content,createdTime",
-            )
-            .execute,
-            drive_service,
-        )
+        result = await _create_reply(drive_service, doc_id, comment_id, reply_content, "resolve")
 
         logger.debug("Resolved comment %s on doc %s", comment_id, doc_id)
         return {
