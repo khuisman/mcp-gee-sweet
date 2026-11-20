@@ -942,6 +942,89 @@ class TestImageSpanStyle:
         types = [c.type for c in inline.children]
         assert types.index("strong_close") < types.index("image")
 
+    def test_a_span_ending_in_an_image_falls_back_before_a_styled_run(self):
+        # #1530 review: a next run with its own emphasis writes its `*`
+        # directly after the span's closing `**` when it starts with no
+        # whitespace, and the two merge into one `***` run the parser reads
+        # as neither span — `**bold ![logo](u)***it*` would lose the bold.
+        # A letter or digit next door already falls back; this pins the run
+        # that starts with punctuation, which the alphanumeric test misses.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "bold ", "textStyle": {"bold": True}}},
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True},
+                                    }
+                                },
+                                {
+                                    "textRun": {
+                                        "content": "(it)",
+                                        "textStyle": {"italic": True},
+                                    }
+                                },
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == f"**bold** ![logo]({self._URI})*(it)*\n"
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        assert types.index("strong_close") < types.index("image")
+        assert types.index("image") < types.index("em_open")
+
+    def test_a_span_starting_with_an_image_falls_back_after_a_styled_run(self):
+        # The opening marker's mirror of the same review: `*it***![logo](u)
+        # bold**` — the italic run's closing `*` merges with the span's
+        # opening `**` into one `***` run, and the bold is lost. The
+        # previous rendered part ending in `*` now falls back too, keeping
+        # the image bare and the runs styled, as before.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "it", "textStyle": {"italic": True}}},
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True},
+                                    }
+                                },
+                                {
+                                    "textRun": {
+                                        "content": " bold",
+                                        "textStyle": {"bold": True},
+                                    }
+                                },
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == f"*it*![logo]({self._URI}) **bold**\n"
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        assert types.index("em_close") < types.index("image")
+        assert types.index("image") < types.index("strong_open")
+
     def test_an_edge_break_stays_outside_the_spans_link(self):
         # #1509 review: a span starting with a line break (a table cell's
         # second paragraph) put its <br> inside the link. The span's outer

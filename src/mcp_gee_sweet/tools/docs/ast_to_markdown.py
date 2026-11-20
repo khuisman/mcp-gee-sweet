@@ -444,9 +444,10 @@ def _render_inline_parts(items: list, in_table: bool, cell: bool = False) -> lis
     A group never forms across a line break at an image's boundary, the same
     edge `_coalesce_plain_runs keeps apart for runs, so a break never lands
     inside markers it didn't before. A group whose markers would flank an
-    image edge beside a letter or digit never forms either: the markers
-    wouldn't read as emphasis there, so the members fall back to the split
-    rendering, the image bare. Code runs never join a group: their
+    image edge beside a letter, a digit, or a neighboring styled run's own
+    emphasis marker never forms either: the markers wouldn't read as
+    emphasis there, so the members fall back to the split rendering, the
+    image bare. Code runs never join a group: their
     backticks aren't emphasis markers."""
     parts: list[str] = []
     i = 0
@@ -485,32 +486,61 @@ def _render_inline_parts(items: list, in_table: bool, cell: bool = False) -> lis
                 group.append(nxt)
                 i += 1
         if any(isinstance(m, Image) for m in group) and not _markers_flank_image_edge(
-            group, parts, items, i
+            group, parts, items, i, style
         ):
             parts.append(_render_span(group, style, in_table))
         else:
             # No image, nothing a marker could span, or markers that would
-            # flank an image edge beside a letter or digit: one item at a
-            # time, the image bare.
+            # flank an image edge beside a letter, a digit, or a styled
+            # neighbor's own marker: one item at a time, the image bare.
             parts.extend(_render_ungrouped(group, in_table))
     return parts
 
 
-def _markers_flank_image_edge(group: list, parts: list[str], items: list, next_i: int) -> bool:
+def _markers_flank_image_edge(
+    group: list, parts: list[str], items: list, next_i: int, style: tuple
+) -> bool:
     """True when the span's markers would sit beside a letter or digit with
     an image edge between them, where CommonMark cannot read them as emphasis
     (#1509 review): `see**![logo](u)**` keeps its literal asterisks (an
     opening `**` after an alphanumeric is not left-flanking when `!`
     follows), and `**a ![logo](u)**b` loses its bold (a closing `**` before an
-    alphanumeric is not right-flanking when `)` precedes). Only an image at
-    the span's edge puts a marker there — a run's edge whitespace already
-    renders outside the markers — and only a letter or digit outside breaks
-    the flanking; whitespace or punctuation there leaves the rule satisfied.
-    The caller falls back to the split rendering, the image bare, as before."""
-    if isinstance(group[0], Image) and parts and parts[-1][-1:].isalnum():
-        return True
+    alphanumeric is not right-flanking when `)` precedes). A neighboring
+    styled run's own marker is just as bad (#1530 review): its `*` merges
+    with an asterisk marker into a single `***` run the parser reads as
+    neither span, so a previous rendered part ending in `*` and a next run
+    carrying bold or italic and starting with no whitespace fall back too —
+    `*it***![logo](u) bold**` would lose its bold, and
+    `**bold ![logo](u)***it*` its markers. Only an image at the span's edge
+    puts a marker there — a run's edge whitespace already renders outside
+    the markers — and only a letter, a digit, or the neighbor's `*` outside
+    breaks the flanking; whitespace or punctuation there leaves the rule
+    satisfied. The caller falls back to the split rendering, the image
+    bare, as before."""
+    if isinstance(group[0], Image) and parts:
+        prev = parts[-1]
+        # A `*` the previous part ended in is a styled neighbor's own
+        # marker (a literal one is escaped); beside an opening asterisk
+        # marker the two merge into one `***` run.
+        if prev[-1:].isalnum() or (
+            (style[0] or style[1]) and prev.endswith("*") and not prev.endswith("\\*")
+        ):
+            return True
     nxt = items[next_i] if next_i < len(items) else None
-    return isinstance(group[-1], Image) and isinstance(nxt, Run) and nxt.text[:1].isalnum()
+    if isinstance(group[-1], Image) and isinstance(nxt, Run):
+        if nxt.text[:1].isalnum():
+            return True
+        # A next run carrying bold or italic writes its own marker directly
+        # after the span's closing one when it starts with no whitespace,
+        # and the two merge into a single `***` run.
+        if (
+            (style[0] or style[1])
+            and (nxt.bold or nxt.italic)
+            and nxt.text[:1]
+            and not nxt.text[0].isspace()
+        ):
+            return True
+    return False
 
 
 def _render_ungrouped(group: list, in_table: bool) -> list[str]:
