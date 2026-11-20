@@ -1361,11 +1361,7 @@ styles removes those styles — reproduced with <code>strikethrough</code>, and 
 the named style being written is the one the paragraph already had.</p>
 <p><strong>Why:</strong> The Docs API's <code>updateParagraphStyle</code> with a <code>namedStyleType</code> re-applies the
 named style's own text properties to the paragraph's runs, so per-run formatting is not
-preserved — that part is API behaviour. (<code>insert_softbreak_paragraph</code> used to add a quirk
-of its own on top: it always sent the paragraph-style request, defaulting to
-<code>NORMAL_TEXT</code>, even when no paragraph style was asked for, so a plain insert wiped the
-paragraph's inline styles. It now sends the request only when <code>named_style_type</code> is
-passed.)</p>
+preserved — that part is API behaviour.</p>
 <p><strong>Where it bites:</strong> <code>style_doc_range(named_style_type=...)</code>, and
 <code>insert_softbreak_paragraph</code> when a <code>named_style_type</code> is passed.</p>
 <p><strong>Workaround:</strong> A range dict carrying <code>named_style_type</code> plus text-style fields applies
