@@ -1066,6 +1066,8 @@ Run on a throwaway spreadsheet; starred state visible in metadata, list_files an
 
 **Cleanup:** `delete_file(file_id=<id>, permanent=True)`.
 
+**Result (2026-11-20) ✅ PASS — PR #1558 QA round 1 (Sky) @ f52134dc** — On `mcp-gee-sweet-sky` (OAuth). {FOLDER_ID} was a scratch folder on the Shared Drive, listed once before the first star. Spreadsheet `QA-Finder-1528-A` stood in for `QA-Star-1528`. `star_file(id)` returned `starred: true`, and `list_files` with no refresh showed `starred: true`. `star_file(id, starred=False)` returned `starred: false`, and both `list_files` with no refresh and `get_file_metadata` showed `starred: false`. `star_file(id)` then `unstar_file(id)` returned `starred: false`.
+
 ---
 
 ## `copy_file`
@@ -1527,6 +1529,8 @@ Rerun from scratch on the new head, because it moves the all-drives flags into `
 
 **Cleanup:** `delete_file(file_id=<id>, permanent=True)` on both.
 
+**Result (2026-11-20) ✅ PASS — PR #1558 QA round 1 (Sky) @ f52134dc** — On `mcp-gee-sweet-sky` (OAuth). {FOLDER_ID} was a scratch folder on the Shared Drive. Its fixtures were two spreadsheets (TC-D306's `-A` and `-B`) and `QA-Finder-1528-Folder`. The spreadsheet search returned exactly `{files, exhaustive}` with both sheets, no other type, and `exhaustive: true`. The folder search returned only the folder, the same ids as `list_folders(parent_folder_id={FOLDER_ID})`. Every entry carried all nine fields, with `parent` = {FOLDER_ID}. `owners` is `[]` on a Shared Drive, since Shared Drive files have no owner. `query=""` and `query="   "` each returned all three entries in `{files, exhaustive}`. The injection-shaped `folder_id` returned `{"error": "Search failed: <HttpError 404 … File not found …>"}`: the quotes were escaped, and the query stayed one `in parents` clause.
+
 ---
 
 ### TC-D305: `search_files`' `exhaustive` is false when Drive has more (#1528, #1202)
@@ -1536,6 +1540,8 @@ Rerun from scratch on the new head, because it moves the all-drives flags into `
 **Checks**
 - `search_files(folder_id={FOLDER_ID}, max_results=1)` returns one file and `exhaustive: false`.
 - `search_files(folder_id={FOLDER_ID}, max_results=1000)` returns every file `list_files({FOLDER_ID}, max_results=1000)` does (compare ids) and `exhaustive: true`.
+
+**Result (2026-11-20) ✅ PASS — PR #1558 QA round 1 (Sky) @ f52134dc** — On `mcp-gee-sweet-sky` (OAuth), using TC-D304's scratch folder with three entries. `max_results=1` returned one file (the folder, newest) with `exhaustive: false`. With no `query` and the default `max_results=20`, the search returned all three ids with `exhaustive: true`, the same ids as `list_files({FOLDER_ID}, max_results=1000)`.
 
 ---
 
@@ -1551,6 +1557,8 @@ Rerun from scratch on the new head, because it moves the all-drives flags into `
 
 **Cleanup:** `delete_file(file_id=<id>, permanent=True)` on both.
 
+**Result (2026-11-20) ✅ PASS — PR #1558 QA round 1 (Sky) @ f52134dc** — On `mcp-gee-sweet-sky` (OAuth), in a scratch folder on the Shared Drive. `modified_within_days=1` with the spreadsheet type and no folder returned both ids, each modified a few minutes earlier, with `exhaustive: true`. The default sort put `-B` before `-A`, and `order_by="name"` put `-A` before `-B`. `query` with `order_by="name"` returned the tool's own error, naming both, with no Drive call. With the default `order_by`, it returned both sheets plus the folder. `modified_within_days=0` returned `{"error": "modified_within_days must be at least 1."}`. `order_by="size"` was refused by schema validation (`Input should be 'modified' or 'name'`).
+
 ---
 
 ### TC-D307: `search_files(shared_with_me=True)` matches `list_shared_with_me` (#1528)
@@ -1560,6 +1568,8 @@ Rerun from scratch on the new head, because it moves the all-drives flags into `
 - With a `mime_type` filter (`application/vnd.google-apps.spreadsheet`) on both, the ids again match.
 - If the account has nothing shared with it, both return no files; record that, since the check then only shows they agree on empty.
 
+**Result (2026-11-20) ⚠️ PARTIAL — PR #1558 QA round 1 (Sky) @ f52134dc** — On `mcp-gee-sweet-sky` (OAuth). The two calls agree only on empty. `search_files(shared_with_me=True, max_results=200)` returned `{"files": [], "exhaustive": true}`, and `list_shared_with_me(max_results=200)` returned `[]`. They also agreed with the spreadsheet `mime_type` filter. The OAuth QA account has nothing shared with it directly, so the same-ids-same-order check wasn't exercised on real data, and neither was a service account's view.
+
 ---
 
 ### TC-D308: the deprecated finders still work, and their descriptions name the `search_files` call (#1528)
@@ -1568,6 +1578,8 @@ Rerun from scratch on the new head, because it moves the all-drives flags into `
 - In the tool list (`tools/list`, or the deferred-tool schema), each of `search_spreadsheets`, `list_spreadsheets`, `list_folders`, `list_recent_files`, `list_shared_with_me` and `unstar_file` has a description starting `Deprecated: use` and naming `search_files` (`star_file` for `unstar_file`).
 - `search_spreadsheets(query="QA", max_results=5)`, `list_spreadsheets(folder_id={FOLDER_ID})`, `list_folders(parent_folder_id={FOLDER_ID})`, `list_recent_files(max_results=5)` and `list_shared_with_me(max_results=5)` each return a bare list as before, not `{files, exhaustive}`, with no error.
 - `search_spreadsheets`' description doesn't say "special case", `list_spreadsheets`' doesn't open "List all spreadsheets", and `search_files`' doesn't say "convenience wrapper".
+
+**Result (2026-11-20) ✅ PASS — PR #1558 QA round 1 (Sky) @ f52134dc** — On `mcp-gee-sweet-sky` (OAuth), reading the deferred-tool schemas after the reconnect. Each of the six descriptions starts `Deprecated: use` and names `search_files`, or `star_file` for `unstar_file`. The five finders each returned a bare list with no error: `search_spreadsheets(query="QA-Finder-1528")` and `list_spreadsheets(folder_id=<scratch>)` returned the two sheets, `list_folders` returned the one folder, `list_recent_files(max_results=5)` returned five entries, and `list_shared_with_me` returned `[]`. `search_spreadsheets`' description has no "special case", `list_spreadsheets`' opens "List spreadsheets in", and `search_files`' has no "convenience wrapper".
 
 ---
 
