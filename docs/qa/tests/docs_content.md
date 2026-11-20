@@ -7719,9 +7719,12 @@ Raw read, as the checks list: G1 `Quarterly ` + `sales\n` (bold), the 1pt spacer
 **Result (2026-11-18) ✅ PASS (API); on-screen check not run — no browser in this session**
 Raw read: K1 `x\vy\vz\n`. K2 one bullet, `a\vb\vc\n`. K3 one bullet `x\n` and a `HEADING_1` `x\n`, nothing between. K4 one bullet, `a\vc\n`. K5 one bullet, ` c\n`: the whitespace-only container draws no line, but its space stays as a leading space. That's unchanged by this PR (`html_to_ast` at the first parent also gives `[' ', 'c']`), and a single space beside a break is out of this case's scope. K6 `a\vb\n`. K7 `abc\n` in Courier New, and K8's cell `abc\n`. Step 4's parses of both are identical before and after the PR. Step 2 `x\vy\vz\n`. Step 3 is one bulleted `☐ details\n`, and the control is `☐ details\n` too. Docs trashed.
 
+**Result (2026-11-20) ✅ PASS (step 1, K1–K4 and K6, API only) — Rio's re-run for PR #1556's review, on `mcp-gee-sweet-rio` (OAuth, Shared Drive default folder) at `342f0ec0`**
+One doc with K1–K4 and K6. `get_doc_structure`: K1 `x\vy\vz\n`. K2 one bullet, `a\vb\vc\n`. K3 one bullet `x\n`, then a `HEADING_1` `x\n`, with nothing between. K4 one bullet, `a\vc\n`. K6 `a\vb\n`. K5, K7, K8, steps 2–4 and the on-screen check weren't re-run; they rest on the 2026-11-18 run. Doc trashed.
+
 ### TC-DOC269: An NBSP or tab in a heading is dropped from its GitHub anchor, not turned into a hyphen (#1460) ⚠️ destructive
 
-**Purpose:** the GitHub anchor scheme keeps word characters, hyphens and literal spaces. It now strips every other character (a tab, an NBSP, a `<br>` break's `"\v"`) with no separator, and turns each space into a hyphen. The in-doc link resolver and `export_revision`'s heading-link slugs both use the rule.
+**Purpose:** the GitHub anchor scheme keeps literal spaces and hyphens and strips github-slugger's character set (punctuation, symbols and every separator or control character, since #1545). Non-space whitespace (a tab, an NBSP, a `<br>` break's `"\v"`) is in that set, so it's now stripped with no separator instead of becoming a hyphen, and each literal space turns into a hyphen. The in-doc link resolver and `export_revision`'s heading-link slugs both use the rule.
 
 **Steps**
 1. `create_doc(title="TC-DOC269", folder_id={FOLDER_ID}, content="<h2>Price&nbsp;List</h2><h2>Price List</h2><p>Links: <a href=\"#pricelist\">a</a> and <a href=\"#price-list\">b</a>.</p>")` → `{DOC}`
@@ -7741,3 +7744,6 @@ Raw read: K1 `x\vy\vz\n`. K2 one bullet, `a\vb\vc\n`. K3 one bullet `x\n` and a 
 
 **Result (2026-11-18) ✅ PASS**
 Steps 1 and 3 returned no `dropped_links`. Step 2: the raw text is `Price\xa0List\n`, so Docs keeps the NBSP. `a` → the NBSP heading's `headingId`, `b` → the plain one's. Step 3: `a` and `b` → the break heading, `c` → `A - Approved`, `d` / `e` → the first and second `Intro`. Step 4: every link is its same-document URL. Step 5: `export_revision` returned `Links: [a](#pricelist) and [b](#price-list).` and `Links: [a](#heading-oneheading-two) and [b](#heading-oneheading-two), [c](#a---approved), [d](#intro), [e](#intro-1).`, with `## Heading one<br>heading two` intact. Docs trashed.
+
+**Result (2026-11-20) ✅ PASS (steps 1–3 and 5) — Rio's re-run for PR #1556's review, on `mcp-gee-sweet-rio` (OAuth, Shared Drive default folder) at `342f0ec0` (`develop` `0762485`, which changes no docs code since `d10215a`)**
+Steps 1 and 3: no `error`, no `dropped_links`. Step 2: `a` → the first heading's `headingId`, `b` → the second's. Step 3: `a` and `b` → the break heading (`Heading one\vheading two`), `c` → `A - Approved`, `d`/`e` → the first and second `Intro`. Step 5: an `export_revision` before the relink returned the same-document URLs unchanged, as TC-DOC252 records. After relinking by `headingId` through a scratch script, `export_revision` returned exactly `Links: [a](#pricelist) and [b](#price-list).` and `Links: [a](#heading-oneheading-two) and [b](#heading-oneheading-two), [c](#a---approved), [d](#intro), [e](#intro-1).`, with `## Heading one<br>heading two` intact. Step 4 wasn't re-run; it rests on the 2026-11-18 run. Docs trashed.
