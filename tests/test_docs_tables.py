@@ -100,6 +100,90 @@ def _plain_images(svc, doc_id: str = "doc1") -> CellImages:
 # ---------------------------------------------------------------------------
 
 
+class TestTableRowOrColumnTools:
+    """insert/delete_table_row_or_column (#1527) send what the deprecated
+    row-only and column-only tools send."""
+
+    def _call(self, name, **kwargs):
+        docs_svc = MagicMock()
+        ctx = _make_ctx(docs_service=docs_svc, doc_cache=MagicMock())
+        result = asyncio.run(_docs_tools[name](doc_id="doc1", ctx=ctx, **kwargs))
+        calls = docs_svc.documents.return_value.batchUpdate.call_args_list
+        return result, [c.kwargs["body"] for c in calls]
+
+    @pytest.mark.parametrize(
+        ("merged", "old"),
+        [
+            (
+                {"dimension": "row", "index": 2, "after": False},
+                ("insert_table_row", {"row_index": 2, "insert_below": False}),
+            ),
+            (
+                {"dimension": "row", "index": 1},
+                ("insert_table_row", {"row_index": 1}),
+            ),
+            (
+                {"dimension": "column", "index": 3, "after": False},
+                ("insert_table_column", {"column_index": 3, "insert_right": False}),
+            ),
+            (
+                {"dimension": "column", "index": 0},
+                ("insert_table_column", {"column_index": 0}),
+            ),
+        ],
+    )
+    def test_insert_matches_the_deprecated_tool(self, merged, old):
+        result, bodies = self._call("insert_table_row_or_column", table_start_index=5, **merged)
+        _, old_bodies = self._call(old[0], table_start_index=5, **old[1])
+        assert bodies == old_bodies
+        assert result == {
+            "docId": "doc1",
+            "table_start_index": 5,
+            "dimension": merged["dimension"],
+            "index": merged["index"],
+        }
+
+    @pytest.mark.parametrize(
+        ("dimension", "old_name", "old_param"),
+        [
+            ("row", "delete_table_row", "row_index"),
+            ("column", "delete_table_column", "column_index"),
+        ],
+    )
+    def test_delete_matches_the_deprecated_tool(self, dimension, old_name, old_param):
+        result, bodies = self._call(
+            "delete_table_row_or_column", dimension=dimension, table_start_index=5, index=2
+        )
+        _, old_bodies = self._call(old_name, table_start_index=5, **{old_param: 2})
+        assert bodies == old_bodies
+        request = bodies[0]["requests"][0]
+        name = "deleteTableRow" if dimension == "row" else "deleteTableColumn"
+        location = request[name]["tableCellLocation"]
+        assert (location["rowIndex"], location["columnIndex"]) == (
+            (2, 0) if dimension == "row" else (0, 2)
+        )
+        assert result["index"] == 2
+
+    @pytest.mark.parametrize("name", ["insert_table_row_or_column", "delete_table_row_or_column"])
+    def test_unknown_dimension_is_an_error_without_a_call(self, name):
+        result, bodies = self._call(name, dimension="cell", table_start_index=5, index=0)
+        assert "dimension must be 'row' or 'column'" in result["error"]
+        assert bodies == []
+
+    def test_api_error_returns_error(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = Exception(
+            "API error"
+        )
+        ctx = _make_ctx(docs_service=docs_svc, doc_cache=MagicMock())
+        result = asyncio.run(
+            _docs_tools["delete_table_row_or_column"](
+                doc_id="doc1", dimension="row", table_start_index=5, index=0, ctx=ctx
+            )
+        )
+        assert result == {"error": "API error"}
+
+
 class TestInsertTableRow:
     def _ctx(self, docs_svc=None):
         return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())

@@ -874,3 +874,28 @@ Then: "Flatten Gamma to level 1, then put it back at level 2." Tool calls: `crea
 Cleanup: run folder QA-orn-D-2026-11-08 trashed (not permanent), along with every doc in it. No case failed, so nothing was kept. The fixture doc was only read. Totals: 31 PASS, 0 FAIL, 0 PARTIAL, 0 SKIP.
 
 ---
+
+## `get_doc_theme(source=)` (#1527)
+
+### TC-DOC264: `get_doc_theme` reads the body, the named styles, or both ⚠️ destructive
+
+**Purpose:** `get_doc_named_styles` folds into `get_doc_theme(source="named_styles")`; `source="both"` returns the two side by side. `get_doc_theme` is now marked read-only.
+
+**Steps**
+1. `create_doc(title="TC-DOC264", folder_id={FOLDER_ID}, content_format="markdown", content="# Heading\n\nBody text\n")` → `{DOC}`
+2. `apply_theme(doc_id={DOC}, theme={"HEADING_1": {"font_family": "Georgia"}})` (named styles only, so the body's heading keeps its own style)
+3. `get_doc_theme(doc_id={DOC})`, `get_doc_theme(doc_id={DOC}, source="named_styles")`, `get_doc_theme(doc_id={DOC}, source="both")`, and `get_doc_named_styles(doc_id={DOC})`
+4. `get_doc_theme(doc_id={DOC}, source="theme")`
+5. In the client's tool list, read `get_doc_theme`'s annotations and `get_doc_named_styles`' description
+
+**Checks**
+- Step 3: the default call returns the same dict as `source="body"` would (keyed by named style type, no `body`/`named_styles` keys). `source="named_styles"` returns exactly what `get_doc_named_styles` returns, with `HEADING_1.font_family` `Georgia`. `source="both"` is `{"body": <the default call's dict>, "named_styles": <the named_styles call's dict>}`
+- Step 4: the call is refused with an input validation error naming `source` (`Input should be 'body', 'named_styles' or 'both'`): `source` is a `Literal`, so the MCP argument check rejects it before the tool's own check runs
+- Step 5: `get_doc_theme` has `readOnlyHint: true`; `get_doc_named_styles`' description starts with `Deprecated: use` and names `get_doc_theme` with `source='named_styles'`
+
+**Cleanup:** `delete_file` the doc
+
+**Result (2026-11-19) ✅ PASS — Kit, PR #1548 round 1 @ 1f5fd10b**
+`mcp-gee-sweet-kit`, reconnected after the reset. Step 2: `{requests: 1}`. Step 3: the default call returned `{}` (the Markdown write sets no explicit body styles), and `source="both"` returned `{"body": {}, "named_styles": …}`; `source="named_styles"` and `get_doc_named_styles` returned identical dicts with `HEADING_1.font_family` `Georgia`. Step 4: refused with `Input should be 'body', 'named_styles' or 'both'` from the argument check (check corrected this round: it expected the tool's own `{"error"}`, which a `Literal` parameter never reaches). Step 5: `readOnlyHint=True` on `get_doc_theme`'s decorator; `get_doc_named_styles`' description starts `Deprecated: use \`get_doc_theme\` with \`source='named_styles'\``. Doc trashed.
+
+---
