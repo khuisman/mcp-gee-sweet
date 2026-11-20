@@ -609,11 +609,6 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [x] A linked image's fallback text keeps the link color but loses its underline. Regression since v0.9.6 (PR #1457) ([#1504](https://github.com/khuisman/mcp-gee-sweet/issues/1504)) (PR #1508)
 - [x] Anchor slugging follow-ups from community PRs #1435 and #1471: Unicode word characters differ from github-slugger, `-N` dedup collisions, a GitLab/GitHub ambiguity to document, test and comment cleanup. `wrong/narrow`, not observed; second follow-up in #1357's family, so the chain stop rule applies to a further one ([#1482](https://github.com/khuisman/mcp-gee-sweet/issues/1482)) (PR #1545; moved from velociraptor, merged early)
 
-**Triaged in 2026-11-19** _(review follow-ups from community PRs #1545 and #1546)_
-
-- [ ] Size-cap hint follow-ups from community PR #1546's review: a historical QA result to restore, the hint collector to harden, `sync_folder`'s hint ignores its own arguments. `loud/narrow`, not observed; placed in ankylosaurus by the maintainer 2026-11-19; community PR #1555 claims it ([#1552](https://github.com/khuisman/mcp-gee-sweet/issues/1552))
-- [ ] Heading-anchor follow-ups from community PR #1545's review: a percent-encoded anchor never matches, Unicode version drift, a stale docstring, test and CLAUDE.md cleanup. `wrong/narrow`, not observed; third follow-up in #1357's family, placed in ankylosaurus by the maintainer 2026-11-19; community PR #1554 claims it ([#1553](https://github.com/khuisman/mcp-gee-sweet/issues/1553))
-
 **Triaged in 2026-11-15** _(review and sweep tickets from 2026-11-01 to 11-06 that had no version)_
 
 - [ ] Tool metadata: trim descriptions over 4,096 characters, add missing `readOnlyHint`, and guard both in CI. Tool surface ([#1358](https://github.com/khuisman/mcp-gee-sweet/issues/1358))
@@ -625,6 +620,11 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] `get_doc_as_markdown` drops an inline image's own character style (bold, highlight), which the write side sets since PR #1508. `wrong/narrow`, observed in PR #1508's live QA ([#1509](https://github.com/khuisman/mcp-gee-sweet/issues/1509))
 - [x] The `sheets` tool group leaves out creating, listing, searching and sharing spreadsheets (those tools live under `tools/drive/`). From PR #1510; groups are new since v0.9.6, so it ships with them ([#1511](https://github.com/khuisman/mcp-gee-sweet/issues/1511)) (PR #1523)
 - [ ] Live client checks for tool groups: VS Code, Cursor, Claude Code `all`, Codex tool search, ChatGPT's tool budget. From PR #1510's review ([#1515](https://github.com/khuisman/mcp-gee-sweet/issues/1515))
+
+**Triaged in 2026-11-19** _(review follow-ups from community PRs #1545 and #1546)_
+
+- [ ] Size-cap hint follow-ups from community PR #1546's review: a historical QA result to restore, the hint collector to harden, `sync_folder`'s hint ignores its own arguments. `loud/narrow`, not observed; placed in ankylosaurus by the maintainer 2026-11-19; community PR #1555 claims it ([#1552](https://github.com/khuisman/mcp-gee-sweet/issues/1552))
+- [ ] Heading-anchor follow-ups from community PR #1545's review: a percent-encoded anchor never matches, Unicode version drift, a stale docstring, test and CLAUDE.md cleanup. `wrong/narrow`, not observed; third follow-up in #1357's family, placed in ankylosaurus by the maintainer 2026-11-19; community PR #1554 claims it ([#1553](https://github.com/khuisman/mcp-gee-sweet/issues/1553))
 
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
