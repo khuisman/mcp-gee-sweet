@@ -1477,6 +1477,27 @@ insert_doc_text index 0, segment_id headerId -&gt; {docId, insertions:1}; no API
 Run 2 (sa) on a throwaway doc.</p>
 <p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — <code>insert_doc_text([{index: 0, text: "Header text via insert_doc_text", segment_id: "kix.q91epycxj9xf"}])</code> (the DOC68 headerId) → <code>{docId, insertions: 1}</code>, no error. Screenshot <code>2026-11-08-tc-doc74.png</code> shows the text in the page header.</p>
 <hr />
+<h2 id="create_header_or_footer-1527"><code>create_header_or_footer</code> (#1527)<a class="headerlink" href="#create_header_or_footer-1527" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc263-add-a-header-and-a-footer-with-create_header_or_footer-destructive">TC-DOC263: Add a header and a footer with <code>create_header_or_footer</code> ⚠️ destructive<a class="headerlink" href="#tc-doc263-add-a-header-and-a-footer-with-create_header_or_footer-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Playwright: required</strong></p>
+<p><strong>Purpose:</strong> <code>create_header</code> and <code>create_footer</code> merge into <code>create_header_or_footer</code>, where <code>kind</code> picks which. It reads the new ID from the API's reply (the old tools looked under the wrong key and fetched it again).</p>
+<p><strong>Steps</strong>
+1. <code>create_doc(title="TC-DOC263", folder_id={FOLDER_ID}, content="Body")</code> → <code>{DOC}</code>
+2. <code>create_header_or_footer(doc_id={DOC}, kind="header", content="Top text")</code>
+3. <code>create_header_or_footer(doc_id={DOC}, kind="footer", content="Bottom text")</code>
+4. <code>create_header_or_footer(doc_id={DOC}, kind="header", content="More ")</code> (the doc already has a header)
+5. <code>create_header(doc_id={DOC}, header_type="FIRST_PAGE_HEADER")</code> and <code>create_footer(doc_id={DOC}, footer_type="FIRST_PAGE_FOOTER")</code>
+6. Open <code>{DOC}</code> in Playwright</p>
+<p><strong>Checks</strong>
+- Step 2: <code>{docId, kind: "header", headerId}</code> with a non-empty <code>headerId</code> and no <code>warning</code>
+- Step 3: <code>{docId, kind: "footer", footerId}</code>, likewise
+- Step 4: the same <code>headerId</code> as step 2, no error
+- Step 5: each returns an <code>error</code> saying a first-page header (or footer) can't be created through the Docs API and pointing to the Docs UI, and neither makes a change (re-check in step 6)
+- Step 6: the page header reads <code>More Top text</code> and the footer <code>Bottom text</code></p>
+<p><strong>Cleanup:</strong> <code>delete_file</code> the doc</p>
+<p><strong>Result (2026-11-19) ✅ PASS — Kit, PR #1548 round 1 @ 1f5fd10b</strong>
+<code>mcp-gee-sweet-kit</code>, reconnected after the reset. Step 2: <code>{docId, kind: "header", headerId: "kix.…"}</code>, no <code>warning</code>. Step 3: <code>{docId, kind: "footer", footerId: "kix.…"}</code>. Step 4: the same <code>headerId</code> as step 2. Step 5: both return the first-page <code>error</code> pointing to Insert &gt; Headers &amp; footers. Step 6 (default <code>playwright</code>, sign-in check passed on the fixture doc's title; URL-verified both captures): header <code>More Top text</code>, footer <code>Bottom text</code> on the doc's one page, no first-page header or footer. Doc trashed.</p>
+<hr />
 
 
 

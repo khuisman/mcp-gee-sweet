@@ -1970,6 +1970,23 @@ Run 2 (sa) on a throwaway doc; Playwright visual checks plus raw documents().get
 <hr />
 <p>Cleanup: run folder QA-orn-D-2026-11-08 trashed (not permanent), along with every doc in it. No case failed, so nothing was kept. The fixture doc was only read. Totals: 31 PASS, 0 FAIL, 0 PARTIAL, 0 SKIP.</p>
 <hr />
+<h2 id="get_doc_themesource-1527"><code>get_doc_theme(source=)</code> (#1527)<a class="headerlink" href="#get_doc_themesource-1527" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc264-get_doc_theme-reads-the-body-the-named-styles-or-both-destructive">TC-DOC264: <code>get_doc_theme</code> reads the body, the named styles, or both ⚠️ destructive<a class="headerlink" href="#tc-doc264-get_doc_theme-reads-the-body-the-named-styles-or-both-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> <code>get_doc_named_styles</code> folds into <code>get_doc_theme(source="named_styles")</code>; <code>source="both"</code> returns the two side by side. <code>get_doc_theme</code> is now marked read-only.</p>
+<p><strong>Steps</strong>
+1. <code>create_doc(title="TC-DOC264", folder_id={FOLDER_ID}, content_format="markdown", content="# Heading\n\nBody text\n")</code> → <code>{DOC}</code>
+2. <code>apply_theme(doc_id={DOC}, theme={"HEADING_1": {"font_family": "Georgia"}})</code> (named styles only, so the body's heading keeps its own style)
+3. <code>get_doc_theme(doc_id={DOC})</code>, <code>get_doc_theme(doc_id={DOC}, source="named_styles")</code>, <code>get_doc_theme(doc_id={DOC}, source="both")</code>, and <code>get_doc_named_styles(doc_id={DOC})</code>
+4. <code>get_doc_theme(doc_id={DOC}, source="theme")</code>
+5. In the client's tool list, read <code>get_doc_theme</code>'s annotations and <code>get_doc_named_styles</code>' description</p>
+<p><strong>Checks</strong>
+- Step 3: the default call returns the same dict as <code>source="body"</code> would (keyed by named style type, no <code>body</code>/<code>named_styles</code> keys). <code>source="named_styles"</code> returns exactly what <code>get_doc_named_styles</code> returns, with <code>HEADING_1.font_family</code> <code>Georgia</code>. <code>source="both"</code> is <code>{"body": &lt;the default call's dict&gt;, "named_styles": &lt;the named_styles call's dict&gt;}</code>
+- Step 4: the call is refused with an input validation error naming <code>source</code> (<code>Input should be 'body', 'named_styles' or 'both'</code>): <code>source</code> is a <code>Literal</code>, so the MCP argument check rejects it before the tool's own check runs
+- Step 5: <code>get_doc_theme</code> has <code>readOnlyHint: true</code>; <code>get_doc_named_styles</code>' description starts with <code>Deprecated: use</code> and names <code>get_doc_theme</code> with <code>source='named_styles'</code></p>
+<p><strong>Cleanup:</strong> <code>delete_file</code> the doc</p>
+<p><strong>Result (2026-11-19) ✅ PASS — Kit, PR #1548 round 1 @ 1f5fd10b</strong>
+<code>mcp-gee-sweet-kit</code>, reconnected after the reset. Step 2: <code>{requests: 1}</code>. Step 3: the default call returned <code>{}</code> (the Markdown write sets no explicit body styles), and <code>source="both"</code> returned <code>{"body": {}, "named_styles": …}</code>; <code>source="named_styles"</code> and <code>get_doc_named_styles</code> returned identical dicts with <code>HEADING_1.font_family</code> <code>Georgia</code>. Step 4: refused with <code>Input should be 'body', 'named_styles' or 'both'</code> from the argument check (check corrected this round: it expected the tool's own <code>{"error"}</code>, which a <code>Literal</code> parameter never reaches). Step 5: <code>readOnlyHint=True</code> on <code>get_doc_theme</code>'s decorator; <code>get_doc_named_styles</code>' description starts <code>Deprecated: use \</code>get_doc_theme` with `source='named_styles'``. Doc trashed.</p>
+<hr />
 
 
 

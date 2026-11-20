@@ -1420,7 +1420,7 @@ the paragraph after the table is collapsed again only if the new content still e
 is written into the one cell of a 1x1 wrapper table, whose left border is the quote's
 gray bar (#1122). <code>get_doc_structure</code> reports the wrapper as the top-level table, with the
 quoted table nested in its cell, so table tools that take a table's position
-(<code>insert_table_row</code>, <code>merge_table_cells</code>, and so on) reach the wrapper, not the table you
+(<code>insert_table_row_or_column</code>, <code>merge_table_cells</code>, and so on) reach the wrapper, not the table you
 see. Removing the wrapper in the Docs editor removes the bar but leaves the table.</p>
 <p><strong>Why:</strong> The Docs API can't give a table a paragraph border, so a bar beside a table has to
 come from a table cell's border. Without the wrapper, a quoted table sat at the quote's
@@ -1575,12 +1575,22 @@ holds no paragraph styling the converter writes (#1327).</p>
 file with <code>upload_local_file(convert=True)</code>, whose Drive import draws native lines (with the other
 differences listed under Google Drive below).</p>
 <hr />
-<h3 id="create_bookmark-doesnt-create-a-bookmark-docs-lists"><code>create_bookmark</code> doesn't create a bookmark Docs lists<a class="headerlink" href="#create_bookmark-doesnt-create-a-bookmark-docs-lists" title="Permanent link">&para;</a></h3>
-<p><strong>What:</strong> <code>create_bookmark</code> creates a one-character named range. It doesn't appear under
-Insert &gt; Link &gt; "Headings, bookmarks, and tabs", and no link can point to it.</p>
+<h3 id="a-named-range-isnt-a-bookmark-docs-lists">A named range isn't a bookmark Docs lists<a class="headerlink" href="#a-named-range-isnt-a-bookmark-docs-lists" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> <code>create_named_range</code> with no <code>end_index</code> (and the deprecated <code>create_bookmark</code>)
+creates a one-character named range. It doesn't appear under Insert &gt; Link &gt; "Headings,
+bookmarks, and tabs", and no link can point to it.</p>
 <p><strong>Why:</strong> The Docs API has no request that creates a bookmark; only the Docs UI can.</p>
 <p><strong>Workaround:</strong> Link to a heading instead: every heading has a <code>headingId</code> (<code>get_doc_structure</code>)
 that a link can target. Tracked in #1076.</p>
+<hr />
+<h3 id="no-first-page-only-header-or-footer">No first-page-only header or footer<a class="headerlink" href="#no-first-page-only-header-or-footer" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> <code>create_header_or_footer</code> creates a doc's default header or footer, shown on every
+page. It can't create one shown only on the first page, and the deprecated <code>create_header</code>
+and <code>create_footer</code> return an error for <code>FIRST_PAGE_HEADER</code> and <code>FIRST_PAGE_FOOTER</code>.</p>
+<p><strong>Why:</strong> The Docs API's header type takes only <code>DEFAULT</code>. Setting the doc's
+<code>useFirstPageHeaderFooter</code> and then creating a header still makes only the default one
+(checked live, #1527).</p>
+<p><strong>Workaround:</strong> In the Docs UI, Insert &gt; Headers &amp; footers, then check "Different first page".</p>
 <hr />
 <h3 id="get_doc_as_markdown-exports-a-left-aligned-table-column-as-not-"><code>get_doc_as_markdown</code> exports a left-aligned table column as <code>---</code>, not <code>:--</code><a class="headerlink" href="#get_doc_as_markdown-exports-a-left-aligned-table-column-as-not-" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> In a table written by <code>create_doc</code>, <code>write_doc_content</code>, <code>create_doc_from_file</code>,

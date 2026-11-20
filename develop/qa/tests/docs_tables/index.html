@@ -1584,6 +1584,30 @@ merge_table_cells span 1x99 -&gt; {"error":"<HttpError 400 ... table range exten
 Run 2 (sa) on a throwaway doc.</p>
 <p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on <code>ash</code></strong> — Same 2×2 table, <code>merge_table_cells(0,0,row_span=1,column_span=99)</code> returned <code>{"error": "&lt;HttpError 400 ... mergeTableCells: The table range extends outside the bounds of the table.&gt;"}</code>; no exception. Table deleted afterwards. (Run before DOC91/92 to reuse the 2×2.)</p>
 <hr />
+<h2 id="insert_table_row_or_column-delete_table_row_or_column-1527"><code>insert_table_row_or_column</code> / <code>delete_table_row_or_column</code> (#1527)<a class="headerlink" href="#insert_table_row_or_column-delete_table_row_or_column-1527" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc262-insert-and-delete-a-row-and-a-column-with-the-merged-tools-the-deprecated-names-still-work-destructive">TC-DOC262: Insert and delete a row and a column with the merged tools; the deprecated names still work ⚠️ destructive<a class="headerlink" href="#tc-doc262-insert-and-delete-a-row-and-a-column-with-the-merged-tools-the-deprecated-names-still-work-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Purpose:</strong> The four row-only and column-only table tools merge into <code>insert_table_row_or_column</code> and <code>delete_table_row_or_column</code>, where <code>dimension</code> picks a row or a column. The old names stay registered for one release, marked deprecated, and send the same requests.</p>
+<p><strong>Steps</strong>
+1. <code>create_doc(title="TC-DOC262", folder_id={FOLDER_ID}, content_format="markdown", content="| a | b |\n|---|---|\n| 1 | 2 |\n")</code> → <code>{DOC}</code>; <code>get_doc_structure(doc_id={DOC})</code> → the table's <code>startIndex</code> <code>{T}</code>
+2. <code>insert_table_row_or_column(doc_id={DOC}, dimension="row", table_start_index={T}, index=0)</code>, then <code>get_doc_structure</code>
+3. <code>insert_table_row_or_column(doc_id={DOC}, dimension="column", table_start_index={T}, index=0, after=False)</code>, then <code>get_doc_structure</code>
+4. <code>delete_table_row_or_column(doc_id={DOC}, dimension="row", table_start_index={T}, index=1)</code>, then <code>get_doc_structure</code>
+5. <code>delete_table_row_or_column(doc_id={DOC}, dimension="column", table_start_index={T}, index=0)</code>, then <code>get_doc_structure</code>
+6. <code>insert_table_row(doc_id={DOC}, table_start_index={T}, row_index=0)</code> and <code>delete_table_column(doc_id={DOC}, table_start_index={T}, column_index=1)</code>, then <code>get_doc_structure</code>
+7. <code>insert_table_row_or_column(doc_id={DOC}, dimension="cell", table_start_index={T}, index=0)</code>
+8. In the client's tool list, read the descriptions of <code>insert_table_row</code>, <code>insert_table_column</code>, <code>delete_table_row</code> and <code>delete_table_column</code></p>
+<p><strong>Checks</strong>
+- Step 2: <code>{docId, table_start_index: {T}, dimension: "row", index: 0}</code>; the table has 3 rows, and row 1 is the new empty one (cells <code>a</code>, <code>b</code> stay in row 0)
+- Step 3: the table has 3 columns, and column 0 is the new empty one (<code>a</code> is now in column 1)
+- Step 4: back to 2 rows: <code>a</code>/<code>b</code> and <code>1</code>/<code>2</code>, with the empty column still first
+- Step 5: back to 2 columns, <code>a | b</code> over <code>1 | 2</code>
+- Step 6: both return the pre-merge shape (<code>row_index</code> and <code>column_index</code>, no <code>dimension</code>), and the table ends 3 rows × 1 column, holding <code>a</code>, an empty cell, <code>1</code>
+- Step 7: the call is refused with an input validation error naming <code>dimension</code> (<code>Input should be 'row' or 'column'</code>): <code>dimension</code> is a <code>Literal</code>, so the MCP argument check rejects it before the tool's own check runs. The table is unchanged
+- Step 8: each description starts with <code>Deprecated: use</code> and names <code>insert_table_row_or_column</code> or <code>delete_table_row_or_column</code> with the matching <code>dimension</code></p>
+<p><strong>Cleanup:</strong> <code>delete_file</code> the doc</p>
+<p><strong>Result (2026-11-19) ✅ PASS — Kit, PR #1548 round 1 @ 1f5fd10b</strong>
+<code>mcp-gee-sweet-kit</code>, reconnected after the reset. <code>{T}</code> = 2. Step 2: 3×2, row 1 empty, <code>a</code>/<code>b</code> in row 0. Step 3: 3×3, column 0 empty, <code>a</code> in column 1. Step 4: 2×3, <code>a</code>/<code>b</code> over <code>1</code>/<code>2</code> with the empty column first. Step 5: 2×2, <code>a | b</code> over <code>1 | 2</code>. Step 6: <code>{docId, table_start_index: 2, row_index: 0}</code> and <code>{docId, table_start_index: 2, column_index: 1}</code>; the table ends 3×1 holding <code>a</code>, an empty cell, <code>1</code>. Step 7: refused with <code>Input should be 'row' or 'column'</code> from the argument check (check corrected this round: it expected the tool's own <code>{"error"}</code>, which a <code>Literal</code> parameter never reaches). Step 8: all four descriptions start <code>Deprecated: use</code> and name the merged tool with the matching <code>dimension</code>. Doc trashed.</p>
+<hr />
 
 
 
