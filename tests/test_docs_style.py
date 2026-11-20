@@ -1,5 +1,6 @@
 """Tests for docs style tools and theme helpers."""
 
+from typing import ClassVar
 from unittest.mock import MagicMock
 
 import pytest
@@ -1626,6 +1627,84 @@ class TestStyleDocTableCellsTool:
 # ---------------------------------------------------------------------------
 # apply_theme / get_doc_theme tools
 # ---------------------------------------------------------------------------
+
+
+class TestGetDocThemeSource:
+    """get_doc_theme(source=) replaces get_doc_named_styles (#1527)."""
+
+    _DOC: ClassVar[dict] = {
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "paragraphStyle": {"namedStyleType": "HEADING_1"},
+                        "elements": [
+                            {
+                                "textRun": {
+                                    "content": "Title\n",
+                                    "textStyle": {"weightedFontFamily": {"fontFamily": "Georgia"}},
+                                }
+                            }
+                        ],
+                    }
+                }
+            ]
+        },
+        "namedStyles": {
+            "styles": [
+                {
+                    "namedStyleType": "HEADING_1",
+                    "textStyle": {"weightedFontFamily": {"fontFamily": "Lora"}},
+                }
+            ]
+        },
+    }
+
+    def _tools(self):
+        tool, captured = _make_tool_registry()
+        annotations = {}
+
+        def recording_tool(**kwargs):
+            def decorator(func):
+                annotations[func.__name__] = kwargs.get("annotations")
+                return tool(**kwargs)(func)
+
+            return decorator
+
+        docs_module.register(recording_tool)
+        return captured, annotations
+
+    async def _theme(self, name, **kwargs):
+        captured, _ = self._tools()
+        docs = MagicMock()
+        docs.documents.return_value.get.return_value.execute.return_value = self._DOC
+        ctx = _make_ctx(docs_service=docs, doc_cache=MagicMock())
+        return await captured[name](doc_id="doc1", ctx=ctx, **kwargs)
+
+    async def test_body_is_the_default(self):
+        assert await self._theme("get_doc_theme") == _read_body_styles(self._DOC)
+
+    async def test_named_styles_matches_the_deprecated_tool(self):
+        result = await self._theme("get_doc_theme", source="named_styles")
+        assert result == await self._theme("get_doc_named_styles")
+        assert result == {"HEADING_1": {"font_family": "Lora"}}
+
+    async def test_both_returns_the_two_side_by_side(self):
+        result = await self._theme("get_doc_theme", source="both")
+        assert result == {
+            "body": _read_body_styles(self._DOC),
+            "named_styles": _read_named_styles(self._DOC),
+        }
+        assert result["body"]["HEADING_1"]["font_family"] == "Georgia"
+
+    async def test_unknown_source_is_an_error(self):
+        result = await self._theme("get_doc_theme", source="theme")
+        assert "source must be" in result["error"]
+
+    def test_both_are_read_only(self):
+        _, annotations = self._tools()
+        assert annotations["get_doc_theme"].read_only_hint is True
+        assert annotations["get_doc_named_styles"].read_only_hint is True
 
 
 class TestApplyThemeTool:

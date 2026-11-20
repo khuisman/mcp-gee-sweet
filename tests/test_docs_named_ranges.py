@@ -99,6 +99,53 @@ class TestCreateNamedRange:
         doc_cache.mark_dirty.assert_called_once_with("doc1")
 
 
+class TestCreateNamedRangeAsBookmark:
+    """create_named_range with no end_index replaces create_bookmark (#1527)."""
+
+    def _docs_svc(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": [{"createNamedRange": {"namedRangeId": "nr1"}}]
+        }
+        return docs_svc
+
+    def _bodies(self, docs_svc):
+        return [
+            c.kwargs["body"] for c in docs_svc.documents.return_value.batchUpdate.call_args_list
+        ]
+
+    async def test_omitted_end_index_spans_one_character(self):
+        docs_svc = self._docs_svc()
+        ctx = _make_ctx(docs_service=docs_svc, doc_cache=MagicMock())
+        result = await _docs_tools["create_named_range"](
+            doc_id="doc1", name="intro", start_index=7, ctx=ctx
+        )
+        assert result == {
+            "docId": "doc1",
+            "namedRangeId": "nr1",
+            "name": "intro",
+            "startIndex": 7,
+            "endIndex": 8,
+        }
+
+    async def test_sends_what_create_bookmark_sends(self):
+        merged = self._docs_svc()
+        await _docs_tools["create_named_range"](
+            doc_id="doc1",
+            name="intro",
+            start_index=7,
+            ctx=_make_ctx(docs_service=merged, doc_cache=MagicMock()),
+        )
+        old = self._docs_svc()
+        await _docs_tools["create_bookmark"](
+            doc_id="doc1",
+            name="intro",
+            index=7,
+            ctx=_make_ctx(docs_service=old, doc_cache=MagicMock()),
+        )
+        assert self._bodies(merged) == self._bodies(old)
+
+
 class TestCreateBookmark:
     def _ctx(self, docs_svc=None):
         return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())

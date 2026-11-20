@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock
 
+import pytest
 from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools import docs as docs_module
@@ -44,7 +45,7 @@ class TestCreateHeader:
     def _make_docs_svc(self, header_id="hdr1"):
         docs_svc = MagicMock()
         docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
-            "replies": [{"createHeaderResponse": {"headerId": header_id}}]
+            "replies": [{"createHeader": {"headerId": header_id}}]
         }
         return docs_svc
 
@@ -62,12 +63,22 @@ class TestCreateHeader:
         assert body["requests"][0]["createHeader"]["type"] == "DEFAULT"
         assert "sectionBreakLocation" not in body["requests"][0]["createHeader"]
 
-    async def test_first_page_header_type(self):
+    async def test_first_page_header_type_is_refused_before_any_call(self):
+        # The Docs API's HeaderFooterType has only DEFAULT: FIRST_PAGE_HEADER was
+        # a 400 (checked live, #1527).
         docs_svc = self._make_docs_svc()
         ctx = self._ctx(docs_svc=docs_svc)
-        await _docs_tools["create_header"](doc_id="doc1", header_type="FIRST_PAGE_HEADER", ctx=ctx)
-        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
-        assert body["requests"][0]["createHeader"]["type"] == "FIRST_PAGE_HEADER"
+        result = await _docs_tools["create_header"](
+            doc_id="doc1", header_type="FIRST_PAGE_HEADER", ctx=ctx
+        )
+        assert "first-page header can't be created" in result["error"]
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
+
+    async def test_reply_header_id_is_used_without_a_document_read(self):
+        docs_svc = self._make_docs_svc("hdr-abc")
+        ctx = self._ctx(docs_svc=docs_svc)
+        await _docs_tools["create_header"](doc_id="doc1", ctx=ctx)
+        docs_svc.documents.return_value.get.assert_not_called()
 
     async def test_invalid_type_returns_error(self):
         ctx = self._ctx()
@@ -133,7 +144,7 @@ class TestCreateFooter:
     def _make_docs_svc(self, footer_id="ftr1"):
         docs_svc = MagicMock()
         docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
-            "replies": [{"createFooterResponse": {"footerId": footer_id}}]
+            "replies": [{"createFooter": {"footerId": footer_id}}]
         }
         return docs_svc
 
@@ -151,12 +162,14 @@ class TestCreateFooter:
         assert body["requests"][0]["createFooter"]["type"] == "DEFAULT"
         assert "sectionBreakLocation" not in body["requests"][0]["createFooter"]
 
-    async def test_first_page_footer_type(self):
+    async def test_first_page_footer_type_is_refused_before_any_call(self):
         docs_svc = self._make_docs_svc()
         ctx = self._ctx(docs_svc=docs_svc)
-        await _docs_tools["create_footer"](doc_id="doc1", footer_type="FIRST_PAGE_FOOTER", ctx=ctx)
-        body = docs_svc.documents.return_value.batchUpdate.call_args.kwargs["body"]
-        assert body["requests"][0]["createFooter"]["type"] == "FIRST_PAGE_FOOTER"
+        result = await _docs_tools["create_footer"](
+            doc_id="doc1", footer_type="FIRST_PAGE_FOOTER", ctx=ctx
+        )
+        assert "first-page footer can't be created" in result["error"]
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
 
     async def test_invalid_type_returns_error(self):
         ctx = self._ctx()
@@ -212,6 +225,114 @@ class TestCreateFooter:
         ctx = self._ctx(docs_svc=docs_svc)
         result = await _docs_tools["create_footer"](doc_id="doc1", ctx=ctx)
         assert result == {"docId": "doc1", "footerId": "ftr-existing"}
+
+
+class TestCreateHeaderOrFooter:
+    """create_header_or_footer (#1527) sends what create_header/create_footer send."""
+
+    def _docs_svc(self, kind):
+        docs_svc = MagicMock()
+        name = "createHeader" if kind == "header" else "createFooter"
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": [{name: {f"{kind}Id": f"{kind}-1"}}]
+        }
+        return docs_svc
+
+    def _bodies(self, docs_svc):
+        return [
+            c.kwargs["body"] for c in docs_svc.documents.return_value.batchUpdate.call_args_list
+        ]
+
+    @pytest.mark.parametrize("kind", ["header", "footer"])
+    async def test_returns_the_id_keyed_by_kind(self, kind):
+        ctx = _make_ctx(docs_service=self._docs_svc(kind), doc_cache=MagicMock())
+        result = await _docs_tools["create_header_or_footer"](doc_id="doc1", kind=kind, ctx=ctx)
+        assert result == {"docId": "doc1", "kind": kind, f"{kind}Id": f"{kind}-1"}
+
+    @pytest.mark.parametrize("kind", ["header", "footer"])
+    async def test_sends_the_same_requests_as_the_deprecated_tool(self, kind):
+        merged_svc = self._docs_svc(kind)
+        await _docs_tools["create_header_or_footer"](
+            doc_id="doc1",
+            kind=kind,
+            content="Text",
+            ctx=_make_ctx(docs_service=merged_svc, doc_cache=MagicMock()),
+        )
+        old_svc = self._docs_svc(kind)
+        await _docs_tools[f"create_{kind}"](
+            doc_id="doc1",
+            content="Text",
+            ctx=_make_ctx(docs_service=old_svc, doc_cache=MagicMock()),
+        )
+        assert self._bodies(merged_svc) == self._bodies(old_svc)
+        assert len(self._bodies(merged_svc)) == 2
+
+    async def test_existing_footer_falls_back_to_document_style(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = HttpError(
+            resp=MagicMock(status=400), content=b"Default footer already exists."
+        )
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "documentStyle": {"defaultHeaderId": "hdr", "defaultFooterId": "ftr-existing"}
+        }
+        ctx = _make_ctx(docs_service=docs_svc, doc_cache=MagicMock())
+        result = await _docs_tools["create_header_or_footer"](doc_id="doc1", kind="footer", ctx=ctx)
+        assert result["footerId"] == "ftr-existing"
+
+    async def test_content_insert_failure_is_a_warning(self):
+        docs_svc = self._docs_svc("header")
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = [
+            {"replies": [{"createHeader": {"headerId": "header-1"}}]},
+            RuntimeError("insert failed"),
+        ]
+        ctx = _make_ctx(docs_service=docs_svc, doc_cache=MagicMock())
+        result = await _docs_tools["create_header_or_footer"](
+            doc_id="doc1", kind="header", content="Text", ctx=ctx
+        )
+        assert result["headerId"] == "header-1"
+        assert "insert failed" in result["warning"]
+
+    @pytest.mark.parametrize("content", ["Text", None])
+    async def test_a_failed_id_lookup_is_a_warning_not_a_silent_none(self, content):
+        # PR #1548 QA round 1: the doc already has a header, so the create fails,
+        # and the documentStyle lookup that would name it fails too.
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.side_effect = HttpError(
+            resp=MagicMock(status=400), content=b"Default header already exists."
+        )
+        docs_svc.documents.return_value.get.return_value.execute.side_effect = RuntimeError(
+            "lookup failed"
+        )
+        ctx = _make_ctx(docs_service=docs_svc, doc_cache=MagicMock())
+        result = await _docs_tools["create_header_or_footer"](
+            doc_id="doc1", kind="header", content=content, ctx=ctx
+        )
+        assert result["headerId"] is None
+        assert "lookup failed" in result["warning"]
+        assert ("not inserted" in result["warning"]) is (content is not None)
+        assert docs_svc.documents.return_value.batchUpdate.call_count == 1
+
+    async def test_no_default_id_in_document_style_is_a_warning(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": []
+        }
+        docs_svc.documents.return_value.get.return_value.execute.return_value = {
+            "documentStyle": {}
+        }
+        ctx = _make_ctx(docs_service=docs_svc, doc_cache=MagicMock())
+        result = await _docs_tools["create_footer"](doc_id="doc1", content="x", ctx=ctx)
+        assert result["footerId"] is None
+        assert "no default footer" in result["warning"]
+
+    async def test_invalid_kind_returns_error_without_a_call(self):
+        docs_svc = MagicMock()
+        ctx = _make_ctx(docs_service=docs_svc, doc_cache=MagicMock())
+        result = await _docs_tools["create_header_or_footer"](
+            doc_id="doc1", kind="sidebar", ctx=ctx
+        )
+        assert "error" in result
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

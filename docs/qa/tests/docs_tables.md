@@ -323,3 +323,35 @@ Run 2 (sa) on a throwaway doc.
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S3 on `ash`** — Same 2×2 table, `merge_table_cells(0,0,row_span=1,column_span=99)` returned `{"error": "<HttpError 400 ... mergeTableCells: The table range extends outside the bounds of the table.>"}`; no exception. Table deleted afterwards. (Run before DOC91/92 to reuse the 2×2.)
 
 ---
+
+## `insert_table_row_or_column` / `delete_table_row_or_column` (#1527)
+
+### TC-DOC262: Insert and delete a row and a column with the merged tools; the deprecated names still work ⚠️ destructive
+
+**Purpose:** The four row-only and column-only table tools merge into `insert_table_row_or_column` and `delete_table_row_or_column`, where `dimension` picks a row or a column. The old names stay registered for one release, marked deprecated, and send the same requests.
+
+**Steps**
+1. `create_doc(title="TC-DOC262", folder_id={FOLDER_ID}, content_format="markdown", content="| a | b |\n|---|---|\n| 1 | 2 |\n")` → `{DOC}`; `get_doc_structure(doc_id={DOC})` → the table's `startIndex` `{T}`
+2. `insert_table_row_or_column(doc_id={DOC}, dimension="row", table_start_index={T}, index=0)`, then `get_doc_structure`
+3. `insert_table_row_or_column(doc_id={DOC}, dimension="column", table_start_index={T}, index=0, after=False)`, then `get_doc_structure`
+4. `delete_table_row_or_column(doc_id={DOC}, dimension="row", table_start_index={T}, index=1)`, then `get_doc_structure`
+5. `delete_table_row_or_column(doc_id={DOC}, dimension="column", table_start_index={T}, index=0)`, then `get_doc_structure`
+6. `insert_table_row(doc_id={DOC}, table_start_index={T}, row_index=0)` and `delete_table_column(doc_id={DOC}, table_start_index={T}, column_index=1)`, then `get_doc_structure`
+7. `insert_table_row_or_column(doc_id={DOC}, dimension="cell", table_start_index={T}, index=0)`
+8. In the client's tool list, read the descriptions of `insert_table_row`, `insert_table_column`, `delete_table_row` and `delete_table_column`
+
+**Checks**
+- Step 2: `{docId, table_start_index: {T}, dimension: "row", index: 0}`; the table has 3 rows, and row 1 is the new empty one (cells `a`, `b` stay in row 0)
+- Step 3: the table has 3 columns, and column 0 is the new empty one (`a` is now in column 1)
+- Step 4: back to 2 rows: `a`/`b` and `1`/`2`, with the empty column still first
+- Step 5: back to 2 columns, `a | b` over `1 | 2`
+- Step 6: both return the pre-merge shape (`row_index` and `column_index`, no `dimension`), and the table ends 3 rows × 1 column, holding `a`, an empty cell, `1`
+- Step 7: the call is refused with an input validation error naming `dimension` (`Input should be 'row' or 'column'`): `dimension` is a `Literal`, so the MCP argument check rejects it before the tool's own check runs. The table is unchanged
+- Step 8: each description starts with `Deprecated: use` and names `insert_table_row_or_column` or `delete_table_row_or_column` with the matching `dimension`
+
+**Cleanup:** `delete_file` the doc
+
+**Result (2026-11-19) ✅ PASS — Kit, PR #1548 round 1 @ 1f5fd10b**
+`mcp-gee-sweet-kit`, reconnected after the reset. `{T}` = 2. Step 2: 3×2, row 1 empty, `a`/`b` in row 0. Step 3: 3×3, column 0 empty, `a` in column 1. Step 4: 2×3, `a`/`b` over `1`/`2` with the empty column first. Step 5: 2×2, `a | b` over `1 | 2`. Step 6: `{docId, table_start_index: 2, row_index: 0}` and `{docId, table_start_index: 2, column_index: 1}`; the table ends 3×1 holding `a`, an empty cell, `1`. Step 7: refused with `Input should be 'row' or 'column'` from the argument check (check corrected this round: it expected the tool's own `{"error"}`, which a `Literal` parameter never reaches). Step 8: all four descriptions start `Deprecated: use` and name the merged tool with the matching `dimension`. Doc trashed.
+
+---
