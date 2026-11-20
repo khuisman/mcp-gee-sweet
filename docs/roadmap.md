@@ -621,10 +621,12 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [x] The `sheets` tool group leaves out creating, listing, searching and sharing spreadsheets (those tools live under `tools/drive/`). From PR #1510; groups are new since v0.9.6, so it ships with them ([#1511](https://github.com/khuisman/mcp-gee-sweet/issues/1511)) (PR #1523)
 - [ ] Live client checks for tool groups: VS Code, Cursor, Claude Code `all`, Codex tool search, ChatGPT's tool budget. From PR #1510's review ([#1515](https://github.com/khuisman/mcp-gee-sweet/issues/1515))
 
-**Triaged in 2026-11-19** _(review follow-ups from community PRs #1545 and #1546)_
+**Triaged in 2026-11-19** _(review follow-ups from community PRs #1545, #1546 and #1541; #1513 moved in from velociraptor by the maintainer)_
 
 - [x] Size-cap hint follow-ups from community PR #1546's review: a historical QA result to restore, the hint collector to harden, `sync_folder`'s hint ignores its own arguments. `loud/narrow`, not observed; placed in ankylosaurus by the maintainer 2026-11-19; community PR #1555 claims it ([#1552](https://github.com/khuisman/mcp-gee-sweet/issues/1552)) (PR #1555)
 - [ ] Heading-anchor follow-ups from community PR #1545's review: a percent-encoded anchor never matches, Unicode version drift, a stale docstring, test and CLAUDE.md cleanup. `wrong/narrow`, not observed; third follow-up in #1357's family, placed in ankylosaurus by the maintainer 2026-11-19; community PR #1554 claims it ([#1553](https://github.com/khuisman/mcp-gee-sweet/issues/1553))
+- [x] Style the OAuth post-authorization page: name the server, say what happens next, light and dark mode. Placed 2026-11-14 by the maintainer; moved from velociraptor 2026-11-19 (maintainer). Scope restated: the `mcp-gee-sweet auth` terminal path keeps plain text ([#1513](https://github.com/khuisman/mcp-gee-sweet/issues/1513)) (PR #1541)
+- [ ] OAuth consent page follow-ups from community PR #1541's review: the page says authorized before the token exchange runs, the terminal message claims success on a declined consent, callback query parsing, one HTML template, the QA case #1513 asked for. `wrong/narrow`, not observed; placed in ankylosaurus by the maintainer 2026-11-19 to land before the release is cut ([#1564](https://github.com/khuisman/mcp-gee-sweet/issues/1564))
 
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
@@ -651,7 +653,6 @@ Queued after _ankylosaurus_ (maintainer, 2026-10-24): the first parity release. 
 - [ ] `update_doc_from_file`: opt-in incremental (`mode="patch"`) update that diffs block by block and rewrites only changed blocks, so comment anchors and revision history survive — lane A, after #878 (same write-path files) ([#957](https://github.com/khuisman/mcp-gee-sweet/issues/957))
 - [ ] **Bundle:** Calendar follow-ups from PR #912, one PR closing [#915](https://github.com/khuisman/mcp-gee-sweet/issues/915), [#918](https://github.com/khuisman/mcp-gee-sweet/issues/918) — lane B, after #892 ([#985](https://github.com/khuisman/mcp-gee-sweet/issues/985))
 - [ ] `get_doc_structure`: inline-image `link_url`, a run-type key, and images inside table cells. From PR review ([#1154](https://github.com/khuisman/mcp-gee-sweet/issues/1154))
-- [ ] Style the OAuth post-authorization page: name the server, say what happens next, light and dark mode. Placed 2026-11-14 by the maintainer ([#1513](https://github.com/khuisman/mcp-gee-sweet/issues/1513))
 
 **Moved from ankylosaurus 2026-11-14** _(maintainer trim: the HTML-input cluster gated on #1329's parser-library pick, unobserved Markdown-export polish, and #1416; #1243 keeps its decided option A)_
 
