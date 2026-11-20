@@ -161,6 +161,26 @@ needs Markdown inside it as HTML instead.
 
 ---
 
+### A GitHub `#anchor` for an underlined heading with a soft break doesn't resolve
+
+**What:** A Markdown setext (`===`/`---`) heading split across a soft break — `Heading one` on
+one line, `heading two` on the next, underline under it — written by `create_doc`,
+`write_doc_content`, `create_doc_from_file` or `update_doc_from_file` keeps the break's hyphen
+in its slug: both schemes slug the heading `heading-one-heading-two`. GitHub's own anchor for
+the same heading is `#heading-oneheading-two` (github-slugger drops the `\n` with no separator,
+measured 2026-11-20), so a `#heading-oneheading-two` link copied from GitHub strips to plain
+text instead of resolving. The GitLab spelling, `#heading-one-heading-two`, resolves.
+
+**Why:** The write collapses the soft break to a space — the same thing a browser's rendering
+does with the `\n` GitHub leaves in its HTML — and the break's position can't be recovered at
+resolve time; guessing which hyphen was the break could point a link at the wrong heading. A
+residual edge of the #1357 anchor family, recorded here under its chain stop (#1553).
+
+**Workaround:** Write the heading on one line, or spell the anchor with the hyphen the collapse
+produces.
+
+---
+
 ### `get_doc_as_markdown` exports a table or quote that ends a list's last item outside the list
 
 **What:** A table inside a list's last item (`1. a\n\n   | x |\n   |---|\n`) is written to the
