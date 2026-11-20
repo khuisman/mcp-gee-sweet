@@ -623,7 +623,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 **Triaged in 2026-11-19** _(review follow-ups from community PRs #1545 and #1546)_
 
-- [ ] Size-cap hint follow-ups from community PR #1546's review: a historical QA result to restore, the hint collector to harden, `sync_folder`'s hint ignores its own arguments. `loud/narrow`, not observed; placed in ankylosaurus by the maintainer 2026-11-19; community PR #1555 claims it ([#1552](https://github.com/khuisman/mcp-gee-sweet/issues/1552))
+- [x] Size-cap hint follow-ups from community PR #1546's review: a historical QA result to restore, the hint collector to harden, `sync_folder`'s hint ignores its own arguments. `loud/narrow`, not observed; placed in ankylosaurus by the maintainer 2026-11-19; community PR #1555 claims it ([#1552](https://github.com/khuisman/mcp-gee-sweet/issues/1552)) (PR #1555)
 - [ ] Heading-anchor follow-ups from community PR #1545's review: a percent-encoded anchor never matches, Unicode version drift, a stale docstring, test and CLAUDE.md cleanup. `wrong/narrow`, not observed; third follow-up in #1357's family, placed in ankylosaurus by the maintainer 2026-11-19; community PR #1554 claims it ([#1553](https://github.com/khuisman/mcp-gee-sweet/issues/1553))
 
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
