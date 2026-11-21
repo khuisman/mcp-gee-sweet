@@ -1,5 +1,7 @@
 """Tests for tools/drive/files.py (search_spreadsheets, create_folder, move_file, delete_file, etc.)."""
 
+import csv
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -158,7 +160,7 @@ class TestSearchFiles:
         )
         ctx = _make_ctx(drive_service=svc)
         result = await _drive_tools["search_files"](query="budget", ctx=ctx)
-        assert result[0]["starred"] is True
+        assert result["files"][0]["starred"] is True
 
     async def test_single_quote_is_escaped(self):
         svc = self._drive_service()
@@ -238,14 +240,255 @@ class TestSearchFiles:
         assert self._captured_q(svc).endswith(" and 'a\\\\b' in parents")
 
     async def test_api_error_returns_error_dict_not_raised(self):
-        """An API/auth failure must surface as [{"error": ...}], not propagate."""
+        """An API/auth failure must surface as {"error": ...}, not propagate."""
         svc = self._drive_service()
         svc.files.return_value.list.return_value.execute.side_effect = RuntimeError(
             "simulated API failure"
         )
         ctx = _make_ctx(drive_service=svc)
         result = await _drive_tools["search_files"](query="budget", ctx=ctx)
-        _assert_error_list(result, "simulated API failure")
+        assert set(result) == {"error"}
+        assert "simulated API failure" in result["error"]
+
+
+class TestSearchFilesFinder:
+    """#1528: search_files absorbs search_spreadsheets, list_spreadsheets,
+    list_folders, list_recent_files and list_shared_with_me, and returns
+    {"files", "exhaustive"} (#1202)."""
+
+    def _drive_service(self, response=None):
+        mock = MagicMock()
+        mock.files.return_value.list.return_value.execute.return_value = (
+            response if response is not None else {"files": []}
+        )
+        return mock
+
+    async def _call(self, response=None, **kwargs):
+        svc = self._drive_service(response)
+        ctx = _make_ctx(drive_service=svc)
+        result = await _drive_tools["search_files"](ctx=ctx, **kwargs)
+        list_kwargs = svc.files.return_value.list.call_args
+        return result, (list_kwargs.kwargs if list_kwargs else None)
+
+    @pytest.mark.parametrize("query", [None, "", "   "])
+    async def test_no_query_drops_the_text_clause(self, query):
+        _, list_kwargs = await self._call(
+            query=query, mime_type="application/vnd.google-apps.spreadsheet"
+        )
+        assert list_kwargs["q"] == (
+            "trashed=false and mimeType='application/vnd.google-apps.spreadsheet'"
+        )
+
+    async def test_no_arguments_lists_everything_not_trashed(self):
+        _, list_kwargs = await self._call()
+        assert list_kwargs["q"] == "trashed=false"
+        assert list_kwargs["corpora"] == "allDrives"
+        assert list_kwargs["orderBy"] == "modifiedTime desc"
+        assert list_kwargs["pageSize"] == 20
+
+    @pytest.mark.parametrize(
+        ("order_by", "expected"), [("modified", "modifiedTime desc"), ("name", "name")]
+    )
+    async def test_order_by(self, order_by, expected):
+        _, list_kwargs = await self._call(order_by=order_by)
+        assert list_kwargs["orderBy"] == expected
+
+    async def test_name_order_with_query_is_an_error_without_a_call(self):
+        """Drive answers orderBy=name on a fullText query with a 403 ("Sorting is not
+        supported for queries with fullText terms", checked live)."""
+        result, list_kwargs = await self._call(query="plan", order_by="name")
+        assert "order_by='name'" in result["error"]
+        assert list_kwargs is None
+
+    async def test_blank_query_allows_name_order(self):
+        result, list_kwargs = await self._call(query="  ", order_by="name")
+        assert "error" not in result
+        assert list_kwargs["orderBy"] == "name"
+
+    async def test_invalid_order_by_is_an_error_without_a_call(self):
+        result, list_kwargs = await self._call(order_by="size")
+        assert "order_by" in result["error"]
+        assert list_kwargs is None
+
+    async def test_shared_with_me_keeps_default_corpus(self):
+        """The user corpus holds what's shared directly with the caller, and
+        sharedWithMe=true is the scope (#1127)."""
+        _, list_kwargs = await self._call(shared_with_me=True)
+        assert list_kwargs["q"] == "trashed=false and sharedWithMe=true"
+        assert "corpora" not in list_kwargs
+        assert list_kwargs["includeItemsFromAllDrives"] is True
+        assert list_kwargs["supportsAllDrives"] is True
+
+    async def test_modified_within_days_adds_a_cutoff(self, monkeypatch):
+        from datetime import UTC, datetime
+
+        class _FixedDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2026, 11, 19, 12, 0, 0, tzinfo=UTC)
+
+        monkeypatch.setattr(drive_files_module, "datetime", _FixedDatetime)
+        _, list_kwargs = await self._call(modified_within_days=7)
+        assert list_kwargs["q"] == "trashed=false and modifiedTime > '2026-11-12T12:00:00'"
+
+    @pytest.mark.parametrize("days", [0, -3, 36501, 1_000_000, 10**9])
+    async def test_out_of_range_days_is_an_error_without_a_call(self, days):
+        """PR #1558 QA round 1: a huge value overflowed the cutoff and crashed the
+        call with no message."""
+        result, list_kwargs = await self._call(modified_within_days=days)
+        assert "modified_within_days" in result["error"]
+        assert list_kwargs is None
+
+    async def test_window_before_the_epoch_adds_no_clause(self):
+        """Drive answers a modifiedTime before 1970 with 400 Invalid Value (checked
+        live); a window reaching back that far holds every file anyway."""
+        result, list_kwargs = await self._call(modified_within_days=36500)
+        assert "error" not in result
+        assert list_kwargs["q"] == "trashed=false"
+
+    async def test_window_after_the_epoch_keeps_its_cutoff(self):
+        _, list_kwargs = await self._call(modified_within_days=365)
+        assert "modifiedTime > '" in list_kwargs["q"]
+
+    async def test_file_with_empty_parents_maps_to_none(self):
+        result, _ = await self._call(
+            response={"files": [{"id": "f", "name": "n", "mimeType": "m", "parents": []}]}
+        )
+        assert result["files"][0]["parent"] is None
+
+    async def test_unmappable_file_is_an_error_dict_not_raised(self):
+        """PR #1558 QA round 1: the mapping ran outside the try, so a file it
+        couldn't read escaped as an uncaught exception."""
+        result, _ = await self._call(response={"files": [{"name": "no id"}]})
+        assert set(result) == {"error"}
+        assert result["error"].startswith("Search failed")
+
+    async def test_filters_combine(self):
+        _, list_kwargs = await self._call(
+            query="plan",
+            mime_type="application/vnd.google-apps.folder",
+            folder_id="f1",
+            shared_with_me=True,
+        )
+        assert list_kwargs["q"] == (
+            "(name contains 'plan' or fullText contains 'plan') and trashed=false"
+            " and mimeType='application/vnd.google-apps.folder' and 'f1' in parents"
+            " and sharedWithMe=true"
+        )
+
+    async def test_max_results_clamped_at_1000(self):
+        _, list_kwargs = await self._call(max_results=5000)
+        assert list_kwargs["pageSize"] == 1000
+
+    async def test_requests_truncation_signals(self):
+        _, list_kwargs = await self._call()
+        assert "nextPageToken" in list_kwargs["fields"]
+        assert "incompleteSearch" in list_kwargs["fields"]
+
+    @pytest.mark.parametrize(
+        ("response_extra", "exhaustive"),
+        [
+            ({}, True),
+            ({"nextPageToken": "tok"}, False),
+            ({"incompleteSearch": True}, False),
+            ({"incompleteSearch": False}, True),
+        ],
+    )
+    async def test_exhaustive(self, response_extra, exhaustive):
+        result, _ = await self._call(response={"files": [], **response_extra})
+        assert result == {"files": [], "exhaustive": exhaustive}
+
+    async def test_file_fields_include_created_time(self):
+        result, _ = await self._call(
+            response={
+                "files": [
+                    {
+                        "id": "fid1",
+                        "name": "Budget",
+                        "mimeType": "application/vnd.google-apps.spreadsheet",
+                        "createdTime": "2026-01-01T00:00:00Z",
+                        "modifiedTime": "2026-06-01T00:00:00Z",
+                        "owners": [{"emailAddress": "a@example.com"}],
+                        "parents": ["par1"],
+                        "webViewLink": "https://docs.google.com/x",
+                        "starred": True,
+                    }
+                ]
+            }
+        )
+        assert result["files"] == [
+            {
+                "id": "fid1",
+                "name": "Budget",
+                "mimeType": "application/vnd.google-apps.spreadsheet",
+                "created_time": "2026-01-01T00:00:00Z",
+                "modified_time": "2026-06-01T00:00:00Z",
+                "owners": ["a@example.com"],
+                "parent": "par1",
+                "web_link": "https://docs.google.com/x",
+                "starred": True,
+            }
+        ]
+
+
+class TestFinderDeprecations:
+    """#1528: the absorbed tools stay callable for one release, each description
+    opening with what replaces it."""
+
+    @pytest.mark.parametrize(
+        ("tool_name", "replacement"),
+        [
+            ("search_spreadsheets", "`search_files` with `mime_type="),
+            ("list_spreadsheets", "`search_files`"),
+            ("list_folders", "`search_files`"),
+            ("list_recent_files", "`search_files`"),
+            ("list_shared_with_me", "`search_files`"),
+            ("unstar_file", "`star_file` with `starred=False`"),
+        ],
+    )
+    def test_deprecated(self, tool_name, replacement):
+        from mcp_gee_sweet.deprecation import tool_deprecation
+
+        func = _drive_tools[tool_name]
+        assert tool_deprecation(func) is not None
+        assert func.__doc__.startswith(f"Deprecated: use {replacement}")
+
+    @pytest.mark.parametrize(
+        ("tool_name", "needed"),
+        [
+            # PR #1558 QA round 1: following a note must give back what the old
+            # default call returned: its count, its sort, and the renamed key.
+            ("list_folders", ("`order_by='name'`", "`max_results=100`")),
+            ("list_spreadsheets", ("`max_results=100`", "add `folder_id`")),
+            ("list_shared_with_me", ("`max_results=50`", "`mimeType`")),
+            ("list_recent_files", ("`mimeType`",)),
+        ],
+    )
+    def test_note_names_what_keeps_the_old_result(self, tool_name, needed):
+        note = _drive_tools[tool_name].__doc__.split("\n\n", 1)[0]
+        for phrase in needed:
+            assert phrase in note
+
+    @pytest.mark.parametrize(
+        ("tool_name", "phrase"),
+        [
+            ("list_spreadsheets", "plus `folder_id`"),
+            ("search_spreadsheets", "special case"),
+            ("list_spreadsheets", "List all spreadsheets"),
+            ("search_files", "convenience wrapper"),
+            ("list_files", "list_spreadsheets"),
+            ("list_files", "cache entry"),
+            ("list_spreadsheets", "nextPageToken"),
+        ],
+    )
+    def test_description_drops_stale_claim(self, tool_name, phrase):
+        assert phrase not in _drive_tools[tool_name].__doc__
+
+    @pytest.mark.parametrize("tool_name", ["star_file", "search_files", "list_files"])
+    def test_survivors_not_deprecated(self, tool_name):
+        from mcp_gee_sweet.deprecation import tool_deprecation
+
+        assert tool_deprecation(_drive_tools[tool_name]) is None
 
 
 class TestFileMutations:
@@ -594,6 +837,28 @@ class TestStarFile:
             fields="id, name, starred, parents",
         )
         assert result == {"fileId": "fid1", "name": "file.txt", "starred": False}
+        folder_cache.mark_dirty.assert_called_once_with("par1")
+
+    @pytest.mark.parametrize("starred", [True, False])
+    async def test_star_file_starred_param(self, starred):
+        """#1528: star_file(starred=False) is unstar_file."""
+        mock = MagicMock()
+        mock.files.return_value.update.return_value.execute.return_value = {
+            "id": "fid1",
+            "name": "file.txt",
+            "starred": starred,
+            "parents": ["par1"],
+        }
+        folder_cache = MagicMock()
+        ctx = _make_ctx(drive_service=mock, drive_folder_cache=folder_cache)
+        result = await _drive_tools["star_file"](file_id="fid1", starred=starred, ctx=ctx)
+        mock.files.return_value.update.assert_called_once_with(
+            fileId="fid1",
+            body={"starred": starred},
+            supportsAllDrives=True,
+            fields="id, name, starred, parents",
+        )
+        assert result == {"fileId": "fid1", "name": "file.txt", "starred": starred}
         folder_cache.mark_dirty.assert_called_once_with("par1")
 
     async def test_unstar_file_no_parents_no_dirty_call(self):
@@ -1238,6 +1503,8 @@ class TestCorporaSelection:
             ("list_folders", {}),
             ("search_files", {"query": "QA"}),
             ("search_files", {"query": "QA", "mime_type": "application/pdf"}),
+            ("search_files", {}),
+            ("search_files", {"modified_within_days": 3}),
             ("search_spreadsheets", {"query": "QA"}),
             ("list_recent_files", {}),
         ],
@@ -1506,6 +1773,104 @@ class TestImportCsvToSheet:
         sheet_data_cache.mark_dirty.assert_called_once_with("sheet123")
         # No resize/rename needed — default title matches, data fits default grid.
         sheets_svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+
+    async def _import_values(self, path):
+        """Import `path` and return the values the one update wrote."""
+        sheets_svc = self._sheets_service()
+        ctx = _make_ctx(
+            drive_service=self._drive_service(),
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            folder_id=None,
+        )
+        result = await _drive_tools["import_csv_to_sheet"](
+            local_path=str(path), title="Imported", ctx=ctx
+        )
+        assert "error" not in result, result
+        update_call = sheets_svc.spreadsheets.return_value.values.return_value.update
+        return update_call.call_args.kwargs["body"]["values"]
+
+    async def test_drops_a_leading_utf8_bom(self, tmp_path):
+        """#1575: Excel's "CSV UTF-8" export starts with a BOM, which must not reach A1."""
+        path = tmp_path / "bom.csv"
+        path.write_bytes(b"\xef\xbb\xbfcase,value\nx,1\n")
+        values = await self._import_values(path)
+        assert values == [["case", "value"], ["x", "1"]]
+
+    async def test_bom_before_a_quoted_first_field_still_parses_the_quotes(self, tmp_path):
+        """With the BOM read as text, csv saw `\\ufeff"a,b"` and kept the quotes as data."""
+        path = tmp_path / "bom_quoted.csv"
+        path.write_bytes(b'\xef\xbb\xbf"a,b",c\n1,2\n')
+        values = await self._import_values(path)
+        assert values == [["a,b", "c"], ["1", "2"]]
+
+    async def test_keeps_a_bom_character_that_is_not_leading(self, tmp_path):
+        """Only the encoding signature is dropped; a U+FEFF later in the file is data."""
+        path = tmp_path / "inner_bom.csv"
+        path.write_bytes(b"h1,h2\nx,\xef\xbb\xbfy\n")
+        values = await self._import_values(path)
+        assert values == [["h1", "h2"], ["x", "\ufeffy"]]
+
+    async def test_file_without_bom_reads_unchanged(self, tmp_path):
+        path = tmp_path / "plain.csv"
+        path.write_bytes("café,v\n1,2\n".encode())
+        values = await self._import_values(path)
+        assert values == [["café", "v"], ["1", "2"]]
+
+    async def test_bom_only_file_is_empty(self, tmp_path):
+        path = tmp_path / "bom_only.csv"
+        path.write_bytes(b"\xef\xbb\xbf")
+        ctx = _make_ctx()
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert "error" in result
+        assert "empty" in result["error"].lower()
+
+    async def _import_error(self, path):
+        """Import `path`, expecting an error result before any Drive call."""
+        drive_svc = self._drive_service()
+        ctx = _make_ctx(drive_service=drive_svc, sheets_service=self._sheets_service())
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert set(result) == {"error"}, result
+        drive_svc.files.return_value.create.assert_not_called()
+        return result["error"]
+
+    async def test_non_utf8_file_returns_error_naming_utf8(self, tmp_path):
+        """PR #1580 QA round 1: a cp1252 file raised UnicodeDecodeError out of the tool."""
+        path = tmp_path / "cp1252.csv"
+        path.write_bytes(b"caf\xe9,1\n")
+        error = await self._import_error(path)
+        assert "not valid UTF-8" in error
+        assert "CSV UTF-8" in error
+
+    async def test_directory_named_csv_returns_error(self, tmp_path):
+        """PR #1580 QA round 1: a directory passed exists() and raised IsADirectoryError."""
+        path = tmp_path / "folder.csv"
+        path.mkdir()
+        error = await self._import_error(path)
+        assert error.startswith("Not a regular file")
+
+    async def test_csv_parse_error_returns_error(self, tmp_path):
+        """A field over csv's size limit raises csv.Error, which must not escape."""
+        path = tmp_path / "big_field.csv"
+        path.write_text("a," + "x" * 50 + "\n", encoding="utf-8")
+        old_limit = csv.field_size_limit(10)
+        try:
+            error = await self._import_error(path)
+        finally:
+            csv.field_size_limit(old_limit)
+        assert error.startswith("Could not parse CSV")
+
+    async def test_read_oserror_returns_error(self, tmp_path, monkeypatch):
+        path = tmp_path / "data.csv"
+        path.write_text("a,b\n", encoding="utf-8")
+
+        def _refuse(self, *args, **kwargs):
+            raise PermissionError(13, "Permission denied")
+
+        monkeypatch.setattr(Path, "open", _refuse)
+        error = await self._import_error(path)
+        assert error == f"Could not read file {path}: Permission denied"
 
     async def test_pads_ragged_rows_to_common_width(self, tmp_path):
         path = tmp_path / "ragged.csv"

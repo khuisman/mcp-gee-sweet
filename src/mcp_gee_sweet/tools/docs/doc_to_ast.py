@@ -585,9 +585,13 @@ def _paragraph_runs(para: dict, document: dict) -> list[Run | Image]:
         elif "inlineObjectElement" in pe:
             ioe = pe["inlineObjectElement"]
             # A linked image carries the link on its element's own textStyle,
-            # the same as a text run (#951, confirmed live).
-            link_url = _link_url(ioe.get("textStyle", {}), document)
-            image = _resolve_inline_image(ioe.get("inlineObjectId"), document, link_url)
+            # the same as a text run (#951, confirmed live) — and the character
+            # style of the span it sits in, the same fields the write side sets
+            # on the image itself (#1475), so an image inside `**bold**` reads
+            # back bold instead of exporting as three spans (#1509).
+            ts = ioe.get("textStyle", {})
+            link_url = _link_url(ts, document)
+            image = _resolve_inline_image(ioe.get("inlineObjectId"), document, link_url, ts)
             if image is not None:
                 items.append(image)
         # footnoteReference, pageBreak, columnBreak, autoText, richLink, person,
@@ -663,7 +667,10 @@ def _rgb_color(rgb: dict | None) -> RGBColor | None:
 
 
 def _resolve_inline_image(
-    object_id: str | None, document: dict, link_url: str | None = None
+    object_id: str | None,
+    document: dict,
+    link_url: str | None = None,
+    text_style: dict | None = None,
 ) -> Image | None:
     if not object_id:
         return None
@@ -675,29 +682,73 @@ def _resolve_inline_image(
     if not uri:
         return None
     size = embedded.get("size", {})
+    # The image's own character style (#1509): the same fields the write side
+    # styles on the image and its fallback text (emitter._character_text_style),
+    # read the way _text_run_to_run reads a run's. fontSize and
+    # foregroundColor stay out — the write side never sets them on an image, so
+    # they stay the paragraph's (#1099).
+    ts = text_style or {}
+    baseline = ts.get("baselineOffset")
     return Image(
         src=uri,
         alt=embedded.get("title") or embedded.get("description") or None,
         width=size.get("width", {}).get("magnitude"),
         height=size.get("height", {}).get("magnitude"),
         link_url=link_url,
+        bold=ts.get("bold"),
+        italic=ts.get("italic"),
+        underline=ts.get("underline"),
+        strikethrough=ts.get("strikethrough"),
+        background_color=_rgb_color(ts.get("backgroundColor", {}).get("color", {}).get("rgbColor")),
+        baseline_offset=baseline if baseline not in (None, "NONE") else None,
+        small_caps=ts.get("smallCaps"),
+        font_family=ts.get("weightedFontFamily", {}).get("fontFamily"),
     )
 
 
-def _cell_alignment(content: list[dict]) -> str | None:
+# The paragraph alignments a cell can read back as (#1337). Any other value
+# (ALIGNMENT_UNSPECIFIED) reads as unset. START counts only in a table where it
+# isn't Docs' default (`_start_is_default`, #1503).
+_READ_CELL_ALIGNMENTS = frozenset({"START", "CENTER", "END", "JUSTIFIED"})
+
+
+def _start_is_default(table: dict) -> bool:
+    """Whether START in this table's cells is Docs' default rather than an
+    alignment someone set (#1503). `insertTable`, and Drive's `.md` import,
+    store START on every paragraph of every cell they create, so a GFM `:--`
+    column and an unaligned one are the same there, and reading START as a
+    vote exported every unaligned column as `:--`. A table where some cell
+    paragraph carries no `alignment` field (a Drive `.docx` import, which
+    leaves an unaligned cell's field out) shows its unaligned cells that way,
+    so a START in it is a real left alignment. Only the cells' own paragraphs
+    count; a nested table decides for itself when it is read."""
+    for row in table.get("tableRows", []):
+        for cell in row.get("tableCells", []):
+            for elem in cell.get("content", []):
+                if "paragraph" in elem and "alignment" not in elem["paragraph"].get(
+                    "paragraphStyle", {}
+                ):
+                    return False
+    return True
+
+
+def _cell_alignment(content: list[dict], start_is_default: bool) -> str | None:
     """A table cell's horizontal alignment (#1337) — the read-side mirror of
     the write side, which styles every paragraph of an aligned cell at once:
     START, CENTER, END or JUSTIFIED when every paragraph in the cell carries
-    one and the same explicit alignment, else None. A cell whose paragraphs
-    disagree, or that leaves the alignment unset, exports as None so its
-    column renders an unaligned `---` delimiter instead of a false one."""
+    one and the same such alignment, else None. A cell whose paragraphs
+    disagree, that leaves the alignment unset, or whose START is the table's
+    default (`start_is_default`, #1503) exports as None so its column renders
+    an unaligned `---` delimiter instead of a false one."""
     alignments = {
         elem["paragraph"].get("paragraphStyle", {}).get("alignment")
         for elem in content
         if "paragraph" in elem
     }
-    if len(alignments) == 1 and None not in alignments:
-        return next(iter(alignments))
+    if len(alignments) == 1:
+        (alignment,) = alignments
+        if alignment in _READ_CELL_ALIGNMENTS and not (alignment == "START" and start_is_default):
+            return alignment
     return None
 
 
@@ -780,6 +831,7 @@ def _table_elem_to_ast(table: dict, document: dict) -> Table:
     silently dropped a rowspan'd row's own trailing real cells.
     """
     doc_rows = table.get("tableRows", [])
+    start_is_default = _start_is_default(table)
     covered: set[tuple[int, int]] = set()
     rows: list[Row] = []
     for r, doc_row in enumerate(doc_rows):
@@ -801,7 +853,7 @@ def _table_elem_to_ast(table: dict, document: dict) -> Table:
                     children=_cell_content_to_children(doc_cell.get("content", []), document),
                     colspan=colspan,
                     rowspan=rowspan,
-                    alignment=_cell_alignment(doc_cell.get("content", [])),
+                    alignment=_cell_alignment(doc_cell.get("content", []), start_is_default),
                 )
             )
             for dr in range(rowspan):

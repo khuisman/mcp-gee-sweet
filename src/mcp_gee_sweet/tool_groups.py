@@ -16,7 +16,9 @@ DEFAULT = "default"
 LOCAL_FILES = "local-files"
 # Derived from the tool's module: mcp_gee_sweet.tools.<service>[.<module>].
 SERVICE_GROUPS = ("sheets", "drive", "docs", "calendar", "gmail", "cache")
-# Groups a decorator may name in `groups=`.
+# Groups only a decorator puts a tool in. `groups=` also takes a service group, for
+# a tool that belongs to a second service as well as its own module's (#1511: the
+# spreadsheet tools under tools/drive/ are in `sheets` too).
 DECLARED_GROUPS = ("comments",)
 GROUP_NAMES = frozenset({ALL, DEFAULT, LOCAL_FILES, *SERVICE_GROUPS, *DECLARED_GROUPS})
 
@@ -36,7 +38,11 @@ class Renamed:
 # registers every alias too. Groups never carry an alias.
 # Policy: docs/design.md, "Renaming or Removing a Tool". Remove an entry one feature
 # release after it's added.
-RENAMED_TOOLS: dict[str, Renamed] = {}
+RENAMED_TOOLS: dict[str, Renamed] = {
+    # #663: the comment tools work on any Drive file, not only a Doc.
+    "list_doc_comments": Renamed("list_file_comments", removed_in="the next feature release"),
+    "add_doc_comment": Renamed("add_file_comment", removed_in="the next feature release"),
+}
 
 
 def service_group(module: str) -> str | None:
@@ -51,11 +57,16 @@ def tool_groups(
     module: str, *, default: bool = False, local_only: bool = False, groups=()
 ) -> frozenset[str]:
     """Every group a tool belongs to, `all` aside. Raises ValueError for a declared
-    group that isn't in DECLARED_GROUPS, so a typo fails at import, not silently."""
-    unknown = sorted(set(groups) - set(DECLARED_GROUPS))
+    group that's neither in DECLARED_GROUPS nor a service group, so a typo fails at
+    import, not silently."""
+    unknown = sorted(set(groups) - set(DECLARED_GROUPS) - set(SERVICE_GROUPS))
     if unknown:
         raise ValueError(
-            f"unknown tool group(s) {', '.join(unknown)}; add to tool_groups.DECLARED_GROUPS"
+            f"unknown tool group(s) {', '.join(unknown)} in groups=: it takes a service "
+            f"group ({', '.join(SERVICE_GROUPS)}) or a declared one "
+            f"({', '.join(DECLARED_GROUPS)}). Use default=True for `{DEFAULT}` and "
+            f"local_only=True for `{LOCAL_FILES}`; a new group goes in "
+            "tool_groups.DECLARED_GROUPS."
         )
     result = set(groups)
     if default:

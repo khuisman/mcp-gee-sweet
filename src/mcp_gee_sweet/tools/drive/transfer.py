@@ -4384,12 +4384,30 @@ def register(tool):
             # recursive=True removes the previous implicit bound (one folder's direct
             # children) on every list here, especially 'actions' during a dry run — the
             # decision doc's own reproduction case (22 subfolders / ~225 files) is a
-            # realistic scale to hit the cap.
+            # realistic scale to hit the cap. The hint names only the actions this
+            # call can still take: a call that already syncs a single direction, or
+            # already runs non-recursively, has nothing to gain from that remedy (#1552).
+            if recursive and direction == "bidirectional":
+                hint = (
+                    "Recursive syncs can produce very large result lists. Sync a "
+                    "narrower subfolder, a single direction, or set recursive=False. "
+                )
+            elif recursive:
+                hint = (
+                    "Recursive syncs can produce very large result lists. Sync a "
+                    "narrower subfolder or set recursive=False. "
+                )
+            elif direction == "bidirectional":
+                hint = (
+                    "A folder's direct children can still produce a very large result "
+                    "list. Sync a narrower subfolder or a single direction. "
+                )
+            else:
+                hint = "A folder's direct children can still produce a very large result list. Sync a narrower subfolder. "
             enforce_response_size_cap(
                 result,
                 tool_name="sync_folder",
-                hint="Recursive syncs can produce very large result lists. Narrow "
-                "folder_id, direction, or recursive scope. ",
+                hint=hint,
                 local_path_param="result_local_path",
             )
             return result

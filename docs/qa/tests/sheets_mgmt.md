@@ -108,7 +108,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 > "Copy the Sales sheet from {SPREADSHEET_ID} into a different spreadsheet — use {SPREADSHEET_ID} as both source and destination for this test, but note the tool supports different IDs"
 
 **Checks**
-- Tool accepts `src_spreadsheet` and `dst_spreadsheet` as separate params
+- Tool accepts `spreadsheet_id` and `destination_spreadsheet_id` as separate params (named `src_spreadsheet`/`dst_spreadsheet` before #1526)
 - Copy operation completes without error
 - 🔍 **Note:** requires a second spreadsheet ID to fully verify cross-spreadsheet copy
 
@@ -129,7 +129,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Checks**
 - Sheet is named 'My Custom Name', not Google's default 'Copy of Sales'
-- Rename was triggered automatically after the copy
+- The response's `title` is 'My Custom Name' (before #1526 the response held a `rename` key instead)
 
 **Result (2026-09-04) ✅ PASS**
 copy_sheet(dst_sheet="My Custom Name") → sheet named "My Custom Name" not "Copy of Sales"; response included "rename" key confirming auto-rename triggered
@@ -148,7 +148,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Checks**
 - Sheet is named 'Copy of Sales'
-- No unnecessary rename API call (names already match)
+- No unnecessary rename API call (names already match). Since #1526 the response is `{sheetId, title, index, spreadsheetId}` either way, so this is covered by `TestCopySheet::test_rename_skipped_when_title_already_matches` (`tests/sheets/test_structure.py`), not by the response
 
 **Result (2026-09-04) ✅ PASS**
 copy_sheet(dst_sheet="Copy of Sales") matching Google's own default name → response has no "rename" key, confirming no extra rename API call
@@ -167,7 +167,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Checks**
 - Returns `{"error": ...}` before calling the copy API
-- Error references the missing sheet name
+- Error references the missing sheet name (`Sheet 'DoesNotExist' not found` since #1526; `Source sheet ...` before)
 
 **Result (2026-09-04) ✅ PASS**
 copy_sheet(src_sheet="DoesNotExist") → {"error":"Source sheet 'DoesNotExist' not found"}, before API call
@@ -205,7 +205,7 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 
 **Checks**
 - `list_sheets` includes 'PostCopyCache'
-- Confirms `cache.mark_dirty(dst_spreadsheet)` fires after copy
+- Confirms the cache of the spreadsheet the copy lands in is marked dirty after the copy
 
 **Result (2026-09-04) ✅ PASS**
 copy_sheet(dst_sheet="PostCopyCache") then immediate list_sheets includes it — mark_dirty confirmed
@@ -2898,3 +2898,232 @@ Run 2 (kai-oauth): every check matched; visual cases checked under the Playwrigh
 Run 2 (kai-oauth): every check matched; visual cases checked under the Playwright mutex.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S1 on `kai-oauth`** — BLANK, NOT_BLANK, TEXT_STARTS_WITH, TEXT_ENDS_WITH → each `Invalid condition_type '<type>'. Must be one of: …`, and the list has none of the four; no 404. Control DATE_IS_VALID → HttpError 404 on the fake ID (it reached the lookup). The served `add_data_validation` description (loaded schema) lists none of the four.
+
+---
+
+## `add_rows_or_columns` / `delete_rows_or_columns` / `hide_rows_or_columns` / `resize_rows_or_columns` (#1525)
+
+These four tools replace the ten row-only and column-only tools above. Those ten stay registered for one release, deprecated. Each new tool sends the same request its old counterpart did (`TestRowsOrColumnsTools::test_sends_the_same_request_as_the_tool_it_replaces`), so these cases check the new parameters end to end rather than repeating every old case.
+
+**Fixture for TC-S135–TC-S139:** a scratch tab, so the shared Sales sheet isn't touched. Before TC-S135, call `create_sheet(spreadsheet_id={SPREADSHEET_ID}, title="RowsCols1525")`, then `update_cells(spreadsheet_id={SPREADSHEET_ID}, sheet="RowsCols1525", range="A1:C4", data=[["a1","b1","c1"],["a2","b2","c2"],["a3","b3","c3"],["a4","b4","c4"]])`. Each case reads the layout back with `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="RowsCols1525", range="A1:F8")`, or with `include_grid_data=True` where it needs `rowMetadata`/`columnMetadata`. **Cleanup after TC-S139:** `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="RowsCols1525")`.
+
+### TC-S135: add_rows_or_columns inserts rows and columns at `start` ⚠️ destructive
+
+**Prompt**
+> "Call these in order and report each raw result, then read the sheet back:
+> 1. `add_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", count=2, start=1)`
+> 2. `add_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"columns\", count=1, start=1)`
+> 3. `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", range=\"A1:F8\")`"
+
+**Checks**
+- Calls 1 and 2 each return a `batchUpdate` result (`replies`), no `error`
+- Call 3: row 1 is `a1`, empty, `b1`, `c1` (column B inserted); rows 2 and 3 are empty (two rows inserted at index 1); row 4 is `a2`, empty, `b2`, `c2`
+
+**Cleanup:** none here. TC-S136's first two calls remove the inserted rows and column and check the restored layout, so run TC-S136 next; don't delete them separately, or TC-S136 deletes fixture rows instead.
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — Calls 1 and 2 each returned `replies: [{}]`, no `error`. Read-back: `[a1,"",b1,c1]`, `[]`, `[]`, `[a2,"",b2,c2]`, `[a3,"",b3,c3]`, `[a4,"",b4,c4]`.
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on `mcp-gee-sweet-sky` @ 6e5b0616** — Same read-back as round 1: `[a1,"",b1,c1]`, `[]`, `[]`, `[a2,"",b2,c2]`, `[a3,"",b3,c3]`, `[a4,"",b4,c4]`; both calls returned `replies`, no `error`.
+
+### TC-S136: delete_rows_or_columns removes an inclusive range ⚠️ destructive
+
+**Prompt**
+> "Call `delete_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", start=1, end=2)`, then `delete_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"columns\", start=1)` (undoing TC-S135's inserts), read back `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", range=\"A1:F8\")`, then call `delete_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", start=1, end=2)` and read back again."
+
+**Checks**
+- After the two undo calls: A1:C4 is back to `a1`…`c4` exactly, with no empty row or column between them
+- After the delete: two rows are left, `a1 b1 c1` and `a4 b4 c4` (indices 1 and 2 deleted, `end` inclusive)
+
+**Cleanup:** `update_cells(..., range="A1:C4", data=<the fixture's four rows>)` to restore rows 2 and 3.
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — Run from this round's corrected prompt (the original re-ran TC-S135's own Cleanup step, which would have deleted fixture rows). After the two undo deletes: A1:C4 = `a1`…`c4` exactly. After `delete_rows_or_columns(rows, start=1, end=2)`: `[a1,b1,c1]`, `[a4,b4,c4]`.
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on `mcp-gee-sweet-sky` @ 6e5b0616** — After the two undo deletes: A1:C4 = `a1`…`c4` exactly. After the inclusive delete: `[a1,b1,c1]`, `[a4,b4,c4]`.
+
+### TC-S137: hide_rows_or_columns hides by default and unhides with `hidden=False` ⚠️ destructive
+
+**Prompt**
+**Playwright: required**
+> "Call `hide_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", start=1, end=2)` and `hide_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"columns\", start=1)`, then read `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", range=\"A1:D4\", include_grid_data=True)` and screenshot the tab. Then call the same two with `hidden=False` and read back again."
+
+**Checks**
+- After hiding: `rowMetadata[1]` and `rowMetadata[2]` have `hiddenByUser: true`, `rowMetadata[3]` doesn't; `columnMetadata[1]` has `hiddenByUser: true`, `columnMetadata[2]` doesn't
+- The screenshot shows row headers 1 → 4 and column headers A → C, with show chevrons at both boundaries
+- After `hidden=False`: no row or column in A1:D4 has `hiddenByUser: true`
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — After hiding: rows `hiddenByUser` `[false,true,true,false]`, columns `[false,true,false,false]`. Screenshot (default `playwright` server under the mutex, account check passed): row headers 1 → 4, column headers A → C, show chevrons at both boundaries. After `hidden=False`: no row or column in A1:D4 hidden.
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on `mcp-gee-sweet-sky` @ 6e5b0616** — Hidden: rows `[false,true,true,false]`, columns `[false,true,false,false]`; screenshot (URL-verified on the tab's gid, under the mutex) shows rows 1 → 4 and columns A → C with show chevrons. After `hidden=False`: nothing hidden in A1:D4.
+
+### TC-S138: resize_rows_or_columns sets a pixel size and auto-fits ⚠️ destructive
+
+**Prompt**
+> "Call `resize_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"columns\", start=0, end=1, pixel_size=180)` and `resize_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", start=0, pixel_size=50)`, read `get_sheet_data(..., range=\"A1:C3\", include_grid_data=True)`, then call `resize_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"columns\", start=0, end=1, auto_resize=True)` and read back again."
+
+**Checks**
+- After the pixel sizes: `columnMetadata[0]` and `[1]` have `pixelSize: 180`, `columnMetadata[2]` doesn't; `rowMetadata[0]` has `pixelSize: 50`, `rowMetadata[1]` doesn't
+- After `auto_resize=True`: columns A and B are no longer 180 (auto-fit to the short `a1`/`b1` text)
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — After pixel sizes: columns `pixelSize` `[180,180,100]`, rows `[50,21,21]`. After `auto_resize=True`: columns `[21,21,100]`.
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on `mcp-gee-sweet-sky` @ 6e5b0616** — After pixel sizes: columns `[180,180,100]`, rows `[50,21,21]`. After `auto_resize=True`: columns `[21,21,100]`.
+
+### TC-S139: the four tools reject bad arguments without changing the sheet
+
+**Prompt**
+> "Call each and report the raw result:
+> 1. `add_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", count=0)`
+> 2. `delete_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"columns\", start=-1)`
+> 3. `hide_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", start=5, end=2)`
+> 4. `resize_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"rows\", start=0)`
+> 5. `hide_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"NoSuchSheet\", dimension=\"rows\", start=0)`
+> 6. `add_rows_or_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"RowsCols1525\", dimension=\"ROWS\", count=1)`"
+
+**Checks**
+- 1 → `{"error": "count must be positive, got 0"}`
+- 2 → `{"error": "start must be non-negative, got -1"}`
+- 3 → `{"error": "end (2) must be >= start (5)"}`
+- 4 → `{"error": "Specify pixel_size or set auto_resize=True"}`
+- 5 → `{"error": "Sheet 'NoSuchSheet' not found"}`
+- 6 → rejected by the tool's input schema (`dimension` must be `rows` or `columns`); the sheet is unchanged
+- `get_sheet_data(..., range="A1:F8")` afterwards shows the same layout as before the calls
+
+**Unit coverage:** `TestRowsOrColumnsTools::test_invalid_arguments_return_error_without_api_call`, `test_unknown_dimension_returns_error_before_any_api_call` and `test_missing_sheet_returns_error_without_api_call` (`tests/sheets/test_structure.py`) assert each error and that no `batchUpdate` is sent. The argument checks run after the sheet lookup (a `spreadsheets().get` on a cold cache), so a bad sheet name is reported first (#323, TC-S111); only an unknown `dimension` is rejected before any API call.
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — 1–5 returned exactly the listed errors. 6 was rejected by input validation: `Input should be 'rows' or 'columns' [type=literal_error, input_value='ROWS']`. Read-back afterwards unchanged (`a1`…`c4`).
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on `mcp-gee-sweet-sky` @ 6e5b0616** — 1–5 returned exactly the listed errors; 6 rejected by input validation (`literal_error`, `input_value='ROWS'`); read-back unchanged.
+
+### TC-S140: the ten replaced tools are deprecated, and still work
+
+**Prompt**
+> "Read the tool descriptions this server serves for `add_rows`, `add_columns`, `delete_rows`, `delete_columns`, `hide_rows`, `unhide_rows`, `hide_columns`, `unhide_columns`, `resize_rows` and `resize_columns`, and for the four `*_rows_or_columns` tools. Then call `create_sheet(spreadsheet_id={SPREADSHEET_ID}, title=\"Deprecated1525\")`, `add_rows(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Deprecated1525\", count=1, start_row=0)` and `unhide_columns(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Deprecated1525\", start_column=0)`, and report each raw result."
+
+**Checks**
+- Each of the ten old descriptions begins `Deprecated: use \`<new tool>\` with \`dimension='rows'\`` (or `'columns'`; `unhide_*` add `hidden=False`) `instead. Removed in the next feature release.`
+- None of the four new descriptions begins with `Deprecated`
+- `add_rows` and `unhide_columns` each return a `batchUpdate` result, no `error`
+- `server://auth-status`'s `tool_selection.deprecated_tools` lists all ten old names
+
+**Cleanup:** `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Deprecated1525")`.
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 1, Sky on `mcp-gee-sweet-sky` @ 7620841b** — All ten served descriptions begin with the stated `Deprecated: use ...` line (`unhide_*` with `hidden=False`); none of the four new ones does. `add_rows` and `unhide_columns` each returned `replies: [{}]`, no `error`. `server://auth-status` `tool_selection.deprecated_tools` lists all ten. Both scratch tabs deleted.
+
+**Result (2026-11-16) ✅ PASS — PR #1540 round 2, Sky on `mcp-gee-sweet-sky` @ 6e5b0616** — Beyond the case's two calls, all ten deprecated tools were called on `Deprecated1525` (the fix changed the dimension each passes): each returned `replies`, no `error`; `hide_rows`/`hide_columns` hid row 2/column B and `unhide_rows`/`unhide_columns` cleared them; `resize_rows` set row 3 to 40 and `resize_columns` column C to 150. `server://auth-status` `deprecated_tools` lists all ten. Scratch tabs deleted.
+
+---
+
+## `copy_sheet` absorbs `duplicate_sheet` (#1526)
+
+`copy_sheet(spreadsheet_id, sheet, destination_spreadsheet_id=None, new_name=None, insert_index=None)` copies a tab in place (a `duplicateSheet`, the request `duplicate_sheet` sends) when there's no destination, and into another spreadsheet (`copyTo`, then one `updateSheetProperties` for `new_name` and `insert_index`) when there is. Both return `{sheetId, title, index, spreadsheetId}`. `duplicate_sheet` stays registered for one release, deprecated, and `copy_sheet`'s old parameter names (`src_spreadsheet`, `src_sheet`, `dst_spreadsheet`, `dst_sheet`) still work for one release. `TestCopySheetInPlace` (`tests/sheets/test_structure.py`) runs every in-place test against both tools, so these cases don't repeat the `duplicate_sheet` cases above.
+
+### TC-S141: copy_sheet with no destination duplicates in place, right after the source ⚠️ destructive
+
+**Prompt**
+> "Call these in order and report each raw result:
+> 1. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\")`
+> 2. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", new_name=\"Sales Dup 1526\", insert_index=0)`
+> 3. `list_sheets(spreadsheet_id={SPREADSHEET_ID})`
+> 4. `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales Dup 1526\")`"
+
+**Checks**
+- 1 returns exactly the keys `sheetId`, `title`, `index`, `spreadsheetId`: `title` is `Copy of Sales`, `index` is Sales' index + 1, `spreadsheetId` is {SPREADSHEET_ID}
+- 2 returns `title` `Sales Dup 1526`, `index` 0, the same `spreadsheetId`
+- 3 lists `Sales Dup 1526` first and `Copy of Sales` immediately after `Sales`, with no `deprecation_warnings` in either result
+- 4 returns the same rows as Sales (header + 5 rows, 4 columns)
+
+**Cleanup:** `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Copy of Sales")` and `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales Dup 1526")`.
+
+**Result (2026-11-18) ✅ PASS — PR #1544 round 1, Sky on `mcp-gee-sweet-sky` @ a6bdcfaa** — 1 returned `{sheetId, title: "Copy of Sales", index: 1, spreadsheetId}` (Sales was at 0). 2 returned `title` `Sales Dup 1526`, `index` 0. `list_sheets` was `["Sales Dup 1526", "Sales", "Copy of Sales", "Notes & Misc", "Empty"]`, no `deprecation_warnings` in either result. 4 returned the six Sales rows. Extra probe: an in-place copy with `insert_index=99` landed at the end and reported the real `index` (5), from the API reply. Tabs deleted.
+
+### TC-S142: copy_sheet into another spreadsheet renames and places the copy ⚠️ destructive
+
+**Setup:** `create_spreadsheet(title="QA copy_sheet dest 1526")`; call its ID `{DEST}`. It starts with one tab, `Sheet1`.
+
+**Prompt**
+> "Call these in order and report each raw result:
+> 1. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={DEST})`
+> 2. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={DEST}, new_name=\"Sales Q\", insert_index=0)`
+> 3. `list_sheets(spreadsheet_id={DEST})`
+> 4. `get_sheet_data(spreadsheet_id={DEST}, sheet=\"Sales Q\")`
+> 5. `list_sheets(spreadsheet_id={SPREADSHEET_ID})`"
+
+**Checks**
+- 1 returns `{sheetId, title: "Copy of Sales", index: 1, spreadsheetId: {DEST}}`: no `new_name` keeps Google's name, and `copyTo` appends
+- 2 returns `title` `Sales Q`, `index` 0, `spreadsheetId` {DEST}
+- 3 is `["Sales Q", "Sheet1", "Copy of Sales"]`
+- 4 returns the same rows as Sales
+- 5 is unchanged from before the calls
+
+**Cleanup:** `delete_file(file_id={DEST})`.
+
+**Result (2026-11-18) ❌ FAIL — PR #1544 round 1, Sky on `mcp-gee-sweet-sky` @ a6bdcfaa** — Checks 1–5 all met: 1 → `{title: "Copy of Sales", index: 1, spreadsheetId: {DEST}}`, 2 → `Sales Q` at 0, `list_sheets({DEST})` `["Sales Q", "Sheet1", "Copy of Sales"]`, the six Sales rows, source unchanged. Two extra probes on the cross-spreadsheet path failed: `insert_index=9` (past the last tab) raised `HttpError 400 "The new sheet index is too high"` after `copyTo` landed, leaving an unrenamed `Copy of Sales 1` in {DEST}; `new_name="Sales Q"` (already in {DEST}) raised `A sheet with the name "Sales Q" already exists` and left `Copy of Sales 2`. Also: `destination_spreadsheet_id` equal to `spreadsheet_id` put the copy at the end (index 6), not right after Sales as the docstring says for a copy within one spreadsheet. Sent back on PR #1544. {DEST} trashed.
+
+### TC-S143: copy_sheet rejects a bad insert_index or sheet without copying anything
+
+**Setup:** as TC-S142 (or reuse its `{DEST}` before its cleanup).
+
+**Prompt**
+> "Call each and report the raw result, then `list_sheets` on both spreadsheets:
+> 1. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", insert_index=-1)`
+> 2. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={DEST}, insert_index=-1)`
+> 3. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"DoesNotExist\", destination_spreadsheet_id={DEST})`
+> 4. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", src_sheet=\"Sales\")`"
+
+**Checks**
+- 1 and 2 → `{"error": "insert_index must be non-negative, got -1"}`
+- 3 → `{"error": "Sheet 'DoesNotExist' not found"}`
+- 4 → a tool error: `Pass only \`sheet\`: \`src_sheet\` is its deprecated old name.`
+- Neither spreadsheet gained a tab
+
+**Cleanup:** `delete_file(file_id={DEST})` if created here.
+
+**Result (2026-11-18) ✅ PASS — PR #1544 round 1, Sky on `mcp-gee-sweet-sky` @ a6bdcfaa** — 1 and 2 → `{"error": "insert_index must be non-negative, got -1"}`; 3 → `{"error": "Sheet 'DoesNotExist' not found"}`; 4 → tool error ``Pass only `sheet`: `src_sheet` is its deprecated old name.`` Neither spreadsheet gained a tab. Ran against TC-S142's {DEST}.
+
+### TC-S144: duplicate_sheet and copy_sheet's old parameter names are deprecated, and still work ⚠️ destructive
+
+**Prompt**
+> "Read the tool descriptions this server serves for `duplicate_sheet` and `copy_sheet`, and `copy_sheet`'s input schema. Then call these and report each raw result:
+> 1. `duplicate_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", new_name=\"Dup Old 1526\")`
+> 2. `copy_sheet(src_spreadsheet={SPREADSHEET_ID}, src_sheet=\"Sales\", dst_spreadsheet={SPREADSHEET_ID}, dst_sheet=\"Copy Old 1526\")`
+> 3. Read `server://auth-status`."
+
+**Checks**
+- `duplicate_sheet`'s description begins ``Deprecated: use `copy_sheet` with no `destination_spreadsheet_id` instead. Removed in the next feature release.``; `copy_sheet`'s doesn't begin with `Deprecated`
+- `copy_sheet`'s schema has `src_spreadsheet`, `src_sheet`, `dst_spreadsheet` and `dst_sheet`, each optional and described ``Deprecated: use `<new name>`. Removed in the next feature release.``
+- 1 returns `{sheetId, title: "Dup Old 1526", index, spreadsheetId}`, the copy right after Sales
+- 2 returns `title` `Copy Old 1526` and a `deprecation_warnings` list with one entry for each of the four old names, e.g. ``"`src_sheet` is deprecated: use `sheet`. `src_sheet` is removed in the next feature release."``
+- 3: `tool_selection.deprecated_tools` includes `duplicate_sheet` and `get_sheet_formulas`
+
+**Cleanup:** `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Dup Old 1526")` and `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Copy Old 1526")`.
+
+**Result (2026-11-18) ✅ PASS — PR #1544 round 1, Sky on `mcp-gee-sweet-sky` @ a6bdcfaa** — Served descriptions and schema as stated: `duplicate_sheet` begins with the Deprecated line, `copy_sheet` doesn't, and its schema has the four old names optional with `Deprecated: use ...` descriptions. 1 → `{title: "Dup Old 1526", index: 2}` (right after Sales, which was at 1). 2 → `title` `Copy Old 1526`, `index` 8 (copyTo appends, as before #1526), and four `deprecation_warnings`. `deprecated_tools` includes `duplicate_sheet` and `get_sheet_formulas`. Tabs deleted.
+
+### TC-S145: copy_sheet into another spreadsheet leaves no stray tab when the rename or move can't apply ⚠️ destructive
+
+PR #1544 QA round 1 found that a refused rename or move left an unrenamed `Copy of Sales` behind, since `copyTo` lands first.
+
+**Setup:** `create_spreadsheet(title="QA copy_sheet orphan 1526")`; call its ID `{DEST}`. Then `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", destination_spreadsheet_id={DEST}, new_name="Sales Q")`, so `{DEST}` holds `Sheet1` and `Sales Q`.
+
+**Prompt**
+> "Call these in order and report each raw result:
+> 1. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={DEST}, new_name=\"sales q\")`
+> 2. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={DEST}, insert_index=9)`
+> 3. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={DEST}, new_name=\"Far\", insert_index=9)`
+> 4. `list_sheets(spreadsheet_id={DEST})`
+> 5. `copy_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", destination_spreadsheet_id={SPREADSHEET_ID})`
+> 6. `list_sheets(spreadsheet_id={SPREADSHEET_ID})`"
+
+**Checks**
+- 1 → `{"error": "The destination spreadsheet already has a sheet named 'sales q' (names are compared ignoring case)"}`, and nothing is copied
+- 2 → `{sheetId, title: "Copy of Sales", index: 2, spreadsheetId: {DEST}}`: an index past the end leaves the copy last instead of failing
+- 3 → `title` `Far`, `index` 3
+- 4 is `["Sheet1", "Sales Q", "Copy of Sales", "Far"]`: no stray `Copy of Sales 1`
+- 5 → `spreadsheetId` {SPREADSHEET_ID}, `index` Sales' index + 1: the source's own ID as the destination copies in place, right after Sales
+- 6 shows that copy immediately after `Sales`
+
+**Unit coverage:** a rename or move that fails anyway (a tab added between the check and the copy) can't be staged live; `TestCopySheet::test_failed_update_deletes_the_copy_and_raises` (`tests/sheets/test_structure.py`) checks the copy is deleted and the error raised.
+
+**Cleanup:** `delete_file(file_id={DEST})`, and `delete_sheet(spreadsheet_id={SPREADSHEET_ID}, sheet=<step 5's title>)`.
+
+**Result (2026-11-19) ✅ PASS — PR #1544 round 2, Sky on `mcp-gee-sweet-sky` @ 5d470631** — Setup copy returned `Sales Q` at index 1. 1 → `{"error": "The destination spreadsheet already has a sheet named 'sales q' (names are compared ignoring case)"}`. 2 → `{title: "Copy of Sales", index: 2}`. 3 → `title` `Far`, `index` 3. 4 → `["Sheet1", "Sales Q", "Copy of Sales", "Far"]`, no stray tab. 5 → `{title: "Copy of Sales", index: 1, spreadsheetId: {SPREADSHEET_ID}}`; 6 → `["Sales", "Copy of Sales", "Notes & Misc", "Empty"]`. Extra probe: `new_name="Mid", insert_index=1` into {DEST} still moves the copy (index 1, `["Sheet1", "Mid", ...]`). Round 1's TC-S142 probes (index 9, taken name) are this case's steps 1–3. {DEST} trashed, the in-place copy deleted.

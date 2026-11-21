@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from mcp_gee_sweet.cache import SheetInfo
+from mcp_gee_sweet.deprecation import tool_deprecation
 from mcp_gee_sweet.tools.sheets import structure as sheets_structure_module
 
 
@@ -343,7 +344,8 @@ class TestAddChart:
 
 
 class TestCopySheet:
-    """Bug: rename was silently skipped when API response omitted the 'title' key."""
+    """copy_sheet into another spreadsheet: copyTo, then one updateSheetProperties
+    when new_name or insert_index asks for something copyTo didn't give (#1526)."""
 
     def _mock_sheets(self, copy_result):
         mock = MagicMock()
@@ -357,64 +359,402 @@ class TestCopySheet:
         cache.get_sheets.return_value = [SheetInfo(title=title, sheet_id=sheet_id)]
         return cache
 
-    def _rename_titles(self, mock_sheets):
-        body = mock_sheets.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
-        return [
-            r["updateSheetProperties"]["properties"]["title"]
-            for r in body["requests"]
-            if "updateSheetProperties" in r
-        ]
+    def _update(self, mock_sheets):
+        call = mock_sheets.spreadsheets.return_value.batchUpdate.call_args
+        (request,) = call.kwargs["body"]["requests"]
+        return call.kwargs["spreadsheetId"], request["updateSheetProperties"]
+
+    async def _copy(self, mock_sheets, cache=None, **kwargs):
+        ctx = _make_ctx(sheets_service=mock_sheets, cache=cache or self._cache_with_sheet())
+        args = {"spreadsheet_id": "src", "sheet": "Sheet1", "destination_spreadsheet_id": "dst"}
+        return await _structure_tools["copy_sheet"](ctx=ctx, **{**args, **kwargs})
+
+    async def test_copies_into_destination_with_copy_to(self):
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1", "index": 3})
+        await self._copy(mock_sheets, cache=self._cache_with_sheet(sheet_id=7))
+        copy_to = mock_sheets.spreadsheets.return_value.sheets.return_value.copyTo
+        assert copy_to.call_args.kwargs == {
+            "spreadsheetId": "src",
+            "sheetId": 7,
+            "body": {"destinationSpreadsheetId": "dst"},
+        }
+        assert not mock_sheets.spreadsheets.return_value.batchUpdate.called
 
     async def test_rename_triggered_when_title_absent_from_response(self):
         """The old guard `if 'title' in copy_result` would silently skip this case."""
         mock_sheets = self._mock_sheets({"sheetId": 42})  # no "title" key
-        ctx = _make_ctx(sheets_service=mock_sheets, cache=self._cache_with_sheet())
-        await _structure_tools["copy_sheet"](
-            src_spreadsheet="src",
-            src_sheet="Sheet1",
-            dst_spreadsheet="dst",
-            dst_sheet="My Sheet",
-            ctx=ctx,
-        )
-        assert mock_sheets.spreadsheets.return_value.batchUpdate.called
-        assert "My Sheet" in self._rename_titles(mock_sheets)
+        await self._copy(mock_sheets, new_name="My Sheet")
+        spreadsheet_id, update = self._update(mock_sheets)
+        assert spreadsheet_id == "dst"
+        assert update == {"properties": {"sheetId": 42, "title": "My Sheet"}, "fields": "title"}
 
     async def test_rename_triggered_when_title_differs(self):
         mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1"})
-        ctx = _make_ctx(sheets_service=mock_sheets, cache=self._cache_with_sheet())
-        await _structure_tools["copy_sheet"](
+        await self._copy(mock_sheets, new_name="Renamed")
+        assert self._update(mock_sheets)[1]["properties"]["title"] == "Renamed"
+
+    async def test_rename_skipped_when_title_already_matches(self):
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Target Name"})
+        await self._copy(mock_sheets, new_name="Target Name")
+        assert not mock_sheets.spreadsheets.return_value.batchUpdate.called
+
+    async def test_no_new_name_keeps_googles_name(self):
+        """dst_sheet was required; with new_name optional, a call naming neither
+        keeps copyTo's "Copy of" name instead of failing validation."""
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1", "index": 3})
+        result = await self._copy(mock_sheets)
+        assert not mock_sheets.spreadsheets.return_value.batchUpdate.called
+        assert result == {
+            "sheetId": 42,
+            "title": "Copy of Sheet1",
+            "index": 3,
+            "spreadsheetId": "dst",
+        }
+
+    async def test_insert_index_moves_the_copy(self):
+        """copyTo always appends, so a position takes an updateSheetProperties."""
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1", "index": 3})
+        result = await self._copy(mock_sheets, insert_index=0)
+        assert self._update(mock_sheets)[1] == {
+            "properties": {"sheetId": 42, "index": 0},
+            "fields": "index",
+        }
+        assert result["index"] == 0
+
+    async def test_insert_index_already_matching_sends_no_update(self):
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1", "index": 3})
+        await self._copy(mock_sheets, insert_index=3)
+        assert not mock_sheets.spreadsheets.return_value.batchUpdate.called
+
+    async def test_rename_and_move_share_one_request(self):
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1", "index": 3})
+        result = await self._copy(mock_sheets, new_name="Q3", insert_index=1)
+        assert self._update(mock_sheets)[1] == {
+            "properties": {"sheetId": 42, "title": "Q3", "index": 1},
+            "fields": "title,index",
+        }
+        assert result == {"sheetId": 42, "title": "Q3", "index": 1, "spreadsheetId": "dst"}
+
+    async def test_negative_insert_index_copies_nothing(self):
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1", "index": 3})
+        result = await self._copy(mock_sheets, insert_index=-1)
+        assert result == {"error": "insert_index must be non-negative, got -1"}
+        copy_to = mock_sheets.spreadsheets.return_value.sheets.return_value.copyTo
+        assert not copy_to.called
+        assert not mock_sheets.spreadsheets.return_value.batchUpdate.called
+
+    async def test_returns_error_when_source_sheet_not_found(self):
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1"})
+        result = await self._copy(
+            mock_sheets, cache=self._cache_with_sheet(title="Other"), sheet="Missing"
+        )
+        assert result == {"error": "Sheet 'Missing' not found"}
+        copy_to = mock_sheets.spreadsheets.return_value.sheets.return_value.copyTo
+        assert not copy_to.called
+
+    async def test_marks_destination_dirty(self):
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1"})
+        cache = self._cache_with_sheet()
+        await self._copy(mock_sheets, cache=cache)
+        cache.mark_dirty.assert_called_with("dst")
+
+    @pytest.mark.parametrize("insert_index", [3, 4, 9])
+    async def test_insert_index_at_or_past_the_end_keeps_the_copy_last(self, insert_index):
+        """copyTo appends, and a move past the end gets "The new sheet index is too
+        high" after the copy has landed (PR #1544 QA round 1), so the copy stays
+        last, as duplicateSheet clamps one past its end, and the result says so."""
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1", "index": 3})
+        result = await self._copy(mock_sheets, insert_index=insert_index)
+        assert not mock_sheets.spreadsheets.return_value.batchUpdate.called
+        assert result["index"] == 3
+
+    async def test_insert_index_past_the_end_still_renames(self):
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1", "index": 3})
+        result = await self._copy(mock_sheets, new_name="Q3", insert_index=9)
+        assert self._update(mock_sheets)[1] == {
+            "properties": {"sheetId": 42, "title": "Q3"},
+            "fields": "title",
+        }
+        assert result == {"sheetId": 42, "title": "Q3", "index": 3, "spreadsheetId": "dst"}
+
+    @pytest.mark.parametrize("new_name", ["Sales Q", "sales q", "SALES Q"])
+    async def test_new_name_taken_in_destination_copies_nothing(self, new_name):
+        """Sheets refuses a tab name another tab has, ignoring case (checked live),
+        and the refusal would come after the copy landed (PR #1544 QA round 1)."""
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1", "index": 3})
+        cache = MagicMock()
+        cache.get_sheets.side_effect = lambda spreadsheet_id, **_: {
+            "src": [SheetInfo(title="Sheet1", sheet_id=0)],
+            "dst": [SheetInfo(title="Sales Q", sheet_id=5)],
+        }[spreadsheet_id]
+        result = await self._copy(mock_sheets, cache=cache, new_name=new_name)
+        assert result == {
+            "error": f"The destination spreadsheet already has a sheet named '{new_name}' "
+            "(names are compared ignoring case)"
+        }
+        copy_to = mock_sheets.spreadsheets.return_value.sheets.return_value.copyTo
+        assert not copy_to.called
+        assert not mock_sheets.spreadsheets.return_value.batchUpdate.called
+
+    async def test_new_name_differing_only_in_surrounding_spaces_is_free(self):
+        """A trailing space makes a different tab name to Sheets (checked live)."""
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1", "index": 3})
+        cache = MagicMock()
+        cache.get_sheets.return_value = [SheetInfo(title="Sales Q", sheet_id=5)]
+        result = await self._copy(mock_sheets, cache=cache, sheet="Sales Q", new_name="Sales Q ")
+        assert result["title"] == "Sales Q "
+
+    async def test_failed_update_deletes_the_copy_and_raises(self):
+        """A rename or move refused anyway (a tab added since the check) leaves no
+        orphan copy behind (PR #1544 QA round 1)."""
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1", "index": 3})
+        batch = mock_sheets.spreadsheets.return_value.batchUpdate
+        calls = []
+
+        def execute(**_):
+            body = batch.call_args.kwargs["body"]
+            calls.append(body["requests"][0])
+            if "updateSheetProperties" in body["requests"][0]:
+                raise RuntimeError("A sheet with the name already exists")
+            return {}
+
+        batch.return_value.execute.side_effect = execute
+        with pytest.raises(RuntimeError, match="already exists"):
+            await self._copy(mock_sheets, new_name="Q3")
+        assert calls[1] == {"deleteSheet": {"sheetId": 42}}
+        assert batch.call_args.kwargs["spreadsheetId"] == "dst"
+
+    async def test_failed_delete_still_raises_the_update_error(self):
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1", "index": 3})
+        batch = mock_sheets.spreadsheets.return_value.batchUpdate
+        errors = iter([RuntimeError("rename refused"), RuntimeError("delete refused")])
+
+        def execute(**_):
+            raise next(errors)
+
+        batch.return_value.execute.side_effect = execute
+        with pytest.raises(RuntimeError, match="rename refused"):
+            await self._copy(mock_sheets, new_name="Q3")
+
+    async def test_source_as_destination_copies_in_place(self):
+        """The source's own ID as destination is a copy in place: duplicateSheet,
+        right after the source, not copyTo's append (PR #1544 QA round 1)."""
+        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1"})
+        mock_sheets.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [{"properties": {"title": "Sheet1", "sheetId": 0, "index": 2}}]
+        }
+        mock_sheets.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": [
+                {"duplicateSheet": {"properties": {"sheetId": 9, "title": "Copy", "index": 3}}}
+            ]
+        }
+        result = await self._copy(mock_sheets, destination_spreadsheet_id="src")
+        copy_to = mock_sheets.spreadsheets.return_value.sheets.return_value.copyTo
+        assert not copy_to.called
+        body = mock_sheets.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        assert body["requests"][0]["duplicateSheet"]["insertSheetIndex"] == 3
+        assert result == {"sheetId": 9, "title": "Copy", "index": 3, "spreadsheetId": "src"}
+
+
+class TestCopySheetRenamedParams:
+    """copy_sheet's src_/dst_ parameters keep working for one release (#1526)."""
+
+    def _ctx(self):
+        mock = MagicMock()
+        (
+            mock.spreadsheets.return_value.sheets.return_value.copyTo.return_value.execute.return_value
+        ) = {"sheetId": 42, "title": "Copy of Sheet1", "index": 3}
+        cache = MagicMock()
+        cache.get_sheets.return_value = [SheetInfo(title="Sheet1", sheet_id=0)]
+        return _make_ctx(sheets_service=mock, cache=cache), mock
+
+    async def test_old_names_copy_and_rename_with_a_warning(self):
+        ctx, mock = self._ctx()
+        result = await _structure_tools["copy_sheet"](
             src_spreadsheet="src",
             src_sheet="Sheet1",
             dst_spreadsheet="dst",
             dst_sheet="Renamed",
             ctx=ctx,
         )
-        assert mock_sheets.spreadsheets.return_value.batchUpdate.called
+        copy_to = mock.spreadsheets.return_value.sheets.return_value.copyTo
+        assert copy_to.call_args.kwargs["body"] == {"destinationSpreadsheetId": "dst"}
+        assert result["title"] == "Renamed"
+        assert result["spreadsheetId"] == "dst"
+        assert result["deprecation_warnings"] == [
+            f"`{old}` is deprecated: use `{new}`. `{old}` is removed in the next feature release."
+            for old, new in (
+                ("src_spreadsheet", "spreadsheet_id"),
+                ("src_sheet", "sheet"),
+                ("dst_spreadsheet", "destination_spreadsheet_id"),
+                ("dst_sheet", "new_name"),
+            )
+        ]
 
-    async def test_rename_skipped_when_title_already_matches(self):
-        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Target Name"})
-        ctx = _make_ctx(sheets_service=mock_sheets, cache=self._cache_with_sheet())
-        await _structure_tools["copy_sheet"](
-            src_spreadsheet="src",
-            src_sheet="Sheet1",
-            dst_spreadsheet="dst",
-            dst_sheet="Target Name",
-            ctx=ctx,
-        )
-        assert not mock_sheets.spreadsheets.return_value.batchUpdate.called
-
-    async def test_returns_error_when_source_sheet_not_found(self):
-        mock_sheets = self._mock_sheets({"sheetId": 42, "title": "Copy of Sheet1"})
-        ctx = _make_ctx(sheets_service=mock_sheets, cache=self._cache_with_sheet(title="Other"))
+    async def test_new_names_carry_no_warning(self):
+        ctx, _ = self._ctx()
         result = await _structure_tools["copy_sheet"](
-            src_spreadsheet="src",
-            src_sheet="Missing",
-            dst_spreadsheet="dst",
-            dst_sheet="My Sheet",
-            ctx=ctx,
+            spreadsheet_id="src", sheet="Sheet1", destination_spreadsheet_id="dst", ctx=ctx
         )
-        assert result == {"error": "Source sheet 'Missing' not found"}
-        assert not mock_sheets.spreadsheets.return_value.batchUpdate.called
+        assert "deprecation_warnings" not in result
+
+    def test_signature_publishes_old_names_as_optional(self):
+        import inspect
+
+        params = inspect.signature(_structure_tools["copy_sheet"]).parameters
+        for old in ("src_spreadsheet", "src_sheet", "dst_spreadsheet", "dst_sheet"):
+            assert params[old].default is None
+
+
+class TestCopySheetInPlace:
+    """copy_sheet with no destination is duplicateSheet, the request the deprecated
+    duplicate_sheet sends; both tools run every test here (#1526)."""
+
+    _TOOLS = ("copy_sheet", "duplicate_sheet")
+
+    def _sheets_service(self, sheet_id=0, source_index=0, reply_props=None):
+        mock = MagicMock()
+        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+            "sheets": [
+                {"properties": {"title": "Sheet1", "sheetId": sheet_id, "index": source_index}}
+            ]
+        }
+        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {
+            "replies": [
+                {
+                    "duplicateSheet": {
+                        "properties": reply_props
+                        or {"sheetId": 99, "title": "Copy of Sheet1", "index": 1}
+                    }
+                }
+            ]
+        }
+        return mock
+
+    def _cache_with_sheet(self, title="Sheet1", sheet_id=0):
+        cache = MagicMock()
+        cache.get_sheets.return_value = [SheetInfo(title=title, sheet_id=sheet_id)]
+        return cache
+
+    def _request(self, svc):
+        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+        return body["requests"][0]["duplicateSheet"]
+
+    async def _call(self, name, svc, cache=None, **kwargs):
+        ctx = _make_ctx(sheets_service=svc, cache=cache or self._cache_with_sheet(sheet_id=7))
+        args = {"spreadsheet_id": "ss1", "sheet": "Sheet1"}
+        return await _structure_tools[name](ctx=ctx, **{**args, **kwargs})
+
+    @pytest.mark.parametrize("name", _TOOLS)
+    async def test_sends_duplicate_sheet_request_with_source_id(self, name):
+        svc = self._sheets_service(sheet_id=7, source_index=0)
+        await self._call(name, svc)
+        assert self._request(svc)["sourceSheetId"] == 7
+        assert not svc.spreadsheets.return_value.sheets.return_value.copyTo.called
+
+    @pytest.mark.parametrize("name", _TOOLS)
+    async def test_new_name_included_when_given(self, name):
+        svc = self._sheets_service(sheet_id=7)
+        await self._call(name, svc, new_name="My Copy")
+        assert self._request(svc)["newSheetName"] == "My Copy"
+
+    @pytest.mark.parametrize("name", _TOOLS)
+    async def test_insert_index_included_when_given(self, name):
+        svc = self._sheets_service(sheet_id=7)
+        await self._call(name, svc, insert_index=3)
+        assert self._request(svc)["insertSheetIndex"] == 3
+
+    @pytest.mark.parametrize("name", _TOOLS)
+    async def test_explicit_insert_index_skips_source_index_lookup(self, name):
+        """When the caller supplies insert_index, no extra API call is needed to
+        compute a default — the direct spreadsheets().get() (used only for that
+        lookup) must not be invoked."""
+        svc = self._sheets_service(sheet_id=7)
+        await self._call(name, svc, insert_index=3)
+        assert not svc.spreadsheets.return_value.get.called
+
+    @pytest.mark.parametrize("name", _TOOLS)
+    async def test_negative_insert_index_copies_nothing(self, name):
+        svc = self._sheets_service(sheet_id=7)
+        result = await self._call(name, svc, insert_index=-2)
+        assert result == {"error": "insert_index must be non-negative, got -2"}
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    @pytest.mark.parametrize("name", _TOOLS)
+    async def test_new_name_omitted_when_not_given(self, name):
+        svc = self._sheets_service(sheet_id=7)
+        await self._call(name, svc)
+        assert "newSheetName" not in self._request(svc)
+
+    @pytest.mark.parametrize("name", _TOOLS)
+    async def test_insert_index_defaults_to_immediately_after_source(self, name):
+        """Matches Sheets' native UI 'Duplicate' behavior: the copy lands right
+        after the source tab. The Sheets API's own default (observed via live
+        QA) is index 0 regardless of source position, so this must be computed
+        and passed explicitly rather than relying on the API's default."""
+        svc = self._sheets_service(sheet_id=7, source_index=2)
+        await self._call(name, svc)
+        assert self._request(svc)["insertSheetIndex"] == 3
+
+    @pytest.mark.parametrize("name", _TOOLS)
+    async def test_insert_index_omitted_when_source_index_lookup_fails(self, name):
+        svc = self._sheets_service(sheet_id=7)
+        svc.spreadsheets.return_value.get.return_value.execute.return_value = {"sheets": []}
+        await self._call(name, svc)
+        assert "insertSheetIndex" not in self._request(svc)
+
+    @pytest.mark.parametrize("name", _TOOLS)
+    async def test_returns_new_sheet_info(self, name):
+        svc = self._sheets_service(
+            sheet_id=7, reply_props={"sheetId": 99, "title": "Copy of Sheet1", "index": 2}
+        )
+        result = await self._call(name, svc)
+        assert result == {
+            "sheetId": 99,
+            "title": "Copy of Sheet1",
+            "index": 2,
+            "spreadsheetId": "ss1",
+        }
+
+    @pytest.mark.parametrize("name", _TOOLS)
+    async def test_returns_error_when_source_sheet_not_found(self, name):
+        svc = self._sheets_service(sheet_id=7)
+        cache = self._cache_with_sheet(title="Other", sheet_id=7)
+        result = await self._call(name, svc, cache=cache, sheet="Missing")
+        assert result == {"error": "Sheet 'Missing' not found"}
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    @pytest.mark.parametrize("name", _TOOLS)
+    async def test_marks_cache_dirty_on_success(self, name):
+        svc = self._sheets_service(sheet_id=7)
+        cache = self._cache_with_sheet(sheet_id=7)
+        await self._call(name, svc, cache=cache)
+        cache.mark_dirty.assert_called_with("ss1")
+
+    @pytest.mark.parametrize("name", _TOOLS)
+    async def test_forwards_drive_service_to_get_sheet_id(self, name, monkeypatch):
+        """Regression: this call site omitted drive_service, reintroducing the
+        cache-poisoning bug fixed in #284 (modified_time silently disabled for
+        all subsequent readers of the spreadsheet)."""
+        svc = self._sheets_service(sheet_id=7)
+        cache = self._cache_with_sheet(sheet_id=7)
+        drive_svc = MagicMock()
+        ctx = _make_ctx(sheets_service=svc, cache=cache, drive_service=drive_svc)
+        mock_get_sheet_id = AsyncMock(return_value=7)
+        monkeypatch.setattr(sheets_structure_module, "_get_sheet_id", mock_get_sheet_id)
+        await _structure_tools[name](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
+        mock_get_sheet_id.assert_called_once_with(svc, "ss1", "Sheet1", cache, drive_svc)
+
+    def test_duplicate_sheet_is_deprecated_for_copy_sheet(self):
+        deprecation = tool_deprecation(_structure_tools["duplicate_sheet"])
+        assert deprecation is not None
+        assert deprecation.use == "`copy_sheet` with no `destination_spreadsheet_id`"
+        assert _structure_tools["duplicate_sheet"].__doc__.startswith(
+            "Deprecated: use `copy_sheet`"
+        )
+
+    def test_copy_sheet_is_not_deprecated(self):
+        assert tool_deprecation(_structure_tools["copy_sheet"]) is None
 
 
 class TestRenameSheet:
@@ -464,7 +804,7 @@ class TestRenameSheet:
         """Regression: a call site omitting drive_service reintroduces the
         cache-poisoning bug fixed in #284 (modified_time silently disabled for
         all subsequent readers of the spreadsheet) — see the sibling test on
-        TestDuplicateSheet and TestGetSheetIdCallSitesForwardDriveService's
+        TestCopySheetInPlace and TestGetSheetIdCallSitesForwardDriveService's
         static guard below."""
         svc = self._mock_sheets()
         cache = self._cache_with_sheet(sheet_id=7)
@@ -475,136 +815,6 @@ class TestRenameSheet:
         await _structure_tools["rename_sheet"](
             spreadsheet="ss1", sheet="Sheet1", new_name="Renamed", ctx=ctx
         )
-        mock_get_sheet_id.assert_called_once_with(svc, "ss1", "Sheet1", cache, drive_svc)
-
-
-class TestDuplicateSheet:
-    def _sheets_service(self, sheet_id=0, source_index=0, reply_props=None):
-        mock = MagicMock()
-        mock.spreadsheets.return_value.get.return_value.execute.return_value = {
-            "sheets": [
-                {"properties": {"title": "Sheet1", "sheetId": sheet_id, "index": source_index}}
-            ]
-        }
-        mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {
-            "replies": [
-                {
-                    "duplicateSheet": {
-                        "properties": reply_props
-                        or {"sheetId": 99, "title": "Copy of Sheet1", "index": 1}
-                    }
-                }
-            ]
-        }
-        return mock
-
-    def _cache_with_sheet(self, title="Sheet1", sheet_id=0):
-        cache = MagicMock()
-        cache.get_sheets.return_value = [SheetInfo(title=title, sheet_id=sheet_id)]
-        return cache
-
-    def _request(self, svc):
-        body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
-        return body["requests"][0]["duplicateSheet"]
-
-    async def test_sends_duplicate_sheet_request_with_source_id(self):
-        svc = self._sheets_service(sheet_id=7, source_index=0)
-        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
-        await _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
-        assert self._request(svc)["sourceSheetId"] == 7
-
-    async def test_new_name_included_when_given(self):
-        svc = self._sheets_service(sheet_id=7)
-        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
-        await _structure_tools["duplicate_sheet"](
-            spreadsheet_id="ss1", sheet="Sheet1", new_name="My Copy", ctx=ctx
-        )
-        assert self._request(svc)["newSheetName"] == "My Copy"
-
-    async def test_insert_index_included_when_given(self):
-        svc = self._sheets_service(sheet_id=7)
-        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
-        await _structure_tools["duplicate_sheet"](
-            spreadsheet_id="ss1", sheet="Sheet1", insert_index=3, ctx=ctx
-        )
-        assert self._request(svc)["insertSheetIndex"] == 3
-
-    async def test_explicit_insert_index_skips_source_index_lookup(self):
-        """When the caller supplies insert_index, no extra API call is needed to
-        compute a default — the direct spreadsheets().get() (used only for that
-        lookup) must not be invoked."""
-        svc = self._sheets_service(sheet_id=7)
-        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
-        await _structure_tools["duplicate_sheet"](
-            spreadsheet_id="ss1", sheet="Sheet1", insert_index=3, ctx=ctx
-        )
-        assert not svc.spreadsheets.return_value.get.called
-
-    async def test_new_name_omitted_when_not_given(self):
-        svc = self._sheets_service(sheet_id=7)
-        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
-        await _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
-        assert "newSheetName" not in self._request(svc)
-
-    async def test_insert_index_defaults_to_immediately_after_source(self):
-        """Matches Sheets' native UI 'Duplicate' behavior: the copy lands right
-        after the source tab. The Sheets API's own default (observed via live
-        QA) is index 0 regardless of source position, so this must be computed
-        and passed explicitly rather than relying on the API's default."""
-        svc = self._sheets_service(sheet_id=7, source_index=2)
-        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
-        await _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
-        assert self._request(svc)["insertSheetIndex"] == 3
-
-    async def test_insert_index_omitted_when_source_index_lookup_fails(self):
-        svc = self._sheets_service(sheet_id=7)
-        svc.spreadsheets.return_value.get.return_value.execute.return_value = {"sheets": []}
-        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
-        await _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
-        assert "insertSheetIndex" not in self._request(svc)
-
-    async def test_returns_new_sheet_info(self):
-        svc = self._sheets_service(
-            sheet_id=7, reply_props={"sheetId": 99, "title": "Copy of Sheet1", "index": 2}
-        )
-        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(sheet_id=7))
-        result = await _structure_tools["duplicate_sheet"](
-            spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx
-        )
-        assert result == {
-            "sheetId": 99,
-            "title": "Copy of Sheet1",
-            "index": 2,
-            "spreadsheetId": "ss1",
-        }
-
-    async def test_returns_error_when_source_sheet_not_found(self):
-        svc = self._sheets_service(sheet_id=7)
-        ctx = _make_ctx(sheets_service=svc, cache=self._cache_with_sheet(title="Other", sheet_id=7))
-        result = await _structure_tools["duplicate_sheet"](
-            spreadsheet_id="ss1", sheet="Missing", ctx=ctx
-        )
-        assert result == {"error": "Sheet 'Missing' not found"}
-        assert not svc.spreadsheets.return_value.batchUpdate.called
-
-    async def test_marks_cache_dirty_on_success(self):
-        svc = self._sheets_service(sheet_id=7)
-        cache = self._cache_with_sheet(sheet_id=7)
-        ctx = _make_ctx(sheets_service=svc, cache=cache)
-        await _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
-        cache.mark_dirty.assert_called_with("ss1")
-
-    async def test_forwards_drive_service_to_get_sheet_id(self, monkeypatch):
-        """Regression: this call site omitted drive_service, reintroducing the
-        cache-poisoning bug fixed in #284 (modified_time silently disabled for
-        all subsequent readers of the spreadsheet)."""
-        svc = self._sheets_service(sheet_id=7)
-        cache = self._cache_with_sheet(sheet_id=7)
-        drive_svc = MagicMock()
-        ctx = _make_ctx(sheets_service=svc, cache=cache, drive_service=drive_svc)
-        mock_get_sheet_id = AsyncMock(return_value=7)
-        monkeypatch.setattr(sheets_structure_module, "_get_sheet_id", mock_get_sheet_id)
-        await _structure_tools["duplicate_sheet"](spreadsheet_id="ss1", sheet="Sheet1", ctx=ctx)
         mock_get_sheet_id.assert_called_once_with(svc, "ss1", "Sheet1", cache, drive_svc)
 
 
@@ -2657,3 +2867,194 @@ class TestSortRange:
         )
         assert "error" in result
         svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+
+
+# --- The *_rows_or_columns tools (#1525) ------------------------------------------
+
+
+def _dimension_service():
+    mock = MagicMock()
+    mock.spreadsheets.return_value.get.return_value.execute.return_value = {
+        "sheets": [{"properties": {"title": "Sheet1", "sheetId": 0}}]
+    }
+    mock.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = {}
+    return mock
+
+
+def _sent_request(svc):
+    body = svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"]
+    (request,) = body["requests"]
+    return request
+
+
+async def _run_dimension_tool(name, **kwargs):
+    svc = _dimension_service()
+    ctx = _make_ctx(sheets_service=svc, cache=None)
+    kwargs.setdefault("sheet", "Sheet1")
+    result = await _structure_tools[name](spreadsheet_id="ss1", ctx=ctx, **kwargs)
+    return svc, result
+
+
+_API_DIMENSION = {"rows": "ROWS", "columns": "COLUMNS"}
+
+# Each deprecated tool with a call in its own parameters, and its replacement with
+# the same call in the new parameters. Both must send the same request.
+_REPLACED_CALLS = [
+    ("add_rows", {"count": 2, "start_row": 4}, "add_rows_or_columns",
+     {"dimension": "rows", "count": 2, "start": 4}),
+    ("add_columns", {"count": 2, "start_column": 4}, "add_rows_or_columns",
+     {"dimension": "columns", "count": 2, "start": 4}),
+    ("add_rows", {"count": 1}, "add_rows_or_columns", {"dimension": "rows", "count": 1}),
+    ("delete_rows", {"start_row": 1, "end_row": 3}, "delete_rows_or_columns",
+     {"dimension": "rows", "start": 1, "end": 3}),
+    ("delete_columns", {"start_column": 1}, "delete_rows_or_columns",
+     {"dimension": "columns", "start": 1}),
+    ("hide_rows", {"start_row": 2, "end_row": 5}, "hide_rows_or_columns",
+     {"dimension": "rows", "start": 2, "end": 5}),
+    ("unhide_rows", {"start_row": 2}, "hide_rows_or_columns",
+     {"dimension": "rows", "start": 2, "hidden": False}),
+    ("hide_columns", {"start_column": 0, "end_column": 1}, "hide_rows_or_columns",
+     {"dimension": "columns", "start": 0, "end": 1, "hidden": True}),
+    ("unhide_columns", {"start_column": 3}, "hide_rows_or_columns",
+     {"dimension": "columns", "start": 3, "hidden": False}),
+    ("resize_rows", {"start_row": 3, "pixel_size": 40}, "resize_rows_or_columns",
+     {"dimension": "rows", "start": 3, "pixel_size": 40}),
+    ("resize_columns", {"start_column": 0, "end_column": 2, "auto_resize": True},
+     "resize_rows_or_columns",
+     {"dimension": "columns", "start": 0, "end": 2, "auto_resize": True}),
+]  # fmt: skip
+
+# The minimum arguments each new tool needs beyond spreadsheet_id/sheet/dimension.
+_ROWS_OR_COLUMNS_TOOLS = {
+    "add_rows_or_columns": {"count": 1},
+    "delete_rows_or_columns": {"start": 0},
+    "hide_rows_or_columns": {"start": 0},
+    "resize_rows_or_columns": {"start": 0, "pixel_size": 9},
+}
+
+
+class TestRowsOrColumnsTools:
+    @pytest.mark.parametrize(("old", "old_kwargs", "new", "new_kwargs"), _REPLACED_CALLS)
+    async def test_sends_the_same_request_as_the_tool_it_replaces(
+        self, old, old_kwargs, new, new_kwargs
+    ):
+        old_svc, _ = await _run_dimension_tool(old, **old_kwargs)
+        new_svc, _ = await _run_dimension_tool(new, **new_kwargs)
+        assert _sent_request(new_svc) == _sent_request(old_svc)
+
+    @pytest.mark.parametrize("dimension", ["rows", "columns"])
+    async def test_add_inserts_count_at_start(self, dimension):
+        svc, _ = await _run_dimension_tool(
+            "add_rows_or_columns", dimension=dimension, count=3, start=2
+        )
+        insert = _sent_request(svc)["insertDimension"]
+        assert insert["range"] == {
+            "sheetId": 0,
+            "dimension": _API_DIMENSION[dimension],
+            "startIndex": 2,
+            "endIndex": 5,
+        }
+        assert insert["inheritFromBefore"] is True
+
+    async def test_add_defaults_to_the_beginning_without_inheriting(self):
+        svc, _ = await _run_dimension_tool("add_rows_or_columns", dimension="rows", count=1)
+        insert = _sent_request(svc)["insertDimension"]
+        assert (insert["range"]["startIndex"], insert["range"]["endIndex"]) == (0, 1)
+        assert insert["inheritFromBefore"] is False
+
+    @pytest.mark.parametrize("dimension", ["rows", "columns"])
+    async def test_delete_end_is_inclusive(self, dimension):
+        svc, _ = await _run_dimension_tool(
+            "delete_rows_or_columns", dimension=dimension, start=1, end=3
+        )
+        assert _sent_request(svc)["deleteDimension"]["range"] == {
+            "sheetId": 0,
+            "dimension": _API_DIMENSION[dimension],
+            "startIndex": 1,
+            "endIndex": 4,
+        }
+
+    @pytest.mark.parametrize("dimension", ["rows", "columns"])
+    @pytest.mark.parametrize("hidden", [True, False])
+    async def test_hide_sets_hidden_by_user(self, dimension, hidden):
+        svc, _ = await _run_dimension_tool(
+            "hide_rows_or_columns", dimension=dimension, start=4, hidden=hidden
+        )
+        update = _sent_request(svc)["updateDimensionProperties"]
+        assert update["range"]["dimension"] == _API_DIMENSION[dimension]
+        assert (update["range"]["startIndex"], update["range"]["endIndex"]) == (4, 5)
+        assert update["properties"] == {"hiddenByUser": hidden}
+        assert update["fields"] == "hiddenByUser"
+
+    async def test_hide_hides_by_default(self):
+        svc, _ = await _run_dimension_tool("hide_rows_or_columns", dimension="columns", start=0)
+        update = _sent_request(svc)["updateDimensionProperties"]
+        assert update["properties"] == {"hiddenByUser": True}
+
+    @pytest.mark.parametrize("dimension", ["rows", "columns"])
+    async def test_resize_pixel_size(self, dimension):
+        svc, _ = await _run_dimension_tool(
+            "resize_rows_or_columns", dimension=dimension, start=2, end=4, pixel_size=30
+        )
+        update = _sent_request(svc)["updateDimensionProperties"]
+        assert update["range"]["dimension"] == _API_DIMENSION[dimension]
+        assert (update["range"]["startIndex"], update["range"]["endIndex"]) == (2, 5)
+        assert update["properties"] == {"pixelSize": 30}
+
+    @pytest.mark.parametrize("dimension", ["rows", "columns"])
+    async def test_resize_auto_resize(self, dimension):
+        svc, _ = await _run_dimension_tool(
+            "resize_rows_or_columns", dimension=dimension, start=0, auto_resize=True
+        )
+        dims = _sent_request(svc)["autoResizeDimensions"]["dimensions"]
+        assert dims["dimension"] == _API_DIMENSION[dimension]
+        assert (dims["startIndex"], dims["endIndex"]) == (0, 1)
+
+    @pytest.mark.parametrize(
+        ("name", "kwargs", "message"),
+        [
+            ("add_rows_or_columns", {"count": 1, "start": -1}, "start must be non-negative"),
+            ("add_rows_or_columns", {"count": 0}, "count"),
+            ("delete_rows_or_columns", {"start": -1}, "start must be non-negative"),
+            ("delete_rows_or_columns", {"start": 5, "end": 2}, "end"),
+            ("hide_rows_or_columns", {"start": -1}, "start must be non-negative"),
+            ("hide_rows_or_columns", {"start": 5, "end": 2}, "end"),
+            ("resize_rows_or_columns", {"start": 0}, "pixel_size or set auto_resize"),
+            ("resize_rows_or_columns", {"start": 5, "end": 2, "pixel_size": 9}, "end"),
+            ("resize_rows_or_columns", {"start": 0, "pixel_size": 0}, "pixel_size"),
+        ],
+    )
+    async def test_invalid_arguments_return_error_without_api_call(self, name, kwargs, message):
+        svc, result = await _run_dimension_tool(name, dimension="rows", **kwargs)
+        assert message in result["error"]
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    @pytest.mark.parametrize("name", sorted(_ROWS_OR_COLUMNS_TOOLS))
+    async def test_unknown_dimension_returns_error_before_any_api_call(self, name):
+        svc, result = await _run_dimension_tool(
+            name, dimension="ROWS", **_ROWS_OR_COLUMNS_TOOLS[name]
+        )
+        assert "dimension must be 'rows' or 'columns'" in result["error"]
+        # Checked before the sheet lookup: it never reaches the API at all.
+        assert not svc.spreadsheets.return_value.get.called
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    @pytest.mark.parametrize("name", sorted(_ROWS_OR_COLUMNS_TOOLS))
+    async def test_missing_sheet_returns_error_without_api_call(self, name):
+        svc, result = await _run_dimension_tool(
+            name, sheet="Missing", dimension="rows", **_ROWS_OR_COLUMNS_TOOLS[name]
+        )
+        assert "not found" in result["error"]
+        assert not svc.spreadsheets.return_value.batchUpdate.called
+
+    @pytest.mark.parametrize("old", sorted({call[0] for call in _REPLACED_CALLS}))
+    def test_replaced_tool_is_deprecated_naming_its_replacement(self, old):
+        deprecation = tool_deprecation(_structure_tools[old])
+        replacement = next(new for o, _, new, _ in _REPLACED_CALLS if o == old)
+        assert deprecation is not None
+        assert deprecation.use.startswith(f"`{replacement}` with `dimension=")
+        assert _structure_tools[old].__doc__.startswith(f"Deprecated: use `{replacement}`")
+
+    @pytest.mark.parametrize("name", sorted(_ROWS_OR_COLUMNS_TOOLS))
+    def test_new_tool_is_not_deprecated(self, name):
+        assert tool_deprecation(_structure_tools[name]) is None

@@ -1,13 +1,15 @@
+import logging
 import textwrap
 from contextlib import nullcontext
 from itertools import groupby
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from ...cache import fetch_sheets
+from ...deprecation import deprecated_tool, renamed_params
 from ...http_transport import invalidating
 from .helpers import (
     _column_index_to_letter,
@@ -17,6 +19,8 @@ from .helpers import (
     _parse_a1_notation_or_error,
     _quote_sheet_name,
 )
+
+logger = logging.getLogger(__name__)
 
 _VALID_CHART_TYPES = ["COLUMN", "BAR", "LINE", "AREA", "PIE", "SCATTER", "COMBO", "HISTOGRAM"]
 
@@ -535,7 +539,8 @@ def _validate_resize_params(
     start_label: str,
     end_label: str,
 ) -> tuple[dict[str, Any] | None, int | None]:
-    """Pure parameter validation for resize_rows/resize_columns — no I/O, so it
+    """Pure parameter validation for resize_rows_or_columns and
+    resize_rows/resize_columns — no I/O, so it
     can be unit-tested without a mock service.
 
     Returns (error, None) on failure, or (None, end_index) on success.
@@ -563,6 +568,19 @@ def _validate_resize_params(
     return None, end_index
 
 
+# The `dimension` values the row/column helpers take, mapped to the Sheets API's
+# Dimension enum.
+_DIMENSIONS = {"rows": "ROWS", "columns": "COLUMNS"}
+
+
+def _dimension_error(dimension: str) -> dict[str, Any] | None:
+    """An {"error": ...} dict unless `dimension` is `rows` or `columns`. The tool
+    schema already restricts it; this covers direct calls."""
+    if dimension not in _DIMENSIONS:
+        return {"error": f"dimension must be 'rows' or 'columns', got {dimension!r}"}
+    return None
+
+
 async def _resize_dimension(
     lc,
     spreadsheet_id: str,
@@ -575,7 +593,10 @@ async def _resize_dimension(
     start_label: str,
     end_label: str,
 ) -> dict[str, Any]:
-    """Shared implementation behind resize_rows/resize_columns."""
+    """Shared implementation behind resize_rows_or_columns and resize_rows/resize_columns."""
+    error = _dimension_error(dimension)
+    if error:
+        return error
     sheets_service = lc.sheets_service
 
     sheet_id = await _get_sheet_id(
@@ -593,19 +614,372 @@ async def _resize_dimension(
 
     if auto_resize:
         return await _auto_resize_dimension(
-            sheets_service, spreadsheet_id, sheet_id, dimension, start_index, end_index
+            sheets_service, spreadsheet_id, sheet_id, _DIMENSIONS[dimension], start_index, end_index
         )
 
     return await _update_dimension_properties(
         sheets_service,
         spreadsheet_id,
         sheet_id,
-        dimension,
+        _DIMENSIONS[dimension],
         start_index,
         end_index,
         {"pixelSize": pixel_size},
         "pixelSize",
     )
+
+
+# Every tool removed in favor of a *_rows_or_columns tool (#1525) goes in the
+# next feature release, per docs/design.md "Renaming or Removing a Tool".
+_ROWS_OR_COLUMNS_REMOVED_IN = "the next feature release"
+
+
+async def _add_dimension(
+    lc,
+    spreadsheet_id: str,
+    sheet: str,
+    dimension: str,
+    count: int,
+    start: int | None,
+    start_label: str,
+) -> dict[str, Any]:
+    """Shared implementation behind add_rows_or_columns and add_rows/add_columns."""
+    error = _dimension_error(dimension)
+    if error:
+        return error
+    sheets_service = lc.sheets_service
+
+    sheet_id = await _get_sheet_id(
+        sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+    )
+    if sheet_id is None:
+        return {"error": f"Sheet '{sheet}' not found"}
+
+    if start is not None:
+        error = _non_negative_value_error(start_label, start)
+        if error:
+            return error
+
+    error = _positive_value_error("count", count)
+    if error:
+        return error
+
+    start_index = start if start is not None else 0
+    with invalidating(lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id)):
+        return await execute_in_thread(
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={
+                    "requests": [
+                        {
+                            "insertDimension": {
+                                "range": {
+                                    "sheetId": sheet_id,
+                                    "dimension": _DIMENSIONS[dimension],
+                                    "startIndex": start_index,
+                                    "endIndex": start_index + count,
+                                },
+                                "inheritFromBefore": start is not None and start > 0,
+                            }
+                        }
+                    ]
+                },
+            )
+            .execute,
+            sheets_service,
+        )
+
+
+async def _delete_dimension(
+    lc,
+    spreadsheet_id: str,
+    sheet: str,
+    dimension: str,
+    start: int,
+    end_inclusive: int | None,
+    start_label: str,
+    end_label: str,
+) -> dict[str, Any]:
+    """Shared implementation behind delete_rows_or_columns and delete_rows/delete_columns."""
+    error = _dimension_error(dimension)
+    if error:
+        return error
+    sheets_service = lc.sheets_service
+
+    sheet_id = await _get_sheet_id(
+        sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+    )
+    if sheet_id is None:
+        return {"error": f"Sheet '{sheet}' not found"}
+
+    error = _non_negative_value_error(start_label, start)
+    if error:
+        return error
+
+    error, end_index = _resolve_end_index_or_error(start, end_inclusive, start_label, end_label)
+    if error:
+        return error
+
+    with invalidating(lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id)):
+        return await execute_in_thread(
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={
+                    "requests": [
+                        {
+                            "deleteDimension": {
+                                "range": {
+                                    "sheetId": sheet_id,
+                                    "dimension": _DIMENSIONS[dimension],
+                                    "startIndex": start,
+                                    "endIndex": end_index,
+                                }
+                            }
+                        }
+                    ]
+                },
+            )
+            .execute,
+            sheets_service,
+        )
+
+
+async def _hide_dimension(
+    lc,
+    spreadsheet_id: str,
+    sheet: str,
+    dimension: str,
+    start: int,
+    end_inclusive: int | None,
+    hidden: bool,
+    start_label: str,
+    end_label: str,
+) -> dict[str, Any]:
+    """Shared implementation behind hide_rows_or_columns and the four hide/unhide tools."""
+    error = _dimension_error(dimension)
+    if error:
+        return error
+    sheets_service = lc.sheets_service
+
+    sheet_id = await _get_sheet_id(
+        sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+    )
+    if sheet_id is None:
+        return {"error": f"Sheet '{sheet}' not found"}
+
+    error = _non_negative_value_error(start_label, start)
+    if error:
+        return error
+
+    error, end_index = _resolve_end_index_or_error(start, end_inclusive, start_label, end_label)
+    if error:
+        return error
+    assert end_index is not None  # guaranteed whenever error is None
+
+    return await _update_dimension_properties(
+        sheets_service,
+        spreadsheet_id,
+        sheet_id,
+        _DIMENSIONS[dimension],
+        start,
+        end_index,
+        {"hiddenByUser": hidden},
+        "hiddenByUser",
+    )
+
+
+# copy_sheet absorbs duplicate_sheet (#1526); duplicate_sheet and copy_sheet's old
+# parameter names go in the next feature release, per docs/design.md "Renaming or
+# Removing a Tool".
+_COPY_SHEET_REMOVED_IN = "the next feature release"
+
+
+def _new_sheet_result(properties: dict[str, Any], spreadsheet_id: str) -> dict[str, Any]:
+    """The one result shape of copy_sheet, in place or across spreadsheets."""
+    return {
+        "sheetId": properties["sheetId"],
+        "title": properties.get("title"),
+        "index": properties.get("index"),
+        "spreadsheetId": spreadsheet_id,
+    }
+
+
+async def _duplicate_sheet(
+    lc,
+    spreadsheet_id: str,
+    sheet: str,
+    new_name: str | None,
+    insert_index: int | None,
+) -> dict[str, Any]:
+    """Copy `sheet` within its own spreadsheet with one `duplicateSheet`, placed at
+    `insert_index`, else right after the source tab. Shared by copy_sheet with no
+    destination and the deprecated duplicate_sheet, so both send the same request."""
+    sheets_service = lc.sheets_service
+
+    sheet_id = await _get_sheet_id(
+        sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+    )
+    if sheet_id is None:
+        return {"error": f"Sheet '{sheet}' not found"}
+    if insert_index is not None:
+        error = _non_negative_value_error("insert_index", insert_index)
+        if error:
+            return error
+
+    duplicate_request: dict[str, Any] = {"sourceSheetId": sheet_id}
+    if insert_index is not None:
+        duplicate_request["insertSheetIndex"] = insert_index
+    else:
+        # The API's own default is index 0 wherever the source is; the Sheets UI
+        # puts the copy right after it.
+        source_index = await _get_sheet_index(sheets_service, spreadsheet_id, sheet_id)
+        if source_index is not None:
+            duplicate_request["insertSheetIndex"] = source_index + 1
+    if new_name is not None:
+        duplicate_request["newSheetName"] = new_name
+
+    with invalidating(lambda: lc.cache.mark_dirty(spreadsheet_id)):
+        result = await execute_in_thread(
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={"requests": [{"duplicateSheet": duplicate_request}]},
+            )
+            .execute,
+            sheets_service,
+        )
+
+    return _new_sheet_result(result["replies"][0]["duplicateSheet"]["properties"], spreadsheet_id)
+
+
+def _tab_name_key(title: str) -> str:
+    """A tab name as Sheets compares it for uniqueness: case-insensitively, with
+    surrounding spaces significant ("sales q" collides with "Sales Q", "Sales Q "
+    doesn't; checked live, PR #1544 QA round 1)."""
+    return title.lower()
+
+
+async def _copy_sheet_to(
+    lc,
+    spreadsheet_id: str,
+    sheet: str,
+    destination_spreadsheet_id: str,
+    new_name: str | None,
+    insert_index: int | None,
+) -> dict[str, Any]:
+    """Copy `sheet` into another spreadsheet with `copyTo`, which always appends the
+    copy as "Copy of <sheet>", then rename and move it there with one
+    `updateSheetProperties` when `new_name` or `insert_index` asks for something
+    else.
+
+    The copy lands before that update can fail, so everything the update could be
+    refused for is checked first: a negative `insert_index`, and a `new_name` the
+    destination already has. An `insert_index` at or past the end leaves the copy
+    last, where `copyTo` put it, as `duplicateSheet` does for one past its end. If
+    the update still fails (a tab added meanwhile), the copy is deleted before the
+    error is raised, so a failed call leaves no orphan tab (PR #1544 QA round 1)."""
+    sheets_service = lc.sheets_service
+
+    sheet_id = await _get_sheet_id(
+        sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+    )
+    if sheet_id is None:
+        return {"error": f"Sheet '{sheet}' not found"}
+    if insert_index is not None:
+        error = _non_negative_value_error("insert_index", insert_index)
+        if error:
+            return error
+    if new_name is not None:
+        taken = {
+            _tab_name_key(s.title)
+            for s in await fetch_sheets(
+                sheets_service, destination_spreadsheet_id, lc.cache, lc.drive_service
+            )
+        }
+        if _tab_name_key(new_name) in taken:
+            return {
+                "error": f"The destination spreadsheet already has a sheet named "
+                f"'{new_name}' (names are compared ignoring case)"
+            }
+
+    # Both writes land in the destination. The block also covers a copy that
+    # lands before a rejected rename or move (#1265).
+    with invalidating(lambda: lc.cache.mark_dirty(destination_spreadsheet_id)):
+        copied = await execute_in_thread(
+            sheets_service.spreadsheets()
+            .sheets()
+            .copyTo(
+                spreadsheetId=spreadsheet_id,
+                sheetId=sheet_id,
+                body={"destinationSpreadsheetId": destination_spreadsheet_id},
+            )
+            .execute,
+            sheets_service,
+        )
+
+        properties = dict(copied)
+        changes: dict[str, Any] = {}
+        # Compared with the response, not skipped when a key is missing from it:
+        # a copy whose response omits its title still gets the name asked for.
+        if new_name is not None and copied.get("title") != new_name:
+            changes["title"] = new_name
+        # The copy is the last tab, so a later index is where it already is.
+        last_index = copied.get("index")
+        if insert_index is not None and (last_index is None or insert_index < last_index):
+            changes["index"] = insert_index
+        if changes:
+            try:
+                await execute_in_thread(
+                    sheets_service.spreadsheets()
+                    .batchUpdate(
+                        spreadsheetId=destination_spreadsheet_id,
+                        body={
+                            "requests": [
+                                {
+                                    "updateSheetProperties": {
+                                        "properties": {"sheetId": copied["sheetId"], **changes},
+                                        "fields": ",".join(changes),
+                                    }
+                                }
+                            ]
+                        },
+                    )
+                    .execute,
+                    sheets_service,
+                )
+            except Exception:
+                await _delete_orphan_copy(
+                    sheets_service, destination_spreadsheet_id, copied["sheetId"]
+                )
+                raise
+            properties.update(changes)
+
+    return _new_sheet_result(properties, destination_spreadsheet_id)
+
+
+async def _delete_orphan_copy(sheets_service, spreadsheet_id: str, sheet_id: int) -> None:
+    """Delete a copy whose rename or move failed. Best effort: the caller raises the
+    update's own error either way, so a failed delete is only logged."""
+    try:
+        await execute_in_thread(
+            sheets_service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=spreadsheet_id,
+                body={"requests": [{"deleteSheet": {"sheetId": sheet_id}}]},
+            )
+            .execute,
+            sheets_service,
+        )
+    except Exception:
+        logger.warning(
+            "copy_sheet: couldn't delete copied sheet %s from %s after its rename or move "
+            "failed; it is left in place",
+            sheet_id,
+            spreadsheet_id,
+            exc_info=True,
+        )
 
 
 def register(tool):
@@ -627,77 +1001,62 @@ def register(tool):
         return [s.title for s in sheets]
 
     @tool(annotations=ToolAnnotations(title="Copy Sheet", destructiveHint=True))
+    @renamed_params(
+        removed_in=_COPY_SHEET_REMOVED_IN,
+        src_spreadsheet="spreadsheet_id",
+        src_sheet="sheet",
+        dst_spreadsheet="destination_spreadsheet_id",
+        dst_sheet="new_name",
+    )
     async def copy_sheet(
-        src_spreadsheet: str,
-        src_sheet: str,
-        dst_spreadsheet: str,
-        dst_sheet: str,
+        spreadsheet_id: str,
+        sheet: str,
+        destination_spreadsheet_id: str | None = None,
+        new_name: str | None = None,
+        insert_index: int | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
-        Copy a sheet from one spreadsheet to another.
+        Copy a sheet tab, within its own spreadsheet or into another one.
+
+        With no destination_spreadsheet_id, or with spreadsheet_id itself as the
+        destination, the copy is made in the same spreadsheet (Sheets' "Duplicate").
+        With another one, the sheet is copied into that spreadsheet.
 
         Args:
-            src_spreadsheet: Source spreadsheet ID
-            src_sheet: Source sheet name
-            dst_spreadsheet: Destination spreadsheet ID
-            dst_sheet: Destination sheet name
+            spreadsheet_id: The ID of the spreadsheet holding the sheet to copy
+            sheet: The name of the sheet to copy
+            destination_spreadsheet_id: Optional ID of the spreadsheet to copy into.
+                Omit it to copy within spreadsheet_id.
+            new_name: Optional title for the copy. Defaults to Google's
+                auto-generated name (e.g. "Copy of Sheet1") if omitted.
+            insert_index: Optional 0-based tab position for the copy. Defaults to
+                immediately after the source sheet within the same spreadsheet, and
+                to the last position in another spreadsheet. A position past the last
+                tab puts the copy last; the result's index says where it landed.
 
         Returns:
-            Result of the operation
+            {sheetId, title, index, spreadsheetId} for the new sheet, where
+            spreadsheetId is the spreadsheet it was created in. Returns
+            {"error": ...} without copying anything if the sheet isn't found,
+            insert_index is negative, or another spreadsheet already has a sheet
+            named new_name (ignoring case). If renaming or moving a copy in another
+            spreadsheet fails anyway, the copy is deleted before the error is raised.
         """
         lc = ctx.request_context.lifespan_context
-        sheets_service = lc.sheets_service
-
-        src_sheet_id = await _get_sheet_id(
-            sheets_service, src_spreadsheet, src_sheet, lc.cache, lc.drive_service
+        # The source's own ID as the destination is a copy in place too, so it lands
+        # right after the source rather than at the end (PR #1544 QA round 1).
+        if destination_spreadsheet_id in (None, spreadsheet_id):
+            return await _duplicate_sheet(lc, spreadsheet_id, sheet, new_name, insert_index)
+        return await _copy_sheet_to(
+            lc, spreadsheet_id, sheet, destination_spreadsheet_id, new_name, insert_index
         )
 
-        if src_sheet_id is None:
-            return {"error": f"Source sheet '{src_sheet}' not found"}
-
-        with invalidating(lambda: lc.cache.mark_dirty(dst_spreadsheet)):
-            copy_result = await execute_in_thread(
-                sheets_service.spreadsheets()
-                .sheets()
-                .copyTo(
-                    spreadsheetId=src_spreadsheet,
-                    sheetId=src_sheet_id,
-                    body={"destinationSpreadsheetId": dst_spreadsheet},
-                )
-                .execute,
-                sheets_service,
-            )
-
-            result = {"copy": copy_result}
-
-            if copy_result.get("title") != dst_sheet:
-                rename_result = await execute_in_thread(
-                    sheets_service.spreadsheets()
-                    .batchUpdate(
-                        spreadsheetId=dst_spreadsheet,
-                        body={
-                            "requests": [
-                                {
-                                    "updateSheetProperties": {
-                                        "properties": {
-                                            "sheetId": copy_result["sheetId"],
-                                            "title": dst_sheet,
-                                        },
-                                        "fields": "title",
-                                    }
-                                }
-                            ]
-                        },
-                    )
-                    .execute,
-                    sheets_service,
-                )
-                result["rename"] = rename_result
-
-        return result
-
     @tool(annotations=ToolAnnotations(title="Duplicate Sheet", destructiveHint=True))
+    @deprecated_tool(
+        use="`copy_sheet` with no `destination_spreadsheet_id`",
+        removed_in=_COPY_SHEET_REMOVED_IN,
+    )
     async def duplicate_sheet(
         spreadsheet_id: str,
         sheet: str,
@@ -708,8 +1067,6 @@ def register(tool):
         """
         Duplicate a sheet tab within the same spreadsheet.
 
-        Distinct from copy_sheet, which copies a sheet across spreadsheets.
-
         Args:
             spreadsheet_id: The ID of the spreadsheet
             sheet: The name of the sheet to duplicate
@@ -719,45 +1076,13 @@ def register(tool):
                 Defaults to immediately after the source sheet if omitted.
 
         Returns:
-            Information about the newly created sheet
+            Information about the newly created sheet. Returns {"error": ...}
+            without copying anything if the sheet isn't found or insert_index is
+            negative.
         """
-        lc = ctx.request_context.lifespan_context
-        sheets_service = lc.sheets_service
-
-        sheet_id = await _get_sheet_id(
-            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        return await _duplicate_sheet(
+            ctx.request_context.lifespan_context, spreadsheet_id, sheet, new_name, insert_index
         )
-        if sheet_id is None:
-            return {"error": f"Sheet '{sheet}' not found"}
-
-        duplicate_request: dict[str, Any] = {"sourceSheetId": sheet_id}
-        if insert_index is not None:
-            duplicate_request["insertSheetIndex"] = insert_index
-        else:
-            source_index = await _get_sheet_index(sheets_service, spreadsheet_id, sheet_id)
-            if source_index is not None:
-                duplicate_request["insertSheetIndex"] = source_index + 1
-        if new_name is not None:
-            duplicate_request["newSheetName"] = new_name
-
-        with invalidating(lambda: lc.cache.mark_dirty(spreadsheet_id)):
-            result = await execute_in_thread(
-                sheets_service.spreadsheets()
-                .batchUpdate(
-                    spreadsheetId=spreadsheet_id,
-                    body={"requests": [{"duplicateSheet": duplicate_request}]},
-                )
-                .execute,
-                sheets_service,
-            )
-
-        new_sheet_props = result["replies"][0]["duplicateSheet"]["properties"]
-        return {
-            "sheetId": new_sheet_props["sheetId"],
-            "title": new_sheet_props["title"],
-            "index": new_sheet_props.get("index"),
-            "spreadsheetId": spreadsheet_id,
-        }
 
     @tool(annotations=ToolAnnotations(title="Rename Sheet", destructiveHint=True))
     async def rename_sheet(
@@ -839,7 +1164,46 @@ def register(tool):
             "spreadsheetId": spreadsheet_id,
         }
 
+    @tool(annotations=ToolAnnotations(title="Add Rows or Columns", destructiveHint=True))
+    async def add_rows_or_columns(
+        spreadsheet_id: str,
+        sheet: str,
+        dimension: Literal["rows", "columns"],
+        count: int,
+        start: int | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Add (insert) rows or columns to a sheet in a Google Spreadsheet.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet (found in the URL)
+            sheet: The name of the sheet
+            dimension: "rows" to add rows, "columns" to add columns
+            count: Number of rows or columns to add
+            start: 0-based index of the row or column to insert at (column 0 =
+                column A). Existing rows or columns from there on shift down or
+                right. If omitted, adds at the beginning.
+
+        Returns:
+            Result of the operation. Returns {"error": ...} without changing
+            the sheet if start is negative or count isn't positive.
+        """
+        return await _add_dimension(
+            ctx.request_context.lifespan_context,
+            spreadsheet_id,
+            sheet,
+            dimension,
+            count,
+            start,
+            "start",
+        )
+
     @tool(annotations=ToolAnnotations(title="Add Rows", destructiveHint=True))
+    @deprecated_tool(
+        use="`add_rows_or_columns` with `dimension='rows'`",
+        removed_in=_ROWS_OR_COLUMNS_REMOVED_IN,
+    )
     async def add_rows(
         spreadsheet_id: str,
         sheet: str,
@@ -857,56 +1221,24 @@ def register(tool):
             start_row: 0-based row index to start adding. If not provided, adds at the beginning.
 
         Returns:
-            Result of the operation. Returns {"error": ...} without calling the
-            Sheets API if start_row is negative or count isn't positive.
+            Result of the operation. Returns {"error": ...} without changing
+            the sheet if start_row is negative or count isn't positive.
         """
-        lc = ctx.request_context.lifespan_context
-        sheets_service = lc.sheets_service
-
-        sheet_id = await _get_sheet_id(
-            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        return await _add_dimension(
+            ctx.request_context.lifespan_context,
+            spreadsheet_id,
+            sheet,
+            "rows",
+            count,
+            start_row,
+            "start_row",
         )
-        if sheet_id is None:
-            return {"error": f"Sheet '{sheet}' not found"}
-
-        if start_row is not None:
-            error = _non_negative_value_error("start_row", start_row)
-            if error:
-                return error
-
-        error = _positive_value_error("count", count)
-        if error:
-            return error
-
-        start = start_row if start_row is not None else 0
-        with invalidating(lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id)):
-            result = await execute_in_thread(
-                sheets_service.spreadsheets()
-                .batchUpdate(
-                    spreadsheetId=spreadsheet_id,
-                    body={
-                        "requests": [
-                            {
-                                "insertDimension": {
-                                    "range": {
-                                        "sheetId": sheet_id,
-                                        "dimension": "ROWS",
-                                        "startIndex": start,
-                                        "endIndex": start + count,
-                                    },
-                                    "inheritFromBefore": start_row is not None and start_row > 0,
-                                }
-                            }
-                        ]
-                    },
-                )
-                .execute,
-                sheets_service,
-            )
-
-        return result
 
     @tool(annotations=ToolAnnotations(title="Add Columns", destructiveHint=True))
+    @deprecated_tool(
+        use="`add_rows_or_columns` with `dimension='columns'`",
+        removed_in=_ROWS_OR_COLUMNS_REMOVED_IN,
+    )
     async def add_columns(
         spreadsheet_id: str,
         sheet: str,
@@ -924,55 +1256,18 @@ def register(tool):
             start_column: 0-based column index to start adding. If not provided, adds at the beginning.
 
         Returns:
-            Result of the operation. Returns {"error": ...} without calling the
-            Sheets API if start_column is negative or count isn't positive.
+            Result of the operation. Returns {"error": ...} without changing
+            the sheet if start_column is negative or count isn't positive.
         """
-        lc = ctx.request_context.lifespan_context
-        sheets_service = lc.sheets_service
-
-        sheet_id = await _get_sheet_id(
-            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        return await _add_dimension(
+            ctx.request_context.lifespan_context,
+            spreadsheet_id,
+            sheet,
+            "columns",
+            count,
+            start_column,
+            "start_column",
         )
-        if sheet_id is None:
-            return {"error": f"Sheet '{sheet}' not found"}
-
-        if start_column is not None:
-            error = _non_negative_value_error("start_column", start_column)
-            if error:
-                return error
-
-        error = _positive_value_error("count", count)
-        if error:
-            return error
-
-        start = start_column if start_column is not None else 0
-        with invalidating(lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id)):
-            result = await execute_in_thread(
-                sheets_service.spreadsheets()
-                .batchUpdate(
-                    spreadsheetId=spreadsheet_id,
-                    body={
-                        "requests": [
-                            {
-                                "insertDimension": {
-                                    "range": {
-                                        "sheetId": sheet_id,
-                                        "dimension": "COLUMNS",
-                                        "startIndex": start,
-                                        "endIndex": start + count,
-                                    },
-                                    "inheritFromBefore": start_column is not None
-                                    and start_column > 0,
-                                }
-                            }
-                        ]
-                    },
-                )
-                .execute,
-                sheets_service,
-            )
-
-        return result
 
     @tool(annotations=ToolAnnotations(title="Delete Sheet", destructiveHint=True))
     async def delete_sheet(spreadsheet_id: str, sheet: str, ctx: Context = None) -> dict[str, Any]:
@@ -1008,7 +1303,46 @@ def register(tool):
 
         return result
 
+    @tool(annotations=ToolAnnotations(title="Delete Rows or Columns", destructiveHint=True))
+    async def delete_rows_or_columns(
+        spreadsheet_id: str,
+        sheet: str,
+        dimension: Literal["rows", "columns"],
+        start: int,
+        end: int | None = None,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Delete rows or columns from a sheet.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet (found in the URL)
+            sheet: The name of the sheet
+            dimension: "rows" to delete rows, "columns" to delete columns
+            start: 0-based index of the first row or column to delete (column 0 = column A)
+            end: 0-based index of the last row or column to delete (inclusive).
+                If omitted, deletes only start.
+
+        Returns:
+            Result of the operation. Returns {"error": ...} without changing
+            the sheet if start is negative or end precedes start.
+        """
+        return await _delete_dimension(
+            ctx.request_context.lifespan_context,
+            spreadsheet_id,
+            sheet,
+            dimension,
+            start,
+            end,
+            "start",
+            "end",
+        )
+
     @tool(annotations=ToolAnnotations(title="Delete Rows", destructiveHint=True))
+    @deprecated_tool(
+        use="`delete_rows_or_columns` with `dimension='rows'`",
+        removed_in=_ROWS_OR_COLUMNS_REMOVED_IN,
+    )
     async def delete_rows(
         spreadsheet_id: str,
         sheet: str,
@@ -1027,51 +1361,25 @@ def register(tool):
                      If omitted, deletes only start_row.
 
         Returns:
-            Result of the operation. Returns {"error": ...} without calling the
-            Sheets API if start_row is negative or end_row precedes start_row.
+            Result of the operation. Returns {"error": ...} without changing
+            the sheet if start_row is negative or end_row precedes start_row.
         """
-        lc = ctx.request_context.lifespan_context
-        sheets_service = lc.sheets_service
-
-        sheet_id = await _get_sheet_id(
-            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        return await _delete_dimension(
+            ctx.request_context.lifespan_context,
+            spreadsheet_id,
+            sheet,
+            "rows",
+            start_row,
+            end_row,
+            "start_row",
+            "end_row",
         )
-        if sheet_id is None:
-            return {"error": f"Sheet '{sheet}' not found"}
-
-        error = _non_negative_value_error("start_row", start_row)
-        if error:
-            return error
-
-        error, end_index = _resolve_end_index_or_error(start_row, end_row, "start_row", "end_row")
-        if error:
-            return error
-
-        with invalidating(lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id)):
-            return await execute_in_thread(
-                sheets_service.spreadsheets()
-                .batchUpdate(
-                    spreadsheetId=spreadsheet_id,
-                    body={
-                        "requests": [
-                            {
-                                "deleteDimension": {
-                                    "range": {
-                                        "sheetId": sheet_id,
-                                        "dimension": "ROWS",
-                                        "startIndex": start_row,
-                                        "endIndex": end_index,
-                                    }
-                                }
-                            }
-                        ]
-                    },
-                )
-                .execute,
-                sheets_service,
-            )
 
     @tool(annotations=ToolAnnotations(title="Delete Columns", destructiveHint=True))
+    @deprecated_tool(
+        use="`delete_rows_or_columns` with `dimension='columns'`",
+        removed_in=_ROWS_OR_COLUMNS_REMOVED_IN,
+    )
     async def delete_columns(
         spreadsheet_id: str,
         sheet: str,
@@ -1090,53 +1398,64 @@ def register(tool):
                         If omitted, deletes only start_column.
 
         Returns:
-            Result of the operation. Returns {"error": ...} without calling the
-            Sheets API if start_column is negative or end_column precedes start_column.
+            Result of the operation. Returns {"error": ...} without changing
+            the sheet if start_column is negative or end_column precedes start_column.
         """
-        lc = ctx.request_context.lifespan_context
-        sheets_service = lc.sheets_service
-
-        sheet_id = await _get_sheet_id(
-            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
+        return await _delete_dimension(
+            ctx.request_context.lifespan_context,
+            spreadsheet_id,
+            sheet,
+            "columns",
+            start_column,
+            end_column,
+            "start_column",
+            "end_column",
         )
-        if sheet_id is None:
-            return {"error": f"Sheet '{sheet}' not found"}
 
-        error = _non_negative_value_error("start_column", start_column)
-        if error:
-            return error
+    @tool(annotations=ToolAnnotations(title="Hide or Unhide Rows or Columns", destructiveHint=True))
+    async def hide_rows_or_columns(
+        spreadsheet_id: str,
+        sheet: str,
+        dimension: Literal["rows", "columns"],
+        start: int,
+        end: int | None = None,
+        hidden: bool = True,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Hide rows or columns in a sheet from view, or unhide (show) them again.
 
-        error, end_index = _resolve_end_index_or_error(
-            start_column, end_column, "start_column", "end_column"
+        Args:
+            spreadsheet_id: The ID of the spreadsheet (found in the URL)
+            sheet: The name of the sheet
+            dimension: "rows" for rows, "columns" for columns
+            start: 0-based index of the first row or column (column 0 = column A)
+            end: 0-based index of the last row or column (inclusive).
+                If omitted, only start.
+            hidden: True (the default) hides them; False unhides previously
+                hidden rows or columns.
+
+        Returns:
+            Result of the batchUpdate operation. Returns {"error": ...} without
+            changing the sheet if start is negative or end precedes start.
+        """
+        return await _hide_dimension(
+            ctx.request_context.lifespan_context,
+            spreadsheet_id,
+            sheet,
+            dimension,
+            start,
+            end,
+            hidden,
+            "start",
+            "end",
         )
-        if error:
-            return error
-
-        with invalidating(lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id)):
-            return await execute_in_thread(
-                sheets_service.spreadsheets()
-                .batchUpdate(
-                    spreadsheetId=spreadsheet_id,
-                    body={
-                        "requests": [
-                            {
-                                "deleteDimension": {
-                                    "range": {
-                                        "sheetId": sheet_id,
-                                        "dimension": "COLUMNS",
-                                        "startIndex": start_column,
-                                        "endIndex": end_index,
-                                    }
-                                }
-                            }
-                        ]
-                    },
-                )
-                .execute,
-                sheets_service,
-            )
 
     @tool(annotations=ToolAnnotations(title="Hide Rows", destructiveHint=True))
+    @deprecated_tool(
+        use="`hide_rows_or_columns` with `dimension='rows'`",
+        removed_in=_ROWS_OR_COLUMNS_REMOVED_IN,
+    )
     async def hide_rows(
         spreadsheet_id: str,
         sheet: str,
@@ -1156,37 +1475,25 @@ def register(tool):
 
         Returns:
             Result of the batchUpdate operation. Returns {"error": ...} without
-            calling the Sheets API if start_row is negative or end_row precedes start_row.
+            changing the sheet if start_row is negative or end_row precedes start_row.
         """
-        lc = ctx.request_context.lifespan_context
-        sheets_service = lc.sheets_service
-
-        sheet_id = await _get_sheet_id(
-            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
-        )
-        if sheet_id is None:
-            return {"error": f"Sheet '{sheet}' not found"}
-
-        error = _non_negative_value_error("start_row", start_row)
-        if error:
-            return error
-
-        error, end_index = _resolve_end_index_or_error(start_row, end_row, "start_row", "end_row")
-        if error:
-            return error
-
-        return await _update_dimension_properties(
-            sheets_service,
+        return await _hide_dimension(
+            ctx.request_context.lifespan_context,
             spreadsheet_id,
-            sheet_id,
-            "ROWS",
+            sheet,
+            "rows",
             start_row,
-            end_index,
-            {"hiddenByUser": True},
-            "hiddenByUser",
+            end_row,
+            True,
+            "start_row",
+            "end_row",
         )
 
     @tool(annotations=ToolAnnotations(title="Unhide Rows", destructiveHint=True))
+    @deprecated_tool(
+        use="`hide_rows_or_columns` with `dimension='rows', hidden=False`",
+        removed_in=_ROWS_OR_COLUMNS_REMOVED_IN,
+    )
     async def unhide_rows(
         spreadsheet_id: str,
         sheet: str,
@@ -1206,37 +1513,25 @@ def register(tool):
 
         Returns:
             Result of the batchUpdate operation. Returns {"error": ...} without
-            calling the Sheets API if start_row is negative or end_row precedes start_row.
+            changing the sheet if start_row is negative or end_row precedes start_row.
         """
-        lc = ctx.request_context.lifespan_context
-        sheets_service = lc.sheets_service
-
-        sheet_id = await _get_sheet_id(
-            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
-        )
-        if sheet_id is None:
-            return {"error": f"Sheet '{sheet}' not found"}
-
-        error = _non_negative_value_error("start_row", start_row)
-        if error:
-            return error
-
-        error, end_index = _resolve_end_index_or_error(start_row, end_row, "start_row", "end_row")
-        if error:
-            return error
-
-        return await _update_dimension_properties(
-            sheets_service,
+        return await _hide_dimension(
+            ctx.request_context.lifespan_context,
             spreadsheet_id,
-            sheet_id,
-            "ROWS",
+            sheet,
+            "rows",
             start_row,
-            end_index,
-            {"hiddenByUser": False},
-            "hiddenByUser",
+            end_row,
+            False,
+            "start_row",
+            "end_row",
         )
 
     @tool(annotations=ToolAnnotations(title="Hide Columns", destructiveHint=True))
+    @deprecated_tool(
+        use="`hide_rows_or_columns` with `dimension='columns'`",
+        removed_in=_ROWS_OR_COLUMNS_REMOVED_IN,
+    )
     async def hide_columns(
         spreadsheet_id: str,
         sheet: str,
@@ -1256,39 +1551,25 @@ def register(tool):
 
         Returns:
             Result of the batchUpdate operation. Returns {"error": ...} without
-            calling the Sheets API if start_column is negative or end_column precedes start_column.
+            changing the sheet if start_column is negative or end_column precedes start_column.
         """
-        lc = ctx.request_context.lifespan_context
-        sheets_service = lc.sheets_service
-
-        sheet_id = await _get_sheet_id(
-            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
-        )
-        if sheet_id is None:
-            return {"error": f"Sheet '{sheet}' not found"}
-
-        error = _non_negative_value_error("start_column", start_column)
-        if error:
-            return error
-
-        error, end_index = _resolve_end_index_or_error(
-            start_column, end_column, "start_column", "end_column"
-        )
-        if error:
-            return error
-
-        return await _update_dimension_properties(
-            sheets_service,
+        return await _hide_dimension(
+            ctx.request_context.lifespan_context,
             spreadsheet_id,
-            sheet_id,
-            "COLUMNS",
+            sheet,
+            "columns",
             start_column,
-            end_index,
-            {"hiddenByUser": True},
-            "hiddenByUser",
+            end_column,
+            True,
+            "start_column",
+            "end_column",
         )
 
     @tool(annotations=ToolAnnotations(title="Unhide Columns", destructiveHint=True))
+    @deprecated_tool(
+        use="`hide_rows_or_columns` with `dimension='columns', hidden=False`",
+        removed_in=_ROWS_OR_COLUMNS_REMOVED_IN,
+    )
     async def unhide_columns(
         spreadsheet_id: str,
         sheet: str,
@@ -1308,39 +1589,72 @@ def register(tool):
 
         Returns:
             Result of the batchUpdate operation. Returns {"error": ...} without
-            calling the Sheets API if start_column is negative or end_column precedes start_column.
+            changing the sheet if start_column is negative or end_column precedes start_column.
         """
-        lc = ctx.request_context.lifespan_context
-        sheets_service = lc.sheets_service
-
-        sheet_id = await _get_sheet_id(
-            sheets_service, spreadsheet_id, sheet, lc.cache, lc.drive_service
-        )
-        if sheet_id is None:
-            return {"error": f"Sheet '{sheet}' not found"}
-
-        error = _non_negative_value_error("start_column", start_column)
-        if error:
-            return error
-
-        error, end_index = _resolve_end_index_or_error(
-            start_column, end_column, "start_column", "end_column"
-        )
-        if error:
-            return error
-
-        return await _update_dimension_properties(
-            sheets_service,
+        return await _hide_dimension(
+            ctx.request_context.lifespan_context,
             spreadsheet_id,
-            sheet_id,
-            "COLUMNS",
+            sheet,
+            "columns",
             start_column,
-            end_index,
-            {"hiddenByUser": False},
-            "hiddenByUser",
+            end_column,
+            False,
+            "start_column",
+            "end_column",
+        )
+
+    @tool(annotations=ToolAnnotations(title="Resize Rows or Columns", destructiveHint=True))
+    async def resize_rows_or_columns(
+        spreadsheet_id: str,
+        sheet: str,
+        dimension: Literal["rows", "columns"],
+        start: int,
+        end: int | None = None,
+        pixel_size: int | None = None,
+        auto_resize: bool = False,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Set an explicit pixel height for rows or width for columns, or auto-fit
+        them to their content.
+
+        Args:
+            spreadsheet_id: The ID of the spreadsheet (found in the URL)
+            sheet: The name of the sheet
+            dimension: "rows" to resize rows (height), "columns" to resize
+                columns (width)
+            start: 0-based index of the first row or column to resize (column 0 = column A)
+            end: 0-based index of the last row or column to resize (inclusive).
+                If omitted, resizes only start.
+            pixel_size: Explicit row height or column width in pixels. Mutually
+                exclusive with auto_resize.
+            auto_resize: If True, auto-fit to content instead of setting an
+                explicit pixel_size.
+
+        Returns:
+            Result of the batchUpdate operation. Returns {"error": ...} without
+            changing the sheet if start is negative, end precedes start,
+            pixel_size isn't positive, or neither or both of pixel_size and
+            auto_resize are given.
+        """
+        return await _resize_dimension(
+            ctx.request_context.lifespan_context,
+            spreadsheet_id,
+            sheet,
+            dimension,
+            start,
+            end,
+            pixel_size,
+            auto_resize,
+            "start",
+            "end",
         )
 
     @tool(annotations=ToolAnnotations(title="Resize Rows", destructiveHint=True))
+    @deprecated_tool(
+        use="`resize_rows_or_columns` with `dimension='rows'`",
+        removed_in=_ROWS_OR_COLUMNS_REMOVED_IN,
+    )
     async def resize_rows(
         spreadsheet_id: str,
         sheet: str,
@@ -1365,15 +1679,14 @@ def register(tool):
 
         Returns:
             Result of the batchUpdate operation. Returns {"error": ...} without
-            calling the Sheets API if start_row is negative, end_row precedes
+            changing the sheet if start_row is negative, end_row precedes
             start_row, or pixel_size isn't positive.
         """
-        lc = ctx.request_context.lifespan_context
         return await _resize_dimension(
-            lc,
+            ctx.request_context.lifespan_context,
             spreadsheet_id,
             sheet,
-            "ROWS",
+            "rows",
             start_row,
             end_row,
             pixel_size,
@@ -1383,6 +1696,10 @@ def register(tool):
         )
 
     @tool(annotations=ToolAnnotations(title="Resize Columns", destructiveHint=True))
+    @deprecated_tool(
+        use="`resize_rows_or_columns` with `dimension='columns'`",
+        removed_in=_ROWS_OR_COLUMNS_REMOVED_IN,
+    )
     async def resize_columns(
         spreadsheet_id: str,
         sheet: str,
@@ -1407,15 +1724,14 @@ def register(tool):
 
         Returns:
             Result of the batchUpdate operation. Returns {"error": ...} without
-            calling the Sheets API if start_column is negative, end_column precedes
+            changing the sheet if start_column is negative, end_column precedes
             start_column, or pixel_size isn't positive.
         """
-        lc = ctx.request_context.lifespan_context
         return await _resize_dimension(
-            lc,
+            ctx.request_context.lifespan_context,
             spreadsheet_id,
             sheet,
-            "COLUMNS",
+            "columns",
             start_column,
             end_column,
             pixel_size,

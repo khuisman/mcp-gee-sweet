@@ -1,8 +1,11 @@
 """Tests for tools/response_limits.py — shared response-size safety net (issue #242)."""
 
+import ast
 import importlib
 import json
 import os
+import re
+from pathlib import Path
 
 import pytest
 
@@ -59,9 +62,9 @@ class TestEnforceResponseSizeCap:
 
     def test_hint_is_included_in_message(self, monkeypatch):
         monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
-        with pytest.raises(ValueError, match="lower max_results"):
+        with pytest.raises(ValueError, match="Lower max_results"):
             response_limits.enforce_response_size_cap(
-                {"a": "bb"}, tool_name="some_tool", hint="lower max_results, or "
+                {"a": "bb"}, tool_name="some_tool", hint="Lower max_results and paginate. "
             )
 
     def test_local_path_mentioned_when_available(self, monkeypatch):
@@ -101,7 +104,7 @@ class TestEnforceResponseSizeCap:
         assert "Narrow the range. Pass local_path to write the result" in str(exc_info.value)
 
     def test_full_sentence_hint_without_local_path_reads_as_one_message(self, monkeypatch):
-        """#1430: the list_messages/list_file_activity/list_doc_comments form —
+        """#1430: the list_messages/list_file_activity/list_file_comments form —
         hint sentence, then the env-var sentence, capitalized."""
         monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
         with pytest.raises(ValueError) as exc_info:
@@ -132,6 +135,301 @@ class TestEnforceResponseSizeCap:
         finally:
             monkeypatch.delenv("MAX_TOOL_RESPONSE_CHARS", raising=False)
             importlib.reload(response_limits)
+
+
+_ENFORCE_CALL_NAMES = ("enforce_response_size_cap", "enforce_response_size_floor")
+
+
+def _call_name(func: ast.expr) -> str | None:
+    """The plain function name of a call target: `enforce_response_size_cap(...)`
+    or `response_limits.enforce_response_size_cap(...)` both resolve to the name."""
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return None
+
+
+def _resolve_hint_expr(
+    node: ast.expr,
+    scope: dict[str, list[ast.expr]],
+    where: str,
+    resolving: frozenset[str] = frozenset(),
+) -> set[str]:
+    """Every string `node` can evaluate to as a hint, or AssertionError.
+
+    Concatenated strings and f-strings fold whole (#1552: the old collector
+    collected their pieces as whole hints). A hint that can't be resolved
+    statically — a computed variable, a dynamic f-string field — fails loudly
+    naming the call site, instead of being skipped.
+    """
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, str):
+            return {node.value}
+        raise AssertionError(f"{where}: hint is the non-string constant {node.value!r}")
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _resolve_hint_expr(node.left, scope, where, resolving)
+        right = _resolve_hint_expr(node.right, scope, where, resolving)
+        return {a + b for a in left for b in right}
+    if isinstance(node, ast.JoinedStr):
+        combos = {""}
+        for value in node.values:
+            combos = {
+                c + p for c in combos for p in _resolve_hint_expr(value, scope, where, resolving)
+            }
+        return combos
+    if isinstance(node, ast.FormattedValue):
+        # str()-approximation of the format spec/conversion; hints interpolate
+        # plain values, and an unresolvable field still fails loudly below.
+        return {str(v) for v in _resolve_hint_expr(node.value, scope, where, resolving)}
+    if isinstance(node, ast.IfExp):
+        return _resolve_hint_expr(node.body, scope, where, resolving) | _resolve_hint_expr(
+            node.orelse, scope, where, resolving
+        )
+    if isinstance(node, ast.Name):
+        if node.id in resolving:
+            raise AssertionError(f"{where}: hint {node.id!r} is self-referential")
+        assigned = scope.get(node.id)
+        if not assigned:
+            raise AssertionError(
+                f"{where}: hint reads {node.id!r}, which no assignment in this "
+                "function's scope defines"
+            )
+        values: set[str] = set()
+        for value in assigned:
+            values |= _resolve_hint_expr(value, scope, where, resolving | {node.id})
+        return values
+    if isinstance(node, ast.Call) and _call_name(node.func) == "pagination_hint":
+        page_params: set[str] = set()
+        if len(node.args) == 1:
+            page_params |= _resolve_hint_expr(node.args[0], scope, where, resolving)
+        for kw in node.keywords:
+            if kw.arg == "page_param":
+                page_params |= _resolve_hint_expr(kw.value, scope, where, resolving)
+        if not page_params:
+            raise AssertionError(
+                f"{where}: pagination_hint() call with no statically resolvable page_param"
+            )
+        return {response_limits.pagination_hint(page) for page in page_params}
+    raise AssertionError(
+        f"{where}: hint expression of type {type(node).__name__} can't be resolved statically"
+    )
+
+
+def _iter_own_stmts(stmts: list[ast.stmt]):
+    """Every statement in these statements, compound bodies included, but not
+    the bodies of functions defined among them — those get their own scope."""
+    for stmt in stmts:
+        yield stmt
+        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for field in ("body", "orelse", "finalbody"):
+            sub = getattr(stmt, field, None)
+            if isinstance(sub, list):
+                yield from _iter_own_stmts(sub)
+        if isinstance(stmt, (ast.Try, getattr(ast, "TryStar", ast.Try))):
+            for handler in stmt.handlers:
+                yield from _iter_own_stmts(handler.body)
+
+
+def _collect_scope_hints(
+    body: list[ast.stmt],
+    scope: dict[str, list[ast.expr]],
+    filename: str,
+    hints: set[str],
+) -> None:
+    """Collect this scope's hint values, then recurse into its functions.
+
+    Assignments are recorded for the whole scope before any call in it is
+    resolved, so a `hint = ...` beside the call resolves regardless of
+    statement order. Each function defined here is visited with its own scope
+    (a copy of this one), so two tools that each build a local `hint` don't
+    merge (#1552)."""
+    own = list(_iter_own_stmts(body))
+    for stmt in own:
+        if isinstance(stmt, ast.Assign):
+            for target in stmt.targets:
+                if isinstance(target, ast.Name):
+                    scope.setdefault(target.id, []).append(stmt.value)
+    for stmt in own:
+        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for node in ast.walk(stmt):
+            if isinstance(node, ast.Call) and _call_name(node.func) in _ENFORCE_CALL_NAMES:
+                where = f"{filename}:{node.lineno}"
+                for kw in node.keywords:
+                    if kw.arg == "hint":
+                        hints |= _resolve_hint_expr(kw.value, scope, where)
+    for stmt in own:
+        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            _collect_scope_hints(stmt.body, dict(scope), filename, hints)
+
+
+def _collect_cap_hints(src: Path | None = None) -> list[str]:
+    """Every hint string reachable from a size-cap call site in src/ (#1465):
+    constant `hint=` arguments, the string values of local `hint = ...`
+    assignments those calls read by name (gmail builds its get_message/
+    get_thread/get_draft hints conditionally; sync_folder builds its hint
+    from the call's own arguments), and `pagination_hint(...)` calls with
+    constant arguments — positional or `page_param=` by keyword (#1552).
+    Both direct calls and `response_limits.enforce_*` attribute calls count.
+    Concatenated and f-string hints fold whole; any hint that can't be
+    resolved statically fails loudly naming the call site. Call sites with no
+    hint (the empty default) contribute nothing."""
+    if src is None:
+        src = Path(__file__).resolve().parents[1] / "src" / "mcp_gee_sweet"
+    hints: set[str] = set()
+    for path in sorted(src.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        _collect_scope_hints(tree.body, {}, path.name, hints)
+    return sorted(hints)
+
+
+class TestCapHintsAreCompleteSentences:
+    """#1465: nothing enforced #1430's full-sentence hint form — two callers
+    shipped old ", or " fragments before anyone noticed. These pin the form for
+    every hint in src/, so a new call site can't quietly reintroduce one."""
+
+    def test_collects_the_known_call_sites(self):
+        hints = _collect_cap_hints()
+        assert len(hints) >= 9, hints
+        assert all(hints), hints
+        assert "Lower max_results and paginate via next_page_token. " in hints
+        assert "Lower page_size and paginate via next_page_token. " in hints
+        assert "The message body is large. " in hints
+        # #1552: sync_folder's hint is built from the call's own arguments —
+        # every reachable variant lands here as its own complete sentence.
+        assert (
+            "Recursive syncs can produce very large result lists. Sync a "
+            "narrower subfolder, a single direction, or set recursive=False. " in hints
+        )
+        assert (
+            "Recursive syncs can produce very large result lists. Sync a "
+            "narrower subfolder or set recursive=False. " in hints
+        )
+        assert (
+            "A folder's direct children can still produce a very large result "
+            "list. Sync a narrower subfolder or a single direction. " in hints
+        )
+        assert (
+            "A folder's direct children can still produce a very large result "
+            "list. Sync a narrower subfolder. " in hints
+        )
+
+    def test_every_hint_ends_a_complete_sentence(self):
+        for hint in _collect_cap_hints():
+            assert hint.endswith(". "), repr(hint)
+
+    def test_no_composed_message_splices_sentences(self, monkeypatch):
+        # The composed message must never contain ", or " followed by a capital
+        # letter — the shape the old fragments read as ("…overhead, or Set
+        # MAX_TOOL_RESPONSE_CHARS…").
+        for hint in _collect_cap_hints():
+            for usable in (True, False):
+
+                def _usable(value: bool = usable) -> bool:
+                    return value
+
+                monkeypatch.setattr(response_limits.local_files, "local_paths_usable", _usable)
+                message = str(
+                    response_limits._over_cap_error(
+                        "the response is 2 characters",
+                        tool_name="some_tool",
+                        hint=hint,
+                        local_path_available=True,
+                        local_path_param="local_path",
+                    )
+                )
+                assert not re.search(r", or [A-Z]", message), message
+
+
+class TestCollectCapHints:
+    """#1552: the collector itself — attribute call sites, keyword pagination
+    hints, whole-string folding, per-function scoping and loud failure."""
+
+    def _pkg(self, tmp_path, text):
+        src = tmp_path / "pkg"
+        src.mkdir(exist_ok=True)
+        (src / "a.py").write_text(text, encoding="utf-8")
+        return src
+
+    def test_attribute_call_sites_are_collected(self, tmp_path):
+        # response_limits.enforce_response_size_cap(...) — an Attribute call
+        # target the old collector walked past entirely.
+        src = self._pkg(
+            tmp_path,
+            "def one(x):\n"
+            "    response_limits.enforce_response_size_cap(\n"
+            '        x, tool_name="t", hint="A full sentence. "\n'
+            "    )\n",
+        )
+        assert _collect_cap_hints(src) == ["A full sentence. "]
+
+    def test_pagination_hint_by_keyword_resolves(self, tmp_path):
+        # pagination_hint(page_param=...) crashed the old collector with a
+        # TypeError (it read only positional args).
+        src = self._pkg(
+            tmp_path,
+            "def one(x):\n"
+            "    enforce_response_size_cap(\n"
+            '        x, tool_name="t", hint=pagination_hint(page_param="page_size")\n'
+            "    )\n",
+        )
+        assert _collect_cap_hints(src) == ["Lower page_size and paginate via next_page_token. "]
+
+    def test_concatenated_and_f_string_hints_fold_whole(self, tmp_path):
+        # The old collector collected the pieces of a concatenated or
+        # f-string hint as whole hints; both fold to the full string now.
+        src = self._pkg(
+            tmp_path,
+            "def one(x):\n"
+            '    hint = "Sync a " + "narrower subfolder. "\n'
+            '    enforce_response_size_cap(x, tool_name="t", hint=hint)\n'
+            "\n"
+            "def two():\n"
+            '    page = "max_results"\n'
+            "    enforce_response_size_cap(\n"
+            '        x, tool_name="t", hint=f"Lower {page} and paginate. "\n'
+            "    )\n",
+        )
+        assert _collect_cap_hints(src) == [
+            "Lower max_results and paginate. ",
+            "Sync a narrower subfolder. ",
+        ]
+
+    def test_assignments_do_not_merge_across_functions(self, tmp_path):
+        # The old collector kept one assignment map per file, so a `hint`
+        # built in a second tool leaked into the first tool's call.
+        src = self._pkg(
+            tmp_path,
+            "def one(x):\n"
+            '    hint = "One sentence. "\n'
+            '    enforce_response_size_cap(x, tool_name="t", hint=hint)\n'
+            "\n"
+            "def two(x):\n"
+            '    hint = "fragment without a period"\n'
+            "    other(x, hint)\n",
+        )
+        assert _collect_cap_hints(src) == ["One sentence. "]
+
+    def test_unresolvable_hint_fails_loudly(self, tmp_path):
+        src = self._pkg(
+            tmp_path,
+            'def one(p):\n    enforce_response_size_cap(x, tool_name="t", hint=build_hint(p))\n',
+        )
+        with pytest.raises(AssertionError, match="can't be resolved statically"):
+            _collect_cap_hints(src)
+
+    def test_dynamic_f_string_field_fails_loudly(self, tmp_path):
+        src = self._pkg(
+            tmp_path,
+            "def one(p):\n"
+            "    enforce_response_size_cap(\n"
+            '        x, tool_name="t", hint=f"Lower {p} and paginate. "\n'
+            "    )\n",
+        )
+        with pytest.raises(AssertionError, match="no assignment in this"):
+            _collect_cap_hints(src)
 
 
 class TestWriteCappedResultToDisk:

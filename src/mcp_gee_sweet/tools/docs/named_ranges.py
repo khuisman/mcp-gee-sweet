@@ -5,6 +5,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
+from ...deprecation import deprecated_tool
 from .invalidation import doc_invalidating
 
 logger = logging.getLogger(__name__)
@@ -65,11 +66,12 @@ def register(tool):
         doc_id: str,
         name: str,
         start_index: int,
-        end_index: int,
+        end_index: int | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
-        Create a named range over a span of content in a Google Doc.
+        Create a named range over a span of content in a Google Doc, or over the
+        single character at start_index as a named anchor point (a bookmark).
 
         A named range lets you reference a section of the document by name later
         (e.g. with ReplaceNamedRangeContentRequest via batch_update) without
@@ -82,7 +84,8 @@ def register(tool):
             doc_id: The Google Doc file ID.
             name: Name for the range. Not required to be unique; 1-256 UTF-16 code units.
             start_index: Start of the range (inclusive).
-            end_index: End of the range (exclusive).
+            end_index: End of the range (exclusive). If omitted, the range is the
+                single character at start_index (end_index = start_index + 1).
 
         Returns:
             Confirmation with docId, namedRangeId, name, startIndex, endIndex.
@@ -91,8 +94,11 @@ def register(tool):
             Named ranges are not visible in the Docs UI and cannot be used as
             internal hyperlink targets (the Link object only supports UI-created
             bookmarks and headings, not named ranges) — they exist purely for
-            programmatic reference via the API.
+            programmatic reference via the API. A single-character range is
+            likewise not a Docs UI bookmark: it won't appear in Insert > Bookmark.
         """
+        if end_index is None:
+            end_index = start_index + 1
         lc = ctx.request_context.lifespan_context
         result = await _create_named_range(
             lc.docs_service, lc.doc_cache, doc_id, name, start_index, end_index
@@ -109,6 +115,10 @@ def register(tool):
         return result
 
     @tool(annotations=ToolAnnotations(title="Create Bookmark", destructiveHint=True))
+    @deprecated_tool(
+        use="`create_named_range` with `start_index` set to `index` and `end_index` omitted",
+        removed_in="the next feature release",
+    )
     async def create_bookmark(
         doc_id: str,
         name: str,

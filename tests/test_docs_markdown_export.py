@@ -12,7 +12,7 @@ import pytest
 from markdown_it import MarkdownIt
 
 from mcp_gee_sweet.tools import docs as docs_module
-from mcp_gee_sweet.tools.docs import md_to_html
+from mcp_gee_sweet.tools.docs import markdown_export, md_to_html
 from mcp_gee_sweet.tools.docs.ast import (
     BulletItem,
     Cell,
@@ -85,6 +85,8 @@ def _make_tool_registry():
 def _make_ctx(**services):
     ctx = MagicMock()
     lc = ctx.request_context.lifespan_context
+    # get_doc_as_markdown reads through the doc cache (#1527): miss by default.
+    services.setdefault("doc_cache", MagicMock(get_document=MagicMock(return_value=None)))
     for k, v in services.items():
         setattr(lc, k, v)
     return ctx
@@ -358,7 +360,7 @@ class TestDocToAstLinks:
 
 
 class TestStabilizedHeadingLinks:
-    """PR #1435 review: a revision's exported heading links are written as
+    """A revision's exported heading links are written as
     '#slug' anchors by _stabilize_internal_links, and that slug must be exactly
     what anchors.py's resolver (and GitHub itself) would produce for the same
     heading — hard breaks included. A link to the wrong section is worse than
@@ -415,9 +417,9 @@ class TestStabilizedHeadingLinks:
         assert self._link(doc, 2) == {"url": "#heading-oneheading-two"}
 
     def test_hard_break_and_plain_heading_links_stay_distinct(self):
-        # The regression khuisman caught in review: with the break slugified as
-        # a hyphen, BOTH headings' links read "#heading-one-heading-two" and
-        # the hard-break heading's link resolved to the plain heading.
+        # With the break slugified as a hyphen, BOTH headings' links read
+        # "#heading-one-heading-two" and the hard-break heading's link
+        # resolved to the plain heading.
         from mcp_gee_sweet.tools.docs.markdown_export import _stabilize_internal_links
 
         doc = self._doc()
@@ -450,9 +452,14 @@ class TestStabilizedHeadingLinks:
         doc = self._doc()
         _stabilize_internal_links(doc)
         slug = self._link(doc, 2)["url"]
-        # What the write side's _walk_headings_and_anchor_runs sees: raw
-        # textRun content, trailing "\n" stripped, "\v" intact.
-        raw_headings = ["Heading one\vheading two", "Heading one heading two"]
+        # Exactly what the write side's _walk_headings_and_anchor_runs
+        # collects for the same doc — raw textRun content, trailing "\n"
+        # stripped, "\v" intact — gathered here rather than hard-coded, so a
+        # change to the walker can't silently desync this round trip.
+        from mcp_gee_sweet.tools.docs.content import _walk_headings_and_anchor_runs
+
+        walked_headings, _anchor_runs = _walk_headings_and_anchor_runs(doc["body"]["content"])
+        raw_headings = [text for text, _heading_id in walked_headings]
         assert resolve_heading_anchor(slug, raw_headings) == 0
 
 
@@ -551,6 +558,541 @@ class TestDocToAstImages:
         }
         node = document_to_ast(doc)[0]
         assert node.runs == []
+
+
+class TestImageSpanStyle:
+    """#1509: the read side records an inline image's own character style, and
+    the export keeps an emphasis span open across an image that shares it, so
+    a Doc written from `**bold ![logo](x) image**` reads back as the same
+    Markdown instead of three spans with a plain image in the middle."""
+
+    _URI = "https://example.com/img.png"
+
+    @staticmethod
+    def _embedded(title="logo"):
+        return {
+            "inlineObjectProperties": {
+                "embeddedObject": {
+                    "title": title,
+                    "imageProperties": {"contentUri": "https://example.com/img.png"},
+                }
+            }
+        }
+
+    def _doc(self, before, image_style, after, extra_elements=()):
+        elements = [
+            {"textRun": {"content": before, "textStyle": {"bold": True}}},
+            {
+                "inlineObjectElement": {
+                    "inlineObjectId": "img1",
+                    "textStyle": {"bold": True, **image_style},
+                }
+            },
+            *extra_elements,
+            {"textRun": {"content": after, "textStyle": {"bold": True}}},
+        ]
+        return {
+            "body": {"content": [{"paragraph": {"elements": elements}}]},
+            "inlineObjects": {"img1": self._embedded()},
+        }
+
+    def test_reads_the_images_own_character_style(self):
+        # The live shape #1509 confirmed: the image's inlineObjectElement carries
+        # the span's bold on its own textStyle, next to the link (#951).
+        doc = self._doc("bold ", {}, " image\n")
+        image = document_to_ast(doc)[0].runs[1]
+        assert isinstance(image, Image)
+        assert image.bold is True
+        assert image.alt == "logo"
+
+    def test_bold_span_stays_open_across_the_image(self):
+        doc = self._doc("bold ", {}, " image\n")
+        assert ast_to_markdown(document_to_ast(doc)) == f"**bold ![logo]({self._URI}) image**\n"
+        tokens = _COMMONMARK.parse(ast_to_markdown(document_to_ast(doc)))
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        # One strong span, opened before the text and closed after it, with
+        # the image inside it — not three separate spans around a plain image.
+        assert "strong_open" in types and "strong_close" in types
+        assert types.index("strong_open") < types.index("image") < types.index("strong_close")
+
+    def test_image_style_field_list_mirrors_the_write_side(self):
+        # The same fields emitter._character_text_style writes on an image
+        # (#1475), including the ones Markdown has no syntax for: they ride on
+        # the AST, as a run's do, and are lost in Markdown the same way.
+        doc = self._doc(
+            "bold ",
+            {
+                "italic": True,
+                "underline": True,
+                "strikethrough": True,
+                "baselineOffset": "SUPERSCRIPT",
+                "smallCaps": True,
+                "backgroundColor": {"color": {"rgbColor": {"red": 1.0}}},
+                "weightedFontFamily": {"fontFamily": "Courier New"},
+            },
+            " image\n",
+        )
+        image = document_to_ast(doc)[0].runs[1]
+        assert isinstance(image, Image)
+        assert image.italic is True
+        assert image.underline is True
+        assert image.strikethrough is True
+        assert image.baseline_offset == "SUPERSCRIPT"
+        assert image.small_caps is True
+        assert image.background_color == RGBColor(1.0, 0.0, 0.0)
+        assert image.font_family == "Courier New"
+
+    def test_size_and_color_stay_the_paragraphs(self):
+        # The write side never styles fontSize or foregroundColor on an image
+        # (_IMAGE_TEXT_STYLE_FIELDS), so the read side doesn't invent fields
+        # an Image doesn't even have.
+        doc = self._doc(
+            "bold ",
+            {
+                "fontSize": {"magnitude": 12.0, "unit": "PT"},
+                "foregroundColor": {"color": {"rgbColor": {"red": 1.0}}},
+            },
+            " image\n",
+        )
+        image = document_to_ast(doc)[0].runs[1]
+        assert isinstance(image, Image)
+        assert not hasattr(image, "font_size")
+        assert not hasattr(image, "foreground_color")
+
+    def test_italic_and_strike_wrap_the_same_span(self):
+        style = {"italic": True, "strikethrough": True}
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "a ", "textStyle": style}},
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": style,
+                                    }
+                                },
+                                {"textRun": {"content": " b\n", "textStyle": style}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        # The image shares the italic and the strike, so both stay open across
+        # it, the strike inside the italic — the order _render_plain_run writes.
+        assert ast_to_markdown(document_to_ast(doc)) == f"*~~a ![logo]({self._URI}) b~~*\n"
+
+    def test_lone_styled_image_keeps_its_own_markers(self):
+        # No run shares the span; the image's own markers are the only way the
+        # style survives export at all.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True},
+                                    }
+                                },
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        assert ast_to_markdown(document_to_ast(doc)) == f"**![logo]({self._URI})**\n"
+
+    def test_style_with_no_markdown_syntax_renders_plain(self):
+        # Underline, highlight, superscript, small caps and a code font have no
+        # Markdown marker — the same limitation a run's style has.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {
+                                            "underline": True,
+                                            "baselineOffset": "SUPERSCRIPT",
+                                        },
+                                    }
+                                },
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        assert ast_to_markdown(document_to_ast(doc)) == f"![logo]({self._URI})\n"
+
+    def test_unstyled_image_between_bold_runs_still_splits(self):
+        # Only an image that shares the span keeps it open; a plain one doesn't
+        # join, exactly as before.
+        doc = self._doc("bold ", {"bold": False}, " image\n")
+        doc["body"]["content"][0]["paragraph"]["elements"][1]["inlineObjectElement"][
+            "textStyle"
+        ] = {}
+        assert ast_to_markdown(document_to_ast(doc)) == (
+            f"**bold** ![logo]({self._URI}) **image**\n"
+        )
+
+    def test_edge_break_keeps_the_span_closed(self):
+        # A break at the boundary would land inside the markers; the runs stay
+        # apart, as _coalesce_plain_runs keeps runs apart. The image still
+        # joins the run before it — the break is between it and the next run.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "a", "textStyle": {"bold": True}}},
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True},
+                                    }
+                                },
+                                {"textRun": {"content": "\nb\n", "textStyle": {"bold": True}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        assert ast_to_markdown(document_to_ast(doc)) == f"**a![logo]({self._URI})**<br>**b**\n"
+
+    def test_linked_span_wraps_the_images_bare(self):
+        # The span's one link wraps the whole body; the image's link is that
+        # same link, so it renders bare instead of nesting a link in a link.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "textRun": {
+                                        "content": "a ",
+                                        "textStyle": {"bold": True, "link": {"url": "https://u"}},
+                                    }
+                                },
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {
+                                            "bold": True,
+                                            "link": {"url": "https://u"},
+                                        },
+                                    }
+                                },
+                                {
+                                    "textRun": {
+                                        "content": " b\n",
+                                        "textStyle": {"bold": True, "link": {"url": "https://u"}},
+                                    }
+                                },
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        assert (
+            ast_to_markdown(document_to_ast(doc)) == f"[**a ![logo]({self._URI}) b**](https://u)\n"
+        )
+
+    def test_cell_keeps_the_span_open_across_the_image(self):
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "table": {
+                            "tableRows": [
+                                {
+                                    "tableCells": [
+                                        {
+                                            "content": [
+                                                {
+                                                    "paragraph": {
+                                                        "elements": [
+                                                            {
+                                                                "textRun": {
+                                                                    "content": "a ",
+                                                                    "textStyle": {"bold": True},
+                                                                }
+                                                            },
+                                                            {
+                                                                "inlineObjectElement": {
+                                                                    "inlineObjectId": "img1",
+                                                                    "textStyle": {"bold": True},
+                                                                }
+                                                            },
+                                                            {
+                                                                "textRun": {
+                                                                    "content": " b",
+                                                                    "textStyle": {"bold": True},
+                                                                }
+                                                            },
+                                                        ]
+                                                    }
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        assert ast_to_markdown(document_to_ast(doc)) == (
+            f"| **a ![logo]({self._URI}) b** |\n| --- |\n"
+        )
+
+    def test_code_run_breaks_the_span(self):
+        # A code run is not emphasis: a group never forms across it, and the
+        # parts join without a separator, as they always have.
+        doc = self._doc(
+            "a",
+            {},
+            "b\n",
+            extra_elements=[
+                {
+                    "textRun": {
+                        "content": "`c`",
+                        "textStyle": {"weightedFontFamily": {"fontFamily": "Courier New"}},
+                    }
+                }
+            ],
+        )
+        elements = doc["body"]["content"][0]["paragraph"]["elements"]
+        elements[1], elements[2] = elements[2], elements[1]
+        assert ast_to_markdown(document_to_ast(doc)) == (
+            f"**a**`` `c` ``**![logo]({self._URI})b**\n"
+        )
+
+    def test_ast_level_round_trip_keeps_one_span(self):
+        # The write side reads `**bold ![logo](x) image**` into the same AST
+        # (#1475); the export of that AST writes the same Markdown back.
+        source = f"**bold ![logo]({self._URI}) image**"
+        ast = html_to_ast(md_to_html._md_to_html(source))
+        assert ast_to_markdown(ast) == source + "\n"
+
+    def test_a_styled_image_touching_a_word_falls_back_to_split(self):
+        # #1509 review: `see**![logo](u)**` — the opening ** sits between "e"
+        # and "!", is not left-flanking, and CommonMark reads literal asterisks.
+        # A digit before it breaks the same way. The span falls back to the
+        # split rendering, the image bare, as before.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "see", "textStyle": {}}},
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True},
+                                    }
+                                },
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == f"see![logo]({self._URI})\n"
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        assert "strong_open" not in [c.type for c in inline.children]
+
+    def test_a_span_ending_in_an_image_falls_back_before_a_word(self):
+        # The closing marker's mirror case: `**a ![logo](u)**b` — a closing **
+        # before an alphanumeric, preceded by ")", is not right-flanking, and
+        # the bold is lost. Split rendering keeps the run bold and the image
+        # bare, as before.
+        doc = self._doc("a ", {}, "b\n")
+        doc["body"]["content"][0]["paragraph"]["elements"][2]["textRun"]["textStyle"] = {}
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == f"**a** ![logo]({self._URI})b\n"
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        assert types.index("strong_close") < types.index("image")
+
+    def test_a_span_ending_in_an_image_falls_back_before_a_styled_run(self):
+        # #1530 review: a next run with its own emphasis writes its `*`
+        # directly after the span's closing `**` when it starts with no
+        # whitespace, and the two merge into one `***` run the parser reads
+        # as neither span — `**bold ![logo](u)***it*` would lose the bold.
+        # A letter or digit next door already falls back; this pins the run
+        # that starts with punctuation, which the alphanumeric test misses.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "bold ", "textStyle": {"bold": True}}},
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True},
+                                    }
+                                },
+                                {
+                                    "textRun": {
+                                        "content": "(it)",
+                                        "textStyle": {"italic": True},
+                                    }
+                                },
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == f"**bold** ![logo]({self._URI})*(it)*\n"
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        assert types.index("strong_close") < types.index("image")
+        assert types.index("image") < types.index("em_open")
+
+    def test_a_span_starting_with_an_image_falls_back_after_a_styled_run(self):
+        # The opening marker's mirror of the same review: `*it***![logo](u)
+        # bold**` — the italic run's closing `*` merges with the span's
+        # opening `**` into one `***` run, and the bold is lost. The
+        # previous rendered part ending in `*` now falls back too, keeping
+        # the image bare and the runs styled, as before.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "it", "textStyle": {"italic": True}}},
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True},
+                                    }
+                                },
+                                {
+                                    "textRun": {
+                                        "content": " bold",
+                                        "textStyle": {"bold": True},
+                                    }
+                                },
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == f"*it*![logo]({self._URI}) **bold**\n"
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        assert types.index("em_close") < types.index("image")
+        assert types.index("image") < types.index("strong_open")
+
+    def test_an_edge_break_stays_outside_the_spans_link(self):
+        # #1509 review: a span starting with a line break (a table cell's
+        # second paragraph) put its <br> inside the link. The span's outer
+        # edges now keep the breaks outside, as _render_run does for a run.
+        link = {"url": "https://u"}
+        style = {"bold": True, "link": link}
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "table": {
+                            "tableRows": [
+                                {
+                                    "tableCells": [
+                                        {
+                                            "content": [
+                                                {
+                                                    "paragraph": {
+                                                        "elements": [
+                                                            {
+                                                                "textRun": {
+                                                                    "content": "x\n",
+                                                                    "textStyle": {},
+                                                                }
+                                                            }
+                                                        ]
+                                                    }
+                                                },
+                                                {
+                                                    "paragraph": {
+                                                        "elements": [
+                                                            {
+                                                                "textRun": {
+                                                                    "content": "a ",
+                                                                    "textStyle": style,
+                                                                }
+                                                            },
+                                                            {
+                                                                "inlineObjectElement": {
+                                                                    "inlineObjectId": "img1",
+                                                                    "textStyle": style,
+                                                                }
+                                                            },
+                                                            {
+                                                                "textRun": {
+                                                                    "content": " b\n",
+                                                                    "textStyle": style,
+                                                                }
+                                                            },
+                                                        ]
+                                                    }
+                                                },
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        assert ast_to_markdown(document_to_ast(doc)) == (
+            f"| x<br>[**a ![logo]({self._URI}) b**](https://u) |\n| --- |\n"
+        )
 
 
 class TestDocToAstTables:
@@ -872,6 +1414,31 @@ class TestDocToAstTables:
     def test_cell_with_no_alignment_set_reads_as_none(self):
         assert self._cell_alignment_of([_para("a\n")]) is None
 
+    @pytest.mark.parametrize("alignment", ["START", "ALIGNMENT_UNSPECIFIED"])
+    def test_start_or_unspecified_cell_reads_as_none(self, alignment):
+        # #1503: insertTable stores START on every cell, aligned or not.
+        style = {"alignment": alignment}
+        content = [_para("a\n", para_style=style), _para("b\n", para_style=style)]
+        assert self._cell_alignment_of(content) is None
+
+    def test_start_is_default_only_when_every_cell_paragraph_has_a_field(self):
+        from mcp_gee_sweet.tools.docs.doc_to_ast import _start_is_default
+
+        start = {"alignment": "START"}
+        unset_inner = {"tableRows": [{"tableCells": [{"content": [_para("x\n")]}]}]}
+
+        def table(*contents):
+            return {"tableRows": [{"tableCells": [{"content": c} for c in contents]}]}
+
+        assert _start_is_default(table([_para("a\n", para_style=start)]))
+        assert not _start_is_default(table([_para("a\n", para_style=start)], [_para("b\n")]))
+        # A nested table's own paragraphs don't decide for the outer table.
+        assert _start_is_default(table([_para("a\n", para_style=start), {"table": unset_inner}]))
+
+    def test_justified_cell_reads_as_justified(self):
+        content = [_para("a\n", para_style={"alignment": "JUSTIFIED"})]
+        assert self._cell_alignment_of(content) == "JUSTIFIED"
+
     def test_nested_table_paragraphs_dont_count_toward_the_cells_alignment(self):
         center = {"alignment": "CENTER"}
         inner_cell = {
@@ -1104,9 +1671,10 @@ class TestAstToMarkdownBlocks:
         nodes = [BulletItem(runs=[Run(text="item")], depth=0, ordered=False)]
         assert ast_to_markdown(nodes) == "- item\n"
 
-    def test_bullet_item_nested_indents_by_depth(self):
+    def test_bullet_item_with_no_exported_parent_starts_at_the_margin(self):
+        """Four spaces would be an indented code block (PR #1539 QA round 1)."""
         nodes = [BulletItem(runs=[Run(text="item")], depth=2, ordered=False)]
-        assert ast_to_markdown(nodes) == "    - item\n"
+        assert ast_to_markdown(nodes) == "- item\n"
 
     def test_bullet_item_ordered_uses_numeral_marker(self):
         nodes = [BulletItem(runs=[Run(text="item")], depth=0, ordered=True)]
@@ -1363,6 +1931,69 @@ class TestTableAlignmentRoundTrip:
         assert html == _COMMONMARK.render("| a | b |\n|:-:|--:|\n| 1 | 2 |\n")
         assert html.count('style="text-align:center"') == 2
         assert html.count('style="text-align:right"') == 2
+
+    def test_start_on_every_cell_exports_unaligned_columns(self):
+        """#1503: insertTable leaves alignment START on every cell paragraph, so
+        an unaligned column reads START from the Docs API. It exports `---`, and
+        a CENTER column beside it, or a column mixing CENTER and START, keeps
+        its own delimiter."""
+
+        def cell(text, alignment):
+            return {
+                "tableCellStyle": {},
+                "content": [_para(f"{text}\n", para_style={"alignment": alignment})],
+            }
+
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "table": {
+                            "tableRows": [
+                                {
+                                    "tableCells": [
+                                        cell("p", "START"),
+                                        cell("q", "CENTER"),
+                                        cell("r", "CENTER"),
+                                    ]
+                                },
+                                {
+                                    "tableCells": [
+                                        cell("1", "START"),
+                                        cell("2", "CENTER"),
+                                        cell("3", "START"),
+                                    ]
+                                },
+                            ]
+                        }
+                    }
+                ]
+            },
+            "lists": {},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == "| p | q | r |\n| --- | :-: | --- |\n| 1 | 2 | 3 |\n"
+
+    def test_start_is_a_left_column_where_unaligned_cells_have_no_field(self):
+        """#1503 QA round 1: a Drive `.docx` import leaves an unaligned cell's
+        `alignment` field out, so in that table START is a real `:--`. Cells
+        read `[START] [CENTER] [None]` there, as Kit's live import did."""
+
+        def cell(text, alignment):
+            style = {"alignment": alignment} if alignment else {}
+            return {"tableCellStyle": {}, "content": [_para(f"{text}\n", para_style=style)]}
+
+        def row(left, center, plain):
+            return {"tableCells": [cell(left, "START"), cell(center, "CENTER"), cell(plain, None)]}
+
+        doc = {
+            "body": {
+                "content": [{"table": {"tableRows": [row("l", "c", "n"), row("1", "2", "3")]}}]
+            },
+            "lists": {},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == "| l | c | n |\n| :-- | :-: | --- |\n| 1 | 2 | 3 |\n"
 
 
 class TestAstToMarkdownComments:
@@ -1636,6 +2267,158 @@ class TestGetDocAsMarkdownTool:
         )
         assert result["local_path"] == str(tmp_path / "doc1.md")
         assert (tmp_path / "doc1.md").read_text(encoding="utf-8").startswith("Hello")
+
+
+_MD_CACHE_DOC = {
+    "documentId": "doc1",
+    "title": "My Doc",
+    "revisionId": "rev-1",
+    "body": {"content": [_para("Hello\n")]},
+}
+
+
+class _FakeDocs:
+    """Backs a docs service whose documents().get() serves a revisionId probe
+    (fields="revisionId") or the full document, counting each kind. `service` is
+    the MagicMock the tool is given."""
+
+    def __init__(self, document):
+        self.document = document
+        self.probes = 0
+        self.reads = 0
+        self.on_read = None
+        self.service = MagicMock()
+        self.service.documents.return_value.get.side_effect = self.get
+
+    def get(self, documentId, fields=None):
+        def execute(**_):
+            if fields == "revisionId":
+                self.probes += 1
+                return {"revisionId": self.document.get("revisionId")}
+            self.reads += 1
+            if self.on_read:
+                self.on_read()
+            return self.document
+
+        return MagicMock(execute=execute)
+
+
+class TestGetDocAsMarkdownCache:
+    """get_doc_as_markdown reads through the doc cache (#1527), validated against
+    the Docs API's revisionId (PR #1548 QA round 1), so get_doc_content can be
+    deprecated without losing a cached read."""
+
+    def _setup(self, document=None):
+        from mcp_gee_sweet.cache import DocContentCache
+
+        docs = _FakeDocs(dict(document or _MD_CACHE_DOC))
+        drive_service = MagicMock()
+        doc_cache = DocContentCache(db_path=":memory:", ttl=60, principal="test")
+        ctx = _make_ctx(docs_service=docs.service, drive_service=drive_service, doc_cache=doc_cache)
+        return docs, drive_service, doc_cache, ctx
+
+    async def _export(self, ctx, **kwargs):
+        return await _docs_tools["get_doc_as_markdown"](doc_id="doc1", ctx=ctx, **kwargs)
+
+    @pytest.mark.parametrize("validate", [False, True])
+    async def test_second_call_is_served_from_the_cache(self, validate, monkeypatch):
+        monkeypatch.setattr(markdown_export, "CACHE_VALIDATE_MODIFIED_TIME", validate)
+        docs, drive_service, _, ctx = self._setup()
+        first = await self._export(ctx)
+        second = await self._export(ctx)
+        assert first == second == {"doc_id": "doc1", "title": "My Doc", "markdown": "Hello\n"}
+        assert docs.reads == 1
+        assert docs.probes == (2 if validate else 0)
+        drive_service.files.assert_not_called()
+
+    async def test_a_new_revision_is_read_at_once(self, monkeypatch):
+        # An edit made outside this server (the Docs editor) changes revisionId at
+        # once, where Drive's modifiedTime lagged by minutes (PR #1548 QA round 1).
+        monkeypatch.setattr(markdown_export, "CACHE_VALIDATE_MODIFIED_TIME", True)
+        docs, _, _, ctx = self._setup()
+        await self._export(ctx)
+        docs.document = {
+            **_MD_CACHE_DOC,
+            "revisionId": "rev-2",
+            "body": {"content": [_para("Edited\n")]},
+        }
+        result = await self._export(ctx)
+        assert result["markdown"] == "Edited\n"
+        assert docs.reads == 2
+
+    async def test_a_document_without_a_revision_id_is_read_live(self, monkeypatch):
+        monkeypatch.setattr(markdown_export, "CACHE_VALIDATE_MODIFIED_TIME", True)
+        document = {k: v for k, v in _MD_CACHE_DOC.items() if k != "revisionId"}
+        docs, _, _, ctx = self._setup(document)
+        await self._export(ctx)
+        await self._export(ctx)
+        assert docs.reads == 2
+
+    async def test_a_failed_revision_probe_is_an_error_without_drive(self, monkeypatch):
+        monkeypatch.setattr(markdown_export, "CACHE_VALIDATE_MODIFIED_TIME", True)
+        _, drive_service, _, ctx = self._setup()
+        failing = MagicMock()
+        failing.documents.return_value.get.return_value.execute.side_effect = RuntimeError("boom")
+        ctx.request_context.lifespan_context.docs_service = failing
+        assert await self._export(ctx) == {"error": "boom"}
+        drive_service.files.assert_not_called()
+
+    async def test_mark_dirty_invalidates_it(self, monkeypatch):
+        # Every Docs edit marks the doc dirty through doc_cache.mark_dirty(doc_id).
+        monkeypatch.setattr(markdown_export, "CACHE_VALIDATE_MODIFIED_TIME", False)
+        docs, _, doc_cache, ctx = self._setup()
+        await self._export(ctx)
+        doc_cache.mark_dirty("doc1")
+        await self._export(ctx)
+        assert docs.reads == 2
+
+    async def test_edit_landing_mid_fetch_isnt_overwritten(self, monkeypatch):
+        # #1032: an edit's mark_dirty during the fetch stops the pre-edit store.
+        monkeypatch.setattr(markdown_export, "CACHE_VALIDATE_MODIFIED_TIME", True)
+        docs, _, doc_cache, ctx = self._setup()
+        docs.on_read = lambda: doc_cache.mark_dirty("doc1")
+        await self._export(ctx)
+        assert doc_cache.get_document("doc1") is None
+
+    async def test_comments_are_read_on_every_call(self, monkeypatch):
+        monkeypatch.setattr(markdown_export, "CACHE_VALIDATE_MODIFIED_TIME", True)
+        docs, drive_service, _, ctx = self._setup()
+        drive_service.comments.return_value.list.return_value.execute.return_value = {
+            "comments": []
+        }
+        for _ in range(2):
+            await self._export(ctx, include_comments=True)
+        assert docs.reads == 1
+        assert drive_service.comments.return_value.list.call_count == 2
+
+    @pytest.mark.parametrize(
+        ("document", "max_age"),
+        [
+            ({**_MD_CACHE_DOC, "inlineObjects": {"img1": {}}}, "_IMAGE_DOCUMENT_MAX_AGE"),
+            (_MD_CACHE_DOC, "_REVISION_ID_MAX_AGE"),
+        ],
+    )
+    async def test_an_entry_expires_at_its_max_age(self, document, max_age, monkeypatch):
+        import time
+
+        monkeypatch.setattr(markdown_export, "CACHE_VALIDATE_MODIFIED_TIME", True)
+        docs, _, doc_cache, ctx = self._setup(document)
+        doc_cache.set_ttl(10 * 24 * 3600)
+        await self._export(ctx)
+        await self._export(ctx)
+        assert docs.reads == 1
+        later = time.time() + getattr(markdown_export, max_age) + 1
+        monkeypatch.setattr(time, "time", lambda: later)
+        await self._export(ctx)
+        assert docs.reads == 2
+
+    async def test_get_doc_content_entry_is_untouched(self, monkeypatch):
+        # The two tools share the namespace under different keys.
+        monkeypatch.setattr(markdown_export, "CACHE_VALIDATE_MODIFIED_TIME", False)
+        _, _, doc_cache, ctx = self._setup()
+        doc_cache.store("doc1", {"id": "doc1", "content": "plain"})
+        await self._export(ctx)
+        assert doc_cache.get("doc1") == {"id": "doc1", "content": "plain"}
 
 
 @pytest.mark.parametrize("text", ["call(`value`)", "`leading", "trailing`", "``nested``"])
@@ -2156,10 +2939,7 @@ class TestOrderedListNumbering:
         assert "1. a1\n" in md
         assert "6. a2\n" in md
         html = "".join(_COMMONMARK.render(md).split())
-        assert "<li>a1</li><li>a2</li>" in html
-        if not parent_ordered:
-            # Under a numbered parent the 2-space indent doesn't nest at all (#1128).
-            assert "<li>a<ol><li>a1</li><li>a2</li></ol></li>" in html
+        assert "<li>a<ol><li>a1</li><li>a2</li></ol></li>" in html
 
     def test_item_at_same_or_shallower_depth_keeps_its_number(self):
         """Only an item deeper than the one before it starts a sublist mid-item.
@@ -3092,3 +3872,194 @@ class TestNestedStrikeImport:
             assert runs == [("a ~b~ c", True)]
         else:
             assert runs == [("~a ", None), ("b", True), (" c~", None)]
+
+
+def _bullet(text, depth=0, ordered=False, number=None, **kwargs):
+    if ordered and number is None:
+        number = 1
+    return BulletItem(runs=[Run(text=text)], depth=depth, ordered=ordered, number=number, **kwargs)
+
+
+def _tight_html(markdown_text: str) -> str:
+    return "".join(_COMMONMARK.render(markdown_text).split())
+
+
+class TestNestedListIndentsToParentContentColumn:
+    """#1128: a nested item was indented two spaces per depth whatever its
+    parent's marker, so a child of "1. " (content column 3) read as more of
+    the parent's list in CommonMark. Each item now starts at its parent's
+    content column. Checked against plain CommonMark, not a round trip through
+    our importer, whose pre-pass (md_to_html rule D1) repairs an under-indented
+    marker, so a round trip passes with or without the fix."""
+
+    def test_numbered_under_numbered(self):
+        nodes = [_bullet("Top", ordered=True), _bullet("Nested", 1, ordered=True)]
+        nodes.append(_bullet("Next", ordered=True, number=2))
+        md = ast_to_markdown(nodes)
+        assert md == "1. Top\n   1. Nested\n2. Next\n"
+        assert "<li>Top<ol><li>Nested</li></ol></li><li>Next</li>" in _tight_html(md)
+
+    def test_bullet_bullet_numbered(self):
+        nodes = [_bullet("a"), _bullet("b", 1), _bullet("c", 2, ordered=True)]
+        md = ast_to_markdown(nodes)
+        assert md == "- a\n  - b\n    1. c\n"
+        assert "<li>a<ul><li>b<ol><li>c</li></ol></li></ul></li>" in _tight_html(md)
+
+    def test_numbered_bullet(self):
+        md = ast_to_markdown([_bullet("a", ordered=True), _bullet("b", 1)])
+        assert md == "1. a\n   - b\n"
+        assert "<li>a<ul><li>b</li></ul></li>" in _tight_html(md)
+
+    def test_numbered_numbered_bullet(self):
+        nodes = [_bullet("a", ordered=True), _bullet("b", 1, ordered=True), _bullet("c", 2)]
+        md = ast_to_markdown(nodes)
+        assert md == "1. a\n   1. b\n      - c\n"
+        assert "<li>a<ol><li>b<ul><li>c</li></ul></li></ol></li>" in _tight_html(md)
+
+    @pytest.mark.parametrize("number", [10, 99, 100, 1000])
+    def test_wide_numbered_parent(self, number):
+        """The child clears the parent's real marker, "10. " or "100. ", where a
+        fixed 4-space indent would land short from 100 on (#1128's comment)."""
+        nodes = [
+            _bullet("p", ordered=True, number=number),
+            _bullet("c", 1, ordered=True),
+            _bullet("d", 2),
+        ]
+        md = ast_to_markdown(nodes)
+        column = len(f"{number}. ")
+        assert md == f"{number}. p\n{' ' * column}1. c\n{' ' * (column + 3)}- d\n"
+        assert "<li>p<ol><li>c<ul><li>d</li></ul></li></ol></li>" in _tight_html(md)
+
+    def test_children_of_different_width_parents(self):
+        nodes = [
+            _bullet("nine", ordered=True, number=9),
+            _bullet("n1", 1),
+            _bullet("ten", ordered=True, number=10),
+            _bullet("t1", 1),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "9. nine\n   - n1\n10. ten\n    - t1\n"
+        html = _tight_html(md)
+        assert "<li>nine<ul><li>n1</li></ul></li><li>ten<ul><li>t1</li></ul></li>" in html
+
+    def test_quoted_numbered_outline(self):
+        nodes = [
+            _bullet("a", ordered=True, blockquote_depth=1),
+            _bullet("b", 1, ordered=True, blockquote_depth=1),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "> 1. a\n>    1. b\n"
+        assert "<blockquote><ol><li>a<ol><li>b</li></ol></li></ol></blockquote>" in _tight_html(md)
+
+    def test_block_under_a_numbered_child_indents_to_its_column(self):
+        nodes = [
+            _bullet("a", ordered=True),
+            _bullet("b", 1, ordered=True),
+            Paragraph(runs=[Run(text="more")], list_depth=1),
+            _bullet("c", ordered=True, number=2),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "1. a\n   1. b\n\n      more\n\n2. c\n"
+        html = _tight_html(md)
+        assert "<li><p>a</p><ol><li><p>b</p><p>more</p></li></ol></li><li><p>c</p></li>" in html
+
+    def test_item_with_no_exported_parent_is_a_list_item(self):
+        """An orphan item has no column to nest under, and Markdown can't hold a
+        list 4+ columns in at the margin: that's an indented code block, which
+        develop wrote too (PR #1539 QA round 1)."""
+        md = ast_to_markdown([Paragraph(runs=[Run(text="p")]), _bullet("x", 2)])
+        assert md == "p\n\n- x\n"
+        assert "<p>p</p><ul><li>x</li></ul>" in _tight_html(md)
+
+    @pytest.mark.parametrize("depth", [2, 3, 5])
+    def test_skipped_depths_nest_in_the_deepest_open_item(self, depth):
+        """A skipped level has no marker of its own, so a step past the parent's
+        column per level put the child 4+ columns past it, lazy text of the
+        parent (PR #1539 QA round 1). It nests one level down instead."""
+        md = ast_to_markdown([_bullet("a", ordered=True), _bullet("x", depth)])
+        assert md == "1. a\n   - x\n"
+        assert "<li>a<ul><li>x</li></ul></li>" in _tight_html(md)
+
+    @pytest.mark.parametrize("parent_quote, child_quote", [(0, 1), (1, 0), (1, 2), (2, 1)])
+    def test_child_in_another_quote_starts_at_the_margin(self, parent_quote, child_quote):
+        """The child's quote markers go at the margin, outside any indent, so the
+        parent's column put it 4+ columns past its quote's margin, an indented
+        code block (PR #1539 QA round 1). It can't nest in the parent, so it
+        starts a list of its own."""
+        nodes = [
+            _bullet("ten", ordered=True, number=10, blockquote_depth=parent_quote),
+            _bullet("x", 1, blockquote_depth=child_quote),
+        ]
+        md = ast_to_markdown(nodes)
+        assert f"{'> ' * child_quote}- x\n" in md
+        html = _tight_html(md)
+        assert "<pre>" not in html
+        assert "<li>x</li>" in html
+
+    def test_after_a_child_in_another_quote_the_lists_above_are_closed(self):
+        """The quoted child ended the unquoted list in Markdown, so a later item
+        or block at that list's depth starts at the margin, not at its column."""
+        nodes = [
+            _bullet("ten", ordered=True, number=10),
+            _bullet("q", 1, blockquote_depth=1),
+            _bullet("c", 2),
+            Paragraph(runs=[Run(text="more")], list_depth=0),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "10. ten\n\n> - q\n\n- c\n\nmore\n"
+        assert "<pre>" not in _tight_html(md)
+
+    @pytest.mark.parametrize("quote", [0, 1])
+    def test_block_naming_a_skipped_depth(self, quote):
+        """A skipped depth sits at the column its item nests under, with that
+        item's quote, so a block naming it isn't pushed 4+ columns in (PR #1539
+        QA round 1)."""
+        nodes = [
+            _bullet("x", 2, blockquote_depth=quote),
+            Paragraph(runs=[Run(text="more")], list_depth=1, blockquote_depth=quote),
+        ]
+        md = ast_to_markdown(nodes)
+        prefix = "> " * quote
+        assert md.endswith(f"{prefix}more\n")
+        html = _tight_html(md)
+        assert "<pre>" not in html
+        assert "<p>more</p>" in html
+
+    def test_block_naming_a_skipped_depth_under_an_item_is_inside_it(self):
+        nodes = [
+            _bullet("a", ordered=True),
+            _bullet("x", 3),
+            Paragraph(runs=[Run(text="more")], list_depth=1),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "1. a\n   - x\n\n   more\n"
+        assert "<li><p>a</p><ul><li>x</li></ul><p>more</p></li>" in _tight_html(md)
+
+
+class TestTaskItemContentColumn:
+    """A checkbox's "[ ] " is the item's text in CommonMark, so a task item's
+    content column is 2, after "- ". Counting the box put a block inside the item
+    at column 6, an indented code block (found while fixing #1128)."""
+
+    @pytest.mark.parametrize("checked", [False, True])
+    def test_block_inside_a_task_item(self, checked):
+        nodes = [_bullet("a", checked=checked), Paragraph(runs=[Run(text="more")], list_depth=0)]
+        md = ast_to_markdown(nodes)
+        box = "[x]" if checked else "[ ]"
+        assert md == f"- {box} a\n\n  more\n"
+        html = _tight_html(md)
+        assert "<pre>" not in html
+        assert f"<li><p>{box.replace(' ', '')}a</p><p>more</p></li>" in html
+
+    def test_child_of_a_task_item(self):
+        nodes = [
+            _bullet("a", checked=False),
+            _bullet("b", 1, checked=True),
+            _bullet("c", 2, ordered=True),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "- [ ] a\n  - [x] b\n    1. c\n"
+        assert "<li>[]a<ul><li>[x]b<ol><li>c</li></ol></li></ul></li>" in _tight_html(md)
+
+    def test_ordered_task_item_keeps_a_dash_marker(self):
+        assert ast_to_markdown([_bullet("a", ordered=True, checked=False)]) == "- [ ] a\n"

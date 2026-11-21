@@ -11,7 +11,7 @@ Install the MCP Bundle, or add a block under `mcpServers` in `claude_desktop_con
 The install dialog asks for:
 
 - **OAuth client file** (required): the OAuth Client ID JSON for a Desktop app, downloaded from Google Cloud Console. See [Authentication](auth.md#method-b-oauth-20-personal-use-local-dev) for how to create one.
-- **Enabled tools** (optional): a comma-separated list of tool names, or `all` for every tool (see [Tool filtering](#tool-filtering-in-client-config)). Empty also enables every tool in this release, with a warning at startup: an upcoming release loads a smaller default set when it's empty, so enter `all` to keep every tool.
+- **Enabled tools** (optional): a comma-separated list of tool names and [tool groups](configuration.md#tool-groups), or `all` for every tool (see [Choosing tools for your client](#choosing-tools-for-your-client)). Empty loads the `default` group. To create Docs from local Markdown files, upload, download or sync local folders, enter `default,local-files`.
 
 The bundle ships the source and `uv.lock`, not the dependencies: the first start runs `uv run --frozen`, which installs Python and the locked dependencies, so it takes longer than later ones. It uses OAuth only (`AUTH_METHOD=oauth`) and keeps the token at `~/.mcp-gee-sweet-token.json`, outside the extension directory, so the token survives an update. For a service account or Application Default Credentials, use the manual config below instead.
 
@@ -39,7 +39,7 @@ There's no token on the first start. The server starts without Google access, an
 }
 ```
 
-Replace `/path/to/mcp-gee-sweet` with your clone path. This uses OAuth (the default waterfall's first method, full personal Drive access) — swap the `env` block for a different auth method — see [Authentication](auth.md).
+Replace `/path/to/mcp-gee-sweet` with your clone path. This uses OAuth (the default waterfall's first method, full personal Drive access) — swap the `env` block for a different auth method — see [Authentication](auth.md). With no `ENABLED_TOOLS`, it loads the `default` tool group; add `"ENABLED_TOOLS": "default,local-files"` to `env` for the local Markdown file tools and local upload, download and sync (see [Choosing tools for your client](#choosing-tools-for-your-client)).
 
 Before the first connection, log in once from a terminal with the same paths: `CREDENTIALS_PATH=... TOKEN_PATH=... uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet auth`. A stdio server with no token doesn't open a browser itself. It starts without Google access, and its first tool call offers you the Google consent link, or you can run this command and retry (see [Re-authorizing from the client](auth.md#method-b-oauth-20-personal-use-local-dev)).
 
@@ -73,7 +73,7 @@ claude mcp add mcp-gee-sweet \
   -- uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet
 ```
 
-`ENABLED_TOOLS=all` keeps every tool when an upcoming release loads a smaller default set (`all` is new in v0.9.6; on 0.9.5, see [its docs](https://khuisman.github.io/mcp-gee-sweet/0.9.5/client-setup/)). For a PyPI install, replace everything after `--` with `uvx mcp-gee-sweet`.
+`ENABLED_TOOLS=all` loads every tool. Claude Code's tool search loads a tool's full definition only when the model picks it, so the full set costs little context; without `ENABLED_TOOLS`, the server loads only the `default` group. For a PyPI install, replace everything after `--` with `uvx mcp-gee-sweet`.
 
 Before the first connection, log in once from a terminal with the same paths and the same `ENABLED_TOOLS`, which decides the scopes: `CREDENTIALS_PATH=... TOKEN_PATH=... ENABLED_TOOLS=all uv run --directory /path/to/mcp-gee-sweet mcp-gee-sweet auth`, or `... uvx mcp-gee-sweet auth` for a PyPI install.
 
@@ -81,9 +81,21 @@ Before the first connection, log in once from a terminal with the same paths and
 
 The project runs two instances — one OAuth, one service account — defined in `.mcp.json` at the repo root. Claude Code picks these up automatically when you open the project.
 
-## Tool filtering in client config
+## Choosing tools for your client
 
-To restrict tools at the client level, pass `--include-tools` as a CLI arg:
+With `ENABLED_TOOLS` unset, the server loads the `default` [tool group](configuration.md#tool-groups): everyday reading and writing across Sheets, Docs, Drive, Calendar and Gmail, sized for clients that cap how many tools they accept (see [Clients with a tool limit](#clients-with-a-tool-limit)). Set `ENABLED_TOOLS` (or `--include-tools`) to change it:
+
+| Client | Setting |
+|---|---|
+| Claude Code | `all` (tool search loads each tool's definition only when it's used) |
+| Codex | `default`; `all` if your Codex build has tool search |
+| Claude Desktop | `default`, plus `local-files` for local work: `default,local-files` |
+| Cursor, VS Code + Copilot, Windsurf, Antigravity | `default` (see [Clients with a tool limit](#clients-with-a-tool-limit)) |
+| claude.ai, ChatGPT, API connectors | `default` |
+
+`default` leaves out the tools that only work on files on the server's machine, so the Markdown file tools (`create_doc_from_file`, `update_doc_from_file`) and local upload, download and sync (`upload_local_folder`, `sync_folder`, ...) need `local-files` in the list. Under SSE or streamable HTTP they also need [`LOCAL_FILE_ACCESS`](configuration.md#local-file-access) set, since it defaults to `off` there. To add more, join a service group or tool names on: `default,comments`, `default,docs`, `default,insert_doc_table`. The full list of groups and what `default` holds is in [Tool filtering](configuration.md#tool-filtering).
+
+To set it as a CLI argument instead of an environment variable, pass `--include-tools`:
 
 ```json
 {
@@ -93,7 +105,7 @@ To restrict tools at the client level, pass `--include-tools` as a CLI arg:
       "args": [
         "run", "--directory", "/path/to/mcp-gee-sweet",
         "mcp-gee-sweet",
-        "--include-tools", "get_sheet_data,update_cells,list_sheets,list_spreadsheets"
+        "--include-tools", "default,local-files"
       ],
       "env": {
         "CREDENTIALS_PATH": "/path/to/credentials.json",
@@ -104,11 +116,9 @@ To restrict tools at the client level, pass `--include-tools` as a CLI arg:
 }
 ```
 
-See [Configuration](configuration.md#tool-filtering) for suggested subsets.
-
 ## Clients with a tool limit
 
-Several MCP clients cap how many tools they accept, and with every tool registered the server is over each of these caps:
+Several MCP clients cap how many tools they accept. Every group but `all` is under 100, so the `default` group is under each current cap below. Older Cursor builds capped a session at 40; [Tool filtering](configuration.md#tool-groups) says where `default` stands against that. With every tool registered (`all`), the server is over all of these caps:
 
 | Client | Limit | What happens over it |
 |---|---|---|
@@ -117,11 +127,11 @@ Several MCP clients cap how many tools they accept, and with every tool register
 | Cursor | Depends on the model (older builds capped it at 40) | "Too many MCP tools are enabled for this mode", or only part of the tool list is used |
 | Google Antigravity | 100 tools per server (user report) | The server is rejected |
 
-**VS Code may not need a subset.** In our November 2026 test, with every tool registered, VS Code + Copilot looked tools up on demand: Copilot's first step in the chat was **Search Tools**, and it sent only the tools it picked, so the request carried far fewer than 128 and worked. A build that sends every tool with each request instead fails with "Cannot have more than 128 tools per request". If you see that error, use a subset as below.
+On these clients, leave `ENABLED_TOOLS` unset or set it to `default`, or to any combination of [tool groups](configuration.md#tool-groups) and names whose total stays under your client's cap. The group counts are in [Tool filtering](configuration.md#tool-groups). On Windsurf, leave room for your other servers' tools too.
 
-The fix is the same everywhere: set `ENABLED_TOOLS` to one of the [suggested subsets](configuration.md#suggested-subsets), each of which is under 100 tools, or to your own list. You can join two subsets with a comma, like the Docs + Drive example there, as long as the total stays under your client's limit. On Windsurf, leave room for your other servers' tools too.
+**VS Code may handle every tool.** In our November 2026 test, with every tool registered, VS Code + Copilot looked tools up on demand: Copilot's first step in the chat was **Search Tools**, and it sent only the tools it picked, so the request carried far fewer than 128 and worked. A build that sends every tool with each request instead fails with "Cannot have more than 128 tools per request". `all` is worth trying there; if you see that error, go back to `default`.
 
-The snippets below use the **Read-only Sheets** subset with the PyPI install (`uvx`); swap in the list you want. For a cloned repo, use the `uv run --directory` command from [Claude Desktop](#stdio-cloned-repo) instead. `--include-tools <list>` at the end of `args` works too, in place of the `ENABLED_TOOLS` entry.
+The snippets below set `default` explicitly, with the PyPI install (`uvx`); swap in the list you want. For a cloned repo, use the `uv run --directory` command from [Claude Desktop](#stdio-cloned-repo) instead. `--include-tools <list>` at the end of `args` works too, in place of the `ENABLED_TOOLS` entry.
 
 ### VS Code + GitHub Copilot
 
@@ -137,14 +147,14 @@ In `.vscode/mcp.json` (workspace) or your user-profile `mcp.json`. VS Code's for
       "env": {
         "CREDENTIALS_PATH": "/path/to/credentials.json",
         "TOKEN_PATH": "/path/to/token.json",
-        "ENABLED_TOOLS": "get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets"
+        "ENABLED_TOOLS": "default"
       }
     }
   }
 }
 ```
 
-The 128 includes VS Code's own tools and every other server's, so a subset near 100 can still go over it with other servers enabled. You can also deselect tools or whole servers in the chat view's tools picker. That choice is saved in your VS Code profile, while `ENABLED_TOOLS` travels with the server config.
+The 128 includes VS Code's own tools and every other server's, so a combination near 100 can still go over it with other servers enabled. You can also deselect tools or whole servers in the chat view's tools picker. That choice is saved in your VS Code profile, while `ENABLED_TOOLS` travels with the server config.
 
 ### Cursor
 
@@ -159,14 +169,14 @@ In `.cursor/mcp.json` (project) or `~/.cursor/mcp.json` (global):
       "env": {
         "CREDENTIALS_PATH": "/path/to/credentials.json",
         "TOKEN_PATH": "/path/to/token.json",
-        "ENABLED_TOOLS": "get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets"
+        "ENABLED_TOOLS": "default"
       }
     }
   }
 }
 ```
 
-Cursor doesn't publish its per-model caps. If you still see "Too many MCP tools", use a smaller subset or switch to a model that allows more tools.
+Cursor doesn't publish its per-model caps. If you still see "Too many MCP tools", name fewer tools (a single service group, or your own list) or switch to a model that allows more tools.
 
 ### Windsurf
 
@@ -181,7 +191,7 @@ In Windsurf's `mcp_config.json` (its location per platform is in Windsurf's [MCP
       "env": {
         "CREDENTIALS_PATH": "/path/to/credentials.json",
         "TOKEN_PATH": "/path/to/token.json",
-        "ENABLED_TOOLS": "get_sheet_data,get_sheet_formulas,get_multiple_sheet_data,get_multiple_spreadsheet_summary,find_in_spreadsheet,list_sheets,list_spreadsheets"
+        "ENABLED_TOOLS": "default"
       }
     }
   }

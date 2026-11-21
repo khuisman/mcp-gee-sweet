@@ -1,6 +1,6 @@
 # Docs Tools — Content (Create/Read/Write, Markdown/HTML Conversion) — QA Test Cases
 
-Source: `src/mcp_gee_sweet/tools/docs/content.py`, plus four submodules bundled here rather than split into their own files (this file is the catch-all for everything issue #233's split didn't carve out a dedicated file for): `editing.py` (`insert_doc_text`, `delete_doc_range`, `insert_page_break`, `insert_softbreak_paragraph`), `images.py` (`insert_inline_image`, `insert_local_images`), `comments.py` (`list_doc_comments`, `add_doc_comment`, `resolve_doc_comment`), `named_ranges.py` (`create_named_range`, `create_bookmark`) — plus the markdown/HTML conversion pipeline these tools drive: `ast.py`, `html_parser.py`, `emitter.py`, `anchors.py`, `indices.py`.
+Source: `src/mcp_gee_sweet/tools/docs/content.py`, plus three submodules bundled here rather than split into their own files (this file is the catch-all for everything issue #233's split didn't carve out a dedicated file for; the comment tools' own cases moved to `drive_comments.md` with #663): `editing.py` (`insert_doc_text`, `delete_doc_range`, `insert_page_break`, `insert_softbreak_paragraph`), `images.py` (`insert_inline_image`, `insert_local_images`), `named_ranges.py` (`create_named_range`, `create_bookmark`) — plus the markdown/HTML conversion pipeline these tools drive: `ast.py`, `html_parser.py`, `emitter.py`, `anchors.py`, `indices.py`.
 
 Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute `{DOC_ID}` (and, for `insert_local_images`, `{FOLDER_ID}`) from `fixtures.local.md`.
 
@@ -2271,168 +2271,6 @@ Run 2 (ash).
 
 ---
 
-## `list_doc_comments` / `add_doc_comment` / `resolve_doc_comment` (#151)
-
-These operate on the Drive `comments`/`replies` resource, not the Docs API — they work against any file type Drive supports comments on (Docs, Sheets, Slides), but are scoped here to the doc fixture. There is no `delete_doc_comment` tool (out of scope for #151), so comments added during QA are not cleanable via a tool call — they persist as real threads on the fixture doc until removed manually in the Docs UI. Keep test comment text prefixed `QA TC-DOC…` so they're identifiable for manual cleanup.
-
-### TC-DOC96: Add a comment with no quoted-text anchor ⚠️ destructive
-**Prompt**
-> "Add a comment 'QA TC-DOC96: general note.' to doc {DOC_ID}"
-
-**Checks**
-- Returns `id`, `content` matching the input text, `author` (`display_name`/`email_address` populated from the caller's identity), `created_time`
-- `quoted_text` is `null` — no anchor was requested
-- No error
-
-**Cleanup:** none available — no `delete_doc_comment` tool exists; the comment persists on the fixture doc (see section note above)
-
-**Result (2026-07-16) ✅ PASS**
-`add_doc_comment(doc_id=<TEST_DOC_ID>, content="QA TC-DOC96: general note.")` returned `id: "AAAB-5FtNYE"`, `content` matching the input, `author.display_name: "<QA user>"`, `created_time`, `quoted_text: null`. No error. Note: `author.email_address` was `null` rather than populated — this is Drive API behavior for the authenticated OAuth user's own comments (email visibility is a privacy-scoped field), not a tool defect; the tool correctly passes through whatever the API returns.
-
-**Result (2026-09-04) ✅ PASS**
-add_doc_comment (no anchor) returned id, content match, author.display_name="<QA user>" (email_address null - Drive API privacy behavior, not a defect), created_time, quoted_text:null.
-
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
-Run 2 (ash).
-
-**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
-`oauth`: add_doc_comment returned id, matching content, author.display_name, created_time and quoted_text:null. email_address was null, which is the known Drive privacy behavior.
-
-**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — Run on the fixture copy. Returned id `doco.PHdj…`, matching content, author.display_name, created_time, `quoted_text: null`. `author.email_address` is null (Drive privacy behavior for the caller's own comments, as in prior passes; see stale wording note).
-
----
-
-### TC-DOC97: Add a comment anchored to quoted text ⚠️ destructive
-**Setup:** `{DOC_ID}` must contain the literal text "QA anchor target" somewhere (use `write_doc_content` to add it first if absent)
-
-**Prompt**
-> "Add a comment 'QA TC-DOC97: anchored note.' to doc {DOC_ID}, quoting the text 'QA anchor target'"
-
-**Checks**
-- Returns `quoted_text: "QA anchor target"` — the anchor round-trips through the API response
-- `list_doc_comments` on the same doc shows this comment with the same `quoted_text`
-
-**Cleanup:** none available (see section note above)
-
-**Result (2026-07-16) ✅ PASS**
-Doc lacked the literal text "QA anchor target", so it was inserted via `insert_doc_text` (not `write_doc_content`, which replaces the whole doc body — using it as the setup note suggests would have wiped the fixture's existing content). `add_doc_comment(doc_id=<TEST_DOC_ID>, content="QA TC-DOC97: anchored note.", quoted_text="QA anchor target")` returned `quoted_text: "QA anchor target"`, round-tripping correctly. Confirmed via `list_doc_comments` in TC-DOC98 below.
-
-**Result (2026-09-04) ✅ PASS**
-Inserted "QA anchor target" text via insert_doc_text, then add_doc_comment with quoted_text="QA anchor target" returned quoted_text round-tripped correctly.
-
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
-Run 2 (ash).
-
-**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
-`oauth`: I inserted "QA anchor target" with insert_doc_text, then add_doc_comment returned quoted_text "QA anchor target".
-
-**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — Added "QA anchor target" to the copy with insert_doc_text, then add_doc_comment returned `quoted_text: "QA anchor target"`; list_doc_comments shows the same quoted_text.
-
----
-
-### TC-DOC98: List comments reflects previously added comments
-**Setup:** run TC-DOC96 and TC-DOC97 first
-
-**Prompt**
-> "List the comments on doc {DOC_ID}"
-
-**Checks**
-- Both the TC-DOC96 and TC-DOC97 comments appear in `comments`
-- Each has `resolved: false` and `replies: []`
-- The TC-DOC97 entry has `quoted_text: "QA anchor target"`; the TC-DOC96 entry has `quoted_text: null`
-- `doc_id` in the response matches `{DOC_ID}`
-
-**Cleanup:** none (read-only)
-
-**Result (2026-07-16) ✅ PASS**
-`list_doc_comments(doc_id=<TEST_DOC_ID>)` returned both comments: TC-DOC97 (`quoted_text: "QA anchor target"`) and TC-DOC96 (`quoted_text: null`), both `resolved: false` and `replies: []`, `doc_id` echoed correctly.
-
-**Result (2026-09-04) ✅ PASS**
-list_doc_comments showed both TC-DOC96/97 comments, both resolved:false and replies:[], correct quoted_text values, doc_id matches.
-
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
-Run 2 (ash).
-
-**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
-`oauth`: list_doc_comments listed both comments with resolved:false and replies:[], the correct quoted_text values, and a matching doc_id.
-
-**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — Both comments listed, each `resolved:false`, `replies:[]`; DOC97 entry has the quoted_text, DOC96 entry null; `doc_id` matches the copy.
-
----
-
-### TC-DOC99: Resolve a comment ⚠️ destructive
-**Setup:** use the `id` returned by TC-DOC96 as `{COMMENT_ID}`
-
-**Prompt**
-> "Resolve comment {COMMENT_ID} on doc {DOC_ID} with the reply 'Handled.'"
-
-**Checks**
-- Returns `doc_id`, `comment_id`, `reply_id`, and `action: "resolve"`
-- Re-running `list_doc_comments` shows that comment with `resolved: true` and a reply with `content: "Handled."` and `action: "resolve"`
-
-**Cleanup:** none available — resolving doesn't remove the comment thread, just marks it resolved (see section note above)
-
-**Result (2026-07-16) ✅ PASS**
-`resolve_doc_comment(doc_id=<TEST_DOC_ID>, comment_id="AAAB-5FtNYE", reply_content="Handled.")` returned `doc_id`, `comment_id`, `reply_id: "AAAB-5FtNYQ"`, `action: "resolve"`. Re-ran `list_doc_comments`: the TC-DOC96 comment now shows `resolved: true` with a reply `content: "Handled.", action: "resolve"`. The reply also included `modified_time` — confirms the fix from PR review comment (missing `modified_time` on replies) is live.
-
-**Result (2026-09-04) ✅ PASS**
-resolve_doc_comment(TC-DOC96's id) returned doc_id/comment_id/reply_id/action:"resolve". Re-list confirmed resolved:true with reply content "Handled.", action:"resolve", modified_time present.
-
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
-Run 2 (ash).
-
-**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
-`oauth`: resolve_doc_comment returned doc_id, comment_id, reply_id and action "resolve". A re-list showed resolved:true with a reply "Handled." (action resolve, modified_time present).
-
-**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — resolve_doc_comment returned doc_id, comment_id, reply_id, `action:"resolve"`; relisting shows the DOC96 comment `resolved:true` with a reply content "Handled.", action "resolve".
-
----
-
-### TC-DOC100: Resolve a non-existent comment ID
-**Prompt**
-> "Resolve comment 'not-a-real-comment-id' on doc {DOC_ID}"
-
-**Checks**
-- API error propagates — not a silent success or server crash
-
-**Cleanup:** none (no mutation applied)
-
-**Result (2026-07-16) ✅ PASS**
-`resolve_doc_comment(doc_id=<TEST_DOC_ID>, comment_id="not-a-real-comment-id")` raised `HttpError 404 ... "Comment not found: not-a-real-comment-id."` — propagated cleanly, no silent success, no server crash.
-
-**Result (2026-09-04) ✅ PASS**
-resolve_doc_comment('not-a-real-comment-id') raised HttpError 404 "Comment not found" — propagated cleanly, no silent success.
-
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
-Run 2 (ash).
-
-**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
-`oauth`: A fake comment ID raised HttpError 404 "Comment not found".
-
-**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — Tool error carrying the HttpError 404 "Comment not found: not-a-real-comment-id." Not a silent success or crash.
-
----
-
-### TC-DOC101: List comments on a non-existent doc
-**Prompt**
-> "List the comments on doc 'not-a-real-doc-id'"
-
-**Checks**
-- API error propagates — not a silent empty list or server crash
-
-**Cleanup:** none (no mutation applied)
-
-**Result (2026-07-16) ✅ PASS**
-`list_doc_comments(doc_id="not-a-real-doc-id")` raised `HttpError 404 ... "File not found: not-a-real-doc-id."` — propagated cleanly, no silent empty list, no server crash.
-
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
-Run 2 (ash).
-
-**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
-`oauth`: A fake doc ID raised HttpError 404 "File not found".
-
-**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — Tool error carrying HttpError 404 "File not found: not-a-real-doc-id." Not an empty list.
-
 ## HTML/Markdown → Doc image conversion (#332, #333)
 
 **Background:** `_AstParser` in `html_parser.py` has no `<img>` handling at all — `handle_starttag`/`handle_endtag` recognize block tags, inline formatting tags, table tags, and list tags, but an `img` tag matches none of those branches and is silently ignored. Since markdown images (`![alt](src)`) are converted to `<img>` HTML by `_md_to_html` before reaching this same parser, **every** content path that goes through the shared AST pipeline — `create_doc`, `create_doc_from_file`, `write_doc_content`, for both `content_format="html"` and `content_format="markdown"` — drops images with no error, no warning, and no placeholder. The only working path today is the separate `insert_inline_image` tool (TC-DOC57/58), which requires a second pass of index bookkeeping after the doc already exists (the manual workaround documented in #332/#333).
@@ -2443,9 +2281,6 @@ This is worse than a simple drop in two cases, both verified directly against `h
 
 **Fixtures:** `docs/qa/fixtures/tc-doc102-image-conversion.html` and `docs/qa/fixtures/tc-doc103-image-conversion.md` — each covers 8 placement cases: standalone image paragraph, inline mid-paragraph, two consecutive images with no separating text, image wrapped in a link, image inside a list item, image inside a table cell, image inside a nested table cell (HTML only — markdown tables can't nest, matching the documented limitation in TC-DOC51; the markdown fixture substitutes reference-style `![alt][ref]` syntax for its Case 7 instead), and an image with an unreachable URL (included specifically to show the drop happens at parse time, before any HTTP fetch is attempted — a dead image URL fails identically to a live one).
 
-
-**Result (2026-09-04) ✅ PASS**
-list_doc_comments('not-a-real-doc-id') raised HttpError 404 "File not found" — propagated cleanly, no silent empty list.
 
 ### TC-DOC102: HTML image conversion — every placement should produce a visible image ⚠️ requires-oauth ⚠️ destructive
 
@@ -4711,7 +4546,7 @@ Run 2 (ash).
 ---
 
 ### TC-DOC179: `include_comments=True` includes only open comments
-**Setup:** `write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="Some anchor text here.\n")`, then `add_doc_comment(doc_id={DOC_ID}, content="please revise", quoted_text="anchor text")` to get `comment_id_1`, and a second `add_doc_comment(doc_id={DOC_ID}, content="resolved note")` to get `comment_id_2`, then `resolve_doc_comment(doc_id={DOC_ID}, comment_id=comment_id_2)`
+**Setup:** `write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="Some anchor text here.\n")`, then `add_file_comment(file_id={DOC_ID}, content="please revise", quoted_text="anchor text")` to get `comment_id_1`, and a second `add_file_comment(file_id={DOC_ID}, content="resolved note")` to get `comment_id_2`, then `reply_to_comment(file_id={DOC_ID}, comment_id=comment_id_2, action='resolve')`
 
 **Prompt**
 > "Export doc {DOC_ID} as Markdown including comments"
@@ -5993,16 +5828,16 @@ Run 2 (ash).
 
 ## Comment quoted text is plain text, not HTML-escaped (#984)
 
-Drive returns a comment's `quotedFileContent.value` HTML-escaped (`Caf&#233;`, `&amp;`, `&lt;`, `&quot;`, `&#39;`), and a literal `&amp;` in the anchor as `&amp;amp;`. `add_doc_comment`, `list_doc_comments`, and `get_doc_as_markdown(include_comments=True)` unescape it once. The Markdown export then escapes the quote only as Markdown needs, with `"> "` on every line, and escapes comment authors, text, and replies the same way.
+Drive returns a comment's `quotedFileContent.value` HTML-escaped (`Caf&#233;`, `&amp;`, `&lt;`, `&quot;`, `&#39;`), and a literal `&amp;` in the anchor as `&amp;amp;`. `add_file_comment`, `list_file_comments`, and `get_doc_as_markdown(include_comments=True)` unescape it once (`add_doc_comment` and `list_doc_comments` before #663). The Markdown export then escapes the quote only as Markdown needs, with `"> "` on every line, and escapes comment authors, text, and replies the same way.
 
 ### TC-DOC215: Non-ASCII, `&`/`<`/`"`, literal-entity, and multi-line anchors round-trip as plain text ⚠️ destructive ⚠️ requires-oauth
 **Setup:** `create_doc(title="QA TC-DOC215", folder_id={FOLDER_ID}, content="<p>Café and Tom &amp; Jerry, a &lt; b, say \"hi\" it's &amp;amp; literal</p><p>line one</p><p>line *two* &lt;x&gt;</p>")`, note the returned `docId` as `{SCRATCH_DOC_ID}`
 
 **Steps**
-1. `add_doc_comment(doc_id={SCRATCH_DOC_ID}, content="QA TC-DOC215 a <b> *x*", quoted_text="Café and Tom & Jerry, a < b, say \"hi\" it's")`
-2. `add_doc_comment(doc_id={SCRATCH_DOC_ID}, content="QA TC-DOC215 b", quoted_text="&amp; literal")`
-3. `add_doc_comment(doc_id={SCRATCH_DOC_ID}, content="QA TC-DOC215 c", quoted_text="line one\nline *two* <x>")`
-4. `list_doc_comments(doc_id={SCRATCH_DOC_ID})`
+1. `add_file_comment(file_id={SCRATCH_DOC_ID}, content="QA TC-DOC215 a <b> *x*", quoted_text="Café and Tom & Jerry, a < b, say \"hi\" it's")`
+2. `add_file_comment(file_id={SCRATCH_DOC_ID}, content="QA TC-DOC215 b", quoted_text="&amp; literal")`
+3. `add_file_comment(file_id={SCRATCH_DOC_ID}, content="QA TC-DOC215 c", quoted_text="line one\nline *two* <x>")`
+4. `list_file_comments(file_id={SCRATCH_DOC_ID})`
 5. `get_doc_as_markdown(doc_id={SCRATCH_DOC_ID}, include_comments=True)`
 
 **Checks**
@@ -6028,15 +5863,15 @@ Run 2 (ash).
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard C on `mcp-gee-sweet-jay`** — Steps 1–3 returned quoted_text identical to input (`Café …`, `&amp; literal`, `line one\nline *two* <x>`); list_doc_comments matches. Export quotes: `> Café and Tom & Jerry, a < b, say "hi" it's`, `> \&amp; literal`, `> line one\` / `> line \*two\* \<x>`, each followed by a blank line; comment text `QA TC-DOC215 a \<b> \*x\*`; no `&#233;`/`&quot;`/`&#39;`/`&lt;`. Doc trashed.
 
 ### TC-DOC217: Multi-line comment text and indented/rule body paragraphs stay plain text in the Markdown export ⚠️ destructive ⚠️ requires-oauth
-Comment text is plain text, so no line of it may render as Markdown structure, and each line keeps its own line (a hard break, not a soft wrap). Body paragraphs that start with spaces or a tab before a marker, or that are a `---` rule line, stay plain paragraphs too (#993). Replies are covered by unit tests only: the one tool that posts a reply, `resolve_doc_comment`, also resolves the comment, and `include_comments` exports only open ones.
+Comment text is plain text, so no line of it may render as Markdown structure, and each line keeps its own line (a hard break, not a soft wrap). Body paragraphs that start with spaces or a tab before a marker, or that are a `---` rule line, stay plain paragraphs too (#993). Replies are covered by unit tests only: until #663 the one tool that posted a reply, `resolve_doc_comment`, also resolved the comment, and `include_comments` exports only open ones. `reply_to_comment` now posts a plain reply, so a live case for an exported reply is possible.
 
 **Setup:**
 - `create_doc(title="QA TC-DOC217", folder_id={FOLDER_ID}, content="<p>anchor</p>")`, note the returned `docId` as `{SCRATCH_DOC_ID}`
 - `insert_doc_text(doc_id={SCRATCH_DOC_ID}, insertions=[{"index": 1, "text": " - a\n  # h\n---\n\ttab indent\n## Notes\n"}])`
 
 **Steps**
-1. `add_doc_comment(doc_id={SCRATCH_DOC_ID}, quoted_text="anchor", content="Summary\n---\nPoints:\n - a\n   - b\na | b\n-|-\nc | d\n## Notes\n\n    indented *x*")`
-1a. `add_doc_comment(doc_id={SCRATCH_DOC_ID}, quoted_text="Summary\n===  ", content="QA TC-DOC217 setext")` (the trailing spaces after `===` are part of the anchor; Drive keeps them in `quoted_text`)
+1. `add_file_comment(file_id={SCRATCH_DOC_ID}, quoted_text="anchor", content="Summary\n---\nPoints:\n - a\n   - b\na | b\n-|-\nc | d\n## Notes\n\n    indented *x*")`
+1a. `add_file_comment(file_id={SCRATCH_DOC_ID}, quoted_text="Summary\n===  ", content="QA TC-DOC217 setext")` (the trailing spaces after `===` are part of the anchor; Drive keeps them in `quoted_text`)
 2. `get_doc_as_markdown(doc_id={SCRATCH_DOC_ID}, include_comments=True, local_path="/tmp/tc-doc217.md")`
 3. `uv run python -c "from markdown_it import MarkdownIt; print(MarkdownIt('commonmark').enable('table').render(open('/tmp/tc-doc217.md').read()))"`
 
@@ -6762,9 +6597,9 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 
 **Checks**
 - Step 1 returns no `error` key
-- Step 2, Docs' own numbering: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, then the table, `3. c`, `Aside`, `1. x`, `2. y`. If Docs numbers any item differently, the case's premise has changed: report it rather than checking step 3 against this list
-- Raw `documents().get()` read: `a` through `c` share one `listId`, and `x`/`y` share a different one
-- Step 3: every list item's marker matches step 2's number for that item, including `3. c` after the table and `1. x` starting the second list. (The sublist's indent is #1128, not checked here)
+- Step 2, Docs' own numbering: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, then the table, `1. c`, `Aside`, `1. x`, `2. y`. If Docs numbers any item differently, the case's premise has changed: report it rather than checking step 3 against this list. Since #1118 (PR #1368) the write side keeps the `1. c` after the table as a list of its own starting at 1, as CommonMark reads it; before that it joined `a`'s list as `3. c`. A Docs list continuing past a table is TC-DOC233 step 5
+- Raw `documents().get()` read: `a` through `b1` share one `listId`, `c` has its own, and `x`/`y` share a third
+- Step 3: every list item's marker matches step 2's number for that item, including `1. c` after the table and `1. x` starting the last list. Each sublist item is indented 3 spaces, under its parent's text (#1128)
 
 **Cleanup:** trash the doc
 
@@ -6775,6 +6610,9 @@ Re-run after the `develop` merge (with #1088 and the google-auth bump), on a scr
 `sky`, after `/mcp reconnect`, on a fresh doc (trashed afterward). Steps 1–3 read the same as round 1: txt export `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, the table, `3. c`, `Aside`, `1. x`, `2. y`. `a`–`c` share one `listId` and `x`/`y` another. `get_doc_as_markdown` matches item for item. No sublist here starts past 1, so the new `1.` fallback isn't exercised live: the API can't write `startNumber`, and the case is unit-tested.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard C2 on `jay`** — No `error`. Docs' txt export: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, table, `1. c`, `Aside`, `1. x`, `2. y` — the premise changed for `c` (Docs says `1.`, the case expected `3.`; source `1. c` starts a new list under #1118, see top). Raw read: a–b1 share listId …3p5s90, `c` has its own (…4bbk7l), x/y share …d4968y. Step 3's markers match Docs for every item: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, `1. c`, `1. x`, `2. y`.
+
+**Result (2026-11-17) ✅ PASS — Kit, PR #1539 round 2 @ 5b48603d**
+`mcp-gee-sweet-kit`, reconnected after the reset. No `error`. Docs' txt export: `1. a`, `1. a1`, `2. a2`, `2. b`, `1. b1`, the table, `1. c`, `Aside`, `1. x`, `2. y`. `get_doc_structure`: `a`–`b1` share one `listId`, `c` has its own, `x`/`y` share a third. Same premise change the release pass found. This round updated the checks to match (#1118, PR #1368). Step 3: `1. a`, `   1. a1`, `   2. a2`, `2. b`, `   1. b1`, then `1. c`, `1. x`, `2. y`. Every marker matches Docs, and each sublist item is at 3 spaces (#1128). Doc trashed.
 
 ### TC-DOC237: A Docs edit tool cancelled while its edit is in flight re-invalidates the doc cache once the edit lands (#1030) ⚠️ requires-oauth ⚠️ destructive
 
@@ -7122,10 +6960,10 @@ asyncio.run(main())
 - LB-11: `   > First quote.` and `   > Second quote.`, separated by at least two blank lines, before `2. Next item`
 - LB-12: `    Inner second paragraph` (4 spaces), then `- Outer two`
 - LB-13: `> 1. Quoted one`, `>`, `>    More of quoted one`, `>`, `> 2. Quoted two`
-- LB-14: the table at the margin (no leading spaces), then `1. Step two`: the write side makes two Docs lists here, so the table is outside the list. The second list starts at 1, not 2, because the write side ignores `start` (#1118)
+- LB-14: the table at the margin (no leading spaces), then `2. Step two`: the table is outside the list. Since #1118 (PR #1368) the write side keeps the source's `2.`, so the export writes it too
 - Step 3's export equals step 2's. (Until #1096, LB-10's rule exported as an empty paragraph, which the re-import dropped, so step 3 had two fewer blank lines there.)
 - Step 4, W-1: every line from `> - a` through `> - c` starts with `>`; the table lines are `>   | …` (the quote, then 2 spaces)
-- W-2: the table lines indented 3 spaces between `1. a` and `- b`, then `2. c`. (`- b` itself is indented 2 spaces, which is #1128)
+- W-2: the table lines indented 3 spaces between `1. a` and `   - b` (also 3 spaces, under `a`'s text, #1128), then `2. c`
 - W-3: the table lines indented 2 spaces (in a), not 4 (in b), before `- c`
 - W-4: `> > b` at the margin, not `  > b`
 - An ambiguous block that ends a list's last item reads as outside the list (`docs/known-limitations.md`)
@@ -7142,6 +6980,9 @@ asyncio.run(main())
 `mcp-gee-sweet-sky` at 28c464a4, reconnected, on scratch docs in `{FOLDER_ID}`. Run because the PR rewrote the export's block separator (`_OpenItems.separator`). Step 2: every LB check holds, LB-10 now `   ---`, a blank line, `   After the rule`, then `2. Next item`. Step 3's export is byte-identical to step 2's (diffed). Step 4: W-1 keeps `>` on every line, with the table at `>   | …`; W-2 has the table at 3 spaces, `  - b` (#1128), then `2. c`; W-3 has the table at 2 spaces, then `- c`; W-4 is `> > b` at the margin, then `After.`. Scratch docs trashed.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard C2 on `jay`** — All three creates without error. Step 2: LB-04 `   Second paragraph…` (3 spaces) between items; LB-05 fence and code at 3 spaces; LB-06 `  > Quoted text inside the item.` (one `>`; no `> >` anywhere except W-4's source); LB-07 table lines at 3 spaces between items; LB-08 `- # Heading inside an item` then `- Plain item after it`; LB-10 `   ---`, blank, `   After the rule` before `2. Next item`; LB-11 `   > First quote.` and `   > Second quote.` with three blank lines between; LB-12 `    Inner second paragraph` (4) then `- Outer two`; LB-13 `> 1. Quoted one`, `>`, `>    More of quoted one`, `>`, `> 2. Quoted two`; LB-14 table at the margin, then `2. Step two` (the check's `1.` is stale since #1118, see top). Step 3 (re-import via `create_doc_from_file` of the saved step-2 export rather than pasting it into `create_doc`; same converter): export byte-identical to step 2. Step 4: W-1 every line `>`-prefixed, table `>   | …`; W-2 table at 3 spaces between `1. a` and `  - b` (#1128), then `2. c`; W-3 table at 2 spaces before `- c`; W-4 `> > b` at the margin.
+
+**Result (2026-11-17) ✅ PASS — Kit, PR #1539 round 2 @ 5b48603d**
+`mcp-gee-sweet-kit`, reconnected after the reset. Steps 1 and 3 ran through `create_doc_from_file`, the same converter as the release pass. Step 2: every LB check holds. LB-09's children are now `   - Child of one` (3 spaces, under `1. `'s text; they were at 2 before #1128). LB-14 is the table at the margin, then `2. Step two`. This round updated that check, which had been stale since #1118. Step 3: byte-identical to step 2 (`cmp`). Step 4: W-1 has `>` on every line and the table at `>   | …`; W-2 has the table at 3 spaces, then `   - b` (3 spaces, #1128), then `2. c`; W-3 has the table at 2 spaces before `- c`; W-4 has `> > b` at the margin. Docs trashed.
 
 ### TC-DOC245: A file's relative image path resolves against the file, and a replace uploads its local images to folder_id, the server default, or the doc's own folder (#1121, #1139) ⚠️ requires-oauth ⚠️ destructive
 **Purpose:** `create_doc_from_file`/`update_doc_from_file` resolved a relative image path against the server's working directory, so a README's images never embedded (#1121). `update_doc_from_file` had no `folder_id`, so on a server with no default folder every local image failed after the doc was cleared, leaving it without its images (#1139). A relative path is now joined to the file's own folder; `write_doc_content`/`update_doc_from_file` take `folder_id`, fall back to the server's default folder and then to the doc's own folder, and refuse before touching the doc when none is known. The doc's-folder fallback only runs on a server with no `DRIVE_FOLDER_ID`, so parts B and C use a scratch script against the checkout under test with `folder_id=None`, the way TC-DOC243 part B does.
@@ -7496,6 +7337,15 @@ Step 2: `| :-: | --: | :-- |` for both the plain and the quoted table (quote kep
 **Result (2026-11-14) ❌ FAIL (steps 1, 2 and 4 on `{DOC}`) — Rio's re-run for PR #1505's review, on `mcp-gee-sweet-rio` (OAuth, Shared Drive default folder) at `f569d024`; reproduces #1503**
 Step 2: `| :-: | --: | :-- |` for the plain and the quoted table (inside its `> `), and `| :-- | :-- |` for `p | q`. Step 4: `export_revision` of the last revision returned the same delimiter rows. Step 3 (the `.docx` import) wasn't re-run; it rests on the run above. Doc trashed.
 
+**Result (2026-11-15) ✅ PASS — Kit, PR #1524 round 1 @ 50d18d37 (fixes #1503)**
+Step 2: `| :-: | --: | --- |` for the plain table and for the quoted one inside its `> `, and `| --- | --- |` for `p | q`. Step 3: a `.docx` with no `w:jc` on column 3 stores no `alignment` there, and that column exports `---` (TC-DOC260's extra probe). Step 4: `export_revision` of the last revision gives the same delimiter rows for `{DOC}` and the import. Docs trashed.
+
+**Result (2026-11-16) ✅ PASS — Kit, PR #1524 round 2 @ c15fe204**
+Step 2: `| :-: | --: | --- |` plain and quoted (inside its `> `), and `| --- | --- |` for `p | q`. Step 3: the `.docx` column with no `w:jc` stores no `alignment` and exports `---` (TC-DOC260 step 6). Step 4: `export_revision` of the last revision matches for `{DOC}` and the import. Docs trashed.
+
+**Result (2026-11-18) ✅ PASS — re-run after #1503's fix, in an isolated service-account sandbox on a Shared Drive, against `develop` at `d10215a`**
+Step 2: `| :-: | --: | --- |` for the plain table and for the quoted one inside its `> `, and `| --- | --- |` for `p | q`. Step 3: a `.docx` 2×2 table with no `w:jc` anywhere stores no `alignment` on any cell, and exports `| --- | --- |`. Step 4: `export_revision` of each doc's last revision gives the same delimiter rows as its `get_doc_as_markdown`. Docs trashed.
+
 ### TC-DOC256: An embedded image and its fallback text keep only their own character styles (#1334) ⚠️ requires-network ⚠️ destructive
 
 **Purpose:** an image or its alt-text fallback took the character styles of the run before it, so an image after `<sup>` was raised and shrunk, and fallback text after bold was bold. Each now gets a style request clearing bold, italic, underline, strikethrough, `baselineOffset`, `smallCaps` and `backgroundColor`, keeping its link.
@@ -7519,6 +7369,9 @@ Step 2: `| :-: | --: | :-- |` for the plain and the quoted table (inside its `> 
 
 **Result (2026-11-14) ❌ FAIL — the linked fallback has no underline (#1504)**
 Step 1: no `error`, with four fallbacks (`x`, `fallback`, `lfb`, `x`) and three embedded images. C1: the image's `textStyle` is empty after the `SUPERSCRIPT` run. Docs accepted the clearing request on an inline image. C2's ` x` and C3's `fallback` have an empty `textStyle`. C4: the image has `link` and the link color, and no `italic`. **`lfb` has `link` and `foregroundColor` but no `underline`**, while `site` in C5 has `underline: true`. The request clears `underline` while setting the link. C5's `x` has an empty `textStyle`. The list item is bulleted, holding the image. Step 2: the cell's image has an empty `textStyle` after the superscript. On screen (the image on the baseline at full size): pending — no browser in this session. Docs trashed.
+
+**Result (2026-11-18) ✅ PASS (API); on-screen check not run — no browser in this session. Re-run after #1504's fix, in the same sandbox and at the same commit as TC-DOC255's 2026-11-18 run**
+`{BAD}` was a 404 URL. Step 1: no `error`, and `images` has `error` + `fallback_text` for the four `{BAD}` images only (`x`, `fallback`, `lfb`, `x`). Raw read: C1's image `textStyle` is empty after the `SUPERSCRIPT` `1`. C2's ` x` and C3's `fallback` have an empty `textStyle`. C4: the image has `link`, the link color and `underline`, and no `italic`. `lfb` has `link`, the link color and `underline: true`, like `site` in C5 (#1504 fixed). C5's `x` has an empty `textStyle`. The image-only list item is bulleted, and its `bullet.textStyle` is only `{"underline": false}`. Step 2: the cell's image has an empty `textStyle` after the superscript. Docs trashed.
 
 ### TC-DOC257: A first `<li>` holding only a named-style block is that block; every other such item keeps its empty bullet (#1414) ⚠️ destructive
 
@@ -7587,3 +7440,260 @@ Every listed check passes. Step 1: no `error`, `images` has `error` + `fallback_
 
 **Result (2026-11-14) ✅ PASS — Kit, PR #1508 round 2 @ 57437115**
 Step 1 as written: `images` has `error` + `fallback_text` for the seven `{BAD}` images only. Raw read: every check as in round 1, and the third item's `linked` now has `link`, the link color and `underline: true` (#1504). Extra probes (HTML): an unlinked fallback after `<u>under</u>` has no underline; a linked one inside `<u>` keeps underline and link; a bare `<b><sup><img>` fallback is bold and superscript, a bare `<s><mark><img>` one struck and highlighted. Screenshot (URL-verified, `.playwright-mcp/tc-doc259-r2.png`): `linked` underlined and blue, every marker a plain bullet, `build` in Arial. Doc trashed.
+
+### TC-DOC260: `get_doc_as_markdown` reads a Docs table's START cells as unaligned (#1503) ⚠️ destructive
+
+**Purpose:** `insertTable` stores `alignment: START` on every cell paragraph it creates, so every unaligned column of a table written through the API exported `:--`. START now reads as unset in a table where every cell paragraph carries an alignment, as there it's the default: an unaligned column exports `---`, and so does a `:--` column, which Docs stores the same way. A `.docx` import leaves an unaligned cell's alignment out, so when some cell in the table has no alignment of its own, its START cells keep `:--`. CENTER and END columns keep `:-:` and `--:`. TC-DOC255 reproduces the original failure; this case adds an explicit `:--` column, a column mixing CENTER with unaligned cells, an HTML table, and a `.docx` import.
+
+**Steps**
+1. `create_doc(title="TC-DOC260", folder_id={FOLDER_ID}, content_format="markdown", content="| l | c | n | m |\n|:--|:-:|---|---|\n| 1 | 2 | 3 | 4 |\n")` → `{MD}`
+2. `get_doc_as_markdown(doc_id={MD})`
+3. `create_doc(title="TC-DOC260 html", folder_id={FOLDER_ID}, content="<table><tr><th>x</th><th style=\"text-align:center\">y</th><th style=\"text-align:right\">z</th></tr><tr><td>1</td><td style=\"text-align:center\">2</td><td>3</td></tr></table>")` → `{HTML}`
+4. `get_doc_as_markdown(doc_id={HTML})`
+5. Re-run TC-DOC255 steps 1, 2 and 4
+6. Build a `.docx` holding a 2×3 table with `w:jc w:val="left"` on every column-1 paragraph, `w:jc w:val="center"` on every column-2 paragraph and no `w:jc` in column 3, and `upload_local_file(convert=True)` it → `{DOCX}`; `get_doc_as_markdown(doc_id={DOCX})` and `export_revision` on its last revision
+
+**Checks**
+- Step 2: the delimiter row is `| --- | :-: | --- | --- |`
+- Step 4: the delimiter row is `| --- | :-: | --- |`: `y` and `2` agree on CENTER, and `z`'s column mixes END with an unaligned `3`
+- Step 5: TC-DOC255's step 2 and step 4 checks pass (`| :-: | --: | --- |` plain and quoted, `| --- | --- |` for `p | q`)
+- Step 6: both exports' delimiter rows are `| :-- | :-: | --- |`. Record the raw `paragraphStyle.alignment` of each row's cells (expected `START`, `CENTER`, and no field)
+
+**Cleanup:** `delete_file` every doc
+
+**Result (2026-11-15) ⚠️ PARTIAL — Kit, PR #1524 round 1 @ 50d18d37**
+Every listed check passes. Step 2: `| --- | :-: | --- | --- |`. Step 4: `| --- | :-: | --- |`. Step 5: TC-DOC255 steps 2 and 4 pass (see its Result). Extra probe, not in the steps: a `.docx` built with `w:jc="left"` on column 1, `center` on column 2 and no `w:jc` on column 3, uploaded with `upload_local_file(convert=True)`, stores raw `[START] [CENTER] [None]` on every row. `get_doc_as_markdown` and `export_revision` both give `| --- | :-: | --- |`, so the explicit left column, which `develop` exported as `:--`, is lost (sent back). A `.md` with `|:--|:-:|---|` uploaded the same way stores START on every cell, the `insertTable` shape, and exports `| --- | :-: | --- |`. Docs trashed.
+
+**Result (2026-11-16) ⚠️ PARTIAL — Kit, PR #1524 round 2 @ c15fe204**
+Every listed check passes. Step 2: `| --- | :-: | --- | --- |`. Step 4: `| --- | :-: | --- |`. Step 5: TC-DOC255 steps 2 and 4 pass (see its Result). Step 6: raw `[START] [CENTER] [None]` on both rows; `get_doc_as_markdown` and `export_revision` both give `| :-- | :-: | --- |`. Extra probe, not in the steps: a `.docx` with `w:jc` on every cell (`left`, `center`, `left`) stores raw `[START] [CENTER] [START]`, the `insertTable` shape, and exports `| --- | :-: | --- |`. That loss is the designed trade-off, but this case's Purpose and the known-limitations entry both say a `.docx` import keeps its `:--` columns without that condition (sent back). Docs trashed.
+
+### TC-DOC261: `get_doc_as_markdown` indents a nested list to its parent item's text, so it nests in CommonMark (#1128) ⚠️ destructive
+
+**Purpose:** The export indented every nested item 2 spaces per level, whatever its parent's marker. Under `1. ` (text at column 3) a child at 2 spaces is a sibling in CommonMark, so a numbered outline exported flat for any CommonMark reader. This server's own import repairs that indent (`md_to_html` rule D1), so a round trip through it doesn't show the bug: check the export with plain CommonMark. Each item now starts at its parent's text column: 2 under `- `, 3 under `1. `, 4 under `10. `. A task item's text column is 2, after `- `: the `[ ] ` is the item's text, and the export had put a block inside a task item at 6 spaces, which CommonMark reads as an indented code block.
+
+**Steps**
+1. `create_doc(title="TC-DOC261", folder_id={FOLDER_ID}, content_format="markdown", content="1. Top\n   1. Nested\n      - deep bullet\n2. Next\n\nBreak\n\n- a\n  - b\n    1. c\n\nBreak\n\n1. one\n2. two\n3. three\n4. four\n5. five\n6. six\n7. seven\n8. eight\n9. nine\n10. ten\n    1. ten child\n\nBreak\n\n- [ ] task\n  - [x] subtask\n\n  more in task\n\nBreak\n\n1. p\n   1. q\n\n      more in q\n\n2. r\n")` → `{DOC}`
+2. `get_doc_as_markdown(doc_id={DOC}, local_path="<scratch dir>/tc-doc261.md")`
+3. Render step 2's file with plain CommonMark: `uv run python -c "import sys; from markdown_it import MarkdownIt; print(MarkdownIt('commonmark').render(open(sys.argv[1]).read()))" <scratch dir>/tc-doc261.md`
+4. `create_doc(title="TC-DOC261 round trip", folder_id={FOLDER_ID}, content_format="markdown", content=<step 2's file>)` → `{RT}`, then `get_doc_as_markdown(doc_id={RT})`
+5. Items Markdown can't nest under their parent (PR #1539 QA round 1): `create_doc(title="TC-DOC261 can't nest", folder_id={FOLDER_ID}, content_format="markdown", content="1. one\n2. two\n3. three\n4. four\n5. five\n6. six\n7. seven\n8. eight\n9. nine\n10. ten\n    > - quoted child\n\nBreak\n\n- a\n  - b\n    - c\n      - d\n")` → `{NN}`, then `get_doc_as_markdown(doc_id={NN}, local_path="<scratch dir>/tc-doc261-nn.md")` and render it as in step 3
+
+**Checks**
+- Step 2's lines, in order: `1. Top`, `   1. Nested` (3 spaces), `      - deep bullet` (6), `2. Next`; `- a`, `  - b` (2), `    1. c` (4); `10. ten`, `    1. ten child` (4); `- [ ] task`, `  - [x] subtask` (2), a blank line, `  more in task` (2); `1. p`, `   1. q` (3), a blank line, `      more in q` (6), a blank line, `2. r`
+- Step 3: each child list sits inside its parent's `<li>`: `Nested` and `deep bullet` inside `Top`'s, `c` inside `b`'s inside `a`'s, `ten child` inside `ten`'s, `subtask` inside `task`'s, `q` inside `p`'s. `more in task` and `more in q` are `<p>`s inside their items. There's no `<pre>` anywhere
+- Step 4's export is identical to step 2's
+- Step 5: `quoted child` is a depth-1 item in a quote under the unquoted `10. ten`, and Markdown can't put a quoted line inside an unquoted item's indent. It exports as `> - quoted child` at the margin, after a blank line, never `>` followed by 4+ spaces. `- a` through `      - d` keep 2 more spaces per level. The render has no `<pre>`: `quoted child` is an `<li>` in a `<blockquote>`, and `d` is inside `c`'s `<li>`
+
+**Cleanup:** `delete_file` all three docs; delete the scratch files
+
+**Result (2026-11-16) ✅ PASS — Kit, PR #1539 round 1 @ 3da51399**
+Step 2 matches every listed line (`   1. Nested`, `      - deep bullet`, `  - b`, `    1. c`, `    1. ten child`, `  - [x] subtask`, `  more in task`, `   1. q`, `      more in q`). Step 3: every child list sits inside its parent's `<li>`, both blocks are `<p>`s in their items, and there's no `<pre>`. Step 4: byte-identical to step 2. Both docs trashed. The round was sent back for code-review findings this case doesn't cover (a quoted child under `10.`, a depth jump of 3, an orphan item).
+
+**Result (2026-11-17) ✅ PASS — Kit, PR #1539 round 2 @ 5b48603d**
+`mcp-gee-sweet-kit`, reconnected after the reset. Steps 1–2: the export is byte-identical to round 1's, so the step 2 and step 3 checks hold as in round 1. Step 4 wasn't re-run: its input is that same text, and round 1's round trip was byte-identical. Step 5: `10. ten`, a blank line, `> - quoted child` at the margin (no `>` followed by 4+ spaces), then `- a`, `  - b`, `    - c`, `      - d`. CommonMark render: `quoted child` is an `<li>` in a `<blockquote>`, `d` is inside `c`'s `<li>`, and there's no `<pre>`. Both docs trashed.
+
+---
+
+### TC-DOC265: `create_named_range` with no `end_index` makes a one-character anchor, as `create_bookmark` did ⚠️ destructive
+
+**Purpose:** `create_bookmark` folds into `create_named_range`: an omitted `end_index` spans the single character at `start_index`. `create_bookmark` stays for one release, deprecated.
+
+**Steps**
+1. `create_doc(title="TC-DOC265", folder_id={FOLDER_ID}, content="Some paragraph text")` → `{DOC}`
+2. `create_named_range(doc_id={DOC}, name="anchor", start_index=3)`
+3. `create_bookmark(doc_id={DOC}, name="old", index=3)`
+4. In the client's tool list, read `create_bookmark`'s description
+
+**Checks**
+- Step 2: `{docId, namedRangeId, name: "anchor", startIndex: 3, endIndex: 4}` with a non-empty `namedRangeId`
+- Step 3: `{docId, namedRangeId, name: "old", index: 3}`, as before
+- Step 4: it starts with `Deprecated: use` and names `create_named_range` with `end_index` omitted
+
+**Cleanup:** `delete_file` the doc
+
+**Result (2026-11-19) ✅ PASS — Kit, PR #1548 round 1 @ 1f5fd10b**
+`mcp-gee-sweet-kit`, reconnected after the reset. Step 2: `{docId, namedRangeId: "kix.…", name: "anchor", startIndex: 3, endIndex: 4}`. Step 3: `{docId, namedRangeId: "kix.…", name: "old", index: 3}`. Step 4: `create_bookmark`'s description starts `Deprecated: use \`create_named_range\` with \`start_index\` set to \`index\` and \`end_index\` omitted`. Extra probe (review finding on astral characters): with `😀` inserted at index 1, `create_named_range(start_index=1)` with no `end_index` returned `startIndex: 1, endIndex: 2` with no error, so a range ending mid-surrogate-pair isn't rejected. Doc trashed.
+
+---
+
+### TC-DOC266: `get_doc_as_markdown` is cached, and an edit is seen at once ⚠️ destructive
+
+**Playwright: required**
+
+**Purpose:** `get_doc_as_markdown` now reads through the doc cache, as `get_doc_content` does, which is deprecated in its favor (#1527). Every edit through this server invalidates the entry, and an edit made elsewhere is caught at once by comparing the Docs API's `revisionId` (`CACHE_VALIDATE_MODIFIED_TIME`, on by default): Drive's `modifiedTime`, which the first version checked, lagged a Docs editor edit by about 2.5 minutes (PR #1548 QA round 1). Comments are read on every call.
+
+**Steps**
+1. `create_doc(title="TC-DOC266", folder_id={FOLDER_ID}, content_format="markdown", content="# Title\n\nFirst paragraph\n")` → `{DOC}`
+2. `get_doc_as_markdown(doc_id={DOC})` twice
+3. `get_doc_structure(doc_id={DOC})`, then `insert_doc_text(doc_id={DOC}, insertions=[{"index": <the endIndex of "First paragraph"> - 1, "text": " edited"}])`, then `get_doc_as_markdown(doc_id={DOC})`
+4. In Playwright, type ` typed` at the end of the paragraph in the Docs editor, wait 10 seconds, then `get_doc_as_markdown(doc_id={DOC})`
+5. `add_file_comment(file_id={DOC}, content="cached?")`, then `get_doc_as_markdown(doc_id={DOC}, include_comments=True)`
+6. `get_doc_content(file_id={DOC})`, and read its description in the client's tool list
+
+**Checks**
+- Step 2: both calls return the same `markdown`, `# Title\n\nFirst paragraph\n\n` (the last `\n` is the empty paragraph `create_doc` leaves at the end)
+- Step 3: the export reads `First paragraph edited`
+- Step 4: the export reads `First paragraph edited typed` (the UI edit changed the doc's `revisionId`)
+- Step 5: the `## Comments` section lists `cached?`
+- Step 6: it still returns the doc's plain text; its description starts with `Deprecated: use` and names `get_doc_as_markdown`, `export_file` and `download_file` with `export_format='txt'`, and `get_file_metadata`
+
+**Cleanup:** `delete_file` the doc
+
+**Result (2026-11-19) ❌ FAIL — Kit, PR #1548 round 1 @ 1f5fd10b**
+`mcp-gee-sweet-kit`, reconnected after the reset. Step 2: both calls `# Title\n\nFirst paragraph\n\n` (check corrected for the trailing empty paragraph). Step 3: `First paragraph edited`. Step 4 fails, the defect this case exists to catch. Done with the default `playwright` (sign-in check passed): after a fresh cached export reading `… typed`, ` again` was typed in the Docs editor ("Saved to Drive" shown), and 20 seconds later `get_doc_structure` read `… typed again` while `get_doc_as_markdown` still returned `… typed`. Drive's `modifiedTime` lags a Docs edit: after an edit sent straight to the Docs API, `modifiedTime` and `version` stayed unchanged for at least 24 s, and the new `modifiedTime` was first seen about 2.5 minutes after the edit. Throughout, `get_doc_as_markdown` served the pre-edit export. A first UI-edit attempt read fresh only because that earlier edit's lagging `modifiedTime` had just come through. A `documents.get(fields="revisionId")` changed immediately after the same kind of edit. Step 5: `## Comments` lists `cached?` (the export above it was still stale: `ext` without the ` v2 v3` edits made 2–3 minutes earlier). Step 6: plain text returned; the description starts `Deprecated: use \`get_doc_as_markdown\` … or \`export_file\` with \`export_format='txt'\``. Doc trashed.
+
+**Result (2026-11-19) ✅ PASS — Kit, PR #1548 round 2 @ b3ad8da3**
+`mcp-gee-sweet-kit`, reconnected after the reset to the revisionId fix. Steps 1–3 as round 1: both step 2 calls `# Title\n\nFirst paragraph\n\n`, step 3 `First paragraph edited`. The cache DB held a `<doc_id>:document` row with a `revision_id`, and a repeat export left its `fetched_at` unchanged (a hit). An edit sent straight to the Docs API (` ext`, bypassing the server) showed up in the very next export, where round 1 served it stale for about 2.5 minutes. Step 4 (default `playwright`, sign-in check passed, URL-verified): ` typed` typed in the Docs editor ("Saved to Drive"); the export read `First paragraph edited ext typed` within seconds, matching `get_doc_structure`. Step 5: `## Comments` lists `cached?`. Step 6: plain text returned; the new deprecation note (`get_doc_as_markdown` with `local_path`, `export_file`/`download_file` with `export_format='txt'`, `get_file_metadata`) checked in `content.py` at this head, since `ToolSearch` kept the pre-reset description. Doc trashed.
+
+---
+
+## Live coverage for merged PRs #1459, #1470 and #1471
+
+Run on 2026-11-18 in an isolated service-account sandbox on a Shared Drive, against `develop` with all three PRs merged (`d10215a`). Raw reads are a `documents().get()` from a read-only script. This session had no browser, so on-screen checks were not run.
+
+### TC-DOC267: A table's `<caption>` is kept as a paragraph above the table (#1402) ⚠️ destructive
+
+**Purpose:** a `<caption>`'s text was dropped with the rest of a table's table-scope text. It now reads as a paragraph above the table, with its own inline styles. A caption left open closes at the table's first row, a caption on a nested table goes into the outer cell ahead of that table, a wrapped caption is one paragraph, a trailing `<br>` draws no empty line, and a table with no rows keeps its caption.
+
+**Playwright: required**
+
+**Steps**
+1. `create_doc(title="TC-DOC267", folder_id={FOLDER_ID}, content=...)` with these groups, each after a `<p>G1</p>`…`<p>G9</p>` label, then `<p>end</p>`: G1 `<table><caption>Quarterly <b>sales</b></caption><tr><td>a</td><td>b</td></tr></table>`; G2 `<table><caption><b>cap<tr><td>c</td></tr></table><p>after</p>`; G3 `<table><caption>Quarterly\n  sales</caption><tr><td>x</td></tr></table>` (a real newline); G4 `<table><caption>Sales<br></caption><tr><td>x</td></tr></table>`; G5 `<table><caption>Only a caption</caption></table>`; G6 `<table><tr><td>a<table><caption>inner</caption><tr><td>i</td></tr></table></td></tr></table>`; G7 `<table><caption>Title<table><tr><td>x</td></tr></table></caption><tr><td>y</td></tr></table>`; G8 `<table><tr><td>nocap</td></tr></table>`; G9 `<table><caption>cap</caption>lost<tr><td>c</td></tr></table>` → `{DOC}`
+2. `write_doc_content` (HTML) into a second doc with G1's table only
+
+**Checks** (raw `documents().get()`, and on screen)
+- G1: `Quarterly ` + bold `sales` is one paragraph above the table, with only the empty spacer paragraph every inserted table gets between them. The cells read `a` and `b`
+- G2: `cap` is bold; `c` and `after` aren't
+- G3: one paragraph, `Quarterly sales`
+- G4: `Sales`, then the table, with no empty paragraph besides the spacer
+- G5: a paragraph `Only a caption`, and no table
+- G6: the outer cell reads `a`, a soft break, `inner`, then the nested table
+- G7: `Title` above the outer table, which keeps its row `y`
+- G8: the table with `nocap`, with no paragraph above it besides the spacer
+- G9: `cap` above the table; `lost` appears nowhere
+- Step 2: the same as G1
+- 🔍 On screen: each caption sits directly above its table
+
+**Cleanup:** `delete_file` both docs
+
+**Result (2026-11-18) ✅ PASS (API); on-screen check not run — no browser in this session**
+Raw read, as the checks list: G1 `Quarterly ` + `sales\n` (bold), the 1pt spacer, then `a` / `b`. G2 `cap\n` bold, `c` and `after` plain. G3 `Quarterly sales\n`. G4 `Sales\n`, the spacer, the table. G5 `Only a caption\n` and no table. G6's cell is `a\vinner\n` followed by the nested `i` table. G7 `Title\n`, then the table with `y` (the table inside the caption doesn't render, which is out of this case's scope). G8 the spacer, then `nocap`. G9 `cap\n`, then the table, with `lost` nowhere. Step 2 matches G1. Docs trashed.
+
+### TC-DOC268: A block container inside an open block breaks its text as a browser draws it (#1403) ⚠️ destructive
+
+**Purpose:** a `<div>` (or another display:block tag the parser builds no node for) inside an open block ran its text into the block's: `<p>x<div>y</div>z</p>` read "xyz". The block's text now breaks around the container. A container holding the block's only text keeps the block whole, an empty or whitespace-only container draws no line, a `<br>` at the boundary is the boundary's break, a task-list marker before a container stays a checkbox item, and a container inside `<pre>` or a table cell is unchanged.
+
+**Playwright: required**
+
+**Steps**
+1. `create_doc(title="TC-DOC268", folder_id={FOLDER_ID}, content=...)` with these groups, each after a `<p>K1</p>`…`<p>K8</p>` label, then `<p>end</p>`: K1 `<p>x<div>y</div>z</p>`; K2 `<ul><li>a<div>b</div>c</li></ul>`; K3 `<ul><li><div>x</div></li></ul><h1><div>x</div></h1>`; K4 `<ul><li>a<div></div>c</li></ul>`; K5 `<ul><li><div> </div>c</li></ul>`; K6 `<p>a<br><div>b</div></p>`; K7 `<pre>a<div>b</div>c</pre>`; K8 `<table><tr><td>a<div>b</div>c</td></tr></table>` → `{DOC}`
+2. `write_doc_content` (HTML) into a second doc with K1's input
+3. `write_doc_content` (Markdown) into a third doc with `- [ ] <div>details</div>\n`, and `create_doc(content_format="markdown")` a fourth with `- [ ] details\n` as the control
+4. K7 and K8 "as before": run `html_parser.html_to_ast` on their inputs from clean exports of the merge commit and of its first parent, and compare
+
+**Checks** (raw `documents().get()`, and on screen)
+- K1: one paragraph, `x\vy\vz`
+- K2: one bullet, `a\vb\vc`
+- K3: one bullet `x` and one `HEADING_1` `x`, with no empty paragraph
+- K4: one bullet, `a\vc`. K5: one bullet with no empty line (record its text)
+- K6: one paragraph, `a\vb`
+- K7 and K8: step 4's two parses are identical
+- Step 2: the same as K1
+- Step 3: one bulleted paragraph `☐ details`, the same shape as the control, with no empty first line
+- 🔍 On screen: K1 and K2 read on three lines
+
+**Cleanup:** `delete_file` all four docs
+
+**Result (2026-11-18) ✅ PASS (API); on-screen check not run — no browser in this session**
+Raw read: K1 `x\vy\vz\n`. K2 one bullet, `a\vb\vc\n`. K3 one bullet `x\n` and a `HEADING_1` `x\n`, nothing between. K4 one bullet, `a\vc\n`. K5 one bullet, ` c\n`: the whitespace-only container draws no line, but its space stays as a leading space. That's unchanged by this PR (`html_to_ast` at the first parent also gives `[' ', 'c']`), and a single space beside a break is out of this case's scope. K6 `a\vb\n`. K7 `abc\n` in Courier New, and K8's cell `abc\n`. Step 4's parses of both are identical before and after the PR. Step 2 `x\vy\vz\n`. Step 3 is one bulleted `☐ details\n`, and the control is `☐ details\n` too. Docs trashed.
+
+**Result (2026-11-20) ✅ PASS (step 1, K1–K4 and K6, API only) — Rio's re-run for PR #1556's review, on `mcp-gee-sweet-rio` (OAuth, Shared Drive default folder) at `342f0ec0`**
+One doc with K1–K4 and K6. `get_doc_structure`: K1 `x\vy\vz\n`. K2 one bullet, `a\vb\vc\n`. K3 one bullet `x\n`, then a `HEADING_1` `x\n`, with nothing between. K4 one bullet, `a\vc\n`. K6 `a\vb\n`. K5, K7, K8, steps 2–4 and the on-screen check weren't re-run; they rest on the 2026-11-18 run. Doc trashed.
+
+### TC-DOC269: An NBSP or tab in a heading is dropped from its GitHub anchor, not turned into a hyphen (#1460) ⚠️ destructive
+
+**Purpose:** the GitHub anchor scheme keeps literal spaces and hyphens and strips github-slugger's character set (punctuation, symbols and every separator or control character, since #1545). Non-space whitespace (a tab, an NBSP, a `<br>` break's `"\v"`) is in that set, so it's now stripped with no separator instead of becoming a hyphen, and each literal space turns into a hyphen. The in-doc link resolver and `export_revision`'s heading-link slugs both use the rule.
+
+**Steps**
+1. `create_doc(title="TC-DOC269", folder_id={FOLDER_ID}, content="<h2>Price&nbsp;List</h2><h2>Price List</h2><p>Links: <a href=\"#pricelist\">a</a> and <a href=\"#price-list\">b</a>.</p>")` → `{DOC}`
+2. `get_doc_structure(doc_id={DOC})`, and a raw read of the first heading's text
+3. `create_doc(title="TC-DOC269 regressions", folder_id={FOLDER_ID}, content_format="markdown", content="## Heading one<br>heading two\n\n## A - Approved\n\n## Intro\n\n## Intro\n\nLinks: [a](#heading-oneheading-two) and [b](#heading-one-heading-two), [c](#a---approved), [d](#intro), [e](#intro-1).\n")` → `{REG}`, then `get_doc_structure`
+4. `get_doc_as_markdown` on both docs
+5. Relink each link by heading ID, as TC-DOC252 step 4 does, then `export_revision` of each doc's last revision
+
+**Checks**
+- Steps 1 and 3: no `error` and no `dropped_links`
+- Step 2: the first heading's text is `Price List` (if Docs normalizes the NBSP to a space, record that and stop). `a` links to the first heading's `headingId`, `b` to the second's
+- Step 3: `a` and `b` both link to the break heading (it has no plain twin), `c` to `A - Approved`, and `d` and `e` to the first and second `Intro`
+- Step 4: links keep their same-document URLs (only `export_revision` slugs heading links, see TC-DOC252)
+- Step 5: `[a](#pricelist)` and `[b](#price-list)`; `[a](#heading-oneheading-two)`, `[b](#heading-oneheading-two)`, `[c](#a---approved)`, `[d](#intro)` and `[e](#intro-1)`
+
+**Cleanup:** `delete_file` both docs
+
+**Result (2026-11-18) ✅ PASS**
+Steps 1 and 3 returned no `dropped_links`. Step 2: the raw text is `Price\xa0List\n`, so Docs keeps the NBSP. `a` → the NBSP heading's `headingId`, `b` → the plain one's. Step 3: `a` and `b` → the break heading, `c` → `A - Approved`, `d` / `e` → the first and second `Intro`. Step 4: every link is its same-document URL. Step 5: `export_revision` returned `Links: [a](#pricelist) and [b](#price-list).` and `Links: [a](#heading-oneheading-two) and [b](#heading-oneheading-two), [c](#a---approved), [d](#intro), [e](#intro-1).`, with `## Heading one<br>heading two` intact. Docs trashed.
+
+**Result (2026-11-20) ✅ PASS (steps 1–3 and 5) — Rio's re-run for PR #1556's review, on `mcp-gee-sweet-rio` (OAuth, Shared Drive default folder) at `342f0ec0` (`develop` `0762485`, which changes no docs code since `d10215a`)**
+Steps 1 and 3: no `error`, no `dropped_links`. Step 2: `a` → the first heading's `headingId`, `b` → the second's. Step 3: `a` and `b` → the break heading (`Heading one\vheading two`), `c` → `A - Approved`, `d`/`e` → the first and second `Intro`. Step 5: an `export_revision` before the relink returned the same-document URLs unchanged, as TC-DOC252 records. After relinking by `headingId` through a scratch script, `export_revision` returned exactly `Links: [a](#pricelist) and [b](#price-list).` and `Links: [a](#heading-oneheading-two) and [b](#heading-oneheading-two), [c](#a---approved), [d](#intro), [e](#intro-1).`, with `## Heading one<br>heading two` intact. Step 4 wasn't re-run; it rests on the 2026-11-18 run. Docs trashed.
+
+---
+
+## Live coverage for merged PRs #1530 and #1531
+
+Run on 2026-11-21 in an isolated service-account sandbox on a Shared Drive, against `develop` with both PRs merged (`ef402e5`). Raw reads are a `documents().get()` from a read-only script, since `get_doc_structure` reports neither a run's font nor an inline image's style. This session had no browser. Neither case has an on-screen check.
+
+### TC-DOC270: A `font_family` line keeps the bold its insert inherits, from the neighbour Docs actually styles it from (#1499) ⚠️ destructive
+
+**Purpose:** a `weightedFontFamily` request clears bold, so an inserted `font_family` line that sends no `bold` of its own lost the bold the insert inherited (#1273's behaviour, in `insert_softbreak_paragraph`). The bold is now restored after the font request. Without `named_style_type` nothing else changes. With one, the paragraph-style request has already cleared the inherited bold, so nothing is restored.
+
+**Steps** (one doc per step; `{P}` = `<p>aaa <b>bold</b> bbb</p>`, where `bold` is 5–9)
+1. `create_doc(title="TC-DOC270 a", folder_id={FOLDER_ID}, content={P})`, then `insert_softbreak_paragraph(index=9, lines=[{"text": "code", "font_family": "Courier New"}])`
+2. As step 1 at `index=5` (after the plain `aaa `)
+3. As step 1 with `{"text": "code", "font_family": "Courier New", "bold": false}`
+4. As step 1 with `named_style_type="NORMAL_TEXT"`
+5. `content="<p><b>Header</b></p><p>tail</p>"`: insert the step 1 line at the start of `tail` (8). A control doc gets `[{"text": "code"}]` (no font, so no restore) at the same index
+6. `content="<p>plain</p><p><b>Bold</b></p>"`: insert the step 1 line at the start of `Bold` (7), with the same control
+7. Regression (#1489): `content="<p><s>struck</s> mid <i>it</i></p>"`, then `insert_softbreak_paragraph(index=12, lines=[{"text": "new"}])`
+
+**Checks** (raw `documents().get()`)
+- Step 1: `code` bold and Courier New
+- Step 2: `code` Courier New, not bold
+- Step 3: `code` Courier New, not bold
+- Step 4: `code` not bold
+- Steps 5 and 6: the control shows which neighbour Docs styles a paragraph-start insert from. `code` is bold exactly when that neighbour is
+- Step 7: `struck` still struck and `it` still italic
+
+**Cleanup:** `delete_file` every doc
+
+**Result (2026-11-21) ❌ FAIL — steps 5 and 6: a paragraph-start insert takes its style from the text after `index`, but the restore reads the character before it (#1584)**
+Step 1: `code` `{bold, Courier New}`. Step 2: `code` Courier New only. Step 3: `code` Courier New only. Step 4: `code` Courier New only (the `NORMAL_TEXT` request also cleared `bold`'s own bold, as the docstring says). Step 7: `struck` struck, ` mid new` plain, `it` italic. Step 5: the control's `code` is plain, so Docs follows `tail`, but the font line's `code` is bold: the restore read `Header`'s bold newline. Step 6: the control's `code` is bold, following `Bold`, but the font line's `code` is plain: the font request cleared the inherited bold and nothing restored it. Docs trashed.
+
+**Result (2026-11-21) ❌ FAIL (steps 5 and 6) — Rio's re-run for PR #1585's review, on `mcp-gee-sweet-rio` (OAuth, Shared Drive default folder) at `32d7e98b` (on `develop` `ef402e5`)**
+Raw reads from a read-only `documents().get()` script. Step 5: the control's `code` is plain and the font line's `code` is bold + Courier New. Step 6: the control's `code` is bold (one run with `Bold`) and the font line's `code` is Courier New, not bold. The same failure as above (#1584). Steps 1–4 and 7 weren't re-run; they rest on the run above. Docs trashed.
+
+### TC-DOC271: `get_doc_as_markdown` keeps one emphasis span across an inline image that shares it (#1509) ⚠️ requires-network ⚠️ destructive
+
+**Purpose:** an inline image inside a styled span exported bare, splitting the span in two (`**bold** ![](…) **image**`). The export now reads the image's own character style and renders one span across a run–image–run sequence that shares it, and a span around a lone styled image. It falls back to the split rendering, the image bare, when a marker would sit next to a letter, a digit or a neighbouring run's own `*` at the image's edge.
+
+**Steps** (each a `.md` or `.html` file beside a local `logo.png`, through `create_doc_from_file(folder_id={FOLDER_ID})`, then `get_doc_as_markdown`)
+1. `**bold ![logo](logo.png) image**`; then `update_doc_from_file` the same doc from step 1's export
+2. `**![logo](logo.png)**`
+3. `*a ![logo](logo.png) b*` and `~~a ![logo](logo.png) b~~`
+4. `[**a ![logo](logo.png) b**](https://example.com)`
+5. HTML `<p><b>bold <img src="logo.png" alt="logo"></b><i>(it)</i></p>` and `<p><i>it</i><b><img src="logo.png" alt="logo"> bold</b></p>`
+6. A one-column table whose body cell is `**a ![logo](logo.png) b**`
+7. `plain ![logo](logo.png) text`
+
+**Checks**
+- Step 1: `**bold ![](…) image**`. After the update, a raw read has the image bold
+- Step 2: `**![](…)**`
+- Step 3: `*a ![](…) b*` and `~~a ![](…) b~~`
+- Step 4: `[**a ![](…) b**](https://example.com)`, one link, the image not wrapped twice
+- Step 5: the image bare between the two runs, both still styled, with no `***`
+- Step 6: the cell reads `**a ![](…) b**`
+- Step 7: `plain ![](…) text`
+
+**Cleanup:** `delete_file` every doc and uploaded image
+
+**Result (2026-11-21) ✅ PASS**
+Step 1: `**bold ![](…) image**`. Raw read after `update_doc_from_file` from that export: `bold `, the image and ` image` all `bold: true`. Step 2: `**![](…)**`. Step 3: `*a ![](…) b*` and `~~a ![](…) b~~`. Step 4: `[**a ![](…) b**](https://example.com)`. Raw read: the image carries the link, bold and the link colour. Step 5: `**bold** ![](…)*(it)*` and `*it*![](…) **bold**`. Raw read: each image is `bold: true`, so the fallback, not a missing style, left it bare. Step 6: `| **a ![](…) b** |`. Step 7: `plain ![](…) text`. Every export drops the alt `logo` (`![]`), as earlier image cases record. Docs and images trashed.

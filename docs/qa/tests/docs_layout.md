@@ -171,3 +171,33 @@ Run 2 (sa) on a throwaway doc.
 
 ---
 
+
+## `create_header_or_footer` (#1527)
+
+### TC-DOC263: Add a header and a footer with `create_header_or_footer` ⚠️ destructive
+
+**Playwright: required**
+
+**Purpose:** `create_header` and `create_footer` merge into `create_header_or_footer`, where `kind` picks which. It reads the new ID from the API's reply (the old tools looked under the wrong key and fetched it again).
+
+**Steps**
+1. `create_doc(title="TC-DOC263", folder_id={FOLDER_ID}, content="Body")` → `{DOC}`
+2. `create_header_or_footer(doc_id={DOC}, kind="header", content="Top text")`
+3. `create_header_or_footer(doc_id={DOC}, kind="footer", content="Bottom text")`
+4. `create_header_or_footer(doc_id={DOC}, kind="header", content="More ")` (the doc already has a header)
+5. `create_header(doc_id={DOC}, header_type="FIRST_PAGE_HEADER")` and `create_footer(doc_id={DOC}, footer_type="FIRST_PAGE_FOOTER")`
+6. Open `{DOC}` in Playwright
+
+**Checks**
+- Step 2: `{docId, kind: "header", headerId}` with a non-empty `headerId` and no `warning`
+- Step 3: `{docId, kind: "footer", footerId}`, likewise
+- Step 4: the same `headerId` as step 2, no error
+- Step 5: each returns an `error` saying a first-page header (or footer) can't be created through the Docs API and pointing to the Docs UI, and neither makes a change (re-check in step 6)
+- Step 6: the page header reads `More Top text` and the footer `Bottom text`
+
+**Cleanup:** `delete_file` the doc
+
+**Result (2026-11-19) ✅ PASS — Kit, PR #1548 round 1 @ 1f5fd10b**
+`mcp-gee-sweet-kit`, reconnected after the reset. Step 2: `{docId, kind: "header", headerId: "kix.…"}`, no `warning`. Step 3: `{docId, kind: "footer", footerId: "kix.…"}`. Step 4: the same `headerId` as step 2. Step 5: both return the first-page `error` pointing to Insert > Headers & footers. Step 6 (default `playwright`, sign-in check passed on the fixture doc's title; URL-verified both captures): header `More Top text`, footer `Bottom text` on the doc's one page, no first-page header or footer. Doc trashed.
+
+---

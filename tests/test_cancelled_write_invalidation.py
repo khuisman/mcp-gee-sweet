@@ -122,9 +122,12 @@ _DOC_TOOL_CALLS = {
     "delete_table_row": {"table_start_index": 5, "row_index": 0},
     "insert_table_column": {"table_start_index": 5, "column_index": 0},
     "delete_table_column": {"table_start_index": 5, "column_index": 0},
+    "insert_table_row_or_column": {"dimension": "row", "table_start_index": 5, "index": 0},
+    "delete_table_row_or_column": {"dimension": "column", "table_start_index": 5, "index": 0},
     "merge_table_cells": {"table_start_index": 5, "row_index": 0, "column_index": 0},
     "create_header": {"content": "Header"},
     "create_footer": {"content": "Footer"},
+    "create_header_or_footer": {"kind": "header", "content": "Header"},
     "create_named_range": {"name": "r", "start_index": 1, "end_index": 3},
     "create_bookmark": {"name": "b", "index": 1},
 }
@@ -528,12 +531,16 @@ _SHEET_TOOL_CALLS = {
     ),
     "copy_sheet": (
         {
-            "src_spreadsheet": "sid",
-            "src_sheet": "Sheet1",
-            "dst_spreadsheet": "dst",
-            "dst_sheet": "Renamed",
+            "spreadsheet_id": "sid",
+            "sheet": "Sheet1",
+            "destination_spreadsheet_id": "dst",
+            "new_name": "Renamed",
         },
         {("structure", "dst")},
+    ),
+    "copy_sheet_in_place": (
+        {"spreadsheet_id": "sid", "sheet": "Sheet1", "insert_index": 1},
+        {("structure", "sid")},
     ),
     "duplicate_sheet": (
         {"spreadsheet_id": "sid", "sheet": "Sheet1", "insert_index": 1},
@@ -553,6 +560,14 @@ _SHEET_TOOL_CALLS = {
     ),
     "delete_columns": (
         {"spreadsheet_id": "sid", "sheet": "Sheet1", "start_column": 0},
+        {("data", "sid")},
+    ),
+    "add_rows_or_columns": (
+        {"spreadsheet_id": "sid", "sheet": "Sheet1", "dimension": "rows", "count": 1},
+        {("data", "sid")},
+    ),
+    "delete_rows_or_columns": (
+        {"spreadsheet_id": "sid", "sheet": "Sheet1", "dimension": "columns", "start": 0},
         {("data", "sid")},
     ),
     "sort_range": (
@@ -583,6 +598,7 @@ _SHEET_CASE_TOOL = {
     "update_cells_rich_text": "update_cells",
     "update_cells_mixed": "update_cells",
     "format_cells_bold": "format_cells",
+    "copy_sheet_in_place": "copy_sheet",
 }
 
 _sheets_tool, _sheets_tools = _make_tool_registry()
@@ -590,7 +606,8 @@ sheets_data_module.register(_sheets_tool)
 sheets_structure_module.register(_sheets_tool)
 
 # Every response a sheets write can need: the new sheet's properties for
-# duplicate_sheet/create_sheet, and copy_sheet's new sheetId.
+# copy_sheet in place, duplicate_sheet and create_sheet, and copy_sheet's new
+# sheetId across spreadsheets.
 _SHEET_WRITE_RESPONSE = {
     "sheetId": 7,
     "title": "Copy of Sheet1",
@@ -647,6 +664,8 @@ def test_every_sheets_write_is_covered():
         "add_columns",
         "delete_rows",
         "delete_columns",
+        "add_rows_or_columns",
+        "delete_rows_or_columns",
         "sort_range",
         "format_cells",
         "merge_cells",

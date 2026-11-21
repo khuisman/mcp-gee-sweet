@@ -15,11 +15,7 @@ the named style being written is the one the paragraph already had.
 
 **Why:** The Docs API's `updateParagraphStyle` with a `namedStyleType` re-applies the
 named style's own text properties to the paragraph's runs, so per-run formatting is not
-preserved — that part is API behaviour. (`insert_softbreak_paragraph` used to add a quirk
-of its own on top: it always sent the paragraph-style request, defaulting to
-`NORMAL_TEXT`, even when no paragraph style was asked for, so a plain insert wiped the
-paragraph's inline styles. It now sends the request only when `named_style_type` is
-passed.)
+preserved — that part is API behaviour.
 
 **Where it bites:** `style_doc_range(named_style_type=...)`, and
 `insert_softbreak_paragraph` when a `named_style_type` is passed.
@@ -89,7 +85,7 @@ the paragraph after the table is collapsed again only if the new content still e
 is written into the one cell of a 1x1 wrapper table, whose left border is the quote's
 gray bar (#1122). `get_doc_structure` reports the wrapper as the top-level table, with the
 quoted table nested in its cell, so table tools that take a table's position
-(`insert_table_row`, `merge_table_cells`, and so on) reach the wrapper, not the table you
+(`insert_table_row_or_column`, `merge_table_cells`, and so on) reach the wrapper, not the table you
 see. Removing the wrapper in the Docs editor removes the bar but leaves the table.
 
 **Why:** The Docs API can't give a table a paragraph border, so a bar beside a table has to
@@ -158,6 +154,26 @@ constructs.
 **Workaround:** Write a footnote as an inline parenthetical or a "Notes" list at the end (creating
 real Docs footnotes is #149), a definition list as `**Term**: definition` lines, and put HTML that
 needs Markdown inside it as HTML instead.
+
+---
+
+### A GitHub `#anchor` for an underlined heading with a soft break doesn't resolve
+
+**What:** A Markdown setext (`===`/`---`) heading split across a soft break — `Heading one` on
+one line, `heading two` on the next, underline under it — written by `create_doc`,
+`write_doc_content`, `create_doc_from_file` or `update_doc_from_file` keeps the break's hyphen
+in its slug: both schemes slug the heading `heading-one-heading-two`. GitHub's own anchor for
+the same heading is `#heading-oneheading-two` (github-slugger drops the `\n` with no separator,
+measured 2026-11-20), so a `#heading-oneheading-two` link copied from GitHub strips to plain
+text instead of resolving. The GitLab spelling, `#heading-one-heading-two`, resolves.
+
+**Why:** The write collapses the soft break to a space — the same thing a browser's rendering
+does with the `\n` GitHub leaves in its HTML — and the break's position can't be recovered at
+resolve time; guessing which hyphen was the break could point a link at the wrong heading. A
+residual edge of the #1357 anchor family, recorded here under its chain stop (#1553).
+
+**Workaround:** Write the heading on one line, or spell the anchor with the hyphen the collapse
+produces.
 
 ---
 
@@ -290,15 +306,50 @@ differences listed under Google Drive below).
 
 ---
 
-### `create_bookmark` doesn't create a bookmark Docs lists
+### A named range isn't a bookmark Docs lists
 
-**What:** `create_bookmark` creates a one-character named range. It doesn't appear under
-Insert > Link > "Headings, bookmarks, and tabs", and no link can point to it.
+**What:** `create_named_range` with no `end_index` (and the deprecated `create_bookmark`)
+creates a one-character named range. It doesn't appear under Insert > Link > "Headings,
+bookmarks, and tabs", and no link can point to it.
 
 **Why:** The Docs API has no request that creates a bookmark; only the Docs UI can.
 
 **Workaround:** Link to a heading instead: every heading has a `headingId` (`get_doc_structure`)
 that a link can target. Tracked in #1076.
+
+---
+
+### No first-page-only header or footer
+
+**What:** `create_header_or_footer` creates a doc's default header or footer, shown on every
+page. It can't create one shown only on the first page, and the deprecated `create_header`
+and `create_footer` return an error for `FIRST_PAGE_HEADER` and `FIRST_PAGE_FOOTER`.
+
+**Why:** The Docs API's header type takes only `DEFAULT`. Setting the doc's
+`useFirstPageHeaderFooter` and then creating a header still makes only the default one
+(checked live, #1527).
+
+**Workaround:** In the Docs UI, Insert > Headers & footers, then check "Different first page".
+
+---
+
+### `get_doc_as_markdown` exports a left-aligned table column as `---`, not `:--`
+
+**What:** In a table written by `create_doc`, `write_doc_content`, `create_doc_from_file`,
+`update_doc_from_file`, or `upload_file` (Markdown source), or converted from `.md` by Drive's import,
+a column written with `:--` (or an HTML cell with `text-align: left`) reads back from
+`get_doc_as_markdown` and `export_revision` as an unaligned `---` column. Centered (`:-:`) and
+right-aligned (`--:`) columns keep their delimiters. A Markdown renderer draws an unaligned body cell
+on the left, but may center an unaligned header cell, as a browser does a bare `<th>`. A table from a
+Drive `.docx` import keeps its `:--` columns when some cell in the table has no alignment of its own;
+one whose every cell sets an alignment reads like the tables above.
+
+**Why:** Those tables store a left alignment (`START`) on every cell, aligned or not, so a
+left-aligned column and an unaligned one are the same in the Doc. Reading `START` as `:--` exported
+every unaligned column as `:--` (#1503). So `START` is read as `:--` only in a table where some cell
+paragraph has no alignment, as an unaligned cell from a `.docx` import does.
+
+**Workaround:** Restore `:--` in the exported Markdown by hand.
 
 ---
 
@@ -634,11 +685,12 @@ uses only part of the list.
 Google Antigravity is reported to reject a server with more than 100 tools.
 
 **Why:** The caps are the clients' own. An unset `ENABLED_TOOLS` loads the `default` tool group,
-which is under every cap; `all` registers every tool, for clients without one.
+which is under every current cap (older Cursor builds allowed 40, which `default` doesn't exceed); `all` registers every tool, for clients without one.
 
-**Workaround:** Set `ENABLED_TOOLS` (or `--include-tools`) to one of the
-[suggested subsets](configuration.md#suggested-subsets), each under 100 tools. Per-client
-config is in [Clients with a tool limit](client-setup.md#clients-with-a-tool-limit).
+**Workaround:** Leave `ENABLED_TOOLS` unset, or set it (or `--include-tools`) to
+[tool groups](configuration.md#tool-groups) and names whose total stays under your client's cap.
+Every group but `all` is under 100 tools. Per-client config is in
+[Clients with a tool limit](client-setup.md#clients-with-a-tool-limit).
 
 ---
 

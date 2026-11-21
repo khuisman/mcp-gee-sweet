@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Regenerate docs/tools.md and the "Suggested subsets" block of docs/configuration.md
+Regenerate docs/tools.md and the "Tool filtering" section of docs/configuration.md
 from the tool source in src/mcp_gee_sweet/tools/.
 
 Usage:
@@ -9,7 +9,7 @@ Usage:
 Wired into .pre-commit-config.yaml as a local hook. Both files are treated as
 generated output after this lands — hand edits to the tool tables will be
 overwritten on the next run. Prose that isn't mechanically derivable (escape
-hatch notes, enum values, auth caveats) lives in the SECTIONS/SUBSETS config
+hatch notes, enum values, auth caveats) lives in the SECTIONS/GROUP_DESCRIPTIONS config
 below, not in the markdown files themselves.
 
 A tool with no docstring fails the run, since the description column is
@@ -24,6 +24,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
+from mcp_gee_sweet import tool_groups  # noqa: E402
 from mcp_gee_sweet.tools import register_all  # noqa: E402
 
 TOOLS_MD = ROOT / "docs" / "tools.md"
@@ -35,18 +36,22 @@ GENERATED_BANNER = (
 )
 
 
-def collect_tools(default_names: set[str] | None = None):
+def collect_tools(groups_by_name: dict[str, frozenset[str]] | None = None):
     """Call register_all() with a capturing decorator instead of the real
-    FastMCP one, so this script never touches the mcp/auth machinery. Adds the
-    tools an unset ENABLED_TOOLS registers (`default=True`, #1364) to
-    `default_names` when one is given."""
+    FastMCP one, so this script never touches the mcp/auth machinery. Records
+    each tool's groups in `groups_by_name` when one is given, computed from its
+    decorator flags exactly as server.tool() computes them."""
     captured = []
 
-    def tool(annotations=None, local_only=False, default=False, **_):
+    # Same signature as server.tool(), with no catch-all, so a new flag there fails
+    # this script until it's handled here too.
+    def tool(annotations=None, *, local_only=False, default=False, groups=()):
         def decorator(func):
             captured.append(func)
-            if default and default_names is not None:
-                default_names.add(func.__name__)
+            if groups_by_name is not None:
+                groups_by_name[func.__name__] = tool_groups.tool_groups(
+                    func.__module__, default=default, local_only=local_only, groups=groups
+                )
             return func
 
         return decorator
@@ -143,6 +148,14 @@ SECTIONS = [
         "Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.",
     ),
     (
+        "Drive — comments",
+        lambda f: f.__module__ == "mcp_gee_sweet.tools.drive.comments",
+        "Comments on any Drive file that takes them: Docs, Sheets, Slides and other "
+        "files, through the Drive `comments`/`replies` resource. Resolving and "
+        "reopening a comment are replies with an `action`, so `reply_to_comment` does "
+        "both.",
+    ),
+    (
         "Docs",
         lambda f: f.__module__.startswith("mcp_gee_sweet.tools.docs."),
         "`write_doc_content` and `create_doc` accept either HTML or Markdown "
@@ -190,132 +203,156 @@ Two resources are available (read-only, not tools):
 | `spreadsheet://{spreadsheet_id}/info` | Sheet list and grid properties for a spreadsheet |
 """
 
-# Suggested ENABLED_TOOLS presets for docs/configuration.md. Every name here is
-# validated against the live tool set at generation time — a rename or removal
-# fails the run instead of silently documenting a dead tool name.
-SUBSETS = [
-    (
-        "Read-only Sheets",
-        [
-            "get_sheet_data",
-            "get_sheet_formulas",
-            "get_multiple_sheet_data",
-            "get_multiple_spreadsheet_summary",
-            "find_in_spreadsheet",
-            "list_sheets",
-            "list_spreadsheets",
-        ],
+# What each group holds, for docs/configuration.md, in the order its table lists
+# them. The run fails if these keys and tool_groups.GROUP_NAMES differ, so a new
+# group can't ship undocumented and a removed one can't stay in the docs. `{tools}`
+# is replaced by the group's own tool names, so a list can't go stale; any other
+# tool name written here must be a real tool (check_names), and any membership it
+# states belongs in MEMBERSHIP_CLAIMS.
+GROUP_DESCRIPTIONS = {
+    tool_groups.DEFAULT: (
+        "Everyday reading and writing across all five services. What an unset or "
+        "empty `ENABLED_TOOLS` loads"
     ),
-    (
-        "Sheets read + write",
-        [
-            "get_sheet_data",
-            "get_sheet_formulas",
-            "get_multiple_sheet_data",
-            "get_multiple_spreadsheet_summary",
-            "find_in_spreadsheet",
-            "list_sheets",
-            "list_spreadsheets",
-            "update_cells",
-            "batch_update_cells",
-            "create_sheet",
-            "rename_sheet",
-            "add_rows",
-            "add_columns",
-            "import_csv_to_sheet",
-        ],
+    tool_groups.ALL: "Every tool, plus the deprecated alias of each recently renamed tool",
+    "sheets": (
+        "Every spreadsheet tool: data, sheets, formatting, charts, and creating, "
+        "listing, searching, importing and sharing spreadsheets (which are in `drive` "
+        "too)"
     ),
-    (
-        "Docs essentials",
-        [
-            "create_doc",
-            "create_doc_from_file",
-            "get_doc_content",
-            "get_doc_as_markdown",
-            "get_doc_structure",
-            "find_in_doc",
-            "write_doc_content",
-            "update_doc_from_file",
-            "insert_doc_text",
-            "insert_doc_table",
-            "delete_doc_range",
-            "style_doc_range",
-            "style_doc_table_cells",
-        ],
+    "drive": (
+        "Every Drive tool: files, sharing, comments, activity, upload, download, local "
+        "sync, and creating, listing, searching, importing and sharing spreadsheets "
+        "(also in `sheets`)"
     ),
-    (
-        "Calendar only",
-        [
-            "list_calendars",
-            "get_calendar",
-            "create_calendar",
-            "update_calendar",
-            "delete_calendar",
-            "add_calendar_to_list",
-            "remove_calendar_from_list",
-            "list_calendar_acl",
-            "add_calendar_acl",
-            "remove_calendar_acl",
-            "list_events",
-            "list_all_events",
-            "get_event",
-            "create_event",
-            "update_event",
-            "delete_event",
-            "find_free_slots",
-        ],
+    "docs": "Every Docs tool",
+    "calendar": "Every Calendar tool",
+    "gmail": "Every Gmail tool",
+    "cache": "The cache controls: {tools}",
+    tool_groups.LOCAL_FILES: (
+        "The tools that only work on files on the server's machine: local upload, "
+        "download and sync, CSV import, a Doc written from a local Markdown or HTML "
+        "file, and local images inserted into a Doc. "
+        "Not registered when `LOCAL_FILE_ACCESS=off`"
     ),
-    (
-        "Gmail only",
-        [
-            "list_messages",
-            "get_message",
-            "list_threads",
-            "get_thread",
-            "list_labels",
-            "send_message",
-            "create_draft",
-            "send_draft",
-            "list_drafts",
-            "get_draft",
-            "update_draft",
-            "delete_draft",
-            "reply_to_message",
-            "modify_labels",
-            "trash_message",
-        ],
-    ),
-]
+    "comments": "Comments on any Drive file (Docs, Sheets, Slides, ...): {tools}",
+}
 
-# Whole-service presets, built from SECTIONS titles so they pick up new tools
-# without a hand edit. Calendar and Gmail need no entry: their SUBSETS above
-# already hold every tool in the service.
-SERVICE_SUBSETS = [
-    ("All Sheets tools", ["Sheets — data", "Sheets — structure", "Spreadsheets (Drive-level)"]),
-    (
-        "All Drive tools",
-        ["Drive — files", "Drive — transfer", "Drive — sharing", "Drive — activity"],
-    ),
-    ("All Docs tools", ["Docs"]),
-]
+# Every membership the prose above and in render_filtering_block states, as
+# (tool, group, is a member). Checked against the collected groups on every run, so
+# a tool moving between groups fails the run instead of leaving a false claim.
+# The spreadsheet tools under tools/drive/, in `sheets` too (#1511);
+# tests/test_tool_groups.py checks this list against the tools.
+SPREADSHEET_FILE_TOOLS = (
+    "create_spreadsheet",
+    "list_spreadsheets",
+    "search_spreadsheets",
+    "import_csv_to_sheet",
+    "share_spreadsheet",
+)
+MEMBERSHIP_CLAIMS = (
+    ("create_spreadsheet", tool_groups.DEFAULT, True),
+    # "searching ... spreadsheets" in the `sheets` description: search_files absorbs
+    # search_spreadsheets and list_spreadsheets (#1528).
+    ("search_files", "sheets", True),
+    *((name, "sheets", True) for name in SPREADSHEET_FILE_TOOLS),
+    *((name, "drive", True) for name in SPREADSHEET_FILE_TOOLS),
+)
 
-# A combined preset, shown to demonstrate joining two service lists.
-COMBINED_SUBSET = ("Docs + Drive (combined example)", ["All Docs tools", "All Drive tools"])
+# The local-file tools "What `default` leaves out" names. Each must be in
+# `local-files` and not in `default`.
+DEFAULT_LEAVES_OUT = (
+    "upload_local_file",
+    "download_folder",
+    "sync_folder",
+    "import_csv_to_sheet",
+    "create_doc_from_file",
+    "update_doc_from_file",
+)
 
 # Windsurf caps a session at 100 tools across every server, the lowest
-# documented client limit. Every preset must stay under it, so a preset that
-# grows past it fails the run instead of documenting a broken setup.
+# documented client limit. Every group but `all` must stay under it, so a group
+# that grows past it fails the run instead of documenting a broken setup.
 CLIENT_TOOL_LIMIT = 100
+# Older Cursor builds capped a session at 40 tools across every server
+# (docs/client-setup.md); the Tool filtering section says where `default` stands.
+OLD_CURSOR_TOOL_LIMIT = 40
 
 
-def render_tools_md(funcs) -> str:
+def group_members(groups_by_name: dict[str, frozenset[str]]) -> dict[str, list[str]]:
+    """Each documented group's tools, in registration order. `all` holds every tool."""
+    members: dict[str, list[str]] = {name: [] for name in GROUP_DESCRIPTIONS}
+    for tool_name, groups in groups_by_name.items():
+        members[tool_groups.ALL].append(tool_name)
+        for group in groups:
+            members[group].append(tool_name)
+    return members
+
+
+def check_claims(members: dict[str, list[str]]) -> None:
+    """Fail the run on a membership the prose states that the tools don't bear out."""
+    claims = [
+        *MEMBERSHIP_CLAIMS,
+        *((name, tool_groups.LOCAL_FILES, True) for name in DEFAULT_LEAVES_OUT),
+        *((name, tool_groups.DEFAULT, False) for name in DEFAULT_LEAVES_OUT),
+    ]
+    wrong = [
+        f"{name} {'in' if expected else 'not in'} {group}"
+        for name, group, expected in claims
+        if (name in members[group]) != expected
+    ]
+    if wrong:
+        raise RuntimeError(
+            "gen_tool_docs: the Tool filtering prose claims "
+            f"{'; '.join(wrong)}, which the tools don't bear out. Update "
+            "MEMBERSHIP_CLAIMS, DEFAULT_LEAVES_OUT or the prose in scripts/gen_tool_docs.py."
+        )
+
+
+_CODE_SPAN = re.compile(r"`([^`\n]+)`")
+_NAME_LIKE = re.compile(r"[a-z][a-z0-9_-]*")
+
+
+def check_names(text: str, known: set[str]) -> None:
+    """Fail the run on a lowercase name in a code span (or one entry of a
+    comma-separated one, like `default,local-files`) that names no tool or group.
+    Fenced blocks are skipped: the `default` list there is built from the tools."""
+    text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+    names = {
+        entry
+        for span in _CODE_SPAN.findall(text)
+        for entry in span.split(",")
+        if _NAME_LIKE.fullmatch(entry)
+    }
+    unknown = sorted(names - known - tool_groups.GROUP_NAMES)
+    if unknown:
+        raise RuntimeError(
+            f"gen_tool_docs: the Tool filtering section names {', '.join(unknown)}, "
+            "which is no tool or group. Update scripts/gen_tool_docs.py."
+        )
+
+
+def format_groups(groups: frozenset[str], module: str) -> str:
+    """A tool's groups for its docs/tools.md row: the service group of its own module
+    first, then any other service group, then the rest."""
+    home = tool_groups.service_group(module)
+    services = [g for g in tool_groups.SERVICE_GROUPS if g in groups and g != home]
+    if home in groups:
+        services.insert(0, home)
+    others = sorted(groups - set(services))
+    return ", ".join(f"`{g}`" for g in [*services, *others])
+
+
+def render_tools_md(funcs, groups_by_name: dict[str, frozenset[str]]) -> str:
     lines = [
         "# Tool Reference",
         "",
         GENERATED_BANNER,
         "",
         f"{len(funcs)} tools. All tool names are lowercase with underscores — use "
-        "these exact strings with `ENABLED_TOOLS` or `--include-tools`.",
+        "these exact strings with `ENABLED_TOOLS` or `--include-tools`. The Groups "
+        "column names the [tool groups](configuration.md#tool-groups) that load each "
+        "tool, and `all` loads every one.",
         "",
     ]
     seen = set()
@@ -324,10 +361,13 @@ def render_tools_md(funcs) -> str:
         seen.update(matched)
         lines.append(f"## {title}")
         lines.append("")
-        lines.append("| Tool | Description | Key parameters |")
-        lines.append("|---|---|---|")
+        lines.append("| Tool | Description | Key parameters | Groups |")
+        lines.append("|---|---|---|---|")
         for func in matched:
-            lines.append(f"| `{func.__name__}` | {summary(func)} | {param_list(func)} |")
+            lines.append(
+                f"| `{func.__name__}` | {summary(func)} | {param_list(func)} "
+                f"| {format_groups(groups_by_name[func.__name__], func.__module__)} |"
+            )
         lines.append("")
         if notes:
             lines.append(notes)
@@ -345,87 +385,113 @@ def render_tools_md(funcs) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def service_subsets(funcs) -> list[tuple[str, list[str]]]:
-    """Resolve SERVICE_SUBSETS and COMBINED_SUBSET to tool names, in SECTIONS order."""
-    by_title = {title: predicate for title, predicate, _notes in SECTIONS}
-    resolved = {}
-    for name, titles in SERVICE_SUBSETS:
-        unknown = [t for t in titles if t not in by_title]
-        if unknown:
+def render_filtering_block(groups_by_name: dict[str, frozenset[str]]) -> str:
+    """The "Tool filtering" section of docs/configuration.md."""
+    missing = sorted(tool_groups.GROUP_NAMES - set(GROUP_DESCRIPTIONS))
+    extra = sorted(set(GROUP_DESCRIPTIONS) - tool_groups.GROUP_NAMES)
+    if missing or extra:
+        raise RuntimeError(
+            "gen_tool_docs: GROUP_DESCRIPTIONS doesn't match tool_groups.GROUP_NAMES "
+            f"(undocumented: {', '.join(missing) or 'none'}; unknown: "
+            f"{', '.join(extra) or 'none'}). Update scripts/gen_tool_docs.py."
+        )
+    members = group_members(groups_by_name)
+    for group, names in members.items():
+        if not names:
+            raise RuntimeError(f"gen_tool_docs: tool group {group!r} has no tools.")
+        if group != tool_groups.ALL and len(names) >= CLIENT_TOOL_LIMIT:
             raise RuntimeError(
-                f"gen_tool_docs: service subset {name!r} references unknown section(s): "
-                f"{', '.join(unknown)}. Update SERVICE_SUBSETS in scripts/gen_tool_docs.py."
+                f"gen_tool_docs: tool group {group!r} has {len(names)} tools, at or over "
+                f"the {CLIENT_TOOL_LIMIT}-tool client limit every group but `all` is "
+                "documented to fit under."
             )
-        resolved[name] = [f.__name__ for title in titles for f in funcs if by_title[title](f)]
-    combined_name, parts = COMBINED_SUBSET
-    combined = [tool for part in parts for tool in resolved[part]]
-    return [*resolved.items(), (combined_name, combined)]
-
-
-def render_subsets_block(known_names: set[str], default_count: int, extra_subsets=()) -> str:
+    check_claims(members)
+    default_names = members[tool_groups.DEFAULT]
+    # `all` also registers every deprecated alias (tool_groups.RENAMED_TOOLS), so its
+    # count is what a client actually receives under it.
+    counts = {group: len(names) for group, names in members.items()}
+    counts[tool_groups.ALL] += len(tool_groups.RENAMED_TOOLS)
     lines = [
         "## Tool filtering",
         "",
         GENERATED_BANNER,
         "",
-        f"By default the server registers the `default` tool group, {default_count} of "
-        f"the {len(known_names)} tools. Use `ENABLED_TOOLS` (or `--include-tools` on the "
-        "CLI) to choose the tools you need: it takes tool names and group names, and "
-        "the server registers their union. Fewer tools reduce the AI's context window "
-        "cost — each registered tool is a name the model must reason about on every call.",
+        f"By default the server registers the `default` tool group, {len(default_names)} "
+        f"of the {len(groups_by_name)} tools. Use `ENABLED_TOOLS` (or `--include-tools` "
+        "on the CLI) to choose the tools you need: it takes tool names and group names, "
+        "and the server registers their union. Fewer tools reduce the AI's context "
+        "window cost — each registered tool is a name the model must reason about on "
+        "every call.",
         "",
         "```bash",
-        "# Environment variable",
-        "ENABLED_TOOLS=get_sheet_data,update_cells,list_spreadsheets,list_sheets",
+        "# Environment variable: the default set, plus the local-file tools",
+        "ENABLED_TOOLS=default,local-files",
         "",
-        "# CLI flag",
-        "uv run mcp-gee-sweet --include-tools get_sheet_data,update_cells,list_spreadsheets",
+        "# CLI flag: every Docs tool, plus one Calendar tool",
+        "uv run mcp-gee-sweet --include-tools docs,list_events",
         "```",
         "",
         "If neither is set, or the value is empty, the `default` group is registered. "
         "`ENABLED_TOOLS=all` (or `--include-tools all`) registers every tool. Listed "
-        "with other entries, `all` still registers every tool. An entry that names no "
-        "tool or group is logged as a warning at startup and otherwise ignored.",
+        "with other entries, `all` still registers every tool. Entries are "
+        "case-sensitive, and one that names no tool or group (`ALL`, a typo) is logged "
+        "as a warning at startup and otherwise ignored. The startup log, the server's "
+        "instructions to the client, and `server://auth-status` each say which tools "
+        "loaded. `ENABLED_TOOLS` also decides which Google scopes the server asks for: "
+        "with no Gmail tool selected, it never asks for mailbox access.",
         "",
-        "### Suggested subsets",
+        "### Tool groups",
         "",
-        "Some MCP clients cap how many tools they accept, and the full tool set is "
-        "over every cap: VS Code with GitHub Copilot allows 128 tools per request, "
-        "built-in tools included; Windsurf allows 100 across all servers; Cursor's "
-        "cap depends on the model. On Windsurf and Cursor, pick one of these "
-        f"subsets. Each one is under {CLIENT_TOOL_LIMIT} tools. In our November "
-        "2026 test, VS Code + Copilot looked tools up on demand and handled the "
-        'full set, so use a subset there only if you see "Cannot have more than '
-        '128 tools per request". See [Clients with a tool limit]'
-        "(client-setup.md#clients-with-a-tool-limit) for each client's config.",
+        "| Group | Tools | What it holds |",
+        "|---|---|---|",
+    ]
+    for group, description in GROUP_DESCRIPTIONS.items():
+        tools = ", ".join(f"`{name}`" for name in members[group])
+        lines.append(f"| `{group}` | {counts[group]} | {description.format(tools=tools)} |")
+    lines += [
         "",
-        "To combine two subsets, join their lists with a comma (a name listed "
-        "twice is fine) and add up the counts to check you're still under your "
-        "client's limit. Windsurf's 100 also counts every other server's tools.",
+        "Each tool's groups are listed in [Tools](tools.md). A group never loads a "
+        "deprecated alias: only `all`, or the old name itself, does.",
+        "",
+        "**What `default` holds:**",
+        "```",
+        ",".join(default_names),
+        "```",
+        "",
+        "**What `default` leaves out.** It has no tool that only works on local files, "
+        "so local upload, download and sync, CSV import, and the Markdown file tools ("
+        + ", ".join(f"`{name}`" for name in DEFAULT_LEAVES_OUT)
+        + ", ...) need `local-files` or their "
+        "own names. It also leaves out most structural tools: Sheets formatting and "
+        "charts, Docs tables and themes, file comments, calendar management, and Drive "
+        "trash. Add a service group, or the tool names, for those.",
+        "",
+        "**Combining entries.** Join groups and names with a comma, e.g. "
+        "`default,local-files` or `default,comments,insert_doc_table`; a tool named "
+        "twice loads once. Some MCP clients cap how many tools they accept, and every "
+        f"group but `all` is under {CLIENT_TOOL_LIMIT}, the lowest cap a current client "
+        f"documents. {_old_cursor_note(len(default_names))} A combination can go over "
+        "a cap. Adding up the counts above gives an upper bound, since groups overlap "
+        "and a tool in two loads once; Windsurf's cap also counts every other "
+        "server's tools. See [Clients with a tool limit]"
+        "(client-setup.md#clients-with-a-tool-limit) for each client's setting.",
         "",
     ]
-    for name, tool_names in [*SUBSETS, *extra_subsets]:
-        unknown = [t for t in tool_names if t not in known_names]
-        if unknown:
-            raise RuntimeError(
-                f"gen_tool_docs: subset {name!r} references unknown tool(s): "
-                f"{', '.join(unknown)}. Update SUBSETS in scripts/gen_tool_docs.py."
-            )
-        count = len(set(tool_names))
-        if count >= CLIENT_TOOL_LIMIT:
-            raise RuntimeError(
-                f"gen_tool_docs: subset {name!r} has {count} tools, at or over the "
-                f"{CLIENT_TOOL_LIMIT}-tool client limit it's documented to fit under. "
-                "Split it or drop it from scripts/gen_tool_docs.py."
-            )
-        lines.append(f"**{name}** ({count} tools):")
-        lines.append("```")
-        lines.append(",".join(tool_names))
-        lines.append("```")
-        lines.append("")
-    lines.append("See [Tools](tools.md) for the full list of tool names.")
-    lines.append("")
+    check_names("\n".join(lines), set(groups_by_name))
     return "\n".join(lines)
+
+
+def _old_cursor_note(default_count: int) -> str:
+    """Where `default` stands against the 40-tool cap of older Cursor builds."""
+    limit = OLD_CURSOR_TOOL_LIMIT
+    if default_count < limit:
+        return f"`default` ({default_count}) is also under the {limit} older Cursor builds allowed."
+    if default_count == limit:
+        return (
+            f"`default` ({default_count}) is exactly the {limit} older Cursor builds "
+            "allowed, so there it leaves no room for another server's tools."
+        )
+    return f"`default` ({default_count}) is over the {limit} older Cursor builds allowed."
 
 
 def write_if_changed(path: Path, content: str) -> bool:
@@ -436,15 +502,14 @@ def write_if_changed(path: Path, content: str) -> bool:
 
 
 def main() -> int:
-    default_names: set[str] = set()
-    funcs = collect_tools(default_names)
+    groups_by_name: dict[str, frozenset[str]] = {}
+    funcs = collect_tools(groups_by_name)
     require_docstrings(funcs)
-    known_names = {f.__name__ for f in funcs}
 
-    changed = write_if_changed(TOOLS_MD, render_tools_md(funcs))
+    changed = write_if_changed(TOOLS_MD, render_tools_md(funcs, groups_by_name))
 
     config_text = CONFIG_MD.read_text()
-    new_block = render_subsets_block(known_names, len(default_names), service_subsets(funcs))
+    new_block = render_filtering_block(groups_by_name)
     # backslash-escape the replacement so re.sub doesn't treat it as a backreference template
     escaped_block = new_block.replace("\\", "\\\\") + "\n"
     updated_config, n_subs = re.subn(

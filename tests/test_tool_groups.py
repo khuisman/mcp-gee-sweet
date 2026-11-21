@@ -15,6 +15,8 @@ from mcp.server.mcpserver import MCPServer
 from mcp_gee_sweet import server, tool_groups
 from mcp_gee_sweet.tool_groups import Renamed, Selection
 
+from .test_gen_tool_docs import gen_tool_docs
+
 ROOT = Path(__file__).resolve().parent.parent
 
 # The snapshot the issue pins: a change to `default` is a deliberate edit here.
@@ -37,7 +39,6 @@ DEFAULT_SNAPSHOT = {
     "copy_file",
     "share_file",
     "get_sheet_data",
-    "get_sheet_formulas",
     "list_sheets",
     "find_in_spreadsheet",
     "update_cells",
@@ -50,7 +51,9 @@ DEFAULT_SNAPSHOT = {
     "create_draft",
     "list_drafts",
     "send_draft",
+    "list_labels",
     "modify_labels",
+    "list_calendars",
     "list_events",
     "get_event",
     "create_event",
@@ -62,16 +65,20 @@ DEFAULT_CAP = 40
 SERVICE_GROUP_CAP = 100
 
 
-def _registrations() -> dict[str, frozenset[str]]:
-    """Every tool with its groups, from the decorator flags, as server.tool computes them."""
+def _captured() -> dict[str, tuple[str, frozenset[str]]]:
+    """Every tool with its module and its groups, from the decorator flags, as
+    server.tool computes them."""
     from mcp_gee_sweet.tools import register_all
 
     captured = {}
 
     def capture(annotations=None, *, local_only=False, default=False, groups=()):
         def decorator(func):
-            captured[func.__name__] = tool_groups.tool_groups(
-                func.__module__, default=default, local_only=local_only, groups=groups
+            captured[func.__name__] = (
+                func.__module__,
+                tool_groups.tool_groups(
+                    func.__module__, default=default, local_only=local_only, groups=groups
+                ),
             )
             return func
 
@@ -79,6 +86,11 @@ def _registrations() -> dict[str, frozenset[str]]:
 
     register_all(capture)
     return captured
+
+
+def _registrations() -> dict[str, frozenset[str]]:
+    """Every tool with its groups."""
+    return {name: groups for name, (_, groups) in _captured().items()}
 
 
 def _members(group: str) -> set[str]:
@@ -112,9 +124,13 @@ class TestGroupGuards:
 
     def test_comments_group(self):
         assert _members("comments") == {
-            "list_doc_comments",
-            "add_doc_comment",
+            "list_file_comments",
+            "add_file_comment",
+            "reply_to_comment",
             "resolve_doc_comment",
+            "get_file_comment",
+            "update_comment",
+            "delete_comment",
         }
 
     def test_local_files_is_exactly_the_local_only_tools(self):
@@ -134,6 +150,52 @@ class TestGroupGuards:
     def test_an_unknown_declared_group_fails_at_import(self):
         with pytest.raises(ValueError, match="unknown tool group"):
             tool_groups.tool_groups("mcp_gee_sweet.tools.gmail", groups=("coments",))
+
+    @pytest.mark.parametrize("group", ["default", "all", "local-files", "Sheets"])
+    def test_a_non_declarable_group_fails_at_import(self, group):
+        # Only DECLARED_GROUPS and the service groups go in `groups=`; `default` and
+        # `local-files` have their own flags, and names are case-sensitive.
+        with pytest.raises(ValueError, match="unknown tool group") as raised:
+            tool_groups.tool_groups("mcp_gee_sweet.tools.drive.files", groups=(group,))
+        message = str(raised.value)
+        assert "sheets, drive" in message and "comments" in message
+        assert "default=True" in message and "local_only=True" in message
+
+    def test_a_declared_service_group_adds_to_the_module_one(self):
+        assert tool_groups.tool_groups(
+            "mcp_gee_sweet.tools.drive.files", groups=("sheets",)
+        ) == frozenset({"drive", "sheets"})
+
+
+# The spreadsheet tools that live under tools/drive/ (#1511): the list the generated
+# docs make claims about, so there's one copy.
+SPREADSHEET_DRIVE_TOOLS = set(gen_tool_docs.SPREADSHEET_FILE_TOOLS)
+
+
+class TestSpreadsheetToolsInSheets:
+    def test_in_sheets_and_still_in_drive(self):
+        registrations = _registrations()
+        for name in SPREADSHEET_DRIVE_TOOLS:
+            assert {"sheets", "drive"} <= registrations[name], name
+
+    def test_every_spreadsheet_tool_outside_tools_sheets_is_in_sheets(self):
+        # A new spreadsheet tool added under another service has to opt into `sheets`.
+        # Name-based: a tool's name is the only sign a test has that it's a
+        # spreadsheet tool, so one named otherwise isn't caught.
+        outside = {
+            name
+            for name, (module, _) in _captured().items()
+            if re.search(r"sheet|spreadsheet", name)
+            and tool_groups.service_group(module) != "sheets"
+        }
+        assert outside == SPREADSHEET_DRIVE_TOOLS
+        assert outside <= _members("sheets")
+
+    def test_sheets_selection_selects_them(self):
+        selection = Selection.from_entries(["sheets"])
+        registrations = _registrations()
+        for name in SPREADSHEET_DRIVE_TOOLS:
+            assert selection.selects(name, registrations[name]), name
 
 
 # Values in the user docs: `ENABLED_TOOLS=...` or the JSON `"ENABLED_TOOLS": "..."`.
@@ -170,7 +232,7 @@ class TestSelection:
 
     def test_union_of_a_group_and_a_name(self):
         selection = Selection.from_entries(("docs", "list_events"))
-        assert selection.selects("add_doc_comment", frozenset({"docs", "comments"}))
+        assert selection.selects("get_doc_structure", frozenset({"docs"}))
         assert selection.selects("list_events", frozenset({"calendar", "default"}))
         assert not selection.selects("get_event", frozenset({"calendar", "default"}))
 
@@ -416,7 +478,7 @@ class TestLaunch:
         assert set(names) == DEFAULT_SNAPSHOT
         assert gmail is True
         assert instructions.startswith(
-            f"Tools: this server loads 38 of {len(_registrations())} tools (the default tool group)."
+            f"Tools: this server loads {len(DEFAULT_SNAPSHOT)} of {len(_registrations())} tools (the default tool group)."
         )
 
     def test_empty_is_unset(self):
@@ -425,7 +487,8 @@ class TestLaunch:
 
     def test_all_registers_every_tool(self):
         names, _, instructions, _ = _launch({"ENABLED_TOOLS": "all"})
-        assert set(names) == set(_registrations())
+        # `all` registers every deprecated alias too (#1209).
+        assert set(names) == set(_registrations()) | set(tool_groups.RENAMED_TOOLS)
         assert instructions.startswith("Tools: every tool is loaded")
 
     def test_a_group_and_a_name_leave_gmail_out(self):
@@ -445,8 +508,13 @@ class TestLaunch:
     def test_off_with_all_doesnt_claim_every_tool(self):
         names, _, instructions, _ = _launch({"LOCAL_FILE_ACCESS": "off", "ENABLED_TOOLS": "all"})
         total = len(_registrations())
-        assert instructions.startswith(f"Tools: this server loads {len(names)} of {total} tools.")
-        assert len(names) < total
+        tools = [name for name in names if name not in tool_groups.RENAMED_TOOLS]
+        aliases = len(names) - len(tools)
+        assert instructions.startswith(
+            f"Tools: this server loads {len(tools)} of {total} tools, plus {aliases} "
+            "deprecated aliases."
+        )
+        assert len(tools) < total
 
     @pytest.mark.parametrize("value", ["ALL", "get_sheet_dta"])
     def test_an_unknown_entry_warns_and_the_server_still_starts(self, value):
@@ -492,6 +560,37 @@ class TestAuthStatusToolSelection:
             "entries": ["default"],
             "configured": False,
             "registered_tools": len(server._registered_tools),
-            "deprecated_aliases": [],
-            "deprecated_tools": [],
+            # The suite registers every tool, deprecated ones and aliases included
+            # (#663, #1525, #1526, #1527, #1528).
+            "deprecated_aliases": sorted(tool_groups.RENAMED_TOOLS),
+            "deprecated_tools": [
+                "add_columns",
+                "add_rows",
+                "create_bookmark",
+                "create_footer",
+                "create_header",
+                "delete_columns",
+                "delete_rows",
+                "delete_table_column",
+                "delete_table_row",
+                "duplicate_sheet",
+                "get_doc_content",
+                "get_doc_named_styles",
+                "get_sheet_formulas",
+                "hide_columns",
+                "hide_rows",
+                "insert_table_column",
+                "insert_table_row",
+                "list_folders",
+                "list_recent_files",
+                "list_shared_with_me",
+                "list_spreadsheets",
+                "resize_columns",
+                "resize_rows",
+                "resolve_doc_comment",
+                "search_spreadsheets",
+                "unhide_columns",
+                "unhide_rows",
+                "unstar_file",
+            ],
         }

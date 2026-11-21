@@ -1,10 +1,11 @@
 import logging
-from typing import Any
+from typing import Any, Literal
 
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
+from ...deprecation import deprecated_tool
 from .emitter import _BLOCK_SPACING_PT, PARAGRAPH_GAP_PT, _border_width
 from .indices import isolated_bullet_run_wrap_requests, utf16_len
 from .invalidation import doc_invalidating
@@ -1170,15 +1171,17 @@ def register(tool):
         logger.debug("delete_paragraph_bullets: %d requests in doc %s", len(requests), doc_id)
         return {"docId": doc_id, "requests": len(requests)}
 
-    @tool(annotations=ToolAnnotations(title="Get Document Theme"))
+    @tool(annotations=ToolAnnotations(title="Get Document Theme", readOnlyHint=True))
     async def get_doc_theme(
         doc_id: str,
+        source: Literal["body", "named_styles", "both"] = "body",
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
-        Derive a theme dict from a Google Doc's actual paragraph styles.
+        Read a Google Doc's theme: from its actual paragraph styles (source="body",
+        the default), from its named style defaults (source="named_styles"), or both.
 
-        Scans the document body and reads the style of the first paragraph found for
+        source="body" scans the document body and reads the style of the first paragraph found for
         each named style type (NORMAL_TEXT, HEADING_1 through HEADING_6, TITLE, SUBTITLE).
         Text-level fields (font_family, font_size, bold, italic, color) are the ones every
         non-empty text run in that paragraph shares, so a bold lead-in isn't reported;
@@ -1195,20 +1198,32 @@ def register(tool):
         Subsequent paragraphs of the same named style type that differ in style are
         ignored — they are treated as intentional individual overrides outside the theme.
 
-        Use this tool when styles were applied directly to paragraphs (the common case).
-        Use get_doc_named_styles instead when the human explicitly set named style defaults
-        via Format > Paragraph styles > Update X to match in the Google Docs UI. Calling
-        both and comparing results lets you detect whether explicit named styles are in use.
+        source="named_styles" reads the named style defaults set via Format > Paragraph
+        styles > Update X to match in the Google Docs UI, which paragraphs with no
+        explicit overrides inherit. Most docs leave them at Google's defaults even when
+        paragraphs look custom, since people usually format text directly; then this
+        returns Google's defaults (Arial/Roboto etc.), not what the doc looks like. Only
+        entries with at least one non-default field are included.
 
-        The returned dict is suitable for passing directly to apply_theme.
+        Use "body" when styles were applied directly to paragraphs (the common case),
+        and "named_styles" when the human set named style defaults explicitly. "both"
+        returns the two side by side: if they agree, named styles are in sync with the
+        content; if they differ, styles were applied directly to paragraphs without
+        updating the named style definitions.
+
+        A "body" or "named_styles" result is suitable for passing directly to apply_theme.
 
         Args:
             doc_id: The Google Doc file ID.
+            source: "body" (default), "named_styles", or "both".
 
         Returns:
-            Theme dict keyed by named style type. Empty dict if no explicit paragraph
-            styles are found (e.g. the doc uses purely inherited named style defaults).
+            For "body" or "named_styles", a theme dict keyed by named style type, empty
+            if no explicit styles are found. For "both", {"body": <theme dict>,
+            "named_styles": <theme dict>}.
         """
+        if source not in ("body", "named_styles", "both"):
+            return {"error": f"source must be 'body', 'named_styles' or 'both', got {source!r}"}
         lc = ctx.request_context.lifespan_context
         try:
             doc = await execute_in_thread(
@@ -1217,9 +1232,17 @@ def register(tool):
             )
         except Exception as e:
             return {"error": str(e)}
-        return _read_body_styles(doc)
+        if source == "body":
+            return _read_body_styles(doc)
+        if source == "named_styles":
+            return _read_named_styles(doc)
+        return {"body": _read_body_styles(doc), "named_styles": _read_named_styles(doc)}
 
-    @tool(annotations=ToolAnnotations(title="Get Document Named Styles"))
+    @tool(annotations=ToolAnnotations(title="Get Document Named Styles", readOnlyHint=True))
+    @deprecated_tool(
+        use="`get_doc_theme` with `source='named_styles'`",
+        removed_in="the next feature release",
+    )
     async def get_doc_named_styles(
         doc_id: str,
         ctx: Context = None,

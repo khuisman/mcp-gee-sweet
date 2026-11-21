@@ -1102,6 +1102,69 @@ Run 1 (kai-sa) or run 2 re-run (kai-oauth); observed values matched the TC check
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard S5 on `kai-sa`** — Ran under the shard scratch dir instead of `/tmp`, with tabs `../x` and `a/b` on the copy. Step 1 returned `<dir>/qa-990-sheet/out/.._x_data.json` (117 bytes). Step 2 returned `<dir>/qa-990-sheet/out/a_b_data.json` (116 bytes). `qa-990-sheet` listed only `out`, and `out` listed exactly those two files: no `a/` subdirectory, nothing beside `out`. Both tabs deleted, dir removed.
 
 ---
+
+### TC-R45: get_sheet_data's value_render returns displayed values, underlying values, or formulas (#1526)
+
+`get_sheet_data(value_render=)` replaces `get_sheet_formulas`. The fixture's `Notes & Misc!A2` is `=TODAY()` and `B2` is the literal `Setup complete`; `Sales!B6` is `=SUM(B2:B5)`.
+
+**Prompt**
+> "Call these and report each raw result:
+> 1. `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Notes & Misc\", range=\"A2:B2\")`
+> 2. `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Notes & Misc\", range=\"A2:B2\", value_render=\"unformatted\")`
+> 3. `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Notes & Misc\", range=\"A2:B2\", value_render=\"formula\")`
+> 4. `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", value_render=\"formula\")`"
+
+**Checks**
+- Each returns `{"spreadsheetId": ..., "valueRanges": [{"range": ..., "values": [...]}]}`, not a bare list
+- 1: A2 is today's date as displayed (a string such as `11/17/2026`), B2 is `Setup complete`
+- 2: A2 is a number, today's date as a serial number (above 46000), B2 is `Setup complete`
+- 3: A2 is `=TODAY()`, B2 is `Setup complete`
+- 4: row 6 B–D are `=SUM(B2:B5)`, `=SUM(C2:C5)`, `=SUM(D2:D5)`; the data rows are literal values (100, 200, …), the same values `get_sheet_formulas(sheet="Sales")` returns as a bare list
+
+**Result (2026-11-18) ✅ PASS — PR #1544 round 1, Sky on `mcp-gee-sweet-sky` @ a6bdcfaa** — Each returned `{spreadsheetId, valueRanges}`. 1: `["11/19/2026", "Setup complete"]` (the sheet's time zone is `Etc/GMT`, so its TODAY() can be a day ahead of local time). 2: `[46345, "Setup complete"]`. 3: `["=TODAY()", "Setup complete"]`. 4: row 6 `=SUM(B2:B5)`, `=SUM(C2:C5)`, `=SUM(D2:D5)`, data rows as numbers, identical to `get_sheet_formulas(sheet="Sales")`'s bare list.
+
+---
+
+### TC-R46: value_render is validated, ignored with include_grid_data, and get_sheet_formulas is deprecated (#1526)
+
+**Prompt**
+> "Read the tool descriptions this server serves for `get_sheet_formulas` and `get_sheet_data`. Then call these and report each raw result:
+> 1. `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", range=\"B6\", value_render=\"FORMULA\")`
+> 2. `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", range=\"B6\", include_grid_data=True, value_render=\"formula\")`
+> 3. `get_sheet_formulas(spreadsheet_id={SPREADSHEET_ID}, sheet=\"Sales\", range=\"B6\")`"
+
+**Checks**
+- `get_sheet_formulas`' description begins ``Deprecated: use `get_sheet_data` with `value_render='formula'` instead. Removed in the next feature release.``; `get_sheet_data`'s doesn't begin with `Deprecated`, and documents `value_render`
+- 1 is rejected by the tool's input schema (`value_render` must be `formatted`, `unformatted` or `formula`)
+- 2 returns grid data whose B6 cell carries `userEnteredValue.formulaValue` `=SUM(B2:B5)` and its computed `effectiveValue`, the same as without `value_render`
+- 3 still returns the bare list `[["=SUM(B2:B5)"]]`
+- `get_sheet_formulas` isn't in the `default` group: `docs/tools.md` lists it under `sheets` only
+
+**Result (2026-11-18) ✅ PASS — PR #1544 round 1, Sky on `mcp-gee-sweet-sky` @ a6bdcfaa** — Descriptions as stated. 1 rejected: `Input should be 'formatted', 'unformatted' or 'formula'`. 2: B6 `userEnteredValue.formulaValue` `=SUM(B2:B5)`, `effectiveValue.numberValue` 650. 3: `[["=SUM(B2:B5)"]]`. `docs/tools.md` lists `get_sheet_formulas` with group `sheets` only.
+
+---
+
+### TC-R47: get_sheet_data's local_path names and records value_render (#1526) ⚠️ local-filesystem
+
+PR #1544 QA round 1 found a `formula` dump and a `formatted` dump of one sheet written to the same file, with nothing saying which it held.
+
+**Setup:** `rm -rf /tmp/qa-1526-render` (or a scratch dir under `$CLAUDE_JOB_DIR/tmp`, called `<dir>` below).
+
+**Steps**
+1. `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", local_path="<dir>/")`
+2. `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", value_render="formula", local_path="<dir>/")`
+3. `get_sheet_data(spreadsheet_id={SPREADSHEET_ID}, sheet="Sales", range="A1:B2", include_grid_data=True, value_render="formula", local_path="<dir>/grid/")`
+
+**Checks**
+- 1 returns `local_path` `<dir>/Sales_data.json` and `value_render` `formatted`
+- 2 returns `local_path` `<dir>/Sales_formula_data.json` and `value_render` `formula`; that file's row 6 holds `=SUM(B2:B5)`, and step 1's file still holds the computed totals
+- 3 returns `local_path` `<dir>/grid/Sales_data.json` with no `value_render` key, since the grid ignores it
+
+**Cleanup:** `rm -rf <dir>`
+
+**Result (2026-11-19) ✅ PASS — PR #1544 round 2, Sky on `mcp-gee-sweet-sky` @ 5d470631** — `<dir>` under `$CLAUDE_JOB_DIR/tmp`. 1 → `<dir>/Sales_data.json`, `value_render` `formatted`. 2 → `<dir>/Sales_formula_data.json`, `value_render` `formula`; its Totals row is `=SUM(B2:B5)`, `=SUM(C2:C5)`, `=SUM(D2:D5)` while step 1's file still holds `650`, `670`, `705`. 3 → `<dir>/grid/Sales_data.json`, range `Sales!A1:B2`, no `value_render` key. Dir removed.
+
+---
 Cleanup: run folder QA-orn-S5-2026-11-08 trashed (it held the fixture copy; the two QA-Summary-183 throwaways were trashed first). Nothing kept. Remaining local scratch: small grid JSONs r03/r03b/r31–r33 in tmp/S5 (≤21 KB each).
 Counts: 48 cases — 47 PASS, 0 FAIL, 0 PARTIAL, 1 SKIP (TC-R03e).
 Filed as #1430 (cosmetic): get_sheet_data(include_grid_data=True) cap error reads "Narrow the range, or Pass local_path …" (capital P mid-sentence; `tools/sheets/data.py` hint + `enforce_response_size_cap` text).

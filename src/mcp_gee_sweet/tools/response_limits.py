@@ -31,6 +31,16 @@ def clamp_max_results(value: int, cap: int) -> int:
     return min(max(1, value), cap)
 
 
+def pagination_hint(page_param: str) -> str:
+    """The shared full-sentence hint for a list tool that pages via
+    next_page_token, taking the tool's own page-size parameter name (#1465): it
+    was previously hand-copied in three tools and drifted out of sync. Every
+    hint passed to the size-cap checks below is a complete sentence ending in
+    `". "` — the shared text after it always starts a fresh, capitalized
+    sentence (#1430)."""
+    return f"Lower {page_param} and paginate via next_page_token. "
+
+
 def enforce_response_size_cap(
     result: Any,
     *,
@@ -39,7 +49,10 @@ def enforce_response_size_cap(
     local_path_available: bool = True,
     local_path_param: str = "local_path",
 ) -> None:
-    """Raise ValueError if the serialized result exceeds the configured cap."""
+    """Raise ValueError if the serialized result exceeds the configured cap.
+
+    `hint`, when given, is a complete sentence ending in `". "` — the shared
+    text after it always starts a fresh, capitalized sentence (#1430, #1465)."""
     size = len(json.dumps(result))
     if size > MAX_TOOL_RESPONSE_CHARS:
         raise _over_cap_error(
@@ -61,7 +74,10 @@ def enforce_response_size_floor(
 ) -> None:
     """Raise the same error as enforce_response_size_cap, before any expensive fetch,
     when a known lower bound on the response's serialized size already exceeds the cap
-    (e.g. get_message's large Gmail bodies, #825)."""
+    (e.g. get_message's large Gmail bodies, #825).
+
+    `hint`, when given, is a complete sentence ending in `". "` — the shared
+    text after it always starts a fresh, capitalized sentence (#1430, #1465)."""
     if min_size > MAX_TOOL_RESPONSE_CHARS:
         raise _over_cap_error(
             f"the response would be at least {min_size} characters",
