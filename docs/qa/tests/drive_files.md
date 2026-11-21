@@ -2194,10 +2194,12 @@ import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 
 **Checks**
 - Step 1 returns `rows_written: 2` and no `error`
-- Step 2 returns `[["case","value"],["x","1"]]`. U+FEFF is invisible, so this alone doesn't rule it out; step 4 does
-- Step 4 returns `[["4","TRUE"]]`. Before the fix it was `[["5","FALSE"]]`: A1 held the BOM as a fifth character
+- Step 2's `valueRanges[0].values` is `[["case","value"],["x","1"]]`. U+FEFF is invisible, so this alone doesn't rule it out; step 4 does
+- Step 4's `valueRanges[0].values` is `[["4","TRUE"]]`. Before the fix it was `[["5","FALSE"]]`: A1 held the BOM as a fifth character
 
 **Cleanup:** `delete_file(file_id=<step 1's spreadsheetId>, permanent=True)`; remove the local file.
+
+**Result (2026-11-21) ✅ PASS — PR #1580 round 1 on `mcp-gee-sweet-sky`** — fixture bytes confirmed `efbb bf63`. Step 1: `rows_written: 2`, no `error`, created in the Shared Drive root. Step 2: `valueRanges[0].values` `[["case","value"],["x","1"]]`. Step 4: `[["4","TRUE"]]`, so A1 is exactly `case`. Cleanup done (deleted permanently, local file removed). Checks reworded this round: `get_sheet_data` returns `{spreadsheetId, valueRanges:[{range, values}]}`, not a bare list.
 
 ---
 
