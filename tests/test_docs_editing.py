@@ -245,3 +245,212 @@ class TestInsertSoftbreakParagraph:
             doc_id="doc1", index=1, lines=[{"text": "x"}], ctx=ctx
         )
         assert "error" in result
+
+
+class TestInsertSoftbreakParagraphBoldRestore:
+    """#1499 item 4: a font_family line that sends no bold of its own keeps the
+    bold the insert inherits from the character before index — the same
+    weightedFontFamily request would otherwise clear it (#1273), so it is
+    restored in the same batchUpdate, after the font request, as
+    style_doc_range does."""
+
+    def _ctx(self, docs_svc=None):
+        return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
+
+    @staticmethod
+    def _doc_with_bold_run():
+        # A directly bold run covering [1, 15), plain text around it: an insert
+        # at index 10 inherits its bold from the character at 9.
+        return {
+            "documentId": "doc1",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 25,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "startIndex": 1,
+                                    "endIndex": 15,
+                                    "textRun": {
+                                        "content": "Bold text here",
+                                        "textStyle": {"bold": True},
+                                    },
+                                },
+                                {
+                                    "startIndex": 15,
+                                    "endIndex": 25,
+                                    "textRun": {"content": " plain tail", "textStyle": {}},
+                                },
+                            ]
+                        },
+                    }
+                ]
+            },
+        }
+
+    async def test_font_only_line_after_bold_char_restores_bold(self):
+        docs_svc = MagicMock()
+        docs_svc.documents().get().execute.return_value = self._doc_with_bold_run()
+        ctx = self._ctx(docs_svc)
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=10,
+            lines=[{"text": "code line", "font_family": "Courier New"}],
+            ctx=ctx,
+        )
+        reqs = docs_svc.documents().batchUpdate.call_args.kwargs["body"]["requests"]
+        assert [next(iter(r)) for r in reqs] == ["insertText", "updateTextStyle", "updateTextStyle"]
+        font_update = reqs[1]["updateTextStyle"]
+        assert font_update["fields"] == "weightedFontFamily"
+        bold_restore = reqs[2]["updateTextStyle"]
+        assert bold_restore["range"] == {"startIndex": 10, "endIndex": 19}
+        assert bold_restore["textStyle"] == {"bold": True}
+        assert bold_restore["fields"] == "bold"
+
+    async def test_plain_preceding_char_sends_no_restore(self):
+        docs_svc = MagicMock()
+        # Insert at index 20: the character at 19 sits in the plain run.
+        docs_svc.documents().get().execute.return_value = self._doc_with_bold_run()
+        ctx = self._ctx(docs_svc)
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=20,
+            lines=[{"text": "code line", "font_family": "Courier New"}],
+            ctx=ctx,
+        )
+        reqs = docs_svc.documents().batchUpdate.call_args.kwargs["body"]["requests"]
+        assert [next(iter(r)) for r in reqs] == ["insertText", "updateTextStyle"]
+        assert reqs[1]["updateTextStyle"]["fields"] == "weightedFontFamily"
+
+    async def test_line_with_own_bold_is_left_alone(self):
+        # A line that sends bold in the same request is not in the restore set,
+        # and no document read happens at all (#1273: same-request bold keeps).
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc)
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=10,
+            lines=[{"text": "both", "font_family": "Courier New", "bold": True}],
+            ctx=ctx,
+        )
+        docs_svc.documents().get.assert_not_called()
+        reqs = docs_svc.documents().batchUpdate.call_args.kwargs["body"]["requests"]
+        assert [next(iter(r)) for r in reqs] == ["insertText", "updateTextStyle"]
+
+    async def test_restore_covers_only_the_font_only_line(self):
+        docs_svc = MagicMock()
+        docs_svc.documents().get().execute.return_value = self._doc_with_bold_run()
+        ctx = self._ctx(docs_svc)
+        result = await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=10,
+            lines=[
+                {"text": "plain line"},
+                {"text": "font line", "font_family": "Consolas"},
+                {"text": "bold line", "bold": True},
+            ],
+            ctx=ctx,
+        )
+        reqs = docs_svc.documents().batchUpdate.call_args.kwargs["body"]["requests"]
+        bold_requests = [
+            r["updateTextStyle"]
+            for r in reqs
+            if "updateTextStyle" in r and r["updateTextStyle"]["fields"] == "bold"
+        ]
+        # The bold-restore belongs to the font-only line, not the bold line
+        # (whose own bold=True request is [31, 40), sent either way):
+        # [10,20) "plain line", [21,30) "font line", [31,40) "bold line".
+        assert [b["range"] for b in bold_requests] == [
+            {"startIndex": 21, "endIndex": 30},
+            {"startIndex": 31, "endIndex": 40},
+        ]
+        assert result["line_ranges"][1] == {"start_index": 21, "end_index": 30}
+        # The restore for [21, 30) follows that line's font request.
+        font_idx = next(
+            i
+            for i, r in enumerate(reqs)
+            if "updateTextStyle" in r and r["updateTextStyle"]["fields"] == "weightedFontFamily"
+        )
+        restore_idx = next(
+            i
+            for i, r in enumerate(reqs)
+            if "updateTextStyle" in r
+            and r["updateTextStyle"]["fields"] == "bold"
+            and r["updateTextStyle"]["range"]["startIndex"] == 21
+        )
+        assert font_idx < restore_idx
+
+    async def test_failed_document_read_returns_error(self):
+        docs_svc = MagicMock()
+        docs_svc.documents().get().execute.side_effect = Exception("boom")
+        ctx = self._ctx(docs_svc)
+        result = await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=10,
+            lines=[{"text": "code line", "font_family": "Courier New"}],
+            ctx=ctx,
+        )
+        assert "error" in result
+        docs_svc.documents().batchUpdate.assert_not_called()
+
+    async def test_named_style_type_sends_no_bold_restore(self):
+        # updateParagraphStyle goes out before the line styles and clears the
+        # inherited bold across the whole paragraph, so reading it to restore
+        # would re-bold the font-only lines alone (bold code line next to plain
+        # ones). Nothing is read, no bold request goes out.
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc)
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=10,
+            lines=[{"text": "code line", "font_family": "Courier New"}],
+            named_style_type="NORMAL_TEXT",
+            ctx=ctx,
+        )
+        docs_svc.documents().get.assert_not_called()
+        reqs = docs_svc.documents().batchUpdate.call_args.kwargs["body"]["requests"]
+        assert [next(iter(r)) for r in reqs] == [
+            "insertText",
+            "updateParagraphStyle",
+            "updateTextStyle",
+        ]
+        assert reqs[2]["updateTextStyle"]["fields"] == "weightedFontFamily"
+        assert not any(
+            "updateTextStyle" in r and r["updateTextStyle"]["fields"] == "bold" for r in reqs
+        )
+
+    async def test_no_font_line_reads_no_document(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc)
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=10,
+            lines=[{"text": "a"}, {"text": "b", "bold": True}],
+            ctx=ctx,
+        )
+        docs_svc.documents().get.assert_not_called()
+
+
+class TestInsertSoftbreakParagraphExplicitNormalText:
+    """#1499 item 5: the fix depends on telling None apart from an explicit
+    NORMAL_TEXT — pin that the explicit one still sends updateParagraphStyle."""
+
+    def _ctx(self, docs_svc=None):
+        return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
+
+    async def test_explicit_normal_text_still_sends_paragraph_style(self):
+        docs_svc = MagicMock()
+        ctx = self._ctx(docs_svc)
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=10,
+            lines=[{"text": "abc"}],
+            named_style_type="NORMAL_TEXT",
+            ctx=ctx,
+        )
+        reqs = docs_svc.documents().batchUpdate.call_args.kwargs["body"]["requests"]
+        style_req = reqs[1]["updateParagraphStyle"]
+        assert style_req["paragraphStyle"]["namedStyleType"] == "NORMAL_TEXT"
+        assert style_req["fields"] == "namedStyleType"
