@@ -267,7 +267,12 @@ def resolve_heading_anchor(
     anchor copied from GitHub arrives as "#caf%C3%A9" for a "Café" heading
     (or "#cafe%CC%81" for a decomposed "cafe\u0301"), and that encoded form
     is what gets pasted into markdown. The literal anchor is always tried
-    whole first — decoding is a fallback, never a rewrite.
+    whole first — decoding is a fallback, never a rewrite. Both forms get
+    the exact scheme match before the fuzzy fallback runs, and only for the
+    literal form: a decoded non-ASCII anchor's letters drop out of the
+    token comparison (see _normalize_tokens), so letting the decoded form
+    fuzzy-match would resolve a stale anchor to whichever heading shares
+    its ASCII words — worse than not resolving it.
     """
     anchor = anchor.lstrip("#")
     if not anchor or not heading_texts:
@@ -282,18 +287,25 @@ def resolve_heading_anchor(
     if scheme_slugs is None or any(len(slugs) != len(heading_texts) for slugs in scheme_slugs):
         scheme_slugs = compute_scheme_slugs(heading_texts)
 
-    candidates = [anchor]
     decoded = _unquote(anchor)
+    candidates = [anchor]
     if decoded != anchor:
         candidates.append(decoded)
 
+    # Both forms get the exact scheme match before any fuzzy fallback, so a
+    # decoded candidate that exactly names a heading can't lose to the
+    # literal form's token match (headings "Café" and "Caf C3 A9" with
+    # "#caf%C3%A9" would otherwise pick the second heading, #1553 review).
     for candidate in candidates:
         for slugs in scheme_slugs:
             if candidate in slugs:
                 return slugs.index(candidate)
 
-        match_idx = _fuzzy_match(candidate, heading_texts)
-        if match_idx is not None:
-            return match_idx
-
-    return None
+    # The fuzzy fallback runs last, for the literal anchor only. A decoded
+    # candidate stops at the exact scheme match above: _normalize_tokens
+    # keeps only [a-z0-9], so a decoded anchor's non-ASCII letters drop out
+    # of the token comparison and only its ASCII words are compared — a
+    # stale "#step-1-実行" would otherwise fuzzy-resolve to the first
+    # "Step 1" heading, where resolving nothing is safer: a wrong-section
+    # link is worse than none (#1553 review).
+    return _fuzzy_match(anchor, heading_texts)

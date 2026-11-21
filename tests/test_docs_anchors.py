@@ -151,6 +151,27 @@ class TestPercentEncodedAnchors:
     def test_percent_decoding_still_requires_a_real_match(self):
         assert resolve_heading_anchor("#%3F%21", ["Overview"]) is None
 
+    def test_decoded_anchor_does_not_reach_the_fuzzy_match(self):
+        # _normalize_tokens keeps only [a-z0-9], so a decoded anchor's
+        # non-ASCII letters drop out of the token comparison and only its
+        # ASCII words are compared. A stale "#step-1-実行" must not
+        # fuzzy-resolve to the first "Step 1" heading: a wrong-section link
+        # is worse than none (#1553 review). The exact scheme match still
+        # applies to the decoded form — the encoded CJK letters just don't
+        # name either heading.
+        headings = ["Step 1: 準備", "Step 1: 設定"]
+        assert resolve_heading_anchor("#step-1-%E5%AE%9F%E8%A1%8C", headings) is None
+
+    def test_decoded_exact_match_outranks_a_literal_fuzzy_match(self):
+        # Both forms get the exact scheme match before the literal fuzzy
+        # fallback runs: "#caf%C3%A9" must resolve to the heading its
+        # decoded form names exactly ("Café"), not the heading the encoded
+        # reading token-matches ("Caf C3 A9") — the order changes the
+        # result here, where test_plain_anchor_is_tried_whole_before_decoding
+        # passes in either order (#1553 review).
+        headings = ["Café", "Caf C3 A9"]
+        assert resolve_heading_anchor("#caf%C3%A9", headings) == 0
+
 
 class TestComputeSchemeSlugs:
     def test_precomputed_scheme_slugs_match_default_internal_computation(self):
