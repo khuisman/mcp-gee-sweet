@@ -1832,13 +1832,13 @@
 </tr>
 <tr>
 <td><code>list_spreadsheets</code></td>
-<td>List all spreadsheets in the specified Google Drive folder. If no folder is specified, uses the configured default folder; if that's also unset, searches across 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives') — not just 'My Drive'.</td>
+<td>Deprecated: use <code>search_files</code> (add <code>folder_id</code> for one folder) with <code>mime_type='application/vnd.google-apps.spreadsheet'</code> and this tool's default <code>max_results=100</code> instead. Removed in the next feature release.</td>
 <td><code>folder_id?</code>, <code>max_results?</code></td>
 <td><code>drive</code>, <code>sheets</code></td>
 </tr>
 <tr>
 <td><code>search_spreadsheets</code></td>
-<td>Search for spreadsheets in Google Drive by name or content, across 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives').</td>
+<td>Deprecated: use <code>search_files</code> with <code>mime_type='application/vnd.google-apps.spreadsheet'</code> instead. Removed in the next feature release.</td>
 <td><code>query</code>, <code>max_results?</code></td>
 <td><code>drive</code>, <code>sheets</code></td>
 </tr>
@@ -1858,7 +1858,7 @@
 <tbody>
 <tr>
 <td><code>list_folders</code></td>
-<td>List all folders in the specified Google Drive folder. If no parent is specified, uses the configured default folder (DRIVE_FOLDER_ID); if that is also unset, searches across 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives') — not just 'My Drive'.</td>
+<td>Deprecated: use <code>search_files</code> (which never defaults to the configured folder) with <code>folder_id</code>, <code>mime_type='application/vnd.google-apps.folder'</code>, and this tool's <code>order_by='name'</code> and <code>max_results=100</code> instead. Removed in the next feature release.</td>
 <td><code>parent_folder_id?</code>, <code>max_results?</code></td>
 <td><code>drive</code></td>
 </tr>
@@ -1870,15 +1870,15 @@
 </tr>
 <tr>
 <td><code>list_files</code></td>
-<td>List files in a Google Drive folder, optionally filtered by MIME type.</td>
+<td>List files in a Google Drive folder, optionally filtered by MIME type, sorted by name.</td>
 <td><code>folder_id</code>, <code>mime_type?</code>, <code>max_results?</code></td>
 <td><code>drive</code>, <code>default</code></td>
 </tr>
 <tr>
 <td><code>search_files</code></td>
-<td>Search for files in Google Drive by name or content. Without folder_id, searches 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives').</td>
-<td><code>query</code>, <code>mime_type?</code>, <code>folder_id?</code>, <code>max_results?</code></td>
-<td><code>drive</code>, <code>default</code></td>
+<td>Find files and folders in Google Drive: by name or content, by type, in one folder, shared with you, or recently modified. Every filter is optional, and the ones given combine. With no folder_id and no shared_with_me, it searches 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives').</td>
+<td><code>query?</code>, <code>mime_type?</code>, <code>folder_id?</code>, <code>max_results?</code>, <code>shared_with_me?</code>, <code>modified_within_days?</code>, <code>order_by?</code></td>
+<td><code>drive</code>, <code>sheets</code>, <code>default</code></td>
 </tr>
 <tr>
 <td><code>get_file_metadata</code></td>
@@ -1918,25 +1918,25 @@
 </tr>
 <tr>
 <td><code>star_file</code></td>
-<td>Mark a file or folder as starred in Google Drive, for easy retrieval later.</td>
-<td><code>file_id</code></td>
+<td>Star or unstar a file or folder in Google Drive.</td>
+<td><code>file_id</code>, <code>starred?</code></td>
 <td><code>drive</code></td>
 </tr>
 <tr>
 <td><code>unstar_file</code></td>
-<td>Remove a file or folder's starred marker in Google Drive.</td>
+<td>Deprecated: use <code>star_file</code> with <code>starred=False</code> instead. Removed in the next feature release.</td>
 <td><code>file_id</code></td>
 <td><code>drive</code></td>
 </tr>
 <tr>
 <td><code>list_shared_with_me</code></td>
-<td>List files explicitly shared with the authenticated user, including shared drive files shared with them directly.</td>
+<td>Deprecated: use <code>search_files</code> (whose files carry <code>mimeType</code>, not <code>mime_type</code>) with <code>shared_with_me=True</code> and this tool's default <code>max_results=50</code> instead. Removed in the next feature release.</td>
 <td><code>mime_type?</code>, <code>max_results?</code></td>
 <td><code>drive</code></td>
 </tr>
 <tr>
 <td><code>list_recent_files</code></td>
-<td>List recently modified files in Drive, newest first, across 'My Drive' AND every shared drive the authenticated account can access (corpora='allDrives').</td>
+<td>Deprecated: use <code>search_files</code> (newest first by default; its files carry <code>mimeType</code>, not <code>mime_type</code>) with <code>modified_within_days</code> instead. Removed in the next feature release.</td>
 <td><code>max_results?</code>, <code>days?</code>, <code>mime_type?</code></td>
 <td><code>drive</code></td>
 </tr>
