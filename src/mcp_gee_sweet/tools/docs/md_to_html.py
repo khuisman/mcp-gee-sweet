@@ -655,26 +655,29 @@ def _autolink_span_windows(state) -> dict:
     """For every text token index, the GFM extended-autolink spans of its text
     run and the token's offset in it, from one linear pass (#1436 review).
 
-    The window is each maximal run of adjacent text tokens — with a dropped
-    `~` delimiter, fragments_join merges the run back into exactly the text
-    token the autolink core rule later scans — and `start_ok` mirrors that
-    rule's boundary check, so a `~` a reader sees as part of a URL never
-    strikes: GitHub links the whole URL, and so did develop. Email matches
-    can't contain a `~`, so only URL spans are collected, trimmed to what
-    actually links."""
+    The window is each maximal run of adjacent text tokens — a `text_special`
+    one (a `\\_` escape, an `&amp;` entity) reads as text here, so a URL that
+    holds one stays whole, exactly the token text_join later hands the
+    autolink core rule — with a dropped `~` delimiter, fragments_join merges
+    the run back into exactly that token — and `start_ok` mirrors that rule's
+    boundary check, so a `~` a reader sees as part of a URL never strikes:
+    GitHub links the whole URL, and so did develop. Email matches can't
+    contain a `~`, so only URL spans are collected, trimmed to what actually
+    links. The spans are in order, so a delimiter's lookup bisects them
+    instead of scanning (#1436 review)."""
     result: dict[int, tuple[list, int]] = {}
     tokens = state.tokens
     i = 0
     total = len(tokens)
     while i < total:
-        if tokens[i].type != "text":
+        if tokens[i].type not in ("text", "text_special"):
             i += 1
             continue
         first = i
         pieces: list[str] = []
         offsets: list[int] = []
         length_so_far = 0
-        while i < total and tokens[i].type == "text":
+        while i < total and tokens[i].type in ("text", "text_special"):
             offsets.append(length_so_far)
             length_so_far += len(tokens[i].content)
             pieces.append(tokens[i].content)
@@ -683,7 +686,7 @@ def _autolink_span_windows(state) -> dict:
         prev = tokens[first - 1] if first > 0 else None
         start_ok = prev is None or prev.type in _AUTOLINK_BOUNDARY_TOKENS
         spans = [(start, end) for start, end, _ in _gfm_url_matches(window, start_ok)]
-        for token_index, offset in zip(range(first, i), offsets):
+        for token_index, offset in zip(range(first, i), offsets, strict=True):
             result[token_index] = (spans, offset)
     return result
 

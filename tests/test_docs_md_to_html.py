@@ -210,6 +210,25 @@ class TestStrikethrough:
         html = _md_to_html("~https://x.com/a~")
         assert html.count("<a ") == 1 and "<s>" in html
 
+    def test_tilde_pair_inside_a_url_with_an_escape_stays_text(self):
+        # An escaped `\_` is a `text_special` token, which must not split the
+        # URL's window: text_join hands the autolink core rule one whole text
+        # token, so the tildes stay inside the span, the URL links whole and
+        # nothing strikes, as on develop (#1436 review).
+        html = _md_to_html("see https://example.com/a\\_b/~site/doc~v2.pdf")
+        assert "<s>" not in html
+        assert html.count("<a ") == 1
+        assert "href=\"https://example.com/a_b/~site/doc~v2.pdf\"" in html.replace("&amp;", "&")
+
+    def test_tilde_pair_inside_a_url_with_an_entity_stays_text(self):
+        # Same for `&amp;` in a query string: the entity is a `text_special`
+        # token too, and the URL around it links whole, as on develop
+        # (#1436 review).
+        html = _md_to_html("see https://example.com/search?q=a&amp;b=~doc~v2 end")
+        assert "<s>" not in html
+        assert html.count("<a ") == 1
+        assert "href=\"https://example.com/search?q=a&b=~doc~v2\"" in html.replace("&amp;", "&")
+
     def test_tilde_pairs_inside_words_strike(self):
         # GFM imposes no word-boundary flanking rule on tildes, so this is the
         # expected strike (#1436, also noted in markdown-support.md).
