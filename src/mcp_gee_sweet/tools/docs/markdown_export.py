@@ -25,6 +25,7 @@ from mcp.types import ToolAnnotations
 from ...auth import execute_in_thread, thread_http
 from ...cache import CACHE_VALIDATE_MODIFIED_TIME
 from ...local_files import check_write
+from ..drive.comments import _COMMENT_FIELDS, _map_comment
 from ..drive.transfer import (
     _DOCX_MIME,
     _GOOGLE_DOC_MIME,
@@ -36,7 +37,6 @@ from ..response_limits import enforce_response_size_cap, write_capped_result_to_
 from .anchors import _github_style_slugify, _slugs_with_dedup
 from .ast import BulletItem, Heading, NamedBlock, Run
 from .ast_to_markdown import ast_to_markdown
-from .comments import _COMMENT_FIELDS, _map_comment
 from .doc_to_ast import _paragraph_to_node, document_to_ast
 
 logger = logging.getLogger(__name__)
@@ -62,8 +62,8 @@ _REVISION_ID_MAX_AGE = 24 * 60 * 60
 
 async def _fetch_open_comments(drive_service, doc_id: str) -> list[dict[str, Any]]:
     """Paginate through every non-deleted, non-resolved comment on doc_id,
-    mapped via comments.py's own _map_comment for one shared shape with
-    list_doc_comments' own output."""
+    mapped via drive/comments.py's own _map_comment for one shared shape with
+    list_file_comments' own output."""
     comments: list[dict[str, Any]] = []
     async for response in iter_pages(
         lambda token: drive_service.comments().list(
@@ -379,7 +379,7 @@ def register(tool):
             include_comments: When True, appends a "## Comments" section listing
                 every open (non-resolved) comment's author, quoted anchor text,
                 content, and replies, via the same Drive comments resource
-                list_doc_comments uses. Default False.
+                list_file_comments uses. Default False.
             local_path: Optional local filesystem path to write the Markdown to
                 instead of returning it inline. The file holds the raw Markdown
                 text (UTF-8), byte-identical to the inline markdown field,
