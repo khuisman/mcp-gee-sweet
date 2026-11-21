@@ -1562,6 +1562,13 @@ bold "status".</p>
   code span's Courier New; cleared, the text takes its paragraph's font. <code>fontSize</code> and
   <code>foregroundColor</code> aren't: no run sets them on the write side, so fallback text keeps reading
   like its paragraph (#1099).</li>
+<li><strong>Read side (#1509).</strong> <code>doc_to_ast._resolve_inline_image</code> reads the same fields back off the
+  <code>inlineObjectElement</code>'s own <code>textStyle</code> — the live QA shape of PR #1508: a bold image in
+  <code>**bold ![logo](x) image**</code> carries <code>{"bold": true}</code> between two bold runs — so the AST keeps
+  the image's own character style the way the HTML side records it. <code>ast_to_markdown</code> then
+  renders one span for a run–image–run sequence that shares its style, the same markers a run
+  gets, and wraps a lone styled image in its own; a break at the boundary, a code run, or a
+  style the image doesn't share keeps the old split rendering.</li>
 <li><strong>Linked underline (#1504).</strong> Docs gives text that a request links the link color and an
   underline, as it does an ordinary link, unless the same request names <code>underline</code>: #1334's
   clearing request did, so linked fallback text showed the color alone. A linked image's request
