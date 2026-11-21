@@ -104,7 +104,7 @@ class TestEnforceResponseSizeCap:
         assert "Narrow the range. Pass local_path to write the result" in str(exc_info.value)
 
     def test_full_sentence_hint_without_local_path_reads_as_one_message(self, monkeypatch):
-        """#1430: the list_messages/list_file_activity/list_doc_comments form —
+        """#1430: the list_messages/list_file_activity/list_file_comments form —
         hint sentence, then the env-var sentence, capitalized."""
         monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 5)
         with pytest.raises(ValueError) as exc_info:
