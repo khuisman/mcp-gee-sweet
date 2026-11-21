@@ -37,6 +37,8 @@ Run 2 (ash).
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — Run on the fixture copy. Returned id `doco.PHdj…`, matching content, author.display_name, created_time, `quoted_text: null`. `author.email_address` is null (Drive privacy behavior for the caller's own comments, as in prior passes; see stale wording note).
 
+**Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), `mcp-gee-sweet-kit` at `07e02d0`, OAuth, on a throwaway Doc (`QA PR1563 comments scratch`) in the QA folder, deleted afterward** — returned `id`, matching `content`, `author.display_name`, `created_time`, `quoted_text: null`; `author.email_address` null (Drive privacy behavior, as before).
+
 ---
 
 ### TC-DOC97: Add a comment anchored to quoted text ⚠️ destructive
@@ -64,6 +66,8 @@ Run 2 (ash).
 `oauth`: I inserted "QA anchor target" with insert_doc_text, then add_doc_comment returned quoted_text "QA anchor target".
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — Added "QA anchor target" to the copy with insert_doc_text, then add_doc_comment returned `quoted_text: "QA anchor target"`; list_doc_comments shows the same quoted_text.
+
+**Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), `mcp-gee-sweet-kit` at `07e02d0`, OAuth, on a throwaway Doc (`QA PR1563 comments scratch`) in the QA folder, deleted afterward** — the Doc was created holding "QA anchor target"; `add_file_comment` returned `quoted_text: "QA anchor target"`, and `list_file_comments` shows the same.
 
 ---
 
@@ -95,6 +99,8 @@ Run 2 (ash).
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — Both comments listed, each `resolved:false`, `replies:[]`; DOC97 entry has the quoted_text, DOC96 entry null; `doc_id` matches the copy.
 
+**Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), `mcp-gee-sweet-kit` at `07e02d0`, OAuth, on a throwaway Doc (`QA PR1563 comments scratch`) in the QA folder, deleted afterward** — both comments listed, each `resolved: false` and `replies: []`; DOC97's `quoted_text` is "QA anchor target", DOC96's null; `file_id` matches the Doc.
+
 ---
 
 ### TC-DOC99: Resolve a comment ⚠️ destructive
@@ -123,6 +129,8 @@ Run 2 (ash).
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — resolve_doc_comment returned doc_id, comment_id, reply_id, `action:"resolve"`; relisting shows the DOC96 comment `resolved:true` with a reply content "Handled.", action "resolve".
 
+**Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), `mcp-gee-sweet-kit` at `07e02d0`, OAuth, on a throwaway Doc (`QA PR1563 comments scratch`) in the QA folder, deleted afterward** — returned `file_id`, `comment_id`, `reply_id`, `action: "resolve"`, `content: "Handled."` and `created_time`; a re-list (via TC-D314 step 1) shows the reply `Handled.` with `action: "resolve"` (the comment then reopened by TC-D312).
+
 ---
 
 ### TC-DOC100: Resolve a non-existent comment ID
@@ -147,6 +155,8 @@ Run 2 (ash).
 `oauth`: A fake comment ID raised HttpError 404 "Comment not found".
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — Tool error carrying the HttpError 404 "Comment not found: not-a-real-comment-id." Not a silent success or crash.
+
+**Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), `mcp-gee-sweet-kit` at `07e02d0`, OAuth, on a throwaway Doc (`QA PR1563 comments scratch`) in the QA folder, deleted afterward** — tool error carrying HttpError 404 "Comment not found: not-a-real-comment-id."
 
 ---
 
@@ -173,6 +183,8 @@ Run 2 (ash).
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — Tool error carrying HttpError 404 "File not found: not-a-real-doc-id." Not an empty list.
 
+**Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), `mcp-gee-sweet-kit` at `07e02d0`, OAuth, on a throwaway Doc (`QA PR1563 comments scratch`) in the QA folder, deleted afterward** — tool error carrying HttpError 404 "File not found: not-a-real-doc-id."
+
 ---
 
 ### TC-D310: Comments on a spreadsheet: add, anchor, list, reply and resolve ⚠️ destructive
@@ -194,6 +206,8 @@ Run 2 (ash).
 
 **Cleanup:** `delete_file(file_id={SHEET_FILE_ID}, permanent=True)`
 
+**Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), `mcp-gee-sweet-kit` at `07e02d0`, OAuth, on a throwaway spreadsheet in the QA folder** — 1: `id`, `content: "QA TC-D310 a"`, `quoted_text: null`. 2: `quoted_text: "QA anchor"`. 3: `action: null`, `content: "QA TC-D310 reply"`. 4: `action: "resolve"`, `content: ""`. 5: `file_id` matches, both comments; step 1's `resolved: true` with the replies `QA TC-D310 reply` (`action: null`) then the `resolve` reply; step 2's `resolved: false`, `replies: []`, `quoted_text: "QA anchor"`. Cleanup: spreadsheet deleted permanently.
+
 ---
 
 ### TC-D311: A plain reply leaves the comment open ⚠️ destructive
@@ -207,6 +221,8 @@ Run 2 (ash).
 - `list_file_comments(file_id={DOC_ID})` shows the TC-DOC97 comment still `resolved: false`, with this reply last in its `replies`, `action: null`
 
 **Cleanup:** none available (see the note at the top)
+
+**Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), `mcp-gee-sweet-kit` at `07e02d0`, OAuth, on a throwaway Doc (`QA PR1563 comments scratch`) in the QA folder, deleted afterward** — returned `file_id`, `comment_id`, `reply_id`, `action: null`, `content: "QA TC-D311: plain reply."`, `created_time`; the list shows the DOC97 comment still `resolved: false` with this reply, `action: null`.
 
 ---
 
@@ -222,6 +238,8 @@ Run 2 (ash).
 
 **Cleanup:** to leave the comment as TC-DOC99 left it, `reply_to_comment(file_id={DOC_ID}, comment_id={COMMENT_ID}, action="resolve")`
 
+**Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), `mcp-gee-sweet-kit` at `07e02d0`, OAuth, on a throwaway Doc (`QA PR1563 comments scratch`) in the QA folder, deleted afterward** — returned `action: "reopen"`, `content: ""`; the list shows the DOC96 comment `resolved: false`, its last reply `action: "reopen"`. Cleanup skipped: the Doc was deleted.
+
 ---
 
 ### TC-D313: A reply with neither content nor action is refused before any call
@@ -234,6 +252,8 @@ Run 2 (ash).
 - 2: refused as an invalid argument (only `resolve` and `reopen` are accepted), with no reply posted
 
 **Cleanup:** none (no mutation applied)
+
+**Result (2026-11-20) ⚠️ PARTIAL — PR #1563 round 1 (Kit), `mcp-gee-sweet-kit` at `07e02d0`, OAuth, on a throwaway Doc (`QA PR1563 comments scratch`) in the QA folder, deleted afterward** — 1: `{"error": "Pass content for a plain reply, or an action ('resolve' or 'reopen'); a reply with neither has nothing to post."}`, no reply added. 2: refused by argument validation (`Input should be 'resolve' or 'reopen'`), nothing posted. Both checks met, but a probe outside them, `reply_to_comment(content="   ")` with no action, passed the guard and posted a reply Drive stored with `content: ""`: a whitespace-only reply has nothing to post either. Sent back on the PR.
 
 ---
 
@@ -256,3 +276,5 @@ Run 2 (ash).
 - 6: `list_doc_comments`' description starts ``Deprecated: use `list_file_comments`.``; `resolve_doc_comment`'s starts ``Deprecated: use `reply_to_comment` with `action='resolve'` instead.``
 
 **Cleanup:** none available (see the note at the top)
+
+**Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), `mcp-gee-sweet-kit` at `07e02d0`, OAuth, on a throwaway Doc (`QA PR1563 comments scratch`) in the QA folder, deleted afterward** — 1 and 2: the same comments, `file_id` echoed, `deprecation_warnings` `["`doc_id` is deprecated: use `file_id`. `doc_id` is removed in the next feature release."]`. 3: comment added, no `deprecation_warnings`. 4: tool error `Pass only `file_id`: `doc_id` is its deprecated old name.` 5: returned `doc_id`, `comment_id`, `reply_id`, `action: "resolve"`; the list shows that comment `resolved: true` with the reply `QA TC-D314: resolved.` 6: `list_doc_comments`' description starts ``Deprecated: use `list_file_comments`.``; `resolve_doc_comment`'s starts ``Deprecated: use `reply_to_comment` with `action='resolve'` instead.``
