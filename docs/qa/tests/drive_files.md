@@ -2182,7 +2182,7 @@ import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 ---
 
 ### TC-D322: A UTF-8 byte-order mark doesn't reach cell A1 (#1575) ⚠️ requires-oauth ⚠️ local-filesystem
-**Background:** Excel's "CSV UTF-8" export starts the file with the bytes `EF BB BF`. Read as plain UTF-8, they became a U+FEFF character at the start of A1, so the header read `"﻿case"`, the call still succeeded, and nothing in the sheet showed it.
+**Background:** Excel's "CSV UTF-8" export starts the file with the bytes `EF BB BF`. Read as plain UTF-8, they became a U+FEFF character at the start of A1, so the header read `"\ufeffcase"`, the call still succeeded, and nothing in the sheet showed it.
 
 **Setup:** in a scratch directory, write `qa-import-bom.csv` with its bytes exactly `EF BB BF` followed by `case,value\nx,1\n`, e.g. `printf '\xef\xbb\xbfcase,value\nx,1\n' > <scratch>/qa-import-bom.csv`. Confirm with `xxd <scratch>/qa-import-bom.csv | head -1` that it starts `efbb bf63`.
 

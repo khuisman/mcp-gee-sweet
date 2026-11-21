@@ -1808,7 +1808,7 @@ class TestImportCsvToSheet:
         path = tmp_path / "inner_bom.csv"
         path.write_bytes(b"h1,h2\nx,\xef\xbb\xbfy\n")
         values = await self._import_values(path)
-        assert values == [["h1", "h2"], ["x", "﻿y"]]
+        assert values == [["h1", "h2"], ["x", "\ufeffy"]]
 
     async def test_file_without_bom_reads_unchanged(self, tmp_path):
         path = tmp_path / "plain.csv"
