@@ -14,6 +14,7 @@ comparison when no scheme matches confidently.
 
 import re
 import unicodedata
+from urllib.parse import unquote as _unquote
 
 from markdown.extensions.toc import slugify as _markdown_toc_slugify
 
@@ -31,8 +32,14 @@ _WORD_CHARS = re.compile(r"[a-z0-9]+")
 # property's only members inside the stripped categories are the enclosed
 # Latin letters (all Symbol-other), so those four ranges are spelled out
 # below. The rule is expressed as categories rather than a frozen port of the
-# generated regex.js because code-point assignments drift with the
-# interpreter's own Unicode data as new characters are assigned.
+# generated regex.js, so it follows the interpreter's own Unicode data where
+# github-slugger's regex is frozen at Unicode 13.0.0: characters assigned
+# since — the combining marks U+1AC1-U+1ACE and U+0898-U+089F — are kept
+# here, by their current categories, where the frozen regex strips them as
+# Unassigned (measured against github-slugger master, 2026-11-20: its slug
+# of "a\u1ac1b" is "ab", this one keeps the mark). The rule targets
+# GitHub.com's current behaviour, not the npm package's output on code
+# points assigned after 13.0.
 _GITHUB_STRIP_CATEGORIES = frozenset(
     (
         "No",  # Other_Number — Python's \w kept these; GitHub strips them.
@@ -98,15 +105,20 @@ def _github_style_slugify(text: str) -> str:
     return slug.replace(" ", "-")
 
 
-# One callable per known slugification scheme. The GitLab/Kramdown-style
-# hyphen-collapsing convention is delegated to python-markdown's own `toc`
-# extension slugify (already a dependency of this project — see _md_to_html
-# above) rather than hand-rolled: confirmed live it collapses "A - Approved"
-# -> "a-approved", matching that convention. GitHub's non-collapsing
-# convention has no known off-the-shelf Python equivalent, so it stays
-# hand-rolled. Order doesn't affect correctness — a real match must land in
-# exactly one scheme's slug list for a well-formed document — only which
-# scheme wins a pathological tie.
+def _gitlab_style_slugify(text: str) -> str:
+    """The GitLab/Kramdown-style hyphen-collapsing convention, delegated to
+    python-markdown's own `toc` extension slugify (already a dependency of
+    this project — see _md_to_html above) rather than hand-rolled: confirmed
+    live it collapses "A - Approved" -> "a-approved", matching that
+    convention. Named as a real function rather than an inline lambda so a
+    test can select this scheme by name instead of by _SLUGIFY_FUNCS
+    position (#1553)."""
+    return _markdown_toc_slugify(text, "-")
+
+
+# One callable per known slugification scheme. Order doesn't affect
+# correctness — a real match must land in exactly one scheme's slug list for
+# a well-formed document — only which scheme wins a pathological tie.
 #
 # Both schemes also touch a heading's hard break ("<br>", stored inside the
 # heading text as a "\v", #1230): the GitHub scheme drops it with no separator
@@ -116,7 +128,7 @@ def _github_style_slugify(text: str) -> str:
 # actually reach a heading, lives in docs/design/heading-anchor-resolution.md.
 _SLUGIFY_FUNCS = [
     _github_style_slugify,
-    lambda text: _markdown_toc_slugify(text, "-"),
+    _gitlab_style_slugify,
 ]
 
 
@@ -183,10 +195,14 @@ def _fuzzy_match(anchor: str, heading_texts: list[str]) -> int | None:
 
     Only if that literal match fails, and the anchor does end in
     '-<digits>', is the suffix treated as a dedup index and stripped — then
-    that number is used to pick the correct occurrence among headings
-    sharing the same normalized tokens, the same way _slugs_with_dedup
-    numbers them for the exact-scheme match. This never falls back to
-    "just return the first" when the requested occurrence isn't present.
+    that number picks the matching heading at that occurrence among the
+    headings sharing the same normalized tokens. That is a plain occurrence
+    count: it agrees with the exact-scheme pass's numbering for ordinary
+    repeated headings, but it is not the keep-incrementing slug numbering
+    _slugs_with_dedup itself applies once a numbered form is literally
+    taken by another heading (#1482) — reproducing that here would mean
+    re-deriving which headings' base slugs collide. This never falls back
+    to "just return the first" when the requested occurrence isn't present.
     """
     match_idx = _match_tokens_at_occurrence(anchor, heading_texts, occurrence=0)
     if match_idx is not None:
@@ -245,6 +261,18 @@ def resolve_heading_anchor(
     the first heading on GitHub and the second on GitLab, so the GitHub
     scheme, tried first, wins — documented rather than fixed in
     docs/design/heading-anchor-resolution.md (#1482).
+
+    An anchor that matches nothing as written is retried percent-decoded
+    (#1553): a browser's address bar percent-encodes the fragment, so an
+    anchor copied from GitHub arrives as "#caf%C3%A9" for a "Café" heading
+    (or "#cafe%CC%81" for a decomposed "cafe\u0301"), and that encoded form
+    is what gets pasted into markdown. The literal anchor is always tried
+    whole first — decoding is a fallback, never a rewrite. Both forms get
+    the exact scheme match before the fuzzy fallback runs, and only for the
+    literal form: a decoded non-ASCII anchor's letters drop out of the
+    token comparison (see _normalize_tokens), so letting the decoded form
+    fuzzy-match would resolve a stale anchor to whichever heading shares
+    its ASCII words — worse than not resolving it.
     """
     anchor = anchor.lstrip("#")
     if not anchor or not heading_texts:
@@ -259,8 +287,25 @@ def resolve_heading_anchor(
     if scheme_slugs is None or any(len(slugs) != len(heading_texts) for slugs in scheme_slugs):
         scheme_slugs = compute_scheme_slugs(heading_texts)
 
-    for slugs in scheme_slugs:
-        if anchor in slugs:
-            return slugs.index(anchor)
+    decoded = _unquote(anchor)
+    candidates = [anchor]
+    if decoded != anchor:
+        candidates.append(decoded)
 
+    # Both forms get the exact scheme match before any fuzzy fallback, so a
+    # decoded candidate that exactly names a heading can't lose to the
+    # literal form's token match (headings "Café" and "Caf C3 A9" with
+    # "#caf%C3%A9" would otherwise pick the second heading, #1553 review).
+    for candidate in candidates:
+        for slugs in scheme_slugs:
+            if candidate in slugs:
+                return slugs.index(candidate)
+
+    # The fuzzy fallback runs last, for the literal anchor only. A decoded
+    # candidate stops at the exact scheme match above: _normalize_tokens
+    # keeps only [a-z0-9], so a decoded anchor's non-ASCII letters drop out
+    # of the token comparison and only its ASCII words are compared — a
+    # stale "#step-1-実行" would otherwise fuzzy-resolve to the first
+    # "Step 1" heading, where resolving nothing is safer: a wrong-section
+    # link is worse than none (#1553 review).
     return _fuzzy_match(anchor, heading_texts)
