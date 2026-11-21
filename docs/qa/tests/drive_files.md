@@ -2201,6 +2201,8 @@ import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 
 **Result (2026-11-21) ✅ PASS — PR #1580 round 1 on `mcp-gee-sweet-sky`** — fixture bytes confirmed `efbb bf63`. Step 1: `rows_written: 2`, no `error`, created in the Shared Drive root. Step 2: `valueRanges[0].values` `[["case","value"],["x","1"]]`. Step 4: `[["4","TRUE"]]`, so A1 is exactly `case`. Cleanup done (deleted permanently, local file removed). Checks reworded this round: `get_sheet_data` returns `{spreadsheetId, valueRanges:[{range, values}]}`, not a bare list.
 
+**Result (2026-11-21) ✅ PASS — PR #1580 round 2 on `mcp-gee-sweet-sky`** — re-run after the read-error handling fix (ac41c5d5). `rows_written: 2`; `A1:D2` values `[["case","value","4","TRUE"],["x","1"]]`. Cleanup done.
+
 ---
 
 ### TC-D323: A non-UTF-8 CSV or a directory named `.csv` returns an error, creating nothing (PR #1580) ⚠️ local-filesystem
@@ -2219,6 +2221,8 @@ import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 - Step 3 finds no file: neither call created a spreadsheet
 
 **Cleanup:** remove the local file and directory.
+
+**Result (2026-11-21) ✅ PASS — PR #1580 round 2 on `mcp-gee-sweet-sky`** — fixture bytes `6361 66e9 2c31 0a`. Step 1: `{"error": "File is not valid UTF-8: <scratch>/qa-import-cp1252.csv (invalid continuation byte). Save it as UTF-8 (in Excel, \"CSV UTF-8\") and import again."}`, a tool result, not `Error executing tool`. Step 2: `{"error": "Not a regular file: <scratch>/qa-dir.csv"}`. Step 3: `{"files": [], "exhaustive": true}`. Local fixtures removed.
 
 ---
 
