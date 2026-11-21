@@ -1533,7 +1533,7 @@ Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
 
 **Action**
 1. As TC-I48 step 1: get the consent link from `list_files`
-2. Open the link in the browser and approve every requested scope. The callback page reads `The authentication flow has completed. You may close this window.`
+2. Open the link in the browser and approve every requested scope. The callback page reads `Authorization received` — "You may close this window and go back to your MCP client."
 3. Call `list_files` again, then `list_sheets`
 
 **Checks**
