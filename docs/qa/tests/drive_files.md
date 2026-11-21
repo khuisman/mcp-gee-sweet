@@ -1559,6 +1559,8 @@ Rerun from scratch on the new head, because it moves the all-drives flags into `
 
 **Result (2026-11-20) ✅ PASS — PR #1558 QA round 1 (Sky) @ f52134dc** — On `mcp-gee-sweet-sky` (OAuth), in a scratch folder on the Shared Drive. `modified_within_days=1` with the spreadsheet type and no folder returned both ids, each modified a few minutes earlier, with `exhaustive: true`. The default sort put `-B` before `-A`, and `order_by="name"` put `-A` before `-B`. `query` with `order_by="name"` returned the tool's own error, naming both, with no Drive call. With the default `order_by`, it returned both sheets plus the folder. `modified_within_days=0` returned `{"error": "modified_within_days must be at least 1."}`. `order_by="size"` was refused by schema validation (`Input should be 'modified' or 'name'`).
 
+**Result (2026-11-20) ✅ PASS — PR #1558 QA round 2 (Sky) @ 631ff599** — Re-ran the changed bounds check on `mcp-gee-sweet-sky` (OAuth) after the reconnect. `modified_within_days=1000000` and `modified_within_days=0` each returned `{"error": "modified_within_days must be from 1 to 36500, not <N>."}`. Round 1 got a bare `Error executing tool` for the first. `modified_within_days=36500, max_results=2` returned two files with `exhaustive: false` and no Drive error, since the pre-1970 window sends no date clause. `20000` (cutoff in 1972, so the clause is sent) did the same. `2` with the spreadsheet type returned one file modified the day before. `order_by="size"` was still refused by the schema. The injection-shaped `folder_id` still returned `{"error": "Search failed: …404…"}`, now from the mapping inside the `try`.
+
 ---
 
 ### TC-D307: `search_files(shared_with_me=True)` matches `list_shared_with_me` (#1528)
