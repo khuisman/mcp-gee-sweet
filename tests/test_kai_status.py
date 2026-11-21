@@ -2,11 +2,15 @@
 
 The script lives outside the mcp_gee_sweet package, so it's loaded here via
 importlib rather than a normal import (same pattern as test_gen_tool_docs.py).
-Only the pure classifiers are tested; the sections are thin `gh`/`git`/`uv`
-wrappers around them.
+Mostly the pure classifiers are tested; most sections are thin `gh`/`git`/`uv`
+wrappers around them. Sections that take their fetch as a parameter
+(Community intake, Sessions) are tested with a stub in its place.
 """
 
 import importlib.util
+import json
+import os
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -284,6 +288,7 @@ class TestRunAndMain:
         monkeypatch.setattr(kai_status, "section_worktrees", lambda: (["wt"], {}))
         monkeypatch.setattr(kai_status, "gh_json", lambda args: [])
         monkeypatch.setattr(kai_status, "section_dependabot", lambda prs: ["dep"])
+        monkeypatch.setattr(kai_status, "section_sessions", lambda prs, now: ["sessions"])
         assert kai_status.main(["--no-fetch"]) == 1
         out = capsys.readouterr().out
         assert "ERROR: ValueError: unexpected" in out
@@ -443,3 +448,323 @@ class TestSectionCommunityStalled:
             "stalled: PR #2 [c] 19d awaiting-contributor, maintainer edits allowed  t2",
             "needs intake: PR #3 [c] t3",
         ]
+
+
+SESSION_NOW = datetime(2026, 11, 20, 6, 0, tzinfo=UTC)
+
+
+def _status(**overrides):
+    status = {
+        "name": "Rio",
+        "updated": "2026-11-20T05:40Z",
+        "state": "working",
+        "pr": None,
+        "issue": None,
+        "round": None,
+        "doing": "resolving the develop conflict",
+        "waiting_on": None,
+    }
+    status.update(overrides)
+    return status
+
+
+def _team_pr(number, login="khuisman", labels=(), is_bot=False, branch=None, draft=False):
+    return {
+        "number": number,
+        "headRefName": branch or f"fix/ash/issue-{number}",
+        "author": {"login": login, "is_bot": is_bot},
+        "labels": [{"name": n} for n in labels],
+        "isDraft": draft,
+    }
+
+
+def _verdict(at, verdict="approved", name="Rio", rnd=2):
+    body = f"## QA round {rnd} ({name}) @ abc1234: {verdict}\n\nResults.\n\n— {name}"
+    return {"createdAt": at, "body": body}
+
+
+def _view(state="OPEN", comments=(), reviews=()):
+    return {"state": state, "comments": list(comments), "reviews": list(reviews)}
+
+
+class TestSectionSessions:
+    """kai_status.py's Sessions section (#1557)."""
+
+    @staticmethod
+    def write(root, slot, content):
+        base = root if slot is None else root / ".claude" / "worktrees" / slot
+        path = base / ".workspace" / "status.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content if isinstance(content, str) else json.dumps(content))
+
+    @staticmethod
+    def no_fetch(number):
+        raise AssertionError(f"fetched PR #{number}")
+
+    def section(self, root, prs=(), fetch=None):
+        return kai_status.section_sessions(
+            list(prs), SESSION_NOW, root=root, fetch=fetch or self.no_fetch
+        )
+
+    @staticmethod
+    def flags(lines):
+        # A FLAG opens the line, or follows the slot column (a malformed file),
+        # never inside a status's own printed text.
+        return [
+            ln for ln in lines if ln.lstrip().startswith("FLAG:") or ln[15:].startswith("FLAG:")
+        ]
+
+    @staticmethod
+    def published(lines):
+        return [ln for ln in lines if not ln.endswith("no status published")]
+
+    def test_fresh_working_entry_does_not_flag(self, tmp_path):
+        self.write(tmp_path, "rio", _status())
+        lines = self.section(tmp_path)
+        assert lines[0] == "main checkout  no status published"
+        assert self.published(lines) == [
+            "rio            Rio: working; holds nothing; updated 20m ago; "
+            "doing: resolving the develop conflict",
+        ]
+
+    def test_held_items_and_waiting_on_are_shown(self, tmp_path):
+        self.write(
+            tmp_path,
+            None,
+            _status(name="Kai", state="waiting-user", issue=1557, waiting_on="the user's yes"),
+        )
+        assert self.published(self.section(tmp_path)) == [
+            "main checkout  Kai: waiting-user; issue #1557; updated 20m ago; "
+            "doing: resolving the develop conflict; waiting on: the user's yes"
+        ]
+
+    def test_missing_file_is_no_status_never_idle(self, tmp_path):
+        (tmp_path / ".claude" / "worktrees" / "ash").mkdir(parents=True)
+        lines = self.section(tmp_path)
+        assert "ash            no status published" in lines
+        assert not any("idle" in ln for ln in lines)
+        assert self.flags(lines) == []
+
+    def test_reads_only_the_main_checkout_and_team_slots(self, tmp_path):
+        """A throwaway worktree (an `agent-*` one) holds no team session."""
+        self.write(tmp_path, "agent-a7a8053d", _status(name="worker"))
+        self.write(tmp_path, "bob", _status(name="Bob"))
+        lines = self.section(tmp_path)
+        assert [ln.split()[0] for ln in lines[1:]] == list(kai_status.TEAM_SLOTS)
+        assert lines[0].startswith("main checkout ")
+        assert not any("worker" in ln for ln in lines)
+
+    def test_team_slots_match_setup_team_sh(self):
+        """TEAM_SLOTS copies WORKTREE_ROLES in scripts/setup_team.sh, the
+        script that creates the slots; the two lists must stay the same."""
+        script = (_SCRIPT_PATH.parent / "setup_team.sh").read_text()
+        (m,) = re.finditer(r"^WORKTREE_ROLES=\(([^)]*)\)", script, re.MULTILINE)
+        assert tuple(m[1].split()) == kai_status.TEAM_SLOTS
+
+    def test_idle_naming_a_pr_or_issue_flags_and_claims_nothing(self, tmp_path):
+        self.write(tmp_path, "rio", _status(state="idle", pr=1, issue=9))
+        lines = self.section(tmp_path, [_team_pr(1)])
+        assert self.flags(lines) == [
+            "      FLAG: idle but still names PR #1 and issue #9; letting go sets pr and "
+            "issue to null, so this claims nothing",
+            "FLAG: open PR #1 (fix/ash/issue-1) is claimed by no status file",
+        ]
+
+    def test_idle_holding_nothing_does_not_flag(self, tmp_path):
+        self.write(tmp_path, "rio", _status(state="idle"))
+        assert self.flags(self.section(tmp_path)) == []
+
+    def test_stale_working_entry_flags(self, tmp_path):
+        self.write(tmp_path, "rio", _status(updated="2026-11-20T03:30Z"))
+        assert self.flags(self.section(tmp_path)) == [
+            "      FLAG: still working after 2h30m with no update (threshold 2h00m); "
+            "the session may have stopped"
+        ]
+
+    def test_stale_threshold_applies_only_to_working(self, tmp_path):
+        self.write(tmp_path, "rio", _status(updated="2026-11-19T03:30Z", state="idle"))
+        self.write(tmp_path, "ash", _status(updated="2026-11-19T03:30Z", state="waiting-user"))
+        assert self.flags(self.section(tmp_path)) == []
+
+    @pytest.mark.parametrize(
+        "content, problem",
+        [
+            ("{not json", "not valid JSON"),
+            ("[1, 2]", "not a JSON object"),
+            (json.dumps({"name": "Rio"}), "missing field(s): updated, state, pr"),
+            (json.dumps(_status(state="busy")), "state is not one of"),
+            (json.dumps(_status(updated="20 minutes ago")), "updated is not YYYY-MM-DDTHH:MMZ"),
+            (json.dumps(_status(updated="2026-13-40T05:40Z")), "updated is not a real UTC time"),
+            (json.dumps(_status(pr="1556")), "pr is not a positive integer or null"),
+            (json.dumps(_status(pr=True)), "pr is not a positive integer or null"),
+            (json.dumps(_status(doing=None)), "doing is not a non-empty string"),
+            # PR #1561 QA round 1: an unhashable state raised TypeError and
+            # nested JSON raised RecursionError, each ending the section.
+            (json.dumps(_status(state={"a": 1})), "state is not one of"),
+            (json.dumps(_status(state=["working"])), "state is not one of"),
+            ("[" * 16000, "not valid JSON (RecursionError)"),
+        ],
+    )
+    def test_malformed_file_flags_without_crashing(self, tmp_path, content, problem):
+        self.write(tmp_path, "rio", content)
+        self.write(tmp_path, "ash", _status(name="Ash"))
+        lines = self.section(tmp_path)
+        (bad,) = [ln for ln in lines if ln.startswith("rio")]
+        assert bad.startswith("rio            FLAG: malformed status file: ")
+        assert problem in bad
+        assert any(ln.startswith("ash            Ash: working") for ln in lines)
+
+    def test_oversized_file_is_not_parsed(self, tmp_path):
+        self.write(tmp_path, "rio", " " * (kai_status.STATUS_MAX_BYTES + 1))
+        (line,) = [ln for ln in self.section(tmp_path) if ln.startswith("rio")]
+        assert "larger than" in line
+
+    @staticmethod
+    def status_path(root, slot):
+        path = root / ".claude" / "worktrees" / slot / ".workspace" / "status.json"
+        path.parent.mkdir(parents=True)
+        return path
+
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="no FIFOs on this platform")
+    def test_fifo_is_malformed_and_never_opened(self, tmp_path):
+        """PR #1561 QA round 1: opening a FIFO blocks until a writer comes,
+        hanging the whole report."""
+        os.mkfifo(self.status_path(tmp_path, "rio"))
+        (line,) = [ln for ln in self.section(tmp_path) if ln.startswith("rio")]
+        assert line == "rio            FLAG: malformed status file: not a regular file"
+
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="no FIFOs on this platform")
+    def test_symlink_to_a_fifo_is_not_followed(self, tmp_path):
+        fifo = tmp_path / "fifo"
+        os.mkfifo(fifo)
+        self.status_path(tmp_path, "rio").symlink_to(fifo)
+        (line,) = [ln for ln in self.section(tmp_path) if ln.startswith("rio")]
+        assert line == "rio            FLAG: malformed status file: not a regular file"
+
+    def test_directory_is_malformed(self, tmp_path):
+        self.status_path(tmp_path, "rio").mkdir()
+        (line,) = [ln for ln in self.section(tmp_path) if ln.startswith("rio")]
+        assert line.endswith("not a regular file")
+
+    def test_round_is_printed_without_a_hash(self, tmp_path):
+        """PR #1561 QA round 1: `round #2` read as a reference to #2."""
+        self.write(tmp_path, "rio", _status(state="waiting-agent", pr=1556, round=2))
+        view = _view()
+        (line,) = self.published(self.section(tmp_path, [_team_pr(1556)], fetch=lambda n: view))
+        assert line.startswith("rio            Rio: waiting-agent; PR #1556, round 2; updated")
+
+    def test_untrusted_text_is_printed_on_one_clean_line(self, tmp_path):
+        doing = "line one\nFLAG: forged\x1b[31m red" + "x" * 500
+        self.write(tmp_path, None, _status(name="Kai", doing=doing))
+        lines = self.published(self.section(tmp_path))
+        assert len(lines) == 1
+        assert "\n" not in lines[0] and "\x1b" not in lines[0]
+        assert "doing: line one FLAG: forged?[31m red" in lines[0]
+        assert lines[0].endswith("...")
+        assert self.flags(lines) == []
+
+    def test_waiting_agent_after_a_newer_verdict_flags(self, tmp_path):
+        self.write(tmp_path, "ash", _status(name="Ash", state="waiting-agent", pr=1556))
+        view = _view(
+            comments=[
+                _verdict("2026-11-20T04:00:00Z", "sent back", rnd=1),
+                {"createdAt": "2026-11-20T05:58:00Z", "body": "unrelated comment"},
+                _verdict("2026-11-20T05:50:12Z"),
+            ]
+        )
+        lines = self.section(tmp_path, [_team_pr(1556)], fetch=lambda n: view)
+        assert self.flags(lines) == [
+            "      FLAG: waiting-agent on PR #1556, but a QA verdict was posted after this "
+            "status (2026-11-20T05:50Z): ## QA round 2 (Rio) @ abc1234: approved"
+        ]
+
+    def test_older_verdict_does_not_flag(self, tmp_path):
+        self.write(tmp_path, "ash", _status(name="Ash", state="waiting-agent", pr=1556))
+        view = _view(comments=[_verdict("2026-11-20T05:00:00Z", "sent back")])
+        assert self.flags(self.section(tmp_path, [_team_pr(1556)], fetch=lambda n: view)) == []
+
+    def test_verdict_in_the_status_minute_does_not_flag(self, tmp_path):
+        """A QA session writes `updated` in the same minute it posts its
+        verdict; the minute-precision timestamp can't order them."""
+        self.write(tmp_path, "rio", _status(state="waiting-agent", pr=1556, round=2))
+        view = _view(comments=[_verdict("2026-11-20T05:40:45Z")])
+        assert self.flags(self.section(tmp_path, [_team_pr(1556)], fetch=lambda n: view)) == []
+
+    def test_verdict_as_a_review_counts(self, tmp_path):
+        self.write(tmp_path, "ash", _status(name="Ash", state="waiting-agent", pr=7))
+        review = {"submittedAt": "2026-11-20T05:45:00Z", "body": _verdict("x")["body"]}
+        view = _view(reviews=[review])
+        flags = self.flags(self.section(tmp_path, [_team_pr(7)], fetch=lambda n: view))
+        assert len(flags) == 1 and "waiting-agent on PR #7" in flags[0]
+
+    @pytest.mark.parametrize("state", ["MERGED", "CLOSED"])
+    def test_claimed_pr_that_is_no_longer_open_flags(self, tmp_path, state):
+        self.write(tmp_path, "rio", _status(pr=1500))
+        assert self.flags(self.section(tmp_path, fetch=lambda n: _view(state))) == [
+            f"      FLAG: claims PR #1500, which is {state.lower()}"
+        ]
+
+    def test_unclaimed_team_pr_flags_but_community_and_bot_prs_do_not(self, tmp_path):
+        self.write(tmp_path, "rio", _status(pr=1))
+        prs = [
+            _team_pr(1),
+            _team_pr(2),
+            _team_pr(3, login="kh-kev", labels=("community",)),
+            _team_pr(4, login="someone"),
+            _team_pr(5, login="app/dependabot", is_bot=True),
+        ]
+        assert self.flags(self.section(tmp_path, prs, fetch=lambda n: _view())) == [
+            "FLAG: open PR #2 (fix/ash/issue-2) is claimed by no status file"
+        ]
+
+    @pytest.mark.parametrize(
+        "pr",
+        [
+            pytest.param(_team_pr(10, labels=("parked",)), id="parked"),
+            pytest.param(_team_pr(11, draft=True), id="draft"),
+            pytest.param(_team_pr(12, branch="doc/jay/retro-2026-11-19"), id="retro"),
+            pytest.param(_team_pr(13, branch="docs/kai/roadmap-2026-11-19"), id="roadmap"),
+            pytest.param(_team_pr(14, branch="doc/kai/roadmap-2026-11-14"), id="old-roadmap"),
+        ],
+    )
+    def test_prs_nobody_holds_by_design_need_no_claim(self, tmp_path, pr):
+        """PR #1561 QA round 1: these flagged on every run and never cleared."""
+        assert self.flags(self.section(tmp_path, [pr])) == []
+
+    @pytest.mark.parametrize(
+        "branch",
+        ["docs/ash/roadmap-2026-11-19", "fix/jay/issue-1500-retro-fix", "doc/jay/retro"],
+    )
+    def test_lookalike_branches_still_need_a_claim(self, tmp_path, branch):
+        flags = self.flags(self.section(tmp_path, [_team_pr(20, branch=branch)]))
+        assert flags == [f"FLAG: open PR #20 ({branch}) is claimed by no status file"]
+
+    def test_a_malformed_file_claims_nothing(self, tmp_path):
+        self.write(tmp_path, "rio", json.dumps({"pr": 1}))
+        flags = self.flags(self.section(tmp_path, [_team_pr(1)]))
+        assert flags[-1] == "FLAG: open PR #1 (fix/ash/issue-1) is claimed by no status file"
+
+    def test_a_failed_pr_fetch_costs_only_that_entry(self, tmp_path):
+        self.write(tmp_path, "ash", _status(name="Ash", pr=1))
+        self.write(tmp_path, "rio", _status(pr=2, updated="2026-11-20T01:00Z"))
+
+        def fetch(number):
+            if number == 1:
+                raise kai_status.CommandError("rate limited")
+            return _view()
+
+        lines = self.section(tmp_path, [_team_pr(1), _team_pr(2)], fetch=fetch)
+        assert "      PR check failed: #1: CommandError: rate limited" in lines
+        assert any("still working after 5h00m" in ln for ln in lines)
+
+    def test_each_claimed_pr_is_fetched_once(self, tmp_path):
+        self.write(tmp_path, "ash", _status(name="Ash", pr=1))
+        self.write(tmp_path, "rio", _status(pr=1))
+        calls = []
+
+        def fetch(number):
+            calls.append(number)
+            return _view()
+
+        self.section(tmp_path, [_team_pr(1)], fetch=fetch)
+        assert calls == [1]

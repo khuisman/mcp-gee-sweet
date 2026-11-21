@@ -247,7 +247,7 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   reusing `emitter.py`'s own `_build_phantom_set` to find which (row, col) positions a rowspan
   covers — the closest a pipe table (no native merge concept) can represent one.
 - **Comments**: `include_comments=True` fetches every comment via the same Drive `comments`
-  resource `list_doc_comments` uses (paginated, unlike `list_doc_comments`' single-page default),
+  resource `list_file_comments` uses (paginated, unlike `list_file_comments`' single-page default),
   filters to non-resolved ones (a resolved comment's discussion is already settled — not scoped
   as diff-worthy content in an export), and appends a `## Comments` section with each comment's
   author, quoted anchor text, content, and replies.
