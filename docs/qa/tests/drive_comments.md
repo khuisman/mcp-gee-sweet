@@ -330,6 +330,8 @@ Every case here works on its own throwaway spreadsheet. Setup for each: `create_
 
 **Cleanup:** as the section says
 
+**Result (2026-11-21) ✅ PASS — PR #1578 round 1 (Kit), `mcp-gee-sweet-kit` at `8b2c917`, OAuth, on a throwaway spreadsheet in the QA folder (Shared Drive), deleted afterward** — 3: `comment` with `content: "QA TC-D316 top"`, `author`, `created_time`, `modified_time`, `resolved: true`, `deleted: false`, `quoted_text: "QA anchor"`, and replies `QA TC-D316 r1` (`action: null`), `QA TC-D316 r2` (`action: null`), then `content: ""` with `action: "resolve"`, each with `id`, `author`, `created_time`, `modified_time`, `deleted: false`. 4: the list's one comment equal to step 3's, field for field. `author.email_address` was `null` for the OAuth user's own comments, as in TC-DOC96.
+
 ### TC-D317: `update_comment` edits a comment and a reply ⚠️ destructive
 **Steps**
 1. `add_file_comment(file_id={SHEET_FILE_ID}, content="QA TC-D317 top")`; note its `id` as `{COMMENT_ID}`
@@ -348,6 +350,8 @@ Every case here works on its own throwaway spreadsheet. Setup for each: `create_
 - 7: the comment's `content` is `QA TC-D317 top v2` (step 6 changed nothing) and it's still `resolved: true`. Its replies are `QA TC-D317 reply v2` (`action: null`) then `QA TC-D317 done` with `action: "resolve"`: the edit kept the resolving reply's action
 
 **Cleanup:** as the section says
+
+**Result (2026-11-21) ✅ PASS — PR #1578 round 1 (Kit), `mcp-gee-sweet-kit` at `8b2c917`, OAuth, on a throwaway spreadsheet in the QA folder (Shared Drive), deleted afterward** — 3: `reply_id: null`, `content: "QA TC-D317 top v2"`, `modified_time`. 4: the reply's id and `QA TC-D317 reply v2`. 5: the resolve reply's id and `QA TC-D317 done`. 6: `{"error": "Pass the new text as content; ... use delete_comment."}`. 7: comment `QA TC-D317 top v2`, `resolved: true`; replies `QA TC-D317 reply v2` (`action: null`) then `QA TC-D317 done` (`action: "resolve"`). Probe beside it: an author edit whose text starts with U+0001 landed (Drive stored it without that character) but the tool returned the non-author error; sent back on the PR.
 
 ### TC-D318: `delete_comment` deletes a reply, then the comment ⚠️ destructive
 **Steps**
@@ -368,6 +372,8 @@ Every case here works on its own throwaway spreadsheet. Setup for each: `create_
 
 **Cleanup:** as the section says
 
+**Result (2026-11-21) ✅ PASS — PR #1578 round 1 (Kit), `mcp-gee-sweet-kit` at `8b2c917`, OAuth, on a throwaway spreadsheet in the QA folder (Shared Drive), deleted afterward** — 3: `reply_id` echoed, `deleted: true`. 4: without `include_deleted`, one reply `QA TC-D318 r2`; with it, the deleted reply first (`deleted: true`, `content: null`, `author: null`), then `QA TC-D318 r2`. 5: `reply_id: null`, `deleted: true`. 6: the list holds only `QA TC-D318 other`; the plain get raised HttpError 404 `Comment not found`; the `include_deleted` get returned the comment `deleted: true`, `content: null`, `author: null`, its replies included, all `deleted: true` (deleting the comment marks its replies deleted). 7: HttpError 404.
+
 ### TC-D319: Editing a deleted comment or reply says it's deleted ⚠️ destructive
 **Background:** Drive answers an edit of a deleted comment with a bare HTTP 500 and of a deleted reply with a 400 "Invalid Value" (checked live), neither of which says why. `update_comment` reads the target back after such a failure.
 
@@ -384,6 +390,8 @@ Every case here works on its own throwaway spreadsheet. Setup for each: `create_
 
 **Cleanup:** as the section says
 
+**Result (2026-11-21) ✅ PASS — PR #1578 round 1 (Kit), `mcp-gee-sweet-kit` at `8b2c917`, OAuth, on a throwaway spreadsheet in the QA folder (Shared Drive), deleted afterward** — 2: `{"error": "The reply <id> is deleted, so it can't be edited. Post a new reply with reply_to_comment, or a new comment with add_file_comment."}`. 3: the same error naming the comment. 4: HttpError 404 `Comment not found: not-a-real-comment.` Probe beside it: editing a reply that was never deleted itself, on a deleted comment, raised Drive's HttpError 404 `Comment not found: <comment id>` (not a 400/500), as `delete_comment` documents for its replies.
+
 ### TC-D320: `get_file_comment` on a comment ID that doesn't exist
 **Steps**
 1. `get_file_comment(file_id={SHEET_FILE_ID}, comment_id="not-a-real-comment")`
@@ -392,6 +400,8 @@ Every case here works on its own throwaway spreadsheet. Setup for each: `create_
 - 1: a tool error carrying HttpError 404 (comment not found)
 
 **Cleanup:** as the section says
+
+**Result (2026-11-21) ✅ PASS — PR #1578 round 1 (Kit), `mcp-gee-sweet-kit` at `8b2c917`, OAuth, on a throwaway spreadsheet in the QA folder (Shared Drive), deleted afterward** — 1: HttpError 404 `Comment not found: not-a-real-comment.`
 
 ### TC-D321: An edit by someone other than the author is reported, not passed off as done ⚠️ destructive
 **Background:** Drive lets only a comment's or reply's author edit it, and answers anyone else's edit with HTTP 200 and the old text, changing nothing (checked live both ways between the OAuth user and the service account, #664). A non-author's delete is refused with a 403. This needs two identities: run step 1 on an OAuth server and steps 2–4 on a service-account server (`mcp-gee-sweet-sa` in a release pass). A lane QA session, which may call only its own server, runs steps 2–4 in a fresh interpreter (`CLAUDE.md`, "MCP restart") on the branch's `get_file_comment`/`update_comment`/`delete_comment` with a Drive client built from `auth._service_account_creds()`. The service account must be able to see `{SHEET_FILE_ID}`: create it in a Shared Drive folder the service account is a member of.
@@ -408,3 +418,5 @@ Every case here works on its own throwaway spreadsheet. Setup for each: `create_
 - 4: the comment reads `QA TC-D321 by user` and its one reply `QA TC-D321 user reply`, neither deleted
 
 **Cleanup:** as the section says
+
+**Result (2026-11-21) ✅ PASS — PR #1578 round 1 (Kit), `mcp-gee-sweet-kit` at `8b2c917`, step 1 and 4 OAuth, steps 2-3 the service account, on a throwaway spreadsheet in the QA folder (Shared Drive), deleted afterward** — steps 2-3 ran the branch's `update_comment`/`delete_comment` in a fresh interpreter with a Drive client from `auth._service_account_creds()`. 2: both returned the "Drive left the comment (then reply) ... unchanged: only its author can edit it" error, `content` `QA TC-D321 by user`, then `QA TC-D321 user reply`. 3: HttpError 403 (`insufficientFilePermissions`). 4: comment `QA TC-D321 by user` with its one reply `QA TC-D321 user reply`, neither deleted.
