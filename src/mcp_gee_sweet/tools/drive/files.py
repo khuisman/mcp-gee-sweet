@@ -37,6 +37,11 @@ _LIST_DRIVES_MAX_PAGES = 50
 # absorbed (#1528, docs/design/tool-reduction.md tiers B1 and A).
 _FINDER_REMOVED_IN = "the next feature release"
 
+# search_files' modified_within_days ceiling: 100 years. A larger value overflows
+# the cutoff's datetime arithmetic (PR #1558 QA round 1).
+_MAX_MODIFIED_WITHIN_DAYS = 36500
+_DRIVE_EARLIEST_TIME = datetime(1970, 1, 1, tzinfo=UTC)
+
 # search_files' order_by values, as Drive's orderBy.
 _SEARCH_ORDER_BY = {"modified": "modifiedTime desc", "name": "name"}
 
@@ -435,8 +440,9 @@ def register(tool):
     )
     @deprecated_tool(
         use=(
-            "`search_files` with `mime_type='application/vnd.google-apps.spreadsheet'`, "
-            "plus `folder_id` for one folder"
+            "`search_files` (add `folder_id` for one folder) with "
+            "`mime_type='application/vnd.google-apps.spreadsheet'` and this tool's default "
+            "`max_results=100`"
         ),
         removed_in=_FINDER_REMOVED_IN,
     )
@@ -495,8 +501,9 @@ def register(tool):
     @tool(annotations=ToolAnnotations(title="List Folders", readOnlyHint=True))
     @deprecated_tool(
         use=(
-            "`search_files` with `mime_type='application/vnd.google-apps.folder'` and "
-            "`folder_id` (it doesn't default to the configured folder)"
+            "`search_files` (which never defaults to the configured folder) with "
+            "`folder_id`, `mime_type='application/vnd.google-apps.folder'`, and this tool's "
+            "`order_by='name'` and `max_results=100`"
         ),
         removed_in=_FINDER_REMOVED_IN,
     )
@@ -758,7 +765,7 @@ def register(tool):
                             someone else (with a service account, files shared with
                             its email address).
             modified_within_days: Only files modified within the last N days
-                                  (N >= 1).
+                                  (1 to 36500).
             order_by: 'modified' (newest first, the default) or 'name'. 'name'
                       needs no query: Drive won't sort a search by content.
 
@@ -771,8 +778,15 @@ def register(tool):
             to restore, use get_file_metadata or restore_file with its file ID.
             {"error": ...} if the search fails.
         """
-        if modified_within_days is not None and modified_within_days < 1:
-            return {"error": "modified_within_days must be at least 1."}
+        if modified_within_days is not None and not (
+            1 <= modified_within_days <= _MAX_MODIFIED_WITHIN_DAYS
+        ):
+            return {
+                "error": (
+                    f"modified_within_days must be from 1 to {_MAX_MODIFIED_WITHIN_DAYS}, "
+                    f"not {modified_within_days}."
+                )
+            }
         if order_by not in _SEARCH_ORDER_BY:
             return {"error": f"order_by must be 'modified' or 'name', not {order_by!r}."}
         has_query = bool(query and query.strip())
@@ -805,7 +819,11 @@ def register(tool):
             parts.append("sharedWithMe=true")
         if modified_within_days is not None:
             cutoff = datetime.now(UTC) - timedelta(days=modified_within_days)
-            parts.append(f"modifiedTime > '{cutoff.strftime('%Y-%m-%dT%H:%M:%S')}'")
+            # Drive refuses a modifiedTime before the Unix epoch ("Invalid Value",
+            # checked live), and a window reaching back that far holds every file,
+            # so it adds no clause.
+            if cutoff > _DRIVE_EARLIEST_TIME:
+                parts.append(f"modifiedTime > '{cutoff.strftime('%Y-%m-%dT%H:%M:%S')}'")
 
         # sharedWithMe=true is its own scope, and the default "user" corpus already
         # holds what's shared directly with the caller, so it keeps that corpus.
@@ -827,23 +845,25 @@ def register(tool):
                 .execute,
                 drive_service,
             )
+            # Inside the try, so a file the mapping can't read returns an error
+            # dict rather than raising (PR #1558 QA round 1).
+            files = [
+                {
+                    "id": f["id"],
+                    "name": f["name"],
+                    "mimeType": f.get("mimeType"),
+                    "created_time": f.get("createdTime"),
+                    "modified_time": f.get("modifiedTime"),
+                    "owners": [o.get("emailAddress") for o in f.get("owners", [])],
+                    "parent": (f.get("parents") or [None])[0],
+                    "web_link": f.get("webViewLink"),
+                    "starred": f.get("starred", False),
+                }
+                for f in results.get("files", [])
+            ]
         except Exception as e:
             return {"error": f"Search failed: {e!s}"}
 
-        files = [
-            {
-                "id": f["id"],
-                "name": f["name"],
-                "mimeType": f["mimeType"],
-                "created_time": f.get("createdTime"),
-                "modified_time": f.get("modifiedTime"),
-                "owners": [o.get("emailAddress") for o in f.get("owners", [])],
-                "parent": f.get("parents", [None])[0],
-                "web_link": f.get("webViewLink"),
-                "starred": f.get("starred", False),
-            }
-            for f in results.get("files", [])
-        ]
         # A short page doesn't prove the list is complete: Drive can return fewer
         # than pageSize with more left, and incompleteSearch marks a partial
         # all-drives search (#1202).
@@ -1291,7 +1311,13 @@ def register(tool):
         return await _set_starred(ctx.request_context.lifespan_context, file_id, False)
 
     @tool(annotations=ToolAnnotations(title="List Shared With Me", readOnlyHint=True))
-    @deprecated_tool(use="`search_files` with `shared_with_me=True`", removed_in=_FINDER_REMOVED_IN)
+    @deprecated_tool(
+        use=(
+            "`search_files` (whose files carry `mimeType`, not `mime_type`) with "
+            "`shared_with_me=True` and this tool's default `max_results=50`"
+        ),
+        removed_in=_FINDER_REMOVED_IN,
+    )
     async def list_shared_with_me(
         mime_type: str | None = None,
         max_results: int = 50,
@@ -1326,7 +1352,10 @@ def register(tool):
 
     @tool(annotations=ToolAnnotations(title="List Recent Files", readOnlyHint=True))
     @deprecated_tool(
-        use="`search_files` (newest first by default) with `modified_within_days`",
+        use=(
+            "`search_files` (newest first by default; its files carry `mimeType`, not "
+            "`mime_type`) with `modified_within_days`"
+        ),
         removed_in=_FINDER_REMOVED_IN,
     )
     async def list_recent_files(

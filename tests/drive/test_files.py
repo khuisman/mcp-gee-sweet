@@ -329,11 +329,37 @@ class TestSearchFilesFinder:
         _, list_kwargs = await self._call(modified_within_days=7)
         assert list_kwargs["q"] == "trashed=false and modifiedTime > '2026-11-12T12:00:00'"
 
-    @pytest.mark.parametrize("days", [0, -3])
-    async def test_non_positive_days_is_an_error_without_a_call(self, days):
+    @pytest.mark.parametrize("days", [0, -3, 36501, 1_000_000, 10**9])
+    async def test_out_of_range_days_is_an_error_without_a_call(self, days):
+        """PR #1558 QA round 1: a huge value overflowed the cutoff and crashed the
+        call with no message."""
         result, list_kwargs = await self._call(modified_within_days=days)
         assert "modified_within_days" in result["error"]
         assert list_kwargs is None
+
+    async def test_window_before_the_epoch_adds_no_clause(self):
+        """Drive answers a modifiedTime before 1970 with 400 Invalid Value (checked
+        live); a window reaching back that far holds every file anyway."""
+        result, list_kwargs = await self._call(modified_within_days=36500)
+        assert "error" not in result
+        assert list_kwargs["q"] == "trashed=false"
+
+    async def test_window_after_the_epoch_keeps_its_cutoff(self):
+        _, list_kwargs = await self._call(modified_within_days=365)
+        assert "modifiedTime > '" in list_kwargs["q"]
+
+    async def test_file_with_empty_parents_maps_to_none(self):
+        result, _ = await self._call(
+            response={"files": [{"id": "f", "name": "n", "mimeType": "m", "parents": []}]}
+        )
+        assert result["files"][0]["parent"] is None
+
+    async def test_unmappable_file_is_an_error_dict_not_raised(self):
+        """PR #1558 QA round 1: the mapping ran outside the try, so a file it
+        couldn't read escaped as an uncaught exception."""
+        result, _ = await self._call(response={"files": [{"name": "no id"}]})
+        assert set(result) == {"error"}
+        assert result["error"].startswith("Search failed")
 
     async def test_filters_combine(self):
         _, list_kwargs = await self._call(
@@ -411,10 +437,10 @@ class TestFinderDeprecations:
         ("tool_name", "replacement"),
         [
             ("search_spreadsheets", "`search_files` with `mime_type="),
-            ("list_spreadsheets", "`search_files` with `mime_type="),
-            ("list_folders", "`search_files` with `mime_type="),
+            ("list_spreadsheets", "`search_files`"),
+            ("list_folders", "`search_files`"),
             ("list_recent_files", "`search_files`"),
-            ("list_shared_with_me", "`search_files` with `shared_with_me=True`"),
+            ("list_shared_with_me", "`search_files`"),
             ("unstar_file", "`star_file` with `starred=False`"),
         ],
     )
@@ -426,8 +452,25 @@ class TestFinderDeprecations:
         assert func.__doc__.startswith(f"Deprecated: use {replacement}")
 
     @pytest.mark.parametrize(
+        ("tool_name", "needed"),
+        [
+            # PR #1558 QA round 1: following a note must give back what the old
+            # default call returned: its count, its sort, and the renamed key.
+            ("list_folders", ("`order_by='name'`", "`max_results=100`")),
+            ("list_spreadsheets", ("`max_results=100`", "add `folder_id`")),
+            ("list_shared_with_me", ("`max_results=50`", "`mimeType`")),
+            ("list_recent_files", ("`mimeType`",)),
+        ],
+    )
+    def test_note_names_what_keeps_the_old_result(self, tool_name, needed):
+        note = _drive_tools[tool_name].__doc__.split("\n\n", 1)[0]
+        for phrase in needed:
+            assert phrase in note
+
+    @pytest.mark.parametrize(
         ("tool_name", "phrase"),
         [
+            ("list_spreadsheets", "plus `folder_id`"),
             ("search_spreadsheets", "special case"),
             ("list_spreadsheets", "List all spreadsheets"),
             ("search_files", "convenience wrapper"),

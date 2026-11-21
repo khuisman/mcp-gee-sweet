@@ -1547,7 +1547,7 @@ Rerun from scratch on the new head, because it moves the all-drives flags into `
 - `search_files(modified_within_days=1, mime_type="application/vnd.google-apps.spreadsheet", max_results=1000)` includes both ids, and every `modified_time` is within the last 24 hours.
 - `search_files(mime_type="application/vnd.google-apps.spreadsheet", folder_id={FOLDER_ID})` (default `order_by='modified'`, newest first) lists `-B` before `-A`; the same call with `order_by="name"` lists `-A` before `-B`.
 - `search_files(query="QA-Finder-1528", folder_id={FOLDER_ID}, order_by="name")` returns `{"error": ...}` naming `order_by='name'` and `query`, not a Drive 403: Drive refuses any sort but newest-first on a `fullText` query. The same call with the default `order_by` returns both.
-- `search_files(modified_within_days=0)` returns `{"error": ...}` naming `modified_within_days`; `search_files(order_by="size")` is refused before the tool runs (schema) or returns an error naming `order_by`.
+- `search_files(modified_within_days=0)` and `search_files(modified_within_days=1000000)` each return `{"error": ...}` naming `modified_within_days` (the second used to crash the call with a bare `Error executing tool`, PR #1558 QA round 1); `search_files(modified_within_days=36500, max_results=2)` returns two files with no error (its window reaches before 1970, where Drive refuses a `modifiedTime` cutoff, so it adds no date clause); `search_files(order_by="size")` is refused before the tool runs (schema) or returns an error naming `order_by`.
 
 **Cleanup:** `delete_file(file_id=<id>, permanent=True)` on both.
 
