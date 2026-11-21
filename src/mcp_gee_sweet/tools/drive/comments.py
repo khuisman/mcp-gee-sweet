@@ -32,6 +32,11 @@ _COMMENT_FIELDS = (
 )
 _REPLY_FIELDS = "id,action,content,createdTime"
 
+# Every optional text parameter here is `str = ""`, never `str | None`: mcp's
+# pre_parse_json runs json.loads on a string argument unless its annotation is
+# exactly `str`, so a `str | None` parameter turned an anchor's JSON, or text such
+# as `null` or `[1, 2]`, into another type before validation (PR #1563 round 2).
+
 
 def _map_author(author: dict[str, Any] | None) -> dict[str, Any] | None:
     if not author:
@@ -112,7 +117,7 @@ def register(tool):
     async def list_file_comments(
         file_id: str,
         page_size: int = 20,
-        page_token: str | None = None,
+        page_token: str = "",
         include_deleted: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
@@ -149,7 +154,7 @@ def register(tool):
             .list(
                 fileId=file_id,
                 pageSize=max(1, min(page_size, 100)),
-                pageToken=page_token,
+                pageToken=page_token or None,
                 includeDeleted=include_deleted,
                 fields=f"comments({_COMMENT_FIELDS}),nextPageToken",
             )
@@ -181,8 +186,8 @@ def register(tool):
     async def add_file_comment(
         file_id: str,
         content: str,
-        quoted_text: str | None = None,
-        anchor: str | None = None,
+        quoted_text: str = "",
+        anchor: str = "",
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -248,7 +253,7 @@ def register(tool):
     async def reply_to_comment(
         file_id: str,
         comment_id: str,
-        content: str | None = None,
+        content: str = "",
         action: Literal["resolve", "reopen"] | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
@@ -300,7 +305,7 @@ def register(tool):
     async def resolve_doc_comment(
         doc_id: str,
         comment_id: str,
-        reply_content: str | None = None,
+        reply_content: str = "",
         ctx: Context = None,
     ) -> dict[str, Any]:
         """

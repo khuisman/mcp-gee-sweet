@@ -569,3 +569,88 @@ class TestRegisteredAliases:
                 _server_ctx(drive),
             )
         drive.replies.assert_not_called()
+
+
+_TC_D315_ANCHOR = (
+    '{"r": "head", "a": [{"rect": {"x": 10, "y": 20, "w": 30, "h": 40, "mw": 100, "mh": 100}}]}'
+)
+
+# Every text parameter of the comment tools, whose registered annotation must be
+# exactly `str` so mcp doesn't pre-parse it as JSON.
+_TEXT_PARAMS = {
+    "list_file_comments": ("page_token",),
+    "add_file_comment": ("content", "quoted_text", "anchor"),
+    "reply_to_comment": ("content",),
+    "resolve_doc_comment": ("reply_content",),
+}
+
+
+class TestJsonLookingTextReachesDriveVerbatim:
+    """mcp's pre_parse_json runs json.loads on a string argument unless its
+    annotation is exactly `str` (PR #1563 round 2: `anchor: str | None` rejected
+    every drive#commentRegion it documents). Called through the server's own
+    registry, so the pre-parse step runs as it does for a client."""
+
+    @pytest.mark.parametrize(
+        ("tool_name", "param"),
+        [(tool, param) for tool, params in _TEXT_PARAMS.items() for param in params],
+    )
+    def test_registered_annotation_is_exactly_str(self, tool_name, param):
+        # renamed_params republishes the signature, so check what mcp registered.
+        tool = server.mcp._tool_manager.get_tool(tool_name)
+        assert tool.fn_metadata.arg_model.model_fields[param].annotation is str
+
+    async def test_anchor_from_tc_d315(self):
+        drive = MagicMock()
+        drive.comments.return_value.create.return_value.execute.return_value = {
+            "id": "c1",
+            "anchor": _TC_D315_ANCHOR,
+        }
+        result = await server.mcp.call_tool(
+            "add_file_comment",
+            {"file_id": "f1", "content": "QA TC-D315 anchored", "anchor": _TC_D315_ANCHOR},
+            _server_ctx(drive),
+        )
+        body = drive.comments.return_value.create.call_args.kwargs["body"]
+        assert body["anchor"] == _TC_D315_ANCHOR
+        assert result.structured_content["anchor"] == _TC_D315_ANCHOR
+
+    async def test_quoted_text_that_parses_as_json(self):
+        drive = MagicMock()
+        drive.comments.return_value.create.return_value.execute.return_value = {"id": "c1"}
+        await server.mcp.call_tool(
+            "add_file_comment",
+            {"file_id": "f1", "content": "[1, 2]", "quoted_text": '{"k": null}'},
+            _server_ctx(drive),
+        )
+        body = drive.comments.return_value.create.call_args.kwargs["body"]
+        assert body == {"content": "[1, 2]", "quotedFileContent": {"value": '{"k": null}'}}
+
+    @pytest.mark.parametrize("content", ["null", "[1, 2]", '{"a": 1}'])
+    async def test_reply_content_that_parses_as_json(self, content):
+        drive = MagicMock()
+        drive.replies.return_value.create.return_value.execute.return_value = {"id": "r1"}
+        result = await server.mcp.call_tool(
+            "reply_to_comment",
+            {"file_id": "f1", "comment_id": "c1", "content": content},
+            _server_ctx(drive),
+        )
+        assert "error" not in result.structured_content
+        assert drive.replies.return_value.create.call_args.kwargs["body"] == {"content": content}
+
+    async def test_resolve_doc_comment_reply_content_that_parses_as_json(self):
+        drive = MagicMock()
+        drive.replies.return_value.create.return_value.execute.return_value = {"id": "r1"}
+        await server.mcp.call_tool(
+            "resolve_doc_comment",
+            {"doc_id": "d1", "comment_id": "c1", "reply_content": "[1, 2]"},
+            _server_ctx(drive),
+        )
+        body = drive.replies.return_value.create.call_args.kwargs["body"]
+        assert body == {"action": "resolve", "content": "[1, 2]"}
+
+    async def test_no_page_token_sends_none(self):
+        drive = MagicMock()
+        drive.comments.return_value.list.return_value.execute.return_value = {"comments": []}
+        await server.mcp.call_tool("list_file_comments", {"file_id": "f1"}, _server_ctx(drive))
+        assert drive.comments.return_value.list.call_args.kwargs["pageToken"] is None
