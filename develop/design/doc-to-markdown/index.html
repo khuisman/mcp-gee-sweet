@@ -1591,7 +1591,7 @@ best-effort — see below), and an opt-in comments section.</p>
   reusing <code>emitter.py</code>'s own <code>_build_phantom_set</code> to find which (row, col) positions a rowspan
   covers — the closest a pipe table (no native merge concept) can represent one.</li>
 <li><strong>Comments</strong>: <code>include_comments=True</code> fetches every comment via the same Drive <code>comments</code>
-  resource <code>list_doc_comments</code> uses (paginated, unlike <code>list_doc_comments</code>' single-page default),
+  resource <code>list_file_comments</code> uses (paginated, unlike <code>list_file_comments</code>' single-page default),
   filters to non-resolved ones (a resolved comment's discussion is already settled — not scoped
   as diff-worthy content in an export), and appends a <code>## Comments</code> section with each comment's
   author, quoted anchor text, content, and replies.</li>

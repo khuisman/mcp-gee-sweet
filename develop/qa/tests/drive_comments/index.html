@@ -1,0 +1,1632 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="MCP server for Google Workspace — Sheets, Drive, Docs, Calendar">
+      
+      
+      
+        <link rel="canonical" href="https://khuisman.github.io/mcp-gee-sweet/develop/qa/tests/drive_comments/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+    
+    
+      
+        <title>Drive Tools — Comments — QA Test Cases - mcp-gee-sweet</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#drive-tools-comments-qa-test-cases" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="mcp-gee-sweet" class="md-header__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            mcp-gee-sweet
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Drive Tools — Comments — QA Test Cases
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="mcp-gee-sweet" class="md-nav__button md-logo" aria-label="mcp-gee-sweet" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    mcp-gee-sweet
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/khuisman/mcp-gee-sweet" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    khuisman/mcp-gee-sweet
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../auth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../client-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Client Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Principles
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../design/docs-ast-pipeline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs AST Pipeline
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Decisions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-fork/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Fork
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-composite-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Composite Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Approach
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../decisions/decision-publishing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publishing Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Run Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fixtures.template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QA Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test Cases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Test Cases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calendar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calendar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../docs.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../drive.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Drive
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gmail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Gmail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../infra/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Infrastructure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Read
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Write
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_charts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Charts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sheets_mgmt/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sheets — Structure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../notes-read/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Read API Notes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="drive-tools-comments-qa-test-cases">Drive Tools — Comments — QA Test Cases<a class="headerlink" href="#drive-tools-comments-qa-test-cases" title="Permanent link">&para;</a></h1>
+<p>Source: <code>src/mcp_gee_sweet/tools/drive/comments.py</code></p>
+<p>Fixtures: see <a href="../../setup/"><code>docs/qa/setup.md</code></a>. Substitute your <code>{SPREADSHEET_ID}</code>, <code>{DOC_ID}</code>, and <code>{FOLDER_ID}</code> from <code>fixtures.local.md</code>.</p>
+<p>The comment tools call the Drive <code>comments</code>/<code>replies</code> resource, not the Docs API, so they take any file Drive supports comments on. TC-DOC96–TC-DOC101 moved here from <code>docs_content.md</code> with #663, which renamed the tools (<code>list_doc_comments</code> → <code>list_file_comments</code>, <code>add_doc_comment</code> → <code>add_file_comment</code>, <code>doc_id</code> → <code>file_id</code>) and replaced <code>resolve_doc_comment</code> with <code>reply_to_comment(action=)</code>. They keep their IDs, so earlier results files still point at them; their Result entries before #663 record the old names as they were called. New cases here use <code>TC-D</code>.</p>
+<p>There is no tool that deletes a comment yet (#664 adds <code>delete_comment</code>), so a comment added on <code>{DOC_ID}</code> stays there until it's removed in the Docs UI. Keep test comment text prefixed <code>QA TC-…</code> so it's identifiable for manual cleanup. TC-D310 works on a throwaway spreadsheet and deletes it instead.</p>
+<hr />
+<h2 id="list_file_comments-add_file_comment-reply_to_comment-151-663"><code>list_file_comments</code> / <code>add_file_comment</code> / <code>reply_to_comment</code> (#151, #663)<a class="headerlink" href="#list_file_comments-add_file_comment-reply_to_comment-151-663" title="Permanent link">&para;</a></h2>
+<h3 id="tc-doc96-add-a-comment-with-no-quoted-text-anchor-destructive">TC-DOC96: Add a comment with no quoted-text anchor ⚠️ destructive<a class="headerlink" href="#tc-doc96-add-a-comment-with-no-quoted-text-anchor-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p><code>add_file_comment(file_id={DOC_ID}, content="QA TC-DOC96: general note.")</code></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>id</code>, <code>content</code> matching the input text, <code>author</code> (<code>display_name</code>/<code>email_address</code> populated from the caller's identity), <code>created_time</code>
+- <code>quoted_text</code> is <code>null</code> — no anchor was requested
+- No error</p>
+<p><strong>Cleanup:</strong> none available — no tool deletes a comment yet; the comment persists on the fixture doc (see the note at the top)</p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong>
+<code>add_doc_comment(doc_id=&lt;TEST_DOC_ID&gt;, content="QA TC-DOC96: general note.")</code> returned <code>id: "AAAB-5FtNYE"</code>, <code>content</code> matching the input, <code>author.display_name: "&lt;QA user&gt;"</code>, <code>created_time</code>, <code>quoted_text: null</code>. No error. Note: <code>author.email_address</code> was <code>null</code> rather than populated — this is Drive API behavior for the authenticated OAuth user's own comments (email visibility is a privacy-scoped field), not a tool defect; the tool correctly passes through whatever the API returns.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+add_doc_comment (no anchor) returned id, content match, author.display_name="<QA user>" (email_address null - Drive API privacy behavior, not a defect), created_time, quoted_text:null.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 2 (ash).</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>oauth</code>: add_doc_comment returned id, matching content, author.display_name, created_time and quoted_text:null. email_address was null, which is the known Drive privacy behavior.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on <code>mcp-gee-sweet-oauth</code></strong> — Run on the fixture copy. Returned id <code>doco.PHdj…</code>, matching content, author.display_name, created_time, <code>quoted_text: null</code>. <code>author.email_address</code> is null (Drive privacy behavior for the caller's own comments, as in prior passes; see stale wording note).</p>
+<p><strong>Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), <code>mcp-gee-sweet-kit</code> at <code>07e02d0</code>, OAuth, on a throwaway Doc (<code>QA PR1563 comments scratch</code>) in the QA folder, deleted afterward</strong> — returned <code>id</code>, matching <code>content</code>, <code>author.display_name</code>, <code>created_time</code>, <code>quoted_text: null</code>; <code>author.email_address</code> null (Drive privacy behavior, as before).</p>
+<hr />
+<h3 id="tc-doc97-add-a-comment-anchored-to-quoted-text-destructive">TC-DOC97: Add a comment anchored to quoted text ⚠️ destructive<a class="headerlink" href="#tc-doc97-add-a-comment-anchored-to-quoted-text-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> <code>{DOC_ID}</code> must contain the literal text "QA anchor target" somewhere (add it with <code>insert_doc_text</code> if absent; <code>write_doc_content</code> would replace the whole body)</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p><code>add_file_comment(file_id={DOC_ID}, content="QA TC-DOC97: anchored note.", quoted_text="QA anchor target")</code></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>quoted_text: "QA anchor target"</code> — the anchor round-trips through the API response
+- <code>list_file_comments</code> on the same doc shows this comment with the same <code>quoted_text</code></p>
+<p><strong>Cleanup:</strong> none available (see the note at the top)</p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong>
+Doc lacked the literal text "QA anchor target", so it was inserted via <code>insert_doc_text</code> (not <code>write_doc_content</code>, which replaces the whole doc body — using it as the setup note suggests would have wiped the fixture's existing content). <code>add_doc_comment(doc_id=&lt;TEST_DOC_ID&gt;, content="QA TC-DOC97: anchored note.", quoted_text="QA anchor target")</code> returned <code>quoted_text: "QA anchor target"</code>, round-tripping correctly. Confirmed via <code>list_doc_comments</code> in TC-DOC98 below.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+Inserted "QA anchor target" text via insert_doc_text, then add_doc_comment with quoted_text="QA anchor target" returned quoted_text round-tripped correctly.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 2 (ash).</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>oauth</code>: I inserted "QA anchor target" with insert_doc_text, then add_doc_comment returned quoted_text "QA anchor target".</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on <code>mcp-gee-sweet-oauth</code></strong> — Added "QA anchor target" to the copy with insert_doc_text, then add_doc_comment returned <code>quoted_text: "QA anchor target"</code>; list_doc_comments shows the same quoted_text.</p>
+<p><strong>Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), <code>mcp-gee-sweet-kit</code> at <code>07e02d0</code>, OAuth, on a throwaway Doc (<code>QA PR1563 comments scratch</code>) in the QA folder, deleted afterward</strong> — the Doc was created holding "QA anchor target"; <code>add_file_comment</code> returned <code>quoted_text: "QA anchor target"</code>, and <code>list_file_comments</code> shows the same.</p>
+<hr />
+<h3 id="tc-doc98-list-comments-reflects-previously-added-comments">TC-DOC98: List comments reflects previously added comments<a class="headerlink" href="#tc-doc98-list-comments-reflects-previously-added-comments" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> run TC-DOC96 and TC-DOC97 first</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p><code>list_file_comments(file_id={DOC_ID})</code></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Both the TC-DOC96 and TC-DOC97 comments appear in <code>comments</code>
+- Each has <code>resolved: false</code> and <code>replies: []</code>
+- The TC-DOC97 entry has <code>quoted_text: "QA anchor target"</code>; the TC-DOC96 entry has <code>quoted_text: null</code>
+- <code>file_id</code> in the response matches <code>{DOC_ID}</code> (<code>doc_id</code> before #663)</p>
+<p><strong>Cleanup:</strong> none (read-only)</p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong>
+<code>list_doc_comments(doc_id=&lt;TEST_DOC_ID&gt;)</code> returned both comments: TC-DOC97 (<code>quoted_text: "QA anchor target"</code>) and TC-DOC96 (<code>quoted_text: null</code>), both <code>resolved: false</code> and <code>replies: []</code>, <code>doc_id</code> echoed correctly.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+list_doc_comments showed both TC-DOC96/97 comments, both resolved:false and replies:[], correct quoted_text values, doc_id matches.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 2 (ash).</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>oauth</code>: list_doc_comments listed both comments with resolved:false and replies:[], the correct quoted_text values, and a matching doc_id.</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on <code>mcp-gee-sweet-oauth</code></strong> — Both comments listed, each <code>resolved:false</code>, <code>replies:[]</code>; DOC97 entry has the quoted_text, DOC96 entry null; <code>doc_id</code> matches the copy.</p>
+<p><strong>Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), <code>mcp-gee-sweet-kit</code> at <code>07e02d0</code>, OAuth, on a throwaway Doc (<code>QA PR1563 comments scratch</code>) in the QA folder, deleted afterward</strong> — both comments listed, each <code>resolved: false</code> and <code>replies: []</code>; DOC97's <code>quoted_text</code> is "QA anchor target", DOC96's null; <code>file_id</code> matches the Doc.</p>
+<hr />
+<h3 id="tc-doc99-resolve-a-comment-destructive">TC-DOC99: Resolve a comment ⚠️ destructive<a class="headerlink" href="#tc-doc99-resolve-a-comment-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> use the <code>id</code> returned by TC-DOC96 as <code>{COMMENT_ID}</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p><code>reply_to_comment(file_id={DOC_ID}, comment_id={COMMENT_ID}, content="Handled.", action="resolve")</code></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>file_id</code>, <code>comment_id</code>, <code>reply_id</code>, <code>action: "resolve"</code>, <code>content: "Handled."</code>, and <code>created_time</code> (<code>resolve_doc_comment</code> before #663 returned <code>doc_id</code>, <code>comment_id</code>, <code>reply_id</code> and <code>action</code>)
+- Re-running <code>list_file_comments</code> shows that comment with <code>resolved: true</code> and a reply with <code>content: "Handled."</code> and <code>action: "resolve"</code></p>
+<p><strong>Cleanup:</strong> none available — resolving doesn't remove the comment thread, just marks it resolved (see the note at the top)</p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong>
+<code>resolve_doc_comment(doc_id=&lt;TEST_DOC_ID&gt;, comment_id="AAAB-5FtNYE", reply_content="Handled.")</code> returned <code>doc_id</code>, <code>comment_id</code>, <code>reply_id: "AAAB-5FtNYQ"</code>, <code>action: "resolve"</code>. Re-ran <code>list_doc_comments</code>: the TC-DOC96 comment now shows <code>resolved: true</code> with a reply <code>content: "Handled.", action: "resolve"</code>. The reply also included <code>modified_time</code> — confirms the fix from PR review comment (missing <code>modified_time</code> on replies) is live.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+resolve_doc_comment(TC-DOC96's id) returned doc_id/comment_id/reply_id/action:"resolve". Re-list confirmed resolved:true with reply content "Handled.", action:"resolve", modified_time present.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 2 (ash).</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>oauth</code>: resolve_doc_comment returned doc_id, comment_id, reply_id and action "resolve". A re-list showed resolved:true with a reply "Handled." (action resolve, modified_time present).</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on <code>mcp-gee-sweet-oauth</code></strong> — resolve_doc_comment returned doc_id, comment_id, reply_id, <code>action:"resolve"</code>; relisting shows the DOC96 comment <code>resolved:true</code> with a reply content "Handled.", action "resolve".</p>
+<p><strong>Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), <code>mcp-gee-sweet-kit</code> at <code>07e02d0</code>, OAuth, on a throwaway Doc (<code>QA PR1563 comments scratch</code>) in the QA folder, deleted afterward</strong> — returned <code>file_id</code>, <code>comment_id</code>, <code>reply_id</code>, <code>action: "resolve"</code>, <code>content: "Handled."</code> and <code>created_time</code>; a re-list (via TC-D314 step 1) shows the reply <code>Handled.</code> with <code>action: "resolve"</code> (the comment then reopened by TC-D312).</p>
+<hr />
+<h3 id="tc-doc100-resolve-a-non-existent-comment-id">TC-DOC100: Resolve a non-existent comment ID<a class="headerlink" href="#tc-doc100-resolve-a-non-existent-comment-id" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p><code>reply_to_comment(file_id={DOC_ID}, comment_id="not-a-real-comment-id", action="resolve")</code></p>
+</blockquote>
+<p><strong>Checks</strong>
+- API error propagates — not a silent success or server crash</p>
+<p><strong>Cleanup:</strong> none (no mutation applied)</p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong>
+<code>resolve_doc_comment(doc_id=&lt;TEST_DOC_ID&gt;, comment_id="not-a-real-comment-id")</code> raised <code>HttpError 404 ... "Comment not found: not-a-real-comment-id."</code> — propagated cleanly, no silent success, no server crash.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+resolve_doc_comment('not-a-real-comment-id') raised HttpError 404 "Comment not found" — propagated cleanly, no silent success.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 2 (ash).</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>oauth</code>: A fake comment ID raised HttpError 404 "Comment not found".</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on <code>mcp-gee-sweet-oauth</code></strong> — Tool error carrying the HttpError 404 "Comment not found: not-a-real-comment-id." Not a silent success or crash.</p>
+<p><strong>Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), <code>mcp-gee-sweet-kit</code> at <code>07e02d0</code>, OAuth, on a throwaway Doc (<code>QA PR1563 comments scratch</code>) in the QA folder, deleted afterward</strong> — tool error carrying HttpError 404 "Comment not found: not-a-real-comment-id."</p>
+<hr />
+<h3 id="tc-doc101-list-comments-on-a-non-existent-doc">TC-DOC101: List comments on a non-existent doc<a class="headerlink" href="#tc-doc101-list-comments-on-a-non-existent-doc" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p><code>list_file_comments(file_id="not-a-real-doc-id")</code></p>
+</blockquote>
+<p><strong>Checks</strong>
+- API error propagates — not a silent empty list or server crash</p>
+<p><strong>Cleanup:</strong> none (no mutation applied)</p>
+<p><strong>Result (2026-07-16) ✅ PASS</strong>
+<code>list_doc_comments(doc_id="not-a-real-doc-id")</code> raised <code>HttpError 404 ... "File not found: not-a-real-doc-id."</code> — propagated cleanly, no silent empty list, no server crash.</p>
+<p><strong>Result (2026-09-04) ✅ PASS</strong>
+list_doc_comments('not-a-real-doc-id') raised HttpError 404 "File not found" — propagated cleanly, no silent empty list.</p>
+<p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
+Run 2 (ash).</p>
+<p><strong>Result (2026-10-19) ✅ PASS — v0.9.3 release pass</strong>
+<code>oauth</code>: A fake doc ID raised HttpError 404 "File not found".</p>
+<p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on <code>mcp-gee-sweet-oauth</code></strong> — Tool error carrying HttpError 404 "File not found: not-a-real-doc-id." Not an empty list.</p>
+<p><strong>Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), <code>mcp-gee-sweet-kit</code> at <code>07e02d0</code>, OAuth, on a throwaway Doc (<code>QA PR1563 comments scratch</code>) in the QA folder, deleted afterward</strong> — tool error carrying HttpError 404 "File not found: not-a-real-doc-id."</p>
+<hr />
+<h3 id="tc-d310-comments-on-a-spreadsheet-add-anchor-list-reply-and-resolve-destructive">TC-D310: Comments on a spreadsheet: add, anchor, list, reply and resolve ⚠️ destructive<a class="headerlink" href="#tc-d310-comments-on-a-spreadsheet-add-anchor-list-reply-and-resolve-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #663's premise: the comment tools were never Docs-specific, since the Drive comments resource takes any <code>fileId</code>. This case runs every comment tool against a Sheets file.</p>
+<p><strong>Setup:</strong> <code>create_spreadsheet(title="QA TC-D310 comments", folder_id={FOLDER_ID})</code>; note the returned ID as <code>{SHEET_FILE_ID}</code>.</p>
+<p><strong>Steps</strong>
+1. <code>add_file_comment(file_id={SHEET_FILE_ID}, content="QA TC-D310 a")</code>
+2. <code>add_file_comment(file_id={SHEET_FILE_ID}, content="QA TC-D310 b", quoted_text="QA anchor")</code>
+3. <code>reply_to_comment(file_id={SHEET_FILE_ID}, comment_id=&lt;step 1's id&gt;, content="QA TC-D310 reply")</code>
+4. <code>reply_to_comment(file_id={SHEET_FILE_ID}, comment_id=&lt;step 1's id&gt;, action="resolve")</code>
+5. <code>list_file_comments(file_id={SHEET_FILE_ID})</code></p>
+<p><strong>Checks</strong>
+- Steps 1–4 return without an error. Step 1 returns an <code>id</code>, <code>content: "QA TC-D310 a"</code> and <code>quoted_text: null</code>; step 2 returns <code>quoted_text: "QA anchor"</code>
+- Step 3 returns <code>action: null</code> and <code>content: "QA TC-D310 reply"</code>; step 4 returns <code>action: "resolve"</code> and <code>content: ""</code> (Drive returns an empty string for a reply with no text)
+- Step 5 returns <code>file_id: {SHEET_FILE_ID}</code> and both comments. Step 1's comment has <code>resolved: true</code> and two replies, <code>QA TC-D310 reply</code> (<code>action: null</code>) then one with <code>action: "resolve"</code>. Step 2's comment has <code>resolved: false</code>, <code>replies: []</code> and <code>quoted_text: "QA anchor"</code></p>
+<p><strong>Cleanup:</strong> <code>delete_file(file_id={SHEET_FILE_ID}, permanent=True)</code></p>
+<p><strong>Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), <code>mcp-gee-sweet-kit</code> at <code>07e02d0</code>, OAuth, on a throwaway spreadsheet in the QA folder</strong> — 1: <code>id</code>, <code>content: "QA TC-D310 a"</code>, <code>quoted_text: null</code>. 2: <code>quoted_text: "QA anchor"</code>. 3: <code>action: null</code>, <code>content: "QA TC-D310 reply"</code>. 4: <code>action: "resolve"</code>, <code>content: ""</code>. 5: <code>file_id</code> matches, both comments; step 1's <code>resolved: true</code> with the replies <code>QA TC-D310 reply</code> (<code>action: null</code>) then the <code>resolve</code> reply; step 2's <code>resolved: false</code>, <code>replies: []</code>, <code>quoted_text: "QA anchor"</code>. Cleanup: spreadsheet deleted permanently.</p>
+<hr />
+<h3 id="tc-d311-a-plain-reply-leaves-the-comment-open-destructive">TC-D311: A plain reply leaves the comment open ⚠️ destructive<a class="headerlink" href="#tc-d311-a-plain-reply-leaves-the-comment-open-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> run TC-DOC97 first; use its <code>id</code> as <code>{COMMENT_ID}</code></p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p><code>reply_to_comment(file_id={DOC_ID}, comment_id={COMMENT_ID}, content="QA TC-D311: plain reply.")</code></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Returns <code>file_id</code>, <code>comment_id</code>, a <code>reply_id</code>, <code>action: null</code>, <code>content: "QA TC-D311: plain reply."</code> and <code>created_time</code>
+- <code>list_file_comments(file_id={DOC_ID})</code> shows the TC-DOC97 comment still <code>resolved: false</code>, with this reply last in its <code>replies</code>, <code>action: null</code></p>
+<p><strong>Cleanup:</strong> none available (see the note at the top)</p>
+<p><strong>Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), <code>mcp-gee-sweet-kit</code> at <code>07e02d0</code>, OAuth, on a throwaway Doc (<code>QA PR1563 comments scratch</code>) in the QA folder, deleted afterward</strong> — returned <code>file_id</code>, <code>comment_id</code>, <code>reply_id</code>, <code>action: null</code>, <code>content: "QA TC-D311: plain reply."</code>, <code>created_time</code>; the list shows the DOC97 comment still <code>resolved: false</code> with this reply, <code>action: null</code>.</p>
+<p><strong>Note (2026-11-20, PR #1563 round 4, Kit, at <code>ba84c5e</code>)</strong> — observed outside this case: a plain reply (no <code>action</code>) to a <em>resolved</em> comment reopens it. Drive returns the reply with <code>action: "reopen"</code>, though the tool sent no action. Reproduced twice on a throwaway spreadsheet. <code>reply_to_comment</code>'s docstring says the action is None for a plain reply and doesn't mention this; sent back on the PR.</p>
+<hr />
+<h3 id="tc-d312-reopen-a-resolved-comment-destructive">TC-D312: Reopen a resolved comment ⚠️ destructive<a class="headerlink" href="#tc-d312-reopen-a-resolved-comment-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Setup:</strong> run TC-DOC99 first; its comment (TC-DOC96's <code>id</code>) is resolved. Use that <code>id</code> as <code>{COMMENT_ID}</code></p>
+<p><strong>Steps</strong>
+1. <code>reply_to_comment(file_id={DOC_ID}, comment_id={COMMENT_ID}, action="reopen")</code>
+2. <code>reply_to_comment(file_id={DOC_ID}, comment_id={COMMENT_ID}, action="resolve")</code>, then <code>reply_to_comment(file_id={DOC_ID}, comment_id={COMMENT_ID}, content="QA TC-D312: plain reply.")</code> with no <code>action</code> (added in PR #1563 round 5)</p>
+<p><strong>Checks</strong>
+- 1: returns <code>action: "reopen"</code> and <code>content: ""</code> (Drive returns an empty string for a reply with no text). <code>list_file_comments(file_id={DOC_ID})</code> shows that comment with <code>resolved: false</code>, its last reply <code>action: "reopen"</code>
+- 2: the plain reply returns <code>action: "reopen"</code> though none was sent: Drive reopens a resolved comment that gets a plain reply, as <code>reply_to_comment</code>'s docstring says. <code>list_file_comments</code> shows the comment <code>resolved: false</code></p>
+<p><strong>Cleanup:</strong> to leave the comment as TC-DOC99 left it, <code>reply_to_comment(file_id={DOC_ID}, comment_id={COMMENT_ID}, action="resolve")</code></p>
+<p><strong>Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), <code>mcp-gee-sweet-kit</code> at <code>07e02d0</code>, OAuth, on a throwaway Doc (<code>QA PR1563 comments scratch</code>) in the QA folder, deleted afterward</strong> — returned <code>action: "reopen"</code>, <code>content: ""</code>; the list shows the DOC96 comment <code>resolved: false</code>, its last reply <code>action: "reopen"</code>. Cleanup skipped: the Doc was deleted.</p>
+<hr />
+<h3 id="tc-d313-a-reply-with-neither-content-nor-action-is-refused-before-any-call">TC-D313: A reply with neither content nor action is refused before any call<a class="headerlink" href="#tc-d313-a-reply-with-neither-content-nor-action-is-refused-before-any-call" title="Permanent link">&para;</a></h3>
+<p><strong>Steps</strong>
+1. <code>reply_to_comment(file_id={DOC_ID}, comment_id=&lt;any comment's id from list_file_comments&gt;)</code>
+2. <code>reply_to_comment(file_id={DOC_ID}, comment_id=&lt;the same id&gt;, action="delete")</code>
+3. <code>reply_to_comment(file_id={DOC_ID}, comment_id=&lt;the same id&gt;, content="   ")</code> (added in PR #1563 round 2)</p>
+<p><strong>Checks</strong>
+- 1: returns <code>{"error": ...}</code> saying to pass <code>content</code> or an <code>action</code>. <code>list_file_comments</code> shows no new reply on that comment
+- 2: refused as an invalid argument (only <code>resolve</code> and <code>reopen</code> are accepted), with no reply posted
+- 3: the same <code>{"error": ...}</code> as step 1: content that is only whitespace counts as none. <code>list_file_comments</code> shows no new reply</p>
+<p><strong>Cleanup:</strong> none (no mutation applied)</p>
+<p><strong>Result (2026-11-20) ⚠️ PARTIAL — PR #1563 round 1 (Kit), <code>mcp-gee-sweet-kit</code> at <code>07e02d0</code>, OAuth, on a throwaway Doc (<code>QA PR1563 comments scratch</code>) in the QA folder, deleted afterward</strong> — 1: <code>{"error": "Pass content for a plain reply, or an action ('resolve' or 'reopen'); a reply with neither has nothing to post."}</code>, no reply added. 2: refused by argument validation (<code>Input should be 'resolve' or 'reopen'</code>), nothing posted. Both checks met, but a probe outside them, <code>reply_to_comment(content="   ")</code> with no action, passed the guard and posted a reply Drive stored with <code>content: ""</code>: a whitespace-only reply has nothing to post either. Sent back on the PR.</p>
+<p><strong>Result (2026-11-20) ✅ PASS — PR #1563 round 2 (Kit), <code>mcp-gee-sweet-kit</code> at <code>024f62f</code>, OAuth, on a throwaway spreadsheet in the QA folder, deleted afterward</strong> — step 3 only (the fix): <code>reply_to_comment(content="   ")</code> returned the same <code>{"error": ...}</code> as step 1, and the list showed no new reply. Probes beside it: <code>reply_to_comment(content="  ", action="resolve")</code> resolved the comment with a reply <code>content: ""</code> (the whitespace not sent), and <code>resolve_doc_comment(reply_content="  ")</code> did the same. Steps 1 and 2 are unchanged since round 1 and weren't re-run.</p>
+<hr />
+<h3 id="tc-d314-the-old-comment-tool-names-and-doc_id-still-work-for-one-release-destructive">TC-D314: The old comment tool names and <code>doc_id</code> still work for one release ⚠️ destructive<a class="headerlink" href="#tc-d314-the-old-comment-tool-names-and-doc_id-still-work-for-one-release-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> #663 renamed <code>list_doc_comments</code>/<code>add_doc_comment</code> and their <code>doc_id</code> parameter, and deprecated <code>resolve_doc_comment</code>, under <code>docs/design.md</code>'s "Renaming or Removing a Tool". Run it on a server with <code>ENABLED_TOOLS=all</code>, which registers the old names as aliases (the team servers do).</p>
+<p><strong>Steps</strong>
+1. <code>list_file_comments(doc_id={DOC_ID})</code>
+2. <code>list_doc_comments(doc_id={DOC_ID})</code>
+3. <code>add_doc_comment(file_id={DOC_ID}, content="QA TC-D314: alias.")</code>
+4. <code>list_file_comments(file_id={DOC_ID}, doc_id={DOC_ID})</code>
+5. <code>resolve_doc_comment(doc_id={DOC_ID}, comment_id=&lt;step 3's id&gt;, reply_content="QA TC-D314: resolved.")</code>
+6. Read the tool list (<code>list_tools</code>, or the client's tool descriptions) for <code>list_doc_comments</code> and <code>resolve_doc_comment</code></p>
+<p><strong>Checks</strong>
+- 1 and 2: the same comments as <code>list_file_comments(file_id={DOC_ID})</code>, with <code>file_id</code> echoed and <code>deprecation_warnings</code> holding one entry naming <code>doc_id</code> and <code>file_id</code>
+- 3: the comment is added, and the result has no <code>deprecation_warnings</code>: the old tool name alone isn't flagged in the result, only the old parameter
+- 4: a tool error saying to pass only <code>file_id</code>
+- 5: returns <code>doc_id</code>, <code>comment_id</code>, <code>reply_id</code> and <code>action: "resolve"</code> (its old shape), and <code>list_file_comments</code> shows that comment resolved
+- 6: <code>list_doc_comments</code>' description starts <code>Deprecated: use `list_file_comments`.</code>; <code>resolve_doc_comment</code>'s starts <code>Deprecated: use `reply_to_comment` with `action='resolve'` instead.</code></p>
+<p><strong>Cleanup:</strong> none available (see the note at the top)</p>
+<p><strong>Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), <code>mcp-gee-sweet-kit</code> at <code>07e02d0</code>, OAuth, on a throwaway Doc (<code>QA PR1563 comments scratch</code>) in the QA folder, deleted afterward</strong> — 1 and 2: the same comments, <code>file_id</code> echoed, <code>deprecation_warnings</code> <code>["</code>doc_id<code>is deprecated: use</code>file_id<code>.</code>doc_id<code>is removed in the next feature release."]</code>. 3: comment added, no <code>deprecation_warnings</code>. 4: tool error <code>Pass only</code>file_id<code>:</code>doc_id<code>is its deprecated old name.</code> 5: returned <code>doc_id</code>, <code>comment_id</code>, <code>reply_id</code>, <code>action: "resolve"</code>; the list shows that comment <code>resolved: true</code> with the reply <code>QA TC-D314: resolved.</code> 6: <code>list_doc_comments</code>' description starts <code>Deprecated: use `list_file_comments`.</code>; <code>resolve_doc_comment</code>'s starts <code>Deprecated: use `reply_to_comment` with `action='resolve'` instead.</code></p>
+<hr />
+<h3 id="tc-d315-add_file_commentanchor-passes-a-drive-anchor-through-destructive">TC-D315: <code>add_file_comment(anchor=)</code> passes a Drive anchor through ⚠️ destructive<a class="headerlink" href="#tc-d315-add_file_commentanchor-passes-a-drive-anchor-through-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> <code>decision-comments-first-class.md</code> gives <code>add_file_comment</code> an <code>anchor</code> passthrough for non-Google files (images, PDFs), where Drive's viewer may honor a <code>drive#commentRegion</code>. Decision 5 there confirmed the Google editors ignore any anchor, so this case checks the round trip, not a pinned comment.</p>
+<p><strong>Setup:</strong> <code>create_spreadsheet(title="QA TC-D315 anchor", folder_id={FOLDER_ID})</code>; note the returned ID as <code>{SHEET_FILE_ID}</code>.</p>
+<p><strong>Steps</strong>
+1. <code>add_file_comment(file_id={SHEET_FILE_ID}, content="QA TC-D315 anchored", anchor="{\"r\": \"head\", \"a\": [{\"rect\": {\"x\": 10, \"y\": 20, \"w\": 30, \"h\": 40, \"mw\": 100, \"mh\": 100}}]}")</code>
+2. <code>add_file_comment(file_id={SHEET_FILE_ID}, content="QA TC-D315 plain")</code>
+3. <code>list_file_comments(file_id={SHEET_FILE_ID})</code></p>
+<p><strong>Checks</strong>
+- 1: returns <code>anchor</code> equal to the string sent, character for character
+- 2: returns <code>anchor: null</code>
+- 3: both comments are listed, unresolved, with no replies</p>
+<p><strong>Cleanup:</strong> <code>delete_file(file_id={SHEET_FILE_ID}, permanent=True)</code></p>
+<p><strong>Result (2026-11-20) ❌ FAIL — PR #1563 round 2 (Kit), <code>mcp-gee-sweet-kit</code> at <code>024f62f</code>, OAuth, on a throwaway spreadsheet in the QA folder, deleted afterward</strong> — 1: refused before any call: <code>1 validation error for add_file_commentArguments anchor Input should be a valid string [type=string_type, ... input_type=dict]</code>, the same with a leading space. mcp's <code>pre_parse_json</code> runs <code>json.loads</code> on a string argument whose annotation isn't exactly <code>str</code>, and <code>anchor</code>'s is <code>str | None</code>, so a <code>drive#commentRegion</code> JSON string reaches validation as a dict and is rejected; reproduced in a fresh interpreter through the registered tool's <code>fn_metadata</code>, so it isn't client-specific. 2: <code>anchor: null</code>, as expected. 3 not run: step 1 added nothing. Sent back on the PR.</p>
+<p><strong>Result (2026-11-20) ✅ PASS — PR #1563 round 3 (Kit), <code>mcp-gee-sweet-kit</code> at <code>c6eeff1</code>, OAuth, on a throwaway spreadsheet in the QA folder, deleted afterward</strong> — 1: returned <code>anchor</code> equal to the string sent, character for character. 2: <code>anchor: null</code>. 3: both comments listed, <code>resolved: false</code>, <code>replies: []</code>. Probe beside it: <code>reply_to_comment(content="[1, 2]")</code> posted the reply with <code>content: "[1, 2]"</code> verbatim. Outside the case: at this head an explicit <code>null</code> for <code>page_token</code>, <code>quoted_text</code>, <code>anchor</code>, <code>content</code> or <code>reply_content</code> fails validation (each is now exactly <code>str</code>), where the round 2 head accepted it; reported on the PR.</p>
+<p><strong>Result (2026-11-20) ✅ PASS — PR #1563 round 4 (Kit), <code>mcp-gee-sweet-kit</code> at <code>ba84c5e</code>, OAuth, on a throwaway spreadsheet in the QA folder, deleted afterward</strong> — 1: <code>anchor</code> returned equal to the string sent, character for character. 2: <code>anchor: null</code>. 3: both comments listed, <code>resolved: false</code>, <code>replies: []</code>. Null probes through Claude Code (an argument written <code>null</code> reaches the server as JSON null): <code>add_file_comment(quoted_text=null)</code>, <code>list_file_comments(page_token=null)</code>, <code>reply_to_comment(content=null, action="resolve")</code> and <code>resolve_doc_comment(reply_content=null)</code> were all accepted, as no value, where round 3's head rejected them; <code>reply_to_comment(content="[1, 2]")</code> posted <code>[1, 2]</code> verbatim.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.sections", "navigation.top", "toc.integrate", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>

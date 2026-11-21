@@ -1351,7 +1351,7 @@
 
 
 <h1 id="docs-tools-content-createreadwrite-markdownhtml-conversion-qa-test-cases">Docs Tools — Content (Create/Read/Write, Markdown/HTML Conversion) — QA Test Cases<a class="headerlink" href="#docs-tools-content-createreadwrite-markdownhtml-conversion-qa-test-cases" title="Permanent link">&para;</a></h1>
-<p>Source: <code>src/mcp_gee_sweet/tools/docs/content.py</code>, plus four submodules bundled here rather than split into their own files (this file is the catch-all for everything issue #233's split didn't carve out a dedicated file for): <code>editing.py</code> (<code>insert_doc_text</code>, <code>delete_doc_range</code>, <code>insert_page_break</code>, <code>insert_softbreak_paragraph</code>), <code>images.py</code> (<code>insert_inline_image</code>, <code>insert_local_images</code>), <code>comments.py</code> (<code>list_doc_comments</code>, <code>add_doc_comment</code>, <code>resolve_doc_comment</code>), <code>named_ranges.py</code> (<code>create_named_range</code>, <code>create_bookmark</code>) — plus the markdown/HTML conversion pipeline these tools drive: <code>ast.py</code>, <code>html_parser.py</code>, <code>emitter.py</code>, <code>anchors.py</code>, <code>indices.py</code>.</p>
+<p>Source: <code>src/mcp_gee_sweet/tools/docs/content.py</code>, plus three submodules bundled here rather than split into their own files (this file is the catch-all for everything issue #233's split didn't carve out a dedicated file for; the comment tools' own cases moved to <code>drive_comments.md</code> with #663): <code>editing.py</code> (<code>insert_doc_text</code>, <code>delete_doc_range</code>, <code>insert_page_break</code>, <code>insert_softbreak_paragraph</code>), <code>images.py</code> (<code>insert_inline_image</code>, <code>insert_local_images</code>), <code>named_ranges.py</code> (<code>create_named_range</code>, <code>create_bookmark</code>) — plus the markdown/HTML conversion pipeline these tools drive: <code>ast.py</code>, <code>html_parser.py</code>, <code>emitter.py</code>, <code>anchors.py</code>, <code>indices.py</code>.</p>
 <p>Fixtures: see <a href="../../setup/"><code>docs/qa/setup.md</code></a>. Substitute <code>{DOC_ID}</code> (and, for <code>insert_local_images</code>, <code>{FOLDER_ID}</code>) from <code>fixtures.local.md</code>.</p>
 <p>These tools operate on document body indices. Use <code>get_doc_structure</code> first in any session to obtain current indices before calling insert/delete/style operations.</p>
 <hr />
@@ -3461,168 +3461,6 @@ Run 2 (ash).
 
 ---
 
-## `list_doc_comments` / `add_doc_comment` / `resolve_doc_comment` (#151)
-
-These operate on the Drive `comments`/`replies` resource, not the Docs API — they work against any file type Drive supports comments on (Docs, Sheets, Slides), but are scoped here to the doc fixture. There is no `delete_doc_comment` tool (out of scope for #151), so comments added during QA are not cleanable via a tool call — they persist as real threads on the fixture doc until removed manually in the Docs UI. Keep test comment text prefixed `QA TC-DOC…` so they're identifiable for manual cleanup.
-
-### TC-DOC96: Add a comment with no quoted-text anchor ⚠️ destructive
-**Prompt**
-> "Add a comment 'QA TC-DOC96: general note.' to doc {DOC_ID}"
-
-**Checks**
-- Returns `id`, `content` matching the input text, `author` (`display_name`/`email_address` populated from the caller's identity), `created_time`
-- `quoted_text` is `null` — no anchor was requested
-- No error
-
-**Cleanup:** none available — no `delete_doc_comment` tool exists; the comment persists on the fixture doc (see section note above)
-
-**Result (2026-07-16) ✅ PASS**
-`add_doc_comment(doc_id=<TEST_DOC_ID>, content="QA TC-DOC96: general note.")` returned `id: "AAAB-5FtNYE"`, `content` matching the input, `author.display_name: "<QA user>"`, `created_time`, `quoted_text: null`. No error. Note: `author.email_address` was `null` rather than populated — this is Drive API behavior for the authenticated OAuth user's own comments (email visibility is a privacy-scoped field), not a tool defect; the tool correctly passes through whatever the API returns.
-
-**Result (2026-09-04) ✅ PASS**
-add_doc_comment (no anchor) returned id, content match, author.display_name="<QA user>" (email_address null - Drive API privacy behavior, not a defect), created_time, quoted_text:null.
-
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
-Run 2 (ash).
-
-**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
-`oauth`: add_doc_comment returned id, matching content, author.display_name, created_time and quoted_text:null. email_address was null, which is the known Drive privacy behavior.
-
-**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — Run on the fixture copy. Returned id `doco.PHdj…`, matching content, author.display_name, created_time, `quoted_text: null`. `author.email_address` is null (Drive privacy behavior for the caller's own comments, as in prior passes; see stale wording note).
-
----
-
-### TC-DOC97: Add a comment anchored to quoted text ⚠️ destructive
-**Setup:** `{DOC_ID}` must contain the literal text "QA anchor target" somewhere (use `write_doc_content` to add it first if absent)
-
-**Prompt**
-> "Add a comment 'QA TC-DOC97: anchored note.' to doc {DOC_ID}, quoting the text 'QA anchor target'"
-
-**Checks**
-- Returns `quoted_text: "QA anchor target"` — the anchor round-trips through the API response
-- `list_doc_comments` on the same doc shows this comment with the same `quoted_text`
-
-**Cleanup:** none available (see section note above)
-
-**Result (2026-07-16) ✅ PASS**
-Doc lacked the literal text "QA anchor target", so it was inserted via `insert_doc_text` (not `write_doc_content`, which replaces the whole doc body — using it as the setup note suggests would have wiped the fixture's existing content). `add_doc_comment(doc_id=<TEST_DOC_ID>, content="QA TC-DOC97: anchored note.", quoted_text="QA anchor target")` returned `quoted_text: "QA anchor target"`, round-tripping correctly. Confirmed via `list_doc_comments` in TC-DOC98 below.
-
-**Result (2026-09-04) ✅ PASS**
-Inserted "QA anchor target" text via insert_doc_text, then add_doc_comment with quoted_text="QA anchor target" returned quoted_text round-tripped correctly.
-
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
-Run 2 (ash).
-
-**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
-`oauth`: I inserted "QA anchor target" with insert_doc_text, then add_doc_comment returned quoted_text "QA anchor target".
-
-**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — Added "QA anchor target" to the copy with insert_doc_text, then add_doc_comment returned `quoted_text: "QA anchor target"`; list_doc_comments shows the same quoted_text.
-
----
-
-### TC-DOC98: List comments reflects previously added comments
-**Setup:** run TC-DOC96 and TC-DOC97 first
-
-**Prompt**
-> "List the comments on doc {DOC_ID}"
-
-**Checks**
-- Both the TC-DOC96 and TC-DOC97 comments appear in `comments`
-- Each has `resolved: false` and `replies: []`
-- The TC-DOC97 entry has `quoted_text: "QA anchor target"`; the TC-DOC96 entry has `quoted_text: null`
-- `doc_id` in the response matches `{DOC_ID}`
-
-**Cleanup:** none (read-only)
-
-**Result (2026-07-16) ✅ PASS**
-`list_doc_comments(doc_id=<TEST_DOC_ID>)` returned both comments: TC-DOC97 (`quoted_text: "QA anchor target"`) and TC-DOC96 (`quoted_text: null`), both `resolved: false` and `replies: []`, `doc_id` echoed correctly.
-
-**Result (2026-09-04) ✅ PASS**
-list_doc_comments showed both TC-DOC96/97 comments, both resolved:false and replies:[], correct quoted_text values, doc_id matches.
-
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
-Run 2 (ash).
-
-**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
-`oauth`: list_doc_comments listed both comments with resolved:false and replies:[], the correct quoted_text values, and a matching doc_id.
-
-**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — Both comments listed, each `resolved:false`, `replies:[]`; DOC97 entry has the quoted_text, DOC96 entry null; `doc_id` matches the copy.
-
----
-
-### TC-DOC99: Resolve a comment ⚠️ destructive
-**Setup:** use the `id` returned by TC-DOC96 as `{COMMENT_ID}`
-
-**Prompt**
-> "Resolve comment {COMMENT_ID} on doc {DOC_ID} with the reply 'Handled.'"
-
-**Checks**
-- Returns `doc_id`, `comment_id`, `reply_id`, and `action: "resolve"`
-- Re-running `list_doc_comments` shows that comment with `resolved: true` and a reply with `content: "Handled."` and `action: "resolve"`
-
-**Cleanup:** none available — resolving doesn't remove the comment thread, just marks it resolved (see section note above)
-
-**Result (2026-07-16) ✅ PASS**
-`resolve_doc_comment(doc_id=<TEST_DOC_ID>, comment_id="AAAB-5FtNYE", reply_content="Handled.")` returned `doc_id`, `comment_id`, `reply_id: "AAAB-5FtNYQ"`, `action: "resolve"`. Re-ran `list_doc_comments`: the TC-DOC96 comment now shows `resolved: true` with a reply `content: "Handled.", action: "resolve"`. The reply also included `modified_time` — confirms the fix from PR review comment (missing `modified_time` on replies) is live.
-
-**Result (2026-09-04) ✅ PASS**
-resolve_doc_comment(TC-DOC96's id) returned doc_id/comment_id/reply_id/action:"resolve". Re-list confirmed resolved:true with reply content "Handled.", action:"resolve", modified_time present.
-
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
-Run 2 (ash).
-
-**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
-`oauth`: resolve_doc_comment returned doc_id, comment_id, reply_id and action "resolve". A re-list showed resolved:true with a reply "Handled." (action resolve, modified_time present).
-
-**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — resolve_doc_comment returned doc_id, comment_id, reply_id, `action:"resolve"`; relisting shows the DOC96 comment `resolved:true` with a reply content "Handled.", action "resolve".
-
----
-
-### TC-DOC100: Resolve a non-existent comment ID
-**Prompt**
-> "Resolve comment 'not-a-real-comment-id' on doc {DOC_ID}"
-
-**Checks**
-- API error propagates — not a silent success or server crash
-
-**Cleanup:** none (no mutation applied)
-
-**Result (2026-07-16) ✅ PASS**
-`resolve_doc_comment(doc_id=<TEST_DOC_ID>, comment_id="not-a-real-comment-id")` raised `HttpError 404 ... "Comment not found: not-a-real-comment-id."` — propagated cleanly, no silent success, no server crash.
-
-**Result (2026-09-04) ✅ PASS**
-resolve_doc_comment('not-a-real-comment-id') raised HttpError 404 "Comment not found" — propagated cleanly, no silent success.
-
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
-Run 2 (ash).
-
-**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
-`oauth`: A fake comment ID raised HttpError 404 "Comment not found".
-
-**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — Tool error carrying the HttpError 404 "Comment not found: not-a-real-comment-id." Not a silent success or crash.
-
----
-
-### TC-DOC101: List comments on a non-existent doc
-**Prompt**
-> "List the comments on doc 'not-a-real-doc-id'"
-
-**Checks**
-- API error propagates — not a silent empty list or server crash
-
-**Cleanup:** none (no mutation applied)
-
-**Result (2026-07-16) ✅ PASS**
-`list_doc_comments(doc_id="not-a-real-doc-id")` raised `HttpError 404 ... "File not found: not-a-real-doc-id."` — propagated cleanly, no silent empty list, no server crash.
-
-**Result (2026-10-17) ✅ PASS — v0.9.2 release pass**
-Run 2 (ash).
-
-**Result (2026-10-19) ✅ PASS — v0.9.3 release pass**
-`oauth`: A fake doc ID raised HttpError 404 "File not found".
-
-**Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard B on `mcp-gee-sweet-oauth`** — Tool error carrying HttpError 404 "File not found: not-a-real-doc-id." Not an empty list.
-
 ## HTML/Markdown → Doc image conversion (#332, #333)
 
 **Background:** `_AstParser` in `html_parser.py` has no `<img>` handling at all — `handle_starttag`/`handle_endtag` recognize block tags, inline formatting tags, table tags, and list tags, but an `img` tag matches none of those branches and is silently ignored. Since markdown images (`![alt](src)`) are converted to `<img>` HTML by `_md_to_html` before reaching this same parser, **every** content path that goes through the shared AST pipeline — `create_doc`, `create_doc_from_file`, `write_doc_content`, for both `content_format="html"` and `content_format="markdown"` — drops images with no error, no warning, and no placeholder. The only working path today is the separate `insert_inline_image` tool (TC-DOC57/58), which requires a second pass of index bookkeeping after the doc already exists (the manual workaround documented in #332/#333).
@@ -3633,9 +3471,6 @@ This is worse than a simple drop in two cases, both verified directly against `h
 
 **Fixtures:** `docs/qa/fixtures/tc-doc102-image-conversion.html` and `docs/qa/fixtures/tc-doc103-image-conversion.md` — each covers 8 placement cases: standalone image paragraph, inline mid-paragraph, two consecutive images with no separating text, image wrapped in a link, image inside a list item, image inside a table cell, image inside a nested table cell (HTML only — markdown tables can't nest, matching the documented limitation in TC-DOC51; the markdown fixture substitutes reference-style `![alt][ref]` syntax for its Case 7 instead), and an image with an unreachable URL (included specifically to show the drop happens at parse time, before any HTTP fetch is attempted — a dead image URL fails identically to a live one).
 
-
-**Result (2026-09-04) ✅ PASS**
-list_doc_comments('not-a-real-doc-id') raised HttpError 404 "File not found" — propagated cleanly, no silent empty list.
 
 ### TC-DOC102: HTML image conversion — every placement should produce a visible image ⚠️ requires-oauth ⚠️ destructive
 
@@ -5899,7 +5734,7 @@ Run 2 (ash).
 ---
 
 ### TC-DOC179: `include_comments=True` includes only open comments
-**Setup:** `write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="Some anchor text here.\n")`, then `add_doc_comment(doc_id={DOC_ID}, content="please revise", quoted_text="anchor text")` to get `comment_id_1`, and a second `add_doc_comment(doc_id={DOC_ID}, content="resolved note")` to get `comment_id_2`, then `resolve_doc_comment(doc_id={DOC_ID}, comment_id=comment_id_2)`
+**Setup:** `write_doc_content(doc_id={DOC_ID}, content_format='markdown', content="Some anchor text here.\n")`, then `add_file_comment(file_id={DOC_ID}, content="please revise", quoted_text="anchor text")` to get `comment_id_1`, and a second `add_file_comment(file_id={DOC_ID}, content="resolved note")` to get `comment_id_2`, then `reply_to_comment(file_id={DOC_ID}, comment_id=comment_id_2, action='resolve')`
 
 **Prompt**
 > "Export doc {DOC_ID} as Markdown including comments"
@@ -7172,16 +7007,16 @@ Run 2 (ash).
 
 ## Comment quoted text is plain text, not HTML-escaped (#984)
 
-Drive returns a comment's `quotedFileContent.value` HTML-escaped (`Caf&#233;`, `&amp;`, `&lt;`, `&quot;`, `&#39;`), and a literal `&amp;` in the anchor as `&amp;amp;`. `add_doc_comment`, `list_doc_comments`, and `get_doc_as_markdown(include_comments=True)` unescape it once. The Markdown export then escapes the quote only as Markdown needs, with `"> "` on every line, and escapes comment authors, text, and replies the same way.
+Drive returns a comment's `quotedFileContent.value` HTML-escaped (`Caf&#233;`, `&amp;`, `&lt;`, `&quot;`, `&#39;`), and a literal `&amp;` in the anchor as `&amp;amp;`. `add_file_comment`, `list_file_comments`, and `get_doc_as_markdown(include_comments=True)` unescape it once (`add_doc_comment` and `list_doc_comments` before #663). The Markdown export then escapes the quote only as Markdown needs, with `"> "` on every line, and escapes comment authors, text, and replies the same way.
 
 ### TC-DOC215: Non-ASCII, `&`/`<`/`"`, literal-entity, and multi-line anchors round-trip as plain text ⚠️ destructive ⚠️ requires-oauth
 **Setup:** `create_doc(title="QA TC-DOC215", folder_id={FOLDER_ID}, content="<p>Café and Tom &amp; Jerry, a &lt; b, say \"hi\" it's &amp;amp; literal</p><p>line one</p><p>line *two* &lt;x&gt;</p>")`, note the returned `docId` as `{SCRATCH_DOC_ID}`
 
 **Steps**
-1. `add_doc_comment(doc_id={SCRATCH_DOC_ID}, content="QA TC-DOC215 a <b> *x*", quoted_text="Café and Tom & Jerry, a < b, say \"hi\" it's")`
-2. `add_doc_comment(doc_id={SCRATCH_DOC_ID}, content="QA TC-DOC215 b", quoted_text="&amp; literal")`
-3. `add_doc_comment(doc_id={SCRATCH_DOC_ID}, content="QA TC-DOC215 c", quoted_text="line one\nline *two* <x>")`
-4. `list_doc_comments(doc_id={SCRATCH_DOC_ID})`
+1. `add_file_comment(file_id={SCRATCH_DOC_ID}, content="QA TC-DOC215 a <b> *x*", quoted_text="Café and Tom & Jerry, a < b, say \"hi\" it's")`
+2. `add_file_comment(file_id={SCRATCH_DOC_ID}, content="QA TC-DOC215 b", quoted_text="&amp; literal")`
+3. `add_file_comment(file_id={SCRATCH_DOC_ID}, content="QA TC-DOC215 c", quoted_text="line one\nline *two* <x>")`
+4. `list_file_comments(file_id={SCRATCH_DOC_ID})`
 5. `get_doc_as_markdown(doc_id={SCRATCH_DOC_ID}, include_comments=True)`
 
 **Checks**
@@ -7207,15 +7042,15 @@ Run 2 (ash).
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard C on `mcp-gee-sweet-jay`** — Steps 1–3 returned quoted_text identical to input (`Café …`, `&amp; literal`, `line one\nline *two* <x>`); list_doc_comments matches. Export quotes: `> Café and Tom & Jerry, a < b, say "hi" it's`, `> \&amp; literal`, `> line one\` / `> line \*two\* \<x>`, each followed by a blank line; comment text `QA TC-DOC215 a \<b> \*x\*`; no `&#233;`/`&quot;`/`&#39;`/`&lt;`. Doc trashed.
 
 ### TC-DOC217: Multi-line comment text and indented/rule body paragraphs stay plain text in the Markdown export ⚠️ destructive ⚠️ requires-oauth
-Comment text is plain text, so no line of it may render as Markdown structure, and each line keeps its own line (a hard break, not a soft wrap). Body paragraphs that start with spaces or a tab before a marker, or that are a `---` rule line, stay plain paragraphs too (#993). Replies are covered by unit tests only: the one tool that posts a reply, `resolve_doc_comment`, also resolves the comment, and `include_comments` exports only open ones.
+Comment text is plain text, so no line of it may render as Markdown structure, and each line keeps its own line (a hard break, not a soft wrap). Body paragraphs that start with spaces or a tab before a marker, or that are a `---` rule line, stay plain paragraphs too (#993). Replies are covered by unit tests only: until #663 the one tool that posted a reply, `resolve_doc_comment`, also resolved the comment, and `include_comments` exports only open ones. `reply_to_comment` now posts a plain reply, so a live case for an exported reply is possible.
 
 **Setup:**
 - `create_doc(title="QA TC-DOC217", folder_id={FOLDER_ID}, content="<p>anchor</p>")`, note the returned `docId` as `{SCRATCH_DOC_ID}`
 - `insert_doc_text(doc_id={SCRATCH_DOC_ID}, insertions=[{"index": 1, "text": " - a\n  # h\n---\n\ttab indent\n## Notes\n"}])`
 
 **Steps**
-1. `add_doc_comment(doc_id={SCRATCH_DOC_ID}, quoted_text="anchor", content="Summary\n---\nPoints:\n - a\n   - b\na | b\n-|-\nc | d\n## Notes\n\n    indented *x*")`
-1a. `add_doc_comment(doc_id={SCRATCH_DOC_ID}, quoted_text="Summary\n===  ", content="QA TC-DOC217 setext")` (the trailing spaces after `===` are part of the anchor; Drive keeps them in `quoted_text`)
+1. `add_file_comment(file_id={SCRATCH_DOC_ID}, quoted_text="anchor", content="Summary\n---\nPoints:\n - a\n   - b\na | b\n-|-\nc | d\n## Notes\n\n    indented *x*")`
+1a. `add_file_comment(file_id={SCRATCH_DOC_ID}, quoted_text="Summary\n===  ", content="QA TC-DOC217 setext")` (the trailing spaces after `===` are part of the anchor; Drive keeps them in `quoted_text`)
 2. `get_doc_as_markdown(doc_id={SCRATCH_DOC_ID}, include_comments=True, local_path="/tmp/tc-doc217.md")`
 3. `uv run python -c "from markdown_it import MarkdownIt; print(MarkdownIt('commonmark').enable('table').render(open('/tmp/tc-doc217.md').read()))"`
 
@@ -8859,7 +8694,7 @@ Step 2 matches every listed line (`   1. Nested`, `      - deep bullet`, `  - b`
 2. `get_doc_as_markdown(doc_id={DOC})` twice
 3. `get_doc_structure(doc_id={DOC})`, then `insert_doc_text(doc_id={DOC}, insertions=[{"index": <the endIndex of "First paragraph"> - 1, "text": " edited"}])`, then `get_doc_as_markdown(doc_id={DOC})`
 4. In Playwright, type ` typed` at the end of the paragraph in the Docs editor, wait 10 seconds, then `get_doc_as_markdown(doc_id={DOC})`
-5. `add_doc_comment(doc_id={DOC}, content="cached?")`, then `get_doc_as_markdown(doc_id={DOC}, include_comments=True)`
+5. `add_file_comment(file_id={DOC}, content="cached?")`, then `get_doc_as_markdown(doc_id={DOC}, include_comments=True)`
 6. `get_doc_content(file_id={DOC})`, and read its description in the client's tool list
 
 **Checks**
