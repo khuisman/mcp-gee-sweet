@@ -148,6 +148,14 @@ SECTIONS = [
         "Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.",
     ),
     (
+        "Drive — comments",
+        lambda f: f.__module__ == "mcp_gee_sweet.tools.drive.comments",
+        "Comments on any Drive file that takes them: Docs, Sheets, Slides and other "
+        "files, through the Drive `comments`/`replies` resource. Resolving and "
+        "reopening a comment are replies with an `action`, so `reply_to_comment` does "
+        "both.",
+    ),
+    (
         "Docs",
         lambda f: f.__module__.startswith("mcp_gee_sweet.tools.docs."),
         "`write_doc_content` and `create_doc` accept either HTML or Markdown "
@@ -213,9 +221,9 @@ GROUP_DESCRIPTIONS = {
         "too)"
     ),
     "drive": (
-        "Every Drive tool: files, sharing, activity, upload, download, local sync, and "
-        "creating, listing, searching, importing and sharing spreadsheets (also in "
-        "`sheets`)"
+        "Every Drive tool: files, sharing, comments, activity, upload, download, local "
+        "sync, and creating, listing, searching, importing and sharing spreadsheets "
+        "(also in `sheets`)"
     ),
     "docs": "Every Docs tool",
     "calendar": "Every Calendar tool",
@@ -227,7 +235,7 @@ GROUP_DESCRIPTIONS = {
         "file, and local images inserted into a Doc. "
         "Not registered when `LOCAL_FILE_ACCESS=off`"
     ),
-    "comments": "Doc comments: {tools}",
+    "comments": "Comments on any Drive file (Docs, Sheets, Slides, ...): {tools}",
 }
 
 # Every membership the prose above and in render_filtering_block states, as
@@ -244,6 +252,9 @@ SPREADSHEET_FILE_TOOLS = (
 )
 MEMBERSHIP_CLAIMS = (
     ("create_spreadsheet", tool_groups.DEFAULT, True),
+    # "searching ... spreadsheets" in the `sheets` description: search_files absorbs
+    # search_spreadsheets and list_spreadsheets (#1528).
+    ("search_files", "sheets", True),
     *((name, "sheets", True) for name in SPREADSHEET_FILE_TOOLS),
     *((name, "drive", True) for name in SPREADSHEET_FILE_TOOLS),
 )
@@ -452,7 +463,7 @@ def render_filtering_block(groups_by_name: dict[str, frozenset[str]]) -> str:
         + ", ".join(f"`{name}`" for name in DEFAULT_LEAVES_OUT)
         + ", ...) need `local-files` or their "
         "own names. It also leaves out most structural tools: Sheets formatting and "
-        "charts, Docs tables, themes and comments, calendar management, and Drive "
+        "charts, Docs tables and themes, file comments, calendar management, and Drive "
         "trash. Add a service group, or the tool names, for those.",
         "",
         "**Combining entries.** Join groups and names with a comma, e.g. "

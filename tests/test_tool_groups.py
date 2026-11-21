@@ -124,8 +124,9 @@ class TestGroupGuards:
 
     def test_comments_group(self):
         assert _members("comments") == {
-            "list_doc_comments",
-            "add_doc_comment",
+            "list_file_comments",
+            "add_file_comment",
+            "reply_to_comment",
             "resolve_doc_comment",
         }
 
@@ -228,7 +229,7 @@ class TestSelection:
 
     def test_union_of_a_group_and_a_name(self):
         selection = Selection.from_entries(("docs", "list_events"))
-        assert selection.selects("add_doc_comment", frozenset({"docs", "comments"}))
+        assert selection.selects("get_doc_structure", frozenset({"docs"}))
         assert selection.selects("list_events", frozenset({"calendar", "default"}))
         assert not selection.selects("get_event", frozenset({"calendar", "default"}))
 
@@ -483,7 +484,8 @@ class TestLaunch:
 
     def test_all_registers_every_tool(self):
         names, _, instructions, _ = _launch({"ENABLED_TOOLS": "all"})
-        assert set(names) == set(_registrations())
+        # `all` registers every deprecated alias too (#1209).
+        assert set(names) == set(_registrations()) | set(tool_groups.RENAMED_TOOLS)
         assert instructions.startswith("Tools: every tool is loaded")
 
     def test_a_group_and_a_name_leave_gmail_out(self):
@@ -503,8 +505,13 @@ class TestLaunch:
     def test_off_with_all_doesnt_claim_every_tool(self):
         names, _, instructions, _ = _launch({"LOCAL_FILE_ACCESS": "off", "ENABLED_TOOLS": "all"})
         total = len(_registrations())
-        assert instructions.startswith(f"Tools: this server loads {len(names)} of {total} tools.")
-        assert len(names) < total
+        tools = [name for name in names if name not in tool_groups.RENAMED_TOOLS]
+        aliases = len(names) - len(tools)
+        assert instructions.startswith(
+            f"Tools: this server loads {len(tools)} of {total} tools, plus {aliases} "
+            "deprecated aliases."
+        )
+        assert len(tools) < total
 
     @pytest.mark.parametrize("value", ["ALL", "get_sheet_dta"])
     def test_an_unknown_entry_warns_and_the_server_still_starts(self, value):
@@ -550,8 +557,9 @@ class TestAuthStatusToolSelection:
             "entries": ["default"],
             "configured": False,
             "registered_tools": len(server._registered_tools),
-            "deprecated_aliases": [],
-            # The suite registers every tool, deprecated ones included (#1525, #1526, #1527).
+            # The suite registers every tool, deprecated ones and aliases included
+            # (#663, #1525, #1526, #1527, #1528).
+            "deprecated_aliases": sorted(tool_groups.RENAMED_TOOLS),
             "deprecated_tools": [
                 "add_columns",
                 "add_rows",
@@ -570,9 +578,16 @@ class TestAuthStatusToolSelection:
                 "hide_rows",
                 "insert_table_column",
                 "insert_table_row",
+                "list_folders",
+                "list_recent_files",
+                "list_shared_with_me",
+                "list_spreadsheets",
                 "resize_columns",
                 "resize_rows",
+                "resolve_doc_comment",
+                "search_spreadsheets",
                 "unhide_columns",
                 "unhide_rows",
+                "unstar_file",
             ],
         }
