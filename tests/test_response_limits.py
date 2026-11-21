@@ -197,25 +197,35 @@ def _resolve_hint_expr(
             node.orelse, scope, where, resolving
         )
     if isinstance(node, ast.Name):
-        assigned = scope.get(node.id)
-        if not assigned:
+        assigned = scope.get(node.id, [])
+        # #1568 review: an inner `hint` reads only the assignments on lines
+        # above the read — never a later `hint = …` (an UnboundLocalError at
+        # runtime) and never the assignment being expanded. Every recorded
+        # value carries a line — the synthetic BinOp for `+=` its statement's
+        # — so both are one lineno comparison. A read with nothing before it
+        # fails below: as self-referential while that very assignment is
+        # being expanded.
+        earlier = [value for value in assigned if value.lineno < node.lineno]
+        if not earlier:
             if node.id in resolving:
                 raise AssertionError(f"{where}: hint {node.id!r} is self-referential")
+            if not assigned:
+                raise AssertionError(
+                    f"{where}: hint reads {node.id!r}, which no assignment in this "
+                    "function's scope defines"
+                )
             raise AssertionError(
-                f"{where}: hint reads {node.id!r}, which no assignment in this "
-                "function's scope defines"
+                f"{where}: hint reads {node.id!r} before any earlier assignment of it"
             )
         values: set[str] = set()
-        for value in assigned:
-            # #1560: `hint = hint + "…"` reads the name's earlier assignments,
-            # never the one being expanded — resolving that inner reference
-            # against every *other* assignment keeps that valid pattern from
-            # reading as self-referential. The shrunk lookup keeps recursion
-            # bounded; a reference with nothing left to read still fails
-            # loudly above, and a mutual cycle lands on the self-referential
-            # message once the shrinking lists run empty.
+        for value in earlier:
+            # `hint = hint + "…"` reads the name's earlier assignments,
+            # never the one being expanded — dropping the value being
+            # expanded keeps recursion bounded; a reference with nothing
+            # left to read fails loudly above, and a mutual cycle lands on
+            # the self-referential message once the shrinking lists run empty.
             reduced = dict(scope)
-            reduced[node.id] = [other for other in assigned if other is not value]
+            reduced[node.id] = [other for other in earlier if other is not value]
             values |= _resolve_hint_expr(value, reduced, where, resolving | {node.id})
         return values
     if isinstance(node, ast.Call) and _call_name(node.func) == "pagination_hint":
@@ -305,18 +315,18 @@ def _collect_scope_hints(
             if stmt.value is not None:
                 _record_assign(scope, stmt.target, stmt.value)
         elif isinstance(stmt, ast.AugAssign) and isinstance(stmt.target, ast.Name):
-            # `hint += "…"` is `hint = hint + "…"` — record the BinOp; the
-            # Name resolver reads the name's earlier assignments for the left
-            # side (#1560).
-            _record_assign(
-                scope,
-                stmt.target,
-                ast.BinOp(
-                    left=ast.Name(id=stmt.target.id, ctx=ast.Load()),
-                    op=ast.Add(),
-                    right=stmt.value,
-                ),
+            # `hint += "…"` is `hint = hint + "…"` — record the BinOp
+            # carrying its statement's location (#1568 review): the inner
+            # Name then sits on the statement's line, so the line-ordered
+            # lookup below reads only the assignments above it.
+            chained = ast.BinOp(
+                left=ast.Name(id=stmt.target.id, ctx=ast.Load()),
+                op=ast.Add(),
+                right=stmt.value,
             )
+            ast.copy_location(chained, stmt)
+            ast.copy_location(chained.left, stmt)
+            _record_assign(scope, stmt.target, chained)
     for stmt in own:
         if isinstance(stmt, _SCOPE_DEFS):
             continue
@@ -627,6 +637,46 @@ class TestCollectCapHints:
         )
         with pytest.raises(AssertionError, match="self-referential"):
             _collect_cap_hints(src)
+
+    def test_a_chained_assignment_before_the_plain_one_fails(self, tmp_path):
+        # #1568 review: `hint = hint + "…"` *above* `hint = "…"` used to
+        # resolve its inner read against the later plain assignment —
+        # "A. B. " — where runtime raises UnboundLocalError. The inner
+        # reference reads only earlier assignments now, so with nothing
+        # before it the chain fails as self-referential.
+        src = self._pkg(
+            tmp_path,
+            "def one(x):\n"
+            '    hint = hint + "And another. "\n'
+            '    hint = "One sentence. "\n'
+            '    enforce_response_size_cap(x, tool_name="t", hint=hint)\n',
+        )
+        with pytest.raises(AssertionError, match="self-referential"):
+            _collect_cap_hints(src)
+
+    def test_chained_augassigns_resolve_in_source_order(self, tmp_path):
+        # #1568 review: every `hint += …` used to read every other
+        # assignment of the name, so the pieces combined in any order —
+        # "A. C. B. " — and the combinations grew factorially with the
+        # number of lines. Reads are line-ordered now: each collected
+        # string is a prefix chain (B. never before A., C. never before
+        # B.), the full chain reads "A. B. C. ", and a read can still
+        # name any earlier value, so the sub-chains a conditional would
+        # genuinely produce stay in the set.
+        src = self._pkg(
+            tmp_path,
+            "def one(x):\n"
+            '    hint = "A. "\n'
+            '    hint += "B. "\n'
+            '    hint += "C. "\n'
+            '    enforce_response_size_cap(x, tool_name="t", hint=hint)\n',
+        )
+        assert _collect_cap_hints(src) == [
+            "A. ",
+            "A. B. ",
+            "A. B. C. ",
+            "A. C. ",
+        ]
 
     def test_f_string_conversions_and_format_specs_resolve(self, tmp_path):
         # #1560: !r and the format spec were flattened to a bare str().
