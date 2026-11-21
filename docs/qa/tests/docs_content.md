@@ -7635,3 +7635,62 @@ Steps 1 and 3 returned no `dropped_links`. Step 2: the raw text is `Price\xa0Lis
 
 **Result (2026-11-20) ✅ PASS (steps 1–3 and 5) — Rio's re-run for PR #1556's review, on `mcp-gee-sweet-rio` (OAuth, Shared Drive default folder) at `342f0ec0` (`develop` `0762485`, which changes no docs code since `d10215a`)**
 Steps 1 and 3: no `error`, no `dropped_links`. Step 2: `a` → the first heading's `headingId`, `b` → the second's. Step 3: `a` and `b` → the break heading (`Heading one\vheading two`), `c` → `A - Approved`, `d`/`e` → the first and second `Intro`. Step 5: an `export_revision` before the relink returned the same-document URLs unchanged, as TC-DOC252 records. After relinking by `headingId` through a scratch script, `export_revision` returned exactly `Links: [a](#pricelist) and [b](#price-list).` and `Links: [a](#heading-oneheading-two) and [b](#heading-oneheading-two), [c](#a---approved), [d](#intro), [e](#intro-1).`, with `## Heading one<br>heading two` intact. Step 4 wasn't re-run; it rests on the 2026-11-18 run. Docs trashed.
+
+---
+
+## Live coverage for merged PRs #1530 and #1531
+
+Run on 2026-11-21 in an isolated service-account sandbox on a Shared Drive, against `develop` with both PRs merged (`ef402e5`). Raw reads are a `documents().get()` from a read-only script, since `get_doc_structure` reports neither a run's font nor an inline image's style. This session had no browser. Neither case has an on-screen check.
+
+### TC-DOC270: A `font_family` line keeps the bold its insert inherits, from the neighbour Docs actually styles it from (#1499) ⚠️ destructive
+
+**Purpose:** a `weightedFontFamily` request clears bold, so an inserted `font_family` line that sends no `bold` of its own lost the bold the insert inherited (#1273's behaviour, in `insert_softbreak_paragraph`). The bold is now restored after the font request. Without `named_style_type` nothing else changes. With one, the paragraph-style request has already cleared the inherited bold, so nothing is restored.
+
+**Steps** (one doc per step; `{P}` = `<p>aaa <b>bold</b> bbb</p>`, where `bold` is 5–9)
+1. `create_doc(title="TC-DOC270 a", folder_id={FOLDER_ID}, content={P})`, then `insert_softbreak_paragraph(index=9, lines=[{"text": "code", "font_family": "Courier New"}])`
+2. As step 1 at `index=5` (after the plain `aaa `)
+3. As step 1 with `{"text": "code", "font_family": "Courier New", "bold": false}`
+4. As step 1 with `named_style_type="NORMAL_TEXT"`
+5. `content="<p><b>Header</b></p><p>tail</p>"`: insert the step 1 line at the start of `tail` (8). A control doc gets `[{"text": "code"}]` (no font, so no restore) at the same index
+6. `content="<p>plain</p><p><b>Bold</b></p>"`: insert the step 1 line at the start of `Bold` (7), with the same control
+7. Regression (#1489): `content="<p><s>struck</s> mid <i>it</i></p>"`, then `insert_softbreak_paragraph(index=12, lines=[{"text": "new"}])`
+
+**Checks** (raw `documents().get()`)
+- Step 1: `code` bold and Courier New
+- Step 2: `code` Courier New, not bold
+- Step 3: `code` Courier New, not bold
+- Step 4: `code` not bold
+- Steps 5 and 6: the control shows which neighbour Docs styles a paragraph-start insert from. `code` is bold exactly when that neighbour is
+- Step 7: `struck` still struck and `it` still italic
+
+**Cleanup:** `delete_file` every doc
+
+**Result (2026-11-21) ❌ FAIL — steps 5 and 6: a paragraph-start insert takes its style from the text after `index`, but the restore reads the character before it (#1584)**
+Step 1: `code` `{bold, Courier New}`. Step 2: `code` Courier New only. Step 3: `code` Courier New only. Step 4: `code` Courier New only (the `NORMAL_TEXT` request also cleared `bold`'s own bold, as the docstring says). Step 7: `struck` struck, ` mid new` plain, `it` italic. Step 5: the control's `code` is plain, so Docs follows `tail`, but the font line's `code` is bold: the restore read `Header`'s bold newline. Step 6: the control's `code` is bold, following `Bold`, but the font line's `code` is plain: the font request cleared the inherited bold and nothing restored it. Docs trashed.
+
+### TC-DOC271: `get_doc_as_markdown` keeps one emphasis span across an inline image that shares it (#1509) ⚠️ requires-network ⚠️ destructive
+
+**Purpose:** an inline image inside a styled span exported bare, splitting the span in two (`**bold** ![](…) **image**`). The export now reads the image's own character style and renders one span across a run–image–run sequence that shares it, and a span around a lone styled image. It falls back to the split rendering, the image bare, when a marker would sit next to a letter, a digit or a neighbouring run's own `*` at the image's edge.
+
+**Steps** (each a `.md` or `.html` file beside a local `logo.png`, through `create_doc_from_file(folder_id={FOLDER_ID})`, then `get_doc_as_markdown`)
+1. `**bold ![logo](logo.png) image**`; then `update_doc_from_file` the same doc from step 1's export
+2. `**![logo](logo.png)**`
+3. `*a ![logo](logo.png) b*` and `~~a ![logo](logo.png) b~~`
+4. `[**a ![logo](logo.png) b**](https://example.com)`
+5. HTML `<p><b>bold <img src="logo.png" alt="logo"></b><i>(it)</i></p>` and `<p><i>it</i><b><img src="logo.png" alt="logo"> bold</b></p>`
+6. A one-column table whose body cell is `**a ![logo](logo.png) b**`
+7. `plain ![logo](logo.png) text`
+
+**Checks**
+- Step 1: `**bold ![](…) image**`. After the update, a raw read has the image bold
+- Step 2: `**![](…)**`
+- Step 3: `*a ![](…) b*` and `~~a ![](…) b~~`
+- Step 4: `[**a ![](…) b**](https://example.com)`, one link, the image not wrapped twice
+- Step 5: the image bare between the two runs, both still styled, with no `***`
+- Step 6: the cell reads `**a ![](…) b**`
+- Step 7: `plain ![](…) text`
+
+**Cleanup:** `delete_file` every doc and uploaded image
+
+**Result (2026-11-21) ✅ PASS**
+Step 1: `**bold ![](…) image**`. Raw read after `update_doc_from_file` from that export: `bold `, the image and ` image` all `bold: true`. Step 2: `**![](…)**`. Step 3: `*a ![](…) b*` and `~~a ![](…) b~~`. Step 4: `[**a ![](…) b**](https://example.com)`. Raw read: the image carries the link, bold and the link colour. Step 5: `**bold** ![](…)*(it)*` and `*it*![](…) **bold**`. Raw read: each image is `bold: true`, so the fallback, not a missing style, left it bare. Step 6: `| **a ![](…) b** |`. Step 7: `plain ![](…) text`. Every export drops the alt `logo` (`![]`), as earlier image cases record. Docs and images trashed.
