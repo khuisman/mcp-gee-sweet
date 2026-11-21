@@ -38,7 +38,11 @@ class Renamed:
 # registers every alias too. Groups never carry an alias.
 # Policy: docs/design.md, "Renaming or Removing a Tool". Remove an entry one feature
 # release after it's added.
-RENAMED_TOOLS: dict[str, Renamed] = {}
+RENAMED_TOOLS: dict[str, Renamed] = {
+    # #663: the comment tools work on any Drive file, not only a Doc.
+    "list_doc_comments": Renamed("list_file_comments", removed_in="the next feature release"),
+    "add_doc_comment": Renamed("add_file_comment", removed_in="the next feature release"),
+}
 
 
 def service_group(module: str) -> str | None:

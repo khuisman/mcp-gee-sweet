@@ -122,7 +122,7 @@ class TestRenderToolsMd:
             if line.startswith("| `")
         }
         assert rows["`create_doc_from_file`"] == "`docs`, `local-files`"
-        assert rows["`add_doc_comment`"] == "`docs`, `comments`"
+        assert rows["`add_file_comment`"] == "`drive`, `comments`"
         assert rows["`list_labels`"] == "`gmail`, `default`"
         assert rows["`refresh_cache`"] == "`cache`"
         # A tool in a second service group lists its own module's first (#1511).
@@ -159,7 +159,8 @@ class TestRenderFilteringBlock:
             if line.startswith("| `")
         }
         assert set(rows) == {f"`{g}`" for g in tool_groups.GROUP_NAMES}
-        assert rows["`all`"] == len(groups)
+        # `all` also counts the deprecated aliases it registers.
+        assert rows["`all`"] == len(groups) + len(tool_groups.RENAMED_TOOLS)
         for group in tool_groups.GROUP_NAMES - {"all"}:
             assert rows[f"`{group}`"] == sum(group in g for g in groups.values()), group
 

@@ -283,12 +283,13 @@ Work through the test files in this order:
 7. `docs/qa/tests/drive_sharing.md`
 8. `docs/qa/tests/drive_transfer.md`
 9. `docs/qa/tests/drive_activity.md`
-10. `docs/qa/tests/docs_content.md`
-11. `docs/qa/tests/docs_tables.md`
-12. `docs/qa/tests/docs_style.md`
-13. `docs/qa/tests/docs_layout.md`
-14. `docs/qa/tests/calendar.md`
-15. `docs/qa/tests/gmail.md`
+10. `docs/qa/tests/drive_comments.md`
+11. `docs/qa/tests/docs_content.md`
+12. `docs/qa/tests/docs_tables.md`
+13. `docs/qa/tests/docs_style.md`
+14. `docs/qa/tests/docs_layout.md`
+15. `docs/qa/tests/calendar.md`
+16. `docs/qa/tests/gmail.md`
 
 `docs/qa/tests/docs_markdown.md` isn't in this sequence: it renders every case through eight entry points twice, so it runs on its own (`run_group` with `group: docs_markdown`), following that file's own "Running this suite" section.
 
