@@ -421,6 +421,12 @@ class TestReplyToComment:
         body = drive.replies.return_value.create.call_args.kwargs["body"]
         assert body == {"content": "  hi  "}
 
+    def test_docstring_says_a_plain_reply_reopens_a_resolved_comment(self):
+        # Drive reopens it itself, and returns action "reopen" (PR #1563 round 4, seen live).
+        doc = " ".join(_tools["reply_to_comment"].__doc__.split())
+        assert "A plain reply to a resolved comment reopens it" in doc
+        assert '"reopen" when a plain reply reopened a resolved one' in doc
+
     def test_action_is_limited_to_resolve_and_reopen(self):
         # mcp validates arguments against this annotation before the call.
         sig = inspect.signature(_tools["reply_to_comment"])

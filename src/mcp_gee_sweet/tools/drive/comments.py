@@ -268,11 +268,14 @@ def register(tool):
             content: The reply text. Required for a plain reply; optional with an
                      action. Text that is only whitespace counts as none.
             action: "resolve" to mark the comment resolved, "reopen" to reopen a
-                    resolved one, or omit for a plain reply.
+                    resolved one, or omit for a plain reply. A plain reply to a
+                    resolved comment reopens it: Drive does that itself, as its
+                    own UI does.
 
         Returns:
             Dictionary with file_id, comment_id, reply_id, action (None for a plain
-            reply), content, and created_time. Returns {"error": ...} without
+            reply to an open comment, "reopen" when a plain reply reopened a
+            resolved one), content, and created_time. Returns {"error": ...} without
             posting anything when neither content (other than whitespace) nor
             action is given.
         """

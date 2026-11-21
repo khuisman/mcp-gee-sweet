@@ -231,12 +231,13 @@ Run 2 (ash).
 ### TC-D312: Reopen a resolved comment ⚠️ destructive
 **Setup:** run TC-DOC99 first; its comment (TC-DOC96's `id`) is resolved. Use that `id` as `{COMMENT_ID}`
 
-**Prompt**
-> `reply_to_comment(file_id={DOC_ID}, comment_id={COMMENT_ID}, action="reopen")`
+**Steps**
+1. `reply_to_comment(file_id={DOC_ID}, comment_id={COMMENT_ID}, action="reopen")`
+2. `reply_to_comment(file_id={DOC_ID}, comment_id={COMMENT_ID}, action="resolve")`, then `reply_to_comment(file_id={DOC_ID}, comment_id={COMMENT_ID}, content="QA TC-D312: plain reply.")` with no `action` (added in PR #1563 round 5)
 
 **Checks**
-- Returns `action: "reopen"` and `content: ""` (Drive returns an empty string for a reply with no text)
-- `list_file_comments(file_id={DOC_ID})` shows that comment with `resolved: false`, its last reply `action: "reopen"`
+- 1: returns `action: "reopen"` and `content: ""` (Drive returns an empty string for a reply with no text). `list_file_comments(file_id={DOC_ID})` shows that comment with `resolved: false`, its last reply `action: "reopen"`
+- 2: the plain reply returns `action: "reopen"` though none was sent: Drive reopens a resolved comment that gets a plain reply, as `reply_to_comment`'s docstring says. `list_file_comments` shows the comment `resolved: false`
 
 **Cleanup:** to leave the comment as TC-DOC99 left it, `reply_to_comment(file_id={DOC_ID}, comment_id={COMMENT_ID}, action="resolve")`
 
