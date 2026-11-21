@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import Context
+from pydantic import ValidationError
 
 from mcp_gee_sweet import server, tool_groups
 from mcp_gee_sweet.deprecation import DEPRECATION_WARNINGS_KEY, tool_deprecation
@@ -584,6 +585,14 @@ _TEXT_PARAMS = {
     "resolve_doc_comment": ("reply_content",),
 }
 
+# The optional ones among them (OptionalText): null means not given.
+_OPTIONAL_TEXT_PARAMS = [
+    (tool, param)
+    for tool, params in _TEXT_PARAMS.items()
+    for param in params
+    if (tool, param) != ("add_file_comment", "content")
+]
+
 
 class TestJsonLookingTextReachesDriveVerbatim:
     """mcp's pre_parse_json runs json.loads on a string argument unless its
@@ -654,3 +663,81 @@ class TestJsonLookingTextReachesDriveVerbatim:
         drive.comments.return_value.list.return_value.execute.return_value = {"comments": []}
         await server.mcp.call_tool("list_file_comments", {"file_id": "f1"}, _server_ctx(drive))
         assert drive.comments.return_value.list.call_args.kwargs["pageToken"] is None
+
+
+class TestExplicitNullStillMeansNotGiven:
+    """A bare `str` refused an explicit null that `str | None` accepted (PR #1563
+    round 3): a pager sending page_token=null on its first call, or an old client of
+    the deprecated names. OptionalText reads null as "", through the server's own
+    argument parsing."""
+
+    @pytest.mark.parametrize(("tool_name", "param"), _OPTIONAL_TEXT_PARAMS)
+    def test_null_validates_as_empty(self, tool_name, param):
+        tool = server.mcp._tool_manager.get_tool(tool_name)
+        fields = tool.fn_metadata.arg_model.model_fields
+        args = {name: "x" for name, field in fields.items() if field.is_required()}
+        args[param] = None
+        parsed = tool.fn_metadata.pre_parse_json(args)
+        assert getattr(tool.fn_metadata.arg_model.model_validate(parsed), param) == ""
+
+    async def test_null_page_token_through_the_old_name(self):
+        drive = MagicMock()
+        drive.comments.return_value.list.return_value.execute.return_value = {"comments": []}
+        result = await server.mcp.call_tool(
+            "list_doc_comments", {"doc_id": "d1", "page_token": None}, _server_ctx(drive)
+        )
+        assert result.structured_content["file_id"] == "d1"
+        assert drive.comments.return_value.list.call_args.kwargs["pageToken"] is None
+
+    async def test_null_quoted_text_and_anchor(self):
+        drive = MagicMock()
+        drive.comments.return_value.create.return_value.execute.return_value = {"id": "c1"}
+        await server.mcp.call_tool(
+            "add_file_comment",
+            {"file_id": "f1", "content": "hi", "quoted_text": None, "anchor": None},
+            _server_ctx(drive),
+        )
+        assert drive.comments.return_value.create.call_args.kwargs["body"] == {"content": "hi"}
+
+    async def test_null_content_with_an_action(self):
+        drive = MagicMock()
+        drive.replies.return_value.create.return_value.execute.return_value = {"id": "r1"}
+        await server.mcp.call_tool(
+            "reply_to_comment",
+            {"file_id": "f1", "comment_id": "c1", "content": None, "action": "resolve"},
+            _server_ctx(drive),
+        )
+        assert drive.replies.return_value.create.call_args.kwargs["body"] == {"action": "resolve"}
+
+    async def test_null_content_alone_is_the_neither_given_error(self):
+        drive = MagicMock()
+        result = await server.mcp.call_tool(
+            "reply_to_comment",
+            {"file_id": "f1", "comment_id": "c1", "content": None},
+            _server_ctx(drive),
+        )
+        assert "error" in result.structured_content
+        drive.replies.assert_not_called()
+
+    async def test_null_reply_content_on_resolve_doc_comment(self):
+        drive = MagicMock()
+        drive.replies.return_value.create.return_value.execute.return_value = {"id": "r1"}
+        await server.mcp.call_tool(
+            "resolve_doc_comment",
+            {"doc_id": "d1", "comment_id": "c1", "reply_content": None},
+            _server_ctx(drive),
+        )
+        assert drive.replies.return_value.create.call_args.kwargs["body"] == {"action": "resolve"}
+
+    @pytest.mark.parametrize(("tool_name", "param"), _OPTIONAL_TEXT_PARAMS)
+    def test_schema_is_an_optional_string(self, tool_name, param):
+        # The published schema stays a string with a "" default.
+        tool = server.mcp._tool_manager.get_tool(tool_name)
+        prop = tool.parameters["properties"][param]
+        assert prop["type"] == "string" and prop["default"] == ""
+
+    def test_required_content_still_refuses_null(self):
+        tool = server.mcp._tool_manager.get_tool("add_file_comment")
+        parsed = tool.fn_metadata.pre_parse_json({"file_id": "f1", "content": None})
+        with pytest.raises(ValidationError):
+            tool.fn_metadata.arg_model.model_validate(parsed)

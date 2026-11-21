@@ -15,6 +15,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from ...deprecation import deprecated_tool, renamed_params
+from ..params import OptionalText
 from ..response_limits import enforce_response_size_cap, pagination_hint
 
 logger = logging.getLogger(__name__)
@@ -32,10 +33,9 @@ _COMMENT_FIELDS = (
 )
 _REPLY_FIELDS = "id,action,content,createdTime"
 
-# Every optional text parameter here is `str = ""`, never `str | None`: mcp's
-# pre_parse_json runs json.loads on a string argument unless its annotation is
-# exactly `str`, so a `str | None` parameter turned an anchor's JSON, or text such
-# as `null` or `[1, 2]`, into another type before validation (PR #1563 round 2).
+# Every optional text parameter here is `OptionalText = ""`, never `str | None`
+# (which mcp pre-parses as JSON) or a bare `str` (which refuses an explicit null);
+# see tools/params.py (PR #1563 rounds 2 and 3).
 
 
 def _map_author(author: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -117,7 +117,7 @@ def register(tool):
     async def list_file_comments(
         file_id: str,
         page_size: int = 20,
-        page_token: str = "",
+        page_token: OptionalText = "",
         include_deleted: bool = False,
         ctx: Context = None,
     ) -> dict[str, Any]:
@@ -186,8 +186,8 @@ def register(tool):
     async def add_file_comment(
         file_id: str,
         content: str,
-        quoted_text: str = "",
-        anchor: str = "",
+        quoted_text: OptionalText = "",
+        anchor: OptionalText = "",
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -253,7 +253,7 @@ def register(tool):
     async def reply_to_comment(
         file_id: str,
         comment_id: str,
-        content: str = "",
+        content: OptionalText = "",
         action: Literal["resolve", "reopen"] | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
@@ -305,7 +305,7 @@ def register(tool):
     async def resolve_doc_comment(
         doc_id: str,
         comment_id: str,
-        reply_content: str = "",
+        reply_content: OptionalText = "",
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
