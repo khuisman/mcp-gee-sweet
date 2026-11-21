@@ -2910,6 +2910,36 @@ import_csv_to_sheet(ragged CSV a,b,c / 1,2 / 4,5,6) → rows_written=3. get_shee
 import_csv_to_sheet; 12k-row import verified at every chunk boundary.</p>
 <p><strong>Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on <code>mcp-gee-sweet-ash</code></strong> — <code>a,b,c / 1,2 / 4,5,6</code> → rows_written=3; <code>get_sheet_data</code> <code>[["a","b","c"],["1","2"],["4","5","6"]]</code>, short row under a/b with no shift, nothing dropped.</p>
 <hr />
+<h3 id="tc-d322-a-utf-8-byte-order-mark-doesnt-reach-cell-a1-1575-requires-oauth-local-filesystem">TC-D322: A UTF-8 byte-order mark doesn't reach cell A1 (#1575) ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-d322-a-utf-8-byte-order-mark-doesnt-reach-cell-a1-1575-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> Excel's "CSV UTF-8" export starts the file with the bytes <code>EF BB BF</code>. Read as plain UTF-8, they became a U+FEFF character at the start of A1, so the header read <code>"\ufeffcase"</code>, the call still succeeded, and nothing in the sheet showed it.</p>
+<p><strong>Setup:</strong> in a scratch directory, write <code>qa-import-bom.csv</code> with its bytes exactly <code>EF BB BF</code> followed by <code>case,value\nx,1\n</code>, e.g. <code>printf '\xef\xbb\xbfcase,value\nx,1\n' &gt; &lt;scratch&gt;/qa-import-bom.csv</code>. Confirm with <code>xxd &lt;scratch&gt;/qa-import-bom.csv | head -1</code> that it starts <code>efbb bf63</code>.</p>
+<p><strong>Steps</strong>
+1. <code>import_csv_to_sheet(local_path="&lt;scratch&gt;/qa-import-bom.csv", title="QA TC-D322 BOM", folder_id={FOLDER_ID})</code>
+2. <code>get_sheet_data(spreadsheet_id=&lt;step 1's spreadsheetId&gt;, sheet="Sheet1", range="A1:B2")</code>
+3. <code>update_cells(spreadsheet_id=&lt;step 1's spreadsheetId&gt;, sheet="Sheet1", range="C1:D1", data=[["=LEN(A1)", "=A1=\"case\""]])</code>
+4. <code>get_sheet_data(spreadsheet_id=&lt;step 1's spreadsheetId&gt;, sheet="Sheet1", range="C1:D1")</code></p>
+<p><strong>Checks</strong>
+- Step 1 returns <code>rows_written: 2</code> and no <code>error</code>
+- Step 2's <code>valueRanges[0].values</code> is <code>[["case","value"],["x","1"]]</code>. U+FEFF is invisible, so this alone doesn't rule it out; step 4 does
+- Step 4's <code>valueRanges[0].values</code> is <code>[["4","TRUE"]]</code>. Before the fix it was <code>[["5","FALSE"]]</code>: A1 held the BOM as a fifth character</p>
+<p><strong>Cleanup:</strong> <code>delete_file(file_id=&lt;step 1's spreadsheetId&gt;, permanent=True)</code>; remove the local file.</p>
+<p><strong>Result (2026-11-21) ✅ PASS — PR #1580 round 1 on <code>mcp-gee-sweet-sky</code></strong> — fixture bytes confirmed <code>efbb bf63</code>. Step 1: <code>rows_written: 2</code>, no <code>error</code>, created in the Shared Drive root. Step 2: <code>valueRanges[0].values</code> <code>[["case","value"],["x","1"]]</code>. Step 4: <code>[["4","TRUE"]]</code>, so A1 is exactly <code>case</code>. Cleanup done (deleted permanently, local file removed). Checks reworded this round: <code>get_sheet_data</code> returns <code>{spreadsheetId, valueRanges:[{range, values}]}</code>, not a bare list.</p>
+<p><strong>Result (2026-11-21) ✅ PASS — PR #1580 round 2 on <code>mcp-gee-sweet-sky</code></strong> — re-run after the read-error handling fix (ac41c5d5). <code>rows_written: 2</code>; <code>A1:D2</code> values <code>[["case","value","4","TRUE"],["x","1"]]</code>. Cleanup done.</p>
+<hr />
+<h3 id="tc-d323-a-non-utf-8-csv-or-a-directory-named-csv-returns-an-error-creating-nothing-pr-1580-local-filesystem">TC-D323: A non-UTF-8 CSV or a directory named <code>.csv</code> returns an error, creating nothing (PR #1580) ⚠️ local-filesystem<a class="headerlink" href="#tc-d323-a-non-utf-8-csv-or-a-directory-named-csv-returns-an-error-creating-nothing-pr-1580-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> a CSV saved in Excel's plain "CSV" format is cp1252, not UTF-8. Reading one raised <code>UnicodeDecodeError</code> out of the tool (<code>Error executing tool import_csv_to_sheet: 'utf-8' codec can't decode byte 0xe9 ...</code>), and a directory named <code>x.csv</code> passed the existence and suffix checks and raised <code>IsADirectoryError</code>, instead of returning <code>{"error": ...}</code>.</p>
+<p><strong>Setup:</strong> in a scratch directory, write <code>qa-import-cp1252.csv</code> with its bytes exactly <code>caf</code> <code>E9</code> <code>,1\n</code>, e.g. <code>printf 'caf\xe9,1\n' &gt; &lt;scratch&gt;/qa-import-cp1252.csv</code>, and confirm with <code>xxd</code> that byte 3 is <code>e9</code>. Create a directory <code>&lt;scratch&gt;/qa-dir.csv</code> (<code>mkdir</code>).</p>
+<p><strong>Steps</strong>
+1. <code>import_csv_to_sheet(local_path="&lt;scratch&gt;/qa-import-cp1252.csv", title="QA TC-D323 cp1252", folder_id={FOLDER_ID})</code>
+2. <code>import_csv_to_sheet(local_path="&lt;scratch&gt;/qa-dir.csv", title="QA TC-D323 dir", folder_id={FOLDER_ID})</code>
+3. <code>search_files(query="QA TC-D323", folder_id={FOLDER_ID})</code></p>
+<p><strong>Checks</strong>
+- Step 1 returns a result whose only key is <code>error</code>, starting <code>File is not valid UTF-8: &lt;scratch&gt;/qa-import-cp1252.csv</code> and naming <code>"CSV UTF-8"</code>. It is a tool result, not a protocol error (<code>Error executing tool ...</code>)
+- Step 2 returns only <code>error</code>: <code>Not a regular file: &lt;scratch&gt;/qa-dir.csv</code>
+- Step 3 finds no file: neither call created a spreadsheet</p>
+<p><strong>Cleanup:</strong> remove the local file and directory.</p>
+<p><strong>Result (2026-11-21) ✅ PASS — PR #1580 round 2 on <code>mcp-gee-sweet-sky</code></strong> — fixture bytes <code>6361 66e9 2c31 0a</code>. Step 1: <code>{"error": "File is not valid UTF-8: &lt;scratch&gt;/qa-import-cp1252.csv (invalid continuation byte). Save it as UTF-8 (in Excel, \"CSV UTF-8\") and import again."}</code>, a tool result, not <code>Error executing tool</code>. Step 2: <code>{"error": "Not a regular file: &lt;scratch&gt;/qa-dir.csv"}</code>. Step 3: <code>{"files": [], "exhaustive": true}</code>. Local fixtures removed.</p>
+<hr />
 <h3 id="tc-d173-non-existent-local-path-unit-test">TC-D173: Non-existent local path (unit test)<a class="headerlink" href="#tc-d173-non-existent-local-path-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
 - Missing <code>local_path</code> returns <code>{"error": "..."}</code> mentioning the path — no Drive API call made</p>
