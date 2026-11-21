@@ -639,6 +639,8 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] A failed import leaves an empty spreadsheet behind. `loud/narrow`, observed ([#1574](https://github.com/khuisman/mcp-gee-sweet/issues/1574))
 - [ ] A non-UTF-8 CSV raises a bare `UnicodeDecodeError`. `loud/narrow`, observed ([#1576](https://github.com/khuisman/mcp-gee-sweet/issues/1576))
 - [ ] Chunks are sized by row count only, so a wide-text CSV times out. `loud/rare`, observed ([#1577](https://github.com/khuisman/mcp-gee-sweet/issues/1577))
+- [ ] `create_doc_from_file`/`update_doc_from_file` keep a UTF-8 BOM, which turns a leading Markdown heading into text. Follow-up to #1575 (PR #1580). `wrong/narrow`, observed through `_md_to_html`; placed 2026-11-21 ([#1581](https://github.com/khuisman/mcp-gee-sweet/issues/1581))
+- [ ] Free-text parameters typed `str | None` are JSON-parsed by mcp before validation: array- or object-shaped text is rejected and `null` is dropped. #1563 fixed `tools/drive/comments.py` only; this covers every other module, so it's cross-cutting. `wrong/narrow`, observed through the registered tools' argument parsing; placed 2026-11-21 ([#1569](https://github.com/khuisman/mcp-gee-sweet/issues/1569))
 
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
