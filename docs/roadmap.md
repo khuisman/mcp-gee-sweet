@@ -617,7 +617,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] Gmail docstrings: drop the auto-accept hook note; fix `send_draft`'s `draft_id` source; from Bob's `docs/tools.md` sweep ([#1380](https://github.com/khuisman/mcp-gee-sweet/issues/1380))
 - [ ] `get_doc_as_markdown` loses ordered list numbers (a sublist not starting at 1, an ordered task item, a negative number) ([#1370](https://github.com/khuisman/mcp-gee-sweet/issues/1370))
 - [ ] Table fill gives a nested table's cells, and the text after the table, the style of the text before it ([#1321](https://github.com/khuisman/mcp-gee-sweet/issues/1321))
-- [ ] `get_doc_as_markdown` drops an inline image's own character style (bold, highlight), which the write side sets since PR #1508. `wrong/narrow`, observed in PR #1508's live QA ([#1509](https://github.com/khuisman/mcp-gee-sweet/issues/1509))
+- [x] `get_doc_as_markdown` drops an inline image's own character style (bold, highlight), which the write side sets since PR #1508. `wrong/narrow`, observed in PR #1508's live QA ([#1509](https://github.com/khuisman/mcp-gee-sweet/issues/1509)) (PR #1530)
 - [x] The `sheets` tool group leaves out creating, listing, searching and sharing spreadsheets (those tools live under `tools/drive/`). From PR #1510; groups are new since v0.9.6, so it ships with them ([#1511](https://github.com/khuisman/mcp-gee-sweet/issues/1511)) (PR #1523)
 - [ ] Live client checks for tool groups: VS Code, Cursor, Claude Code `all`, Codex tool search, ChatGPT's tool budget. From PR #1510's review ([#1515](https://github.com/khuisman/mcp-gee-sweet/issues/1515))
 
