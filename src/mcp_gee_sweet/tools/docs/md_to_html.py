@@ -644,13 +644,138 @@ def _spaced_link_rule(state, silent: bool) -> bool:
     return True
 
 
+# Single-tilde delimiters carry their own marker, so balance_pairs' same-marker
+# pairing matches them by width and never mixes a `~` run with a `~~` one. Any
+# other value works as the distinct marker; balance_pairs only ever compares
+# markers for equality.
+_SINGLE_TILDE_MARKER = 0x7E7E
+
+
+def _autolink_span_windows(state) -> dict:
+    """For every text token index, the GFM extended-autolink spans of its text
+    run and the token's offset in it, from one linear pass (#1436 review).
+
+    The window is each maximal run of adjacent text tokens — with a dropped
+    `~` delimiter, fragments_join merges the run back into exactly the text
+    token the autolink core rule later scans — and `start_ok` mirrors that
+    rule's boundary check, so a `~` a reader sees as part of a URL never
+    strikes: GitHub links the whole URL, and so did develop. Email matches
+    can't contain a `~`, so only URL spans are collected, trimmed to what
+    actually links."""
+    result: dict[int, tuple[list, int]] = {}
+    tokens = state.tokens
+    i = 0
+    total = len(tokens)
+    while i < total:
+        if tokens[i].type != "text":
+            i += 1
+            continue
+        first = i
+        pieces: list[str] = []
+        offsets: list[int] = []
+        length_so_far = 0
+        while i < total and tokens[i].type == "text":
+            offsets.append(length_so_far)
+            length_so_far += len(tokens[i].content)
+            pieces.append(tokens[i].content)
+            i += 1
+        window = "".join(pieces)
+        prev = tokens[first - 1] if first > 0 else None
+        start_ok = prev is None or prev.type in _AUTOLINK_BOUNDARY_TOKENS
+        spans = [(start, end) for start, end, _ in _gfm_url_matches(window, start_ok)]
+        for token_index, offset in zip(range(first, i), offsets):
+            result[token_index] = (spans, offset)
+    return result
+
+
+def _single_tilde_widths(state) -> None:
+    """Mark and cull single-tilde delimiters before ``balance_pairs`` runs.
+
+    The upstream ``strikethrough_single_tilde`` tokenizer accepts runs of one
+    or two tildes (three or more are consumed as plain text), but leaves both
+    widths on one marker, so ``balance_pairs`` pairs by position alone: a lone
+    ``~`` grabs a closing ``~~`` and the width check only rejects the pair
+    afterwards, by which point the real ``~~`` opener is already broken
+    (#1436). Give the surviving 1-tilde runs their own marker instead, and
+    ``balance_pairs``' same-marker pairing matches them by width — a pair
+    never crosses another pair's boundary and stays linear on long inputs
+    (#1436 review). A 1-tilde run inside a GFM autolink span is dropped
+    outright, keeping the URL text whole for the autolink core rule, as on
+    develop. ``~~`` runs keep the upstream marker, pairing and converting
+    exactly as they always have.
+    """
+    windows = _autolink_span_windows(state)
+
+    def mark_one(delimiters) -> None:
+        kept = []
+        for delimiter in delimiters:
+            if delimiter.marker != 0x7E:
+                kept.append(delimiter)
+                continue
+            if state.tokens[delimiter.token].content == "~":
+                spans, offset = windows[delimiter.token]
+                if any(start <= offset < end for start, end in spans):
+                    continue
+                delimiter.marker = _SINGLE_TILDE_MARKER
+            kept.append(delimiter)
+        delimiters[:] = kept
+
+    mark_one(state.delimiters)
+    for meta in state.tokens_meta:
+        if meta and "delimiters" in meta:
+            mark_one(meta["delimiters"])
+
+
+def _single_tilde_pairs(state) -> None:
+    """Convert the single-tilde pairs ``balance_pairs`` matched into ``s`` tags,
+    the conversion the upstream strikethrough post-process only performs for
+    the ``~~`` marker."""
+
+    def convert_one(delimiters) -> None:
+        for delimiter in delimiters:
+            if delimiter.marker != _SINGLE_TILDE_MARKER or delimiter.end == -1:
+                continue
+            end = delimiters[delimiter.end]
+            token = state.tokens[delimiter.token]
+            token.type = "s_open"
+            token.tag = "s"
+            token.nesting = 1
+            token.markup = "~"
+            token.content = ""
+            token = state.tokens[end.token]
+            token.type = "s_close"
+            token.tag = "s"
+            token.nesting = -1
+            token.markup = "~"
+            token.content = ""
+
+    convert_one(state.delimiters)
+    for meta in state.tokens_meta:
+        if meta and "delimiters" in meta:
+            convert_one(meta["delimiters"])
+
+
 def _build_markdown_parser(autolink_urls: bool) -> MarkdownIt:
     # CommonMark plus GFM's table and strikethrough extensions. Raw HTML passes through
     # to html_to_ast, as it did under Python-Markdown. Task-list items stay literal
     # "[ ] "/"[x] " text, which html_to_ast turns into checkbox items.
-    md = MarkdownIt("commonmark", {"html": True, "maxNesting": _MAX_NESTING}).enable(
-        ["table", "strikethrough"]
-    )
+    # strikethrough_single_tilde widens the strikethrough tokenizer to GFM's full
+    # form: `~x~` strikes like `~~x~~`, and a run of three or more tildes stays
+    # literal text (#1335). The upstream option only tokenizes the runs: pairing
+    # stays with balance_pairs once the 1-tilde runs carry their own marker
+    # (_single_tilde_widths), so a pair never crosses another pair's boundary,
+    # and a `~` inside a GFM autolink span keeps the URL text whole, as on
+    # develop (#1436 review). _single_tilde_pairs converts what paired.
+    md = MarkdownIt(
+        "commonmark",
+        {
+            "html": True,
+            "maxNesting": _MAX_NESTING,
+            "strikethrough_single_tilde": True,
+        },
+    ).enable(["table", "strikethrough"])
+    md.inline.ruler2.before("balance_pairs", "single_tilde_widths", _single_tilde_widths)
+    md.inline.ruler2.after("strikethrough", "single_tilde_pairs", _single_tilde_pairs)
     # Keep link and image destinations as written. markdown-it percent-encodes them
     # by default, which breaks a local image path ("café.png" becomes "caf%C3%A9.png")
     # that _resolve_image_source opens as-is. validateLink still screens schemes.
