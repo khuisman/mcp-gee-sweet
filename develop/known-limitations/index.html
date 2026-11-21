@@ -1470,6 +1470,21 @@ constructs.</p>
 real Docs footnotes is #149), a definition list as <code>**Term**: definition</code> lines, and put HTML that
 needs Markdown inside it as HTML instead.</p>
 <hr />
+<h3 id="a-github-anchor-for-an-underlined-heading-with-a-soft-break-doesnt-resolve">A GitHub <code>#anchor</code> for an underlined heading with a soft break doesn't resolve<a class="headerlink" href="#a-github-anchor-for-an-underlined-heading-with-a-soft-break-doesnt-resolve" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> A Markdown setext (<code>===</code>/<code>---</code>) heading split across a soft break — <code>Heading one</code> on
+one line, <code>heading two</code> on the next, underline under it — written by <code>create_doc</code>,
+<code>write_doc_content</code>, <code>create_doc_from_file</code> or <code>update_doc_from_file</code> keeps the break's hyphen
+in its slug: both schemes slug the heading <code>heading-one-heading-two</code>. GitHub's own anchor for
+the same heading is <code>#heading-oneheading-two</code> (github-slugger drops the <code>\n</code> with no separator,
+measured 2026-11-20), so a <code>#heading-oneheading-two</code> link copied from GitHub strips to plain
+text instead of resolving. The GitLab spelling, <code>#heading-one-heading-two</code>, resolves.</p>
+<p><strong>Why:</strong> The write collapses the soft break to a space — the same thing a browser's rendering
+does with the <code>\n</code> GitHub leaves in its HTML — and the break's position can't be recovered at
+resolve time; guessing which hyphen was the break could point a link at the wrong heading. A
+residual edge of the #1357 anchor family, recorded here under its chain stop (#1553).</p>
+<p><strong>Workaround:</strong> Write the heading on one line, or spell the anchor with the hyphen the collapse
+produces.</p>
+<hr />
 <h3 id="get_doc_as_markdown-exports-a-table-or-quote-that-ends-a-lists-last-item-outside-the-list"><code>get_doc_as_markdown</code> exports a table or quote that ends a list's last item outside the list<a class="headerlink" href="#get_doc_as_markdown-exports-a-table-or-quote-that-ends-a-lists-last-item-outside-the-list" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> A table inside a list's last item (<code>1. a\n\n   | x |\n   |---|\n</code>) is written to the
 Doc indented under the item, but <code>get_doc_as_markdown</code> exports it at the margin, after the list.
