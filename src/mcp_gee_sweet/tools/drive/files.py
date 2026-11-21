@@ -191,7 +191,8 @@ def register(tool):
         Create a new Google Spreadsheet populated from a local CSV file.
         Not available when the server runs with LOCAL_FILE_ACCESS=off.
 
-        Reads the CSV, creates the spreadsheet, expands the sheet's grid to fit
+        Reads the CSV as UTF-8, dropping a leading byte-order mark (Excel's
+        "CSV UTF-8" export writes one), creates the spreadsheet, expands the sheet's grid to fit
         the data (avoiding the default 1000-row/26-column limit), and writes
         every row in one or more batched value updates.
 
@@ -234,7 +235,9 @@ def register(tool):
             return {"error": f"Unsupported file extension '{suffix}'. Use .csv"}
 
         def _read_csv() -> list[list[str]]:
-            with path.open(newline="", encoding="utf-8") as f:
+            # utf-8-sig drops a leading byte-order mark (Excel's "CSV UTF-8" writes
+            # one), which would otherwise stay in cell A1 (#1575).
+            with path.open(newline="", encoding="utf-8-sig") as f:
                 return list(csv.reader(f))
 
         rows = await asyncio.to_thread(_read_csv)

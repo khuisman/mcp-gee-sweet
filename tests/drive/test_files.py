@@ -1772,6 +1772,58 @@ class TestImportCsvToSheet:
         # No resize/rename needed — default title matches, data fits default grid.
         sheets_svc.spreadsheets.return_value.batchUpdate.assert_not_called()
 
+    async def _import_values(self, path):
+        """Import `path` and return the values the one update wrote."""
+        sheets_svc = self._sheets_service()
+        ctx = _make_ctx(
+            drive_service=self._drive_service(),
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            folder_id=None,
+        )
+        result = await _drive_tools["import_csv_to_sheet"](
+            local_path=str(path), title="Imported", ctx=ctx
+        )
+        assert "error" not in result, result
+        update_call = sheets_svc.spreadsheets.return_value.values.return_value.update
+        return update_call.call_args.kwargs["body"]["values"]
+
+    async def test_drops_a_leading_utf8_bom(self, tmp_path):
+        """#1575: Excel's "CSV UTF-8" export starts with a BOM, which must not reach A1."""
+        path = tmp_path / "bom.csv"
+        path.write_bytes(b"\xef\xbb\xbfcase,value\nx,1\n")
+        values = await self._import_values(path)
+        assert values == [["case", "value"], ["x", "1"]]
+
+    async def test_bom_before_a_quoted_first_field_still_parses_the_quotes(self, tmp_path):
+        """With the BOM read as text, csv saw `\\ufeff"a,b"` and kept the quotes as data."""
+        path = tmp_path / "bom_quoted.csv"
+        path.write_bytes(b'\xef\xbb\xbf"a,b",c\n1,2\n')
+        values = await self._import_values(path)
+        assert values == [["a,b", "c"], ["1", "2"]]
+
+    async def test_keeps_a_bom_character_that_is_not_leading(self, tmp_path):
+        """Only the encoding signature is dropped; a U+FEFF later in the file is data."""
+        path = tmp_path / "inner_bom.csv"
+        path.write_bytes(b"h1,h2\nx,\xef\xbb\xbfy\n")
+        values = await self._import_values(path)
+        assert values == [["h1", "h2"], ["x", "﻿y"]]
+
+    async def test_file_without_bom_reads_unchanged(self, tmp_path):
+        path = tmp_path / "plain.csv"
+        path.write_bytes("café,v\n1,2\n".encode())
+        values = await self._import_values(path)
+        assert values == [["café", "v"], ["1", "2"]]
+
+    async def test_bom_only_file_is_empty(self, tmp_path):
+        path = tmp_path / "bom_only.csv"
+        path.write_bytes(b"\xef\xbb\xbf")
+        ctx = _make_ctx()
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert "error" in result
+        assert "empty" in result["error"].lower()
+
     async def test_pads_ragged_rows_to_common_width(self, tmp_path):
         path = tmp_path / "ragged.csv"
         path.write_text("a,b,c\n1,2\n", encoding="utf-8")
