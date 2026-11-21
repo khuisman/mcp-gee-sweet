@@ -399,7 +399,7 @@ class TestReplyToComment:
         body = drive.replies.return_value.create.call_args.kwargs["body"]
         assert body == {"action": "resolve", "content": "Done"}
 
-    @pytest.mark.parametrize("content", [None, "", "   ", "\n\t "])
+    @pytest.mark.parametrize("content", [None, "", "   ", "\n\t ", "\x01", " \x00\x1f "])
     async def test_neither_content_nor_action_is_an_error_without_a_call(self, content):
         drive = MagicMock()
         result = await _tools["reply_to_comment"](
@@ -779,7 +779,33 @@ class TestUpdateComment:
         body = drive.comments.return_value.update.call_args.kwargs["body"]
         assert body == {"content": "  new text\n\n"}
 
-    @pytest.mark.parametrize("content", ["", "   ", "\n\t"])
+    @pytest.mark.parametrize(
+        ("sent", "stored"),
+        [
+            # Drive trims every character up to U+0020 from the ends, control
+            # characters included (PR #1578 QA round 1, seen live).
+            ("\x01QA ctrl", "QA ctrl"),
+            ("\tQA tab\t", "QA tab"),
+            ("QA lf\n\n", "QA lf"),
+            # What Drive keeps: Python's strip would take NBSP, so trim both sides.
+            ("\u00a0QA nbsp\u00a0", "\u00a0QA nbsp\u00a0"),
+            ("QA \x01 inner", "QA \x01 inner"),
+        ],
+    )
+    async def test_an_authors_edit_drive_trimmed_is_not_read_as_ignored(self, sent, stored):
+        drive = self._drive()
+        drive.comments.return_value.update.return_value.execute.return_value = {
+            "id": "c1",
+            "content": stored,
+            "modifiedTime": "t",
+        }
+        result = await _tools["update_comment"](
+            file_id="f1", comment_id="c1", content=sent, ctx=_make_ctx(drive_service=drive)
+        )
+        assert "error" not in result
+        assert result["content"] == stored
+
+    @pytest.mark.parametrize("content", ["", "   ", "\n\t", "\x01", " \x00\x1f "])
     async def test_blank_content_is_refused_before_any_call(self, content):
         drive = self._drive()
         result = await _tools["update_comment"](
@@ -1100,3 +1126,28 @@ class TestExplicitNullStillMeansNotGiven:
         parsed = tool.fn_metadata.pre_parse_json({"file_id": "f1", "content": None})
         with pytest.raises(ValidationError):
             tool.fn_metadata.arg_model.model_validate(parsed)
+
+
+class TestTrim:
+    """`_trim` covers what Drive trims from a comment's ends (PR #1578 QA round 1):
+    every character up to U+0020, as Java's `String.trim()`, plus `str.strip()`'s."""
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("  a  ", "a"),
+            ("\x01a\x1f", "a"),
+            ("\x00\r\na\r\n", "a"),
+            ("\u00a0a\u2028", "a"),
+            ("a \x01 b", "a \x01 b"),
+            ("\u200ba", "\u200ba"),
+            ("\x01 \x02", ""),
+            ("", ""),
+        ],
+    )
+    def test_trims_both_ends(self, text, expected):
+        assert comments_module._trim(text) == expected
+
+    @pytest.mark.parametrize("ch", [chr(c) for c in range(0x21)])
+    def test_every_character_up_to_space_is_trimmed(self, ch):
+        assert comments_module._trim(f"{ch}a{ch}") == "a"

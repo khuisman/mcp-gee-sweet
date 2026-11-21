@@ -91,10 +91,25 @@ def _map_comment(comment: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _trim(text: str) -> str:
+    """`text` with its ends trimmed at least as far as Drive trims a comment's or
+    reply's: every character up to U+0020, control characters included, as Java's
+    `String.trim()` does (PR #1578 QA round 1), plus anything `str.strip()` takes.
+    The set covers Drive's, so trimming Drive's stored text and the text sent
+    gives the same result whenever the edit landed."""
+    start, end = 0, len(text)
+    while start < end and (text[start] <= " " or text[start].isspace()):
+        start += 1
+    while end > start and (text[end - 1] <= " " or text[end - 1].isspace()):
+        end -= 1
+    return text[start:end]
+
+
 def _has_text(content: str | None) -> bool:
-    """Whether `content` holds anything but whitespace. Drive stores a reply of
-    only whitespace as `content: ""`, a blank reply on the thread (PR #1563)."""
-    return bool(content and content.strip())
+    """Whether `content` holds anything Drive would keep. Drive stores a comment or
+    reply of only whitespace or control characters as `content: ""`, a blank entry
+    on the thread (PR #1563, PR #1578)."""
+    return bool(content and _trim(content))
 
 
 async def _create_reply(
@@ -340,7 +355,8 @@ def register(tool):
             file_id: The file's ID.
             comment_id: The comment's ID (from list_file_comments).
             content: The reply text. Required for a plain reply; optional with an
-                     action. Text that is only whitespace counts as none.
+                     action. Text that is only whitespace or control characters counts
+                     as none.
             action: "resolve" to mark the comment resolved, "reopen" to reopen a
                     resolved one, or omit for a plain reply. A plain reply to a
                     resolved comment reopens it: Drive does that itself, as its
@@ -443,8 +459,9 @@ def register(tool):
         Args:
             file_id: The file's ID.
             comment_id: The comment's ID (from list_file_comments).
-            content: The new text, replacing the old. Drive trims whitespace from
-                     its start and end. Text that is only whitespace isn't sent:
+            content: The new text, replacing the old. Drive trims whitespace and
+                     control characters from its start and end. Text that is
+                     only whitespace or control characters isn't sent:
                      Drive would store it as an empty comment.
             reply_id: A reply's ID (from list_file_comments or get_file_comment)
                       to edit that reply instead of the comment. A reply that
@@ -453,7 +470,8 @@ def register(tool):
         Returns:
             Dictionary with file_id, comment_id, reply_id (None when the comment
             itself was edited), content, and modified_time. Returns {"error": ...}
-            without changing anything when content is empty or only whitespace,
+            without changing anything when content is empty or only whitespace
+            or control characters,
             or when the comment or reply is deleted. Only the author of a comment
             or reply can edit it: Drive ignores anyone else's edit, so that
             returns {"error": ..., "content": <the text left in place>}.
@@ -462,7 +480,8 @@ def register(tool):
         if not _has_text(content):
             return {
                 "error": "Pass the new text as content; text that is empty or only "
-                "whitespace would leave the comment blank. To remove it, use "
+                "whitespace or control characters would leave the comment blank. "
+                "To remove it, use "
                 "delete_comment."
             }
         drive_service = ctx.request_context.lifespan_context.drive_service
@@ -495,9 +514,10 @@ def register(tool):
 
         # Drive ignores an edit by anyone but the author and still answers 200,
         # returning the old text (checked live both ways between a user and a
-        # service account, #664). It also trims the text's ends, so compare trimmed.
+        # service account, #664). It also trims the text's ends, so compare both
+        # trimmed through _trim, whose set covers Drive's.
         stored = result.get("content") or ""
-        if stored.strip() != content.strip():
+        if _trim(stored) != _trim(content):
             target = f"reply {reply_id}" if reply_id else f"comment {comment_id}"
             return {
                 "error": f"Drive left the {target} unchanged: only its author can edit "
@@ -592,7 +612,7 @@ def register(tool):
             doc_id: The Google Doc file ID.
             comment_id: The ID of the comment to resolve (from list_file_comments).
             reply_content: Optional text to attach to the resolving reply (text
-                           that is only whitespace isn't sent).
+                           that is only whitespace or control characters isn't sent).
 
         Returns:
             Dictionary with doc_id, comment_id, reply id, and action ("resolve").
