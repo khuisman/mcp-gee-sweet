@@ -1,5 +1,6 @@
 """Tests for tools/drive/comments.py: list_file_comments, add_file_comment,
-reply_to_comment, and the deprecated resolve_doc_comment (#151, #663)."""
+reply_to_comment, get_file_comment, update_comment, delete_comment, and the
+deprecated resolve_doc_comment (#151, #663, #664)."""
 
 import inspect
 import json
@@ -61,6 +62,13 @@ class TestToolAnnotations:
 
     def test_list_file_comments_is_read_only_not_destructive(self):
         assert _annotations["list_file_comments"].read_only_hint is True
+
+    def test_get_file_comment_is_read_only(self):
+        assert _annotations["get_file_comment"].read_only_hint is True
+
+    @pytest.mark.parametrize("name", ["update_comment", "delete_comment"])
+    def test_edit_and_delete_have_destructive_hint(self, name):
+        assert _annotations[name].destructive_hint is True
 
 
 class TestListFileComments:
@@ -533,6 +541,349 @@ class TestDeprecatedNames:
         )
 
 
+def _api_reply(i, **extra):
+    return {
+        "id": f"r{i}",
+        "content": f"reply {i}",
+        "author": {"displayName": "Bob", "emailAddress": "bob@example.com"},
+        "createdTime": "2026-07-01T01:00:00Z",
+        "modifiedTime": "2026-07-01T01:00:00Z",
+        **extra,
+    }
+
+
+class TestGetFileComment:
+    def _drive(self, comment=None, reply_pages=None):
+        drive = MagicMock()
+        drive.comments.return_value.get.return_value.execute.return_value = comment or {
+            "id": "c1",
+            "content": "Top",
+            "author": {"displayName": "Alice", "emailAddress": "alice@example.com"},
+            "createdTime": "2026-07-01T00:00:00Z",
+            "modifiedTime": "2026-07-01T00:00:00Z",
+            "resolved": True,
+            "quotedFileContent": {"value": "Caf&#233;"},
+        }
+        drive.replies.return_value.list.return_value.execute.side_effect = reply_pages or [
+            {"replies": []}
+        ]
+        return drive
+
+    async def test_maps_the_comment_like_list_file_comments(self):
+        drive = self._drive(reply_pages=[{"replies": [_api_reply(1, action="resolve")]}])
+        result = await _tools["get_file_comment"](
+            file_id="f1", comment_id="c1", ctx=_make_ctx(drive_service=drive)
+        )
+        assert result["file_id"] == "f1"
+        comment = result["comment"]
+        assert comment["id"] == "c1"
+        assert comment["author"] == {"display_name": "Alice", "email_address": "alice@example.com"}
+        assert comment["resolved"] is True
+        assert comment["deleted"] is False
+        assert comment["quoted_text"] == "Café"
+        assert comment["replies"] == [
+            {
+                "id": "r1",
+                "content": "reply 1",
+                "author": {"display_name": "Bob", "email_address": "bob@example.com"},
+                "created_time": "2026-07-01T01:00:00Z",
+                "modified_time": "2026-07-01T01:00:00Z",
+                "action": "resolve",
+                "deleted": False,
+            }
+        ]
+
+    async def test_reads_the_comment_without_inline_replies(self):
+        drive = self._drive()
+        await _tools["get_file_comment"](
+            file_id="f1", comment_id="c1", ctx=_make_ctx(drive_service=drive)
+        )
+        kwargs = drive.comments.return_value.get.call_args.kwargs
+        assert kwargs["fileId"] == "f1" and kwargs["commentId"] == "c1"
+        assert "replies" not in kwargs["fields"]
+        assert "quotedFileContent(value)" in kwargs["fields"]
+
+    async def test_pages_through_every_reply(self):
+        drive = self._drive(
+            reply_pages=[
+                {"replies": [_api_reply(i) for i in range(100)], "nextPageToken": "p2"},
+                {"replies": [_api_reply(i) for i in range(100, 150)], "nextPageToken": "p3"},
+                {"replies": [_api_reply(150)]},
+            ]
+        )
+        result = await _tools["get_file_comment"](
+            file_id="f1", comment_id="c1", ctx=_make_ctx(drive_service=drive)
+        )
+        assert [r["id"] for r in result["comment"]["replies"]] == [f"r{i}" for i in range(151)]
+        calls = drive.replies.return_value.list.call_args_list
+        assert [c.kwargs["pageToken"] for c in calls] == [None, "p2", "p3"]
+        for c in calls:
+            assert c.kwargs["pageSize"] == 100
+            assert c.kwargs["fileId"] == "f1" and c.kwargs["commentId"] == "c1"
+            assert (
+                c.kwargs["fields"].startswith("replies(") and "nextPageToken" in c.kwargs["fields"]
+            )
+
+    async def test_reply_fields_cover_what_map_reply_reads(self):
+        drive = self._drive()
+        await _tools["get_file_comment"](
+            file_id="f1", comment_id="c1", ctx=_make_ctx(drive_service=drive)
+        )
+        fields = drive.replies.return_value.list.call_args.kwargs["fields"]
+        for field in (
+            "id",
+            "content",
+            "author(",
+            "createdTime",
+            "modifiedTime",
+            "action",
+            "deleted",
+        ):
+            assert field in fields
+
+    async def test_a_later_page_error_propagates(self):
+        drive = self._drive(
+            reply_pages=[
+                {"replies": [_api_reply(1)], "nextPageToken": "p2"},
+                _http_error(500, "backend"),
+            ]
+        )
+        with pytest.raises(HttpError):
+            await _tools["get_file_comment"](
+                file_id="f1", comment_id="c1", ctx=_make_ctx(drive_service=drive)
+            )
+
+    @pytest.mark.parametrize("include_deleted", [False, True])
+    async def test_include_deleted_reaches_both_calls(self, include_deleted):
+        drive = self._drive()
+        await _tools["get_file_comment"](
+            file_id="f1",
+            comment_id="c1",
+            include_deleted=include_deleted,
+            ctx=_make_ctx(drive_service=drive),
+        )
+        assert drive.comments.return_value.get.call_args.kwargs["includeDeleted"] is include_deleted
+        assert drive.replies.return_value.list.call_args.kwargs["includeDeleted"] is include_deleted
+
+    async def test_deleted_comment_maps_with_no_content(self):
+        drive = self._drive(
+            comment={"id": "c1", "deleted": True, "createdTime": "t"},
+            reply_pages=[{"replies": [{"id": "r1", "deleted": True}]}],
+        )
+        result = await _tools["get_file_comment"](
+            file_id="f1", comment_id="c1", include_deleted=True, ctx=_make_ctx(drive_service=drive)
+        )
+        comment = result["comment"]
+        assert comment["deleted"] is True and comment["content"] is None
+        assert comment["replies"][0]["deleted"] is True
+
+    async def test_not_found_propagates_before_listing_replies(self):
+        drive = self._drive()
+        drive.comments.return_value.get.return_value.execute.side_effect = _http_error(
+            404, "Comment not found"
+        )
+        with pytest.raises(HttpError):
+            await _tools["get_file_comment"](
+                file_id="f1", comment_id="nope", ctx=_make_ctx(drive_service=drive)
+            )
+        drive.replies.return_value.list.assert_not_called()
+
+    async def test_over_cap_raises(self, monkeypatch):
+        from mcp_gee_sweet.tools import response_limits
+
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 500)
+        drive = self._drive(reply_pages=[{"replies": [_api_reply(i) for i in range(20)]}])
+        with pytest.raises(ValueError, match="get_file_comment"):
+            await _tools["get_file_comment"](
+                file_id="f1", comment_id="c1", ctx=_make_ctx(drive_service=drive)
+            )
+
+
+class TestUpdateComment:
+    def _drive(self):
+        drive = MagicMock()
+        edited = {"id": "x", "content": "new text", "modifiedTime": "2026-07-02T00:00:00Z"}
+        drive.comments.return_value.update.return_value.execute.return_value = edited
+        drive.replies.return_value.update.return_value.execute.return_value = edited
+        return drive
+
+    async def test_edits_the_comment(self):
+        drive = self._drive()
+        result = await _tools["update_comment"](
+            file_id="f1", comment_id="c1", content="new text", ctx=_make_ctx(drive_service=drive)
+        )
+        kwargs = drive.comments.return_value.update.call_args.kwargs
+        assert kwargs["fileId"] == "f1" and kwargs["commentId"] == "c1"
+        assert kwargs["body"] == {"content": "new text"}
+        assert "content" in kwargs["fields"] and "modifiedTime" in kwargs["fields"]
+        drive.replies.return_value.update.assert_not_called()
+        assert result == {
+            "file_id": "f1",
+            "comment_id": "c1",
+            "reply_id": None,
+            "content": "new text",
+            "modified_time": "2026-07-02T00:00:00Z",
+        }
+
+    async def test_edits_a_reply_when_reply_id_is_given(self):
+        drive = self._drive()
+        result = await _tools["update_comment"](
+            file_id="f1",
+            comment_id="c1",
+            reply_id="r1",
+            content="new text",
+            ctx=_make_ctx(drive_service=drive),
+        )
+        kwargs = drive.replies.return_value.update.call_args.kwargs
+        assert kwargs["fileId"] == "f1" and kwargs["commentId"] == "c1"
+        assert kwargs["replyId"] == "r1"
+        assert kwargs["body"] == {"content": "new text"}
+        drive.comments.return_value.update.assert_not_called()
+        assert result["reply_id"] == "r1"
+
+    async def test_edit_drive_ignored_is_an_error(self):
+        # Drive answers a non-author's edit with 200 and the old text (checked live).
+        drive = self._drive()
+        drive.replies.return_value.update.return_value.execute.return_value = {
+            "id": "r1",
+            "content": "old text",
+            "modifiedTime": "2026-07-01T00:00:00Z",
+        }
+        result = await _tools["update_comment"](
+            file_id="f1",
+            comment_id="c1",
+            reply_id="r1",
+            content="new text",
+            ctx=_make_ctx(drive_service=drive),
+        )
+        assert "reply r1 unchanged" in result["error"]
+        assert "author" in result["error"]
+        assert result["content"] == "old text"
+
+    async def test_drives_trimming_is_not_read_as_ignored(self):
+        # Drive trims the text's ends (checked live): still the edit applied.
+        drive = self._drive()
+        drive.comments.return_value.update.return_value.execute.return_value = {
+            "id": "c1",
+            "content": "new text",
+            "modifiedTime": "t",
+        }
+        result = await _tools["update_comment"](
+            file_id="f1",
+            comment_id="c1",
+            content="  new text\n\n",
+            ctx=_make_ctx(drive_service=drive),
+        )
+        assert "error" not in result
+        assert result["content"] == "new text"
+        body = drive.comments.return_value.update.call_args.kwargs["body"]
+        assert body == {"content": "  new text\n\n"}
+
+    @pytest.mark.parametrize("content", ["", "   ", "\n\t"])
+    async def test_blank_content_is_refused_before_any_call(self, content):
+        drive = self._drive()
+        result = await _tools["update_comment"](
+            file_id="f1", comment_id="c1", content=content, ctx=_make_ctx(drive_service=drive)
+        )
+        assert "error" in result
+        drive.comments.assert_not_called()
+        drive.replies.assert_not_called()
+
+    @pytest.mark.parametrize(("status", "reply_id"), [(500, ""), (400, "r1")])
+    async def test_deleted_target_gets_a_clear_error(self, status, reply_id):
+        # Drive's answers for a deleted comment (500) and a deleted reply (400),
+        # checked live.
+        drive = self._drive()
+        failure = _http_error(status, "Invalid Value")
+        drive.comments.return_value.update.return_value.execute.side_effect = failure
+        drive.replies.return_value.update.return_value.execute.side_effect = failure
+        drive.comments.return_value.get.return_value.execute.return_value = {"deleted": True}
+        drive.replies.return_value.get.return_value.execute.return_value = {"deleted": True}
+        result = await _tools["update_comment"](
+            file_id="f1",
+            comment_id="c1",
+            reply_id=reply_id,
+            content="x",
+            ctx=_make_ctx(drive_service=drive),
+        )
+        assert "is deleted" in result["error"]
+        assert (f"reply {reply_id}" if reply_id else "comment c1") in result["error"]
+        getter = drive.replies if reply_id else drive.comments
+        assert getter.return_value.get.call_args.kwargs["includeDeleted"] is True
+
+    async def test_failure_on_a_live_target_raises_drives_error(self):
+        drive = self._drive()
+        failure = _http_error(500, "backend")
+        drive.comments.return_value.update.return_value.execute.side_effect = failure
+        drive.comments.return_value.get.return_value.execute.return_value = {}
+        with pytest.raises(HttpError) as exc:
+            await _tools["update_comment"](
+                file_id="f1", comment_id="c1", content="x", ctx=_make_ctx(drive_service=drive)
+            )
+        assert exc.value is failure
+
+    async def test_failed_read_back_raises_drives_error(self):
+        drive = self._drive()
+        failure = _http_error(400, "Invalid Value")
+        drive.replies.return_value.update.return_value.execute.side_effect = failure
+        drive.replies.return_value.get.return_value.execute.side_effect = _http_error(404, "gone")
+        with pytest.raises(HttpError) as exc:
+            await _tools["update_comment"](
+                file_id="f1",
+                comment_id="c1",
+                reply_id="r1",
+                content="x",
+                ctx=_make_ctx(drive_service=drive),
+            )
+        assert exc.value is failure
+
+    @pytest.mark.parametrize("status", [403, 404, 429])
+    async def test_other_errors_raise_without_a_read_back(self, status):
+        drive = self._drive()
+        drive.comments.return_value.update.return_value.execute.side_effect = _http_error(
+            status, "no"
+        )
+        with pytest.raises(HttpError):
+            await _tools["update_comment"](
+                file_id="f1", comment_id="c1", content="x", ctx=_make_ctx(drive_service=drive)
+            )
+        drive.comments.return_value.get.assert_not_called()
+
+
+class TestDeleteComment:
+    async def test_deletes_the_comment(self):
+        drive = MagicMock()
+        drive.comments.return_value.delete.return_value.execute.return_value = ""
+        result = await _tools["delete_comment"](
+            file_id="f1", comment_id="c1", ctx=_make_ctx(drive_service=drive)
+        )
+        drive.comments.return_value.delete.assert_called_once_with(fileId="f1", commentId="c1")
+        drive.replies.assert_not_called()
+        assert result == {"file_id": "f1", "comment_id": "c1", "reply_id": None, "deleted": True}
+
+    async def test_deletes_a_reply_when_reply_id_is_given(self):
+        drive = MagicMock()
+        drive.replies.return_value.delete.return_value.execute.return_value = ""
+        result = await _tools["delete_comment"](
+            file_id="f1", comment_id="c1", reply_id="r1", ctx=_make_ctx(drive_service=drive)
+        )
+        drive.replies.return_value.delete.assert_called_once_with(
+            fileId="f1", commentId="c1", replyId="r1"
+        )
+        drive.comments.assert_not_called()
+        assert result == {"file_id": "f1", "comment_id": "c1", "reply_id": "r1", "deleted": True}
+
+    async def test_not_found_propagates(self):
+        drive = MagicMock()
+        drive.comments.return_value.delete.return_value.execute.side_effect = _http_error(
+            404, "Comment not found"
+        )
+        with pytest.raises(HttpError):
+            await _tools["delete_comment"](
+                file_id="f1", comment_id="c1", ctx=_make_ctx(drive_service=drive)
+            )
+
+
 def _server_ctx(drive):
     lifespan = SimpleNamespace(unauthorized_message=None, auth_method="oauth", drive_service=drive)
     return Context(
@@ -589,6 +940,8 @@ _TEXT_PARAMS = {
     "add_file_comment": ("content", "quoted_text", "anchor"),
     "reply_to_comment": ("content",),
     "resolve_doc_comment": ("reply_content",),
+    "update_comment": ("content", "reply_id"),
+    "delete_comment": ("reply_id",),
 }
 
 # The optional ones among them (OptionalText): null means not given.
@@ -596,7 +949,7 @@ _OPTIONAL_TEXT_PARAMS = [
     (tool, param)
     for tool, params in _TEXT_PARAMS.items()
     for param in params
-    if (tool, param) != ("add_file_comment", "content")
+    if (tool, param) not in {("add_file_comment", "content"), ("update_comment", "content")}
 ]
 
 
