@@ -9,6 +9,7 @@ wrappers around them. Sections that take their fetch as a parameter
 
 import importlib.util
 import json
+import os
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -467,12 +468,13 @@ def _status(**overrides):
     return status
 
 
-def _team_pr(number, login="khuisman", labels=(), is_bot=False):
+def _team_pr(number, login="khuisman", labels=(), is_bot=False, branch=None, draft=False):
     return {
         "number": number,
-        "headRefName": f"fix/ash/issue-{number}",
+        "headRefName": branch or f"fix/ash/issue-{number}",
         "author": {"login": login, "is_bot": is_bot},
         "labels": [{"name": n} for n in labels],
+        "isDraft": draft,
     }
 
 
@@ -596,6 +598,11 @@ class TestSectionSessions:
             (json.dumps(_status(pr="1556")), "pr is not a positive integer or null"),
             (json.dumps(_status(pr=True)), "pr is not a positive integer or null"),
             (json.dumps(_status(doing=None)), "doing is not a non-empty string"),
+            # PR #1561 QA round 1: an unhashable state raised TypeError and
+            # nested JSON raised RecursionError, each ending the section.
+            (json.dumps(_status(state={"a": 1})), "state is not one of"),
+            (json.dumps(_status(state=["working"])), "state is not one of"),
+            ("[" * 16000, "not valid JSON (RecursionError)"),
         ],
     )
     def test_malformed_file_flags_without_crashing(self, tmp_path, content, problem):
@@ -611,6 +618,40 @@ class TestSectionSessions:
         self.write(tmp_path, "rio", " " * (kai_status.STATUS_MAX_BYTES + 1))
         (line,) = [ln for ln in self.section(tmp_path) if ln.startswith("rio")]
         assert "larger than" in line
+
+    @staticmethod
+    def status_path(root, slot):
+        path = root / ".claude" / "worktrees" / slot / ".workspace" / "status.json"
+        path.parent.mkdir(parents=True)
+        return path
+
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="no FIFOs on this platform")
+    def test_fifo_is_malformed_and_never_opened(self, tmp_path):
+        """PR #1561 QA round 1: opening a FIFO blocks until a writer comes,
+        hanging the whole report."""
+        os.mkfifo(self.status_path(tmp_path, "rio"))
+        (line,) = [ln for ln in self.section(tmp_path) if ln.startswith("rio")]
+        assert line == "rio            FLAG: malformed status file: not a regular file"
+
+    @pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="no FIFOs on this platform")
+    def test_symlink_to_a_fifo_is_not_followed(self, tmp_path):
+        fifo = tmp_path / "fifo"
+        os.mkfifo(fifo)
+        self.status_path(tmp_path, "rio").symlink_to(fifo)
+        (line,) = [ln for ln in self.section(tmp_path) if ln.startswith("rio")]
+        assert line == "rio            FLAG: malformed status file: not a regular file"
+
+    def test_directory_is_malformed(self, tmp_path):
+        self.status_path(tmp_path, "rio").mkdir()
+        (line,) = [ln for ln in self.section(tmp_path) if ln.startswith("rio")]
+        assert line.endswith("not a regular file")
+
+    def test_round_is_printed_without_a_hash(self, tmp_path):
+        """PR #1561 QA round 1: `round #2` read as a reference to #2."""
+        self.write(tmp_path, "rio", _status(state="waiting-agent", pr=1556, round=2))
+        view = _view()
+        (line,) = self.published(self.section(tmp_path, [_team_pr(1556)], fetch=lambda n: view))
+        assert line.startswith("rio            Rio: waiting-agent; PR #1556, round 2; updated")
 
     def test_untrusted_text_is_printed_on_one_clean_line(self, tmp_path):
         doing = "line one\nFLAG: forged\x1b[31m red" + "x" * 500
@@ -675,6 +716,28 @@ class TestSectionSessions:
         assert self.flags(self.section(tmp_path, prs, fetch=lambda n: _view())) == [
             "FLAG: open PR #2 (fix/ash/issue-2) is claimed by no status file"
         ]
+
+    @pytest.mark.parametrize(
+        "pr",
+        [
+            pytest.param(_team_pr(10, labels=("parked",)), id="parked"),
+            pytest.param(_team_pr(11, draft=True), id="draft"),
+            pytest.param(_team_pr(12, branch="doc/jay/retro-2026-11-19"), id="retro"),
+            pytest.param(_team_pr(13, branch="docs/kai/roadmap-2026-11-19"), id="roadmap"),
+            pytest.param(_team_pr(14, branch="doc/kai/roadmap-2026-11-14"), id="old-roadmap"),
+        ],
+    )
+    def test_prs_nobody_holds_by_design_need_no_claim(self, tmp_path, pr):
+        """PR #1561 QA round 1: these flagged on every run and never cleared."""
+        assert self.flags(self.section(tmp_path, [pr])) == []
+
+    @pytest.mark.parametrize(
+        "branch",
+        ["docs/ash/roadmap-2026-11-19", "fix/jay/issue-1500-retro-fix", "doc/jay/retro"],
+    )
+    def test_lookalike_branches_still_need_a_claim(self, tmp_path, branch):
+        flags = self.flags(self.section(tmp_path, [_team_pr(20, branch=branch)]))
+        assert flags == [f"FLAG: open PR #20 ({branch}) is claimed by no status file"]
 
     def test_a_malformed_file_claims_nothing(self, tmp_path):
         self.write(tmp_path, "rio", json.dumps({"pr": 1}))

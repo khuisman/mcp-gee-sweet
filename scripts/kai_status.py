@@ -25,7 +25,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import stat
 import subprocess
 import sys
 import tempfile
@@ -371,7 +373,7 @@ def parse_status(raw: str) -> tuple[dict | None, str | None]:
     """
     try:
         data = json.loads(raw)
-    except ValueError as e:
+    except (ValueError, RecursionError) as e:  # RecursionError: nesting deeper than json can parse
         return None, f"not valid JSON ({type(e).__name__})"
     if not isinstance(data, dict):
         return None, f"not a JSON object ({type(data).__name__})"
@@ -389,7 +391,8 @@ def parse_status(raw: str) -> tuple[dict | None, str | None]:
             _parse_time(data["updated"])
         except ValueError:
             problems.append("updated is not a real UTC time")
-    if data["state"] not in STATUS_STATES:
+    # A list or object isn't hashable, so test the type before the set lookup.
+    if not isinstance(data["state"], str) or data["state"] not in STATUS_STATES:
         problems.append(f"state is not one of {', '.join(sorted(STATUS_STATES))}")
     for field in ("pr", "issue", "round"):
         if data[field] is not None and not _is_number(data[field]):
@@ -403,12 +406,34 @@ def parse_status(raw: str) -> tuple[dict | None, str | None]:
 
 def read_status(path: Path) -> tuple[dict | None, str | None]:
     """`parse_status` for a file on disk. A missing file is (None, None): the
-    session published no status, which never means idle."""
+    session published no status, which never means idle.
+
+    Only a regular file is read. Opening a FIFO blocks until something writes
+    to it, which would hang the whole report, so the type is checked with
+    `lstat` (a symlink is refused too, never followed) before opening. The
+    open itself is non-blocking and refuses a symlink, and the opened file is
+    checked again, so a swap between the check and the open can't block it.
+    """
     try:
-        with path.open("rb") as f:
-            raw = f.read(STATUS_MAX_BYTES + 1)
+        mode = path.lstat().st_mode
     except FileNotFoundError:
         return None, None
+    except OSError as e:
+        return None, f"unreadable ({type(e).__name__})"
+    if not stat.S_ISREG(mode):
+        return None, "not a regular file"
+    flags = os.O_RDONLY | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        fd = os.open(path, flags)
+    except FileNotFoundError:
+        return None, None
+    except OSError as e:
+        return None, f"unreadable ({type(e).__name__})"
+    try:
+        with os.fdopen(fd, "rb") as f:
+            if not stat.S_ISREG(os.fstat(f.fileno()).st_mode):
+                return None, "not a regular file"
+            raw = f.read(STATUS_MAX_BYTES + 1)
     except OSError as e:
         return None, f"unreadable ({type(e).__name__})"
     if len(raw) > STATUS_MAX_BYTES:
@@ -441,8 +466,8 @@ def format_age(delta: timedelta) -> str:
 
 def newest_qa_verdict(pr_view: dict) -> tuple[datetime, str] | None:
     """(posted at, first line) of the newest `## QA round ...` verdict on a PR,
-    from its comments or its reviews (an advisory fork PR's verdicts are
-    reviews, `security-advisory.md` rule 5), or None if it has none."""
+    from its comments or its reviews, or None if it has none. `pr_view` comes
+    from this repo's PR with that number."""
     found: list[tuple[datetime, str]] = []
     for item in [*(pr_view.get("comments") or []), *(pr_view.get("reviews") or [])]:
         lines = (item.get("body") or "").strip().splitlines()
@@ -500,12 +525,37 @@ def session_flags(
     return flags
 
 
+# Open team PRs that no session holds by design, so they never need a claim:
+# Kai's running roadmap PR (`docs/kai/roadmap-<date>`, once `doc/`) and a
+# role's `doc/<name>/retro-<date>` PR, which claims no ticket.
+_UNHELD_BRANCH_RE = re.compile(r"docs?/kai/roadmap-.*|docs?/[^/]+/retro-.*")
+
+
+def needs_claim(pr: dict) -> bool:
+    """Whether an open PR should be claimed by some session's status file.
+
+    Only a team PR (a maintainer's, not a bot's, not `community`) does, and
+    not one held by nobody by design: a `parked` PR (kai.md "Parked PRs" frees
+    its lane and clears its Dev), a draft, the running roadmap PR, or a retro
+    PR.
+    """
+    author = pr["author"]
+    if author.get("is_bot") or author.get("login") not in MAINTAINERS:
+        return False
+    labels = _labels(pr)
+    if "community" in labels or "parked" in labels or pr.get("isDraft"):
+        return False
+    return not _UNHELD_BRANCH_RE.fullmatch(pr["headRefName"])
+
+
 def describe_status(status: dict, now: datetime) -> str:
     holds = [
         f"{label} #{status[field]}"
-        for field, label in (("pr", "PR"), ("issue", "issue"), ("round", "round"))
+        for field, label in (("pr", "PR"), ("issue", "issue"))
         if status[field] is not None
     ]
+    if status["round"] is not None:
+        holds.append(f"round {status['round']}")
     age = format_age(max(now - _parse_time(status["updated"]), timedelta(0)))
     text = (
         f"{clean_text(status['name'], 40)}: {status['state']}; "
@@ -739,9 +789,7 @@ def section_sessions(
         for flag in session_flags(status, now, open_numbers, view):
             lines.append(f"      FLAG: {flag}")
     for p in prs:
-        author = p["author"]
-        team = not author.get("is_bot") and author.get("login") in MAINTAINERS
-        if team and "community" not in _labels(p) and p["number"] not in claimed:
+        if needs_claim(p) and p["number"] not in claimed:
             lines.append(
                 f"FLAG: open PR #{p['number']} ({p['headRefName']}) is claimed by no status file"
             )
