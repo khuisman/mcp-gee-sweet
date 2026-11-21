@@ -2181,6 +2181,51 @@ import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 
 ---
 
+### TC-D322: A UTF-8 byte-order mark doesn't reach cell A1 (#1575) ⚠️ requires-oauth ⚠️ local-filesystem
+**Background:** Excel's "CSV UTF-8" export starts the file with the bytes `EF BB BF`. Read as plain UTF-8, they became a U+FEFF character at the start of A1, so the header read `"\ufeffcase"`, the call still succeeded, and nothing in the sheet showed it.
+
+**Setup:** in a scratch directory, write `qa-import-bom.csv` with its bytes exactly `EF BB BF` followed by `case,value\nx,1\n`, e.g. `printf '\xef\xbb\xbfcase,value\nx,1\n' > <scratch>/qa-import-bom.csv`. Confirm with `xxd <scratch>/qa-import-bom.csv | head -1` that it starts `efbb bf63`.
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-import-bom.csv", title="QA TC-D322 BOM", folder_id={FOLDER_ID})`
+2. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="A1:B2")`
+3. `update_cells(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="C1:D1", data=[["=LEN(A1)", "=A1=\"case\""]])`
+4. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="C1:D1")`
+
+**Checks**
+- Step 1 returns `rows_written: 2` and no `error`
+- Step 2's `valueRanges[0].values` is `[["case","value"],["x","1"]]`. U+FEFF is invisible, so this alone doesn't rule it out; step 4 does
+- Step 4's `valueRanges[0].values` is `[["4","TRUE"]]`. Before the fix it was `[["5","FALSE"]]`: A1 held the BOM as a fifth character
+
+**Cleanup:** `delete_file(file_id=<step 1's spreadsheetId>, permanent=True)`; remove the local file.
+
+**Result (2026-11-21) ✅ PASS — PR #1580 round 1 on `mcp-gee-sweet-sky`** — fixture bytes confirmed `efbb bf63`. Step 1: `rows_written: 2`, no `error`, created in the Shared Drive root. Step 2: `valueRanges[0].values` `[["case","value"],["x","1"]]`. Step 4: `[["4","TRUE"]]`, so A1 is exactly `case`. Cleanup done (deleted permanently, local file removed). Checks reworded this round: `get_sheet_data` returns `{spreadsheetId, valueRanges:[{range, values}]}`, not a bare list.
+
+**Result (2026-11-21) ✅ PASS — PR #1580 round 2 on `mcp-gee-sweet-sky`** — re-run after the read-error handling fix (ac41c5d5). `rows_written: 2`; `A1:D2` values `[["case","value","4","TRUE"],["x","1"]]`. Cleanup done.
+
+---
+
+### TC-D323: A non-UTF-8 CSV or a directory named `.csv` returns an error, creating nothing (PR #1580) ⚠️ local-filesystem
+**Background:** a CSV saved in Excel's plain "CSV" format is cp1252, not UTF-8. Reading one raised `UnicodeDecodeError` out of the tool (`Error executing tool import_csv_to_sheet: 'utf-8' codec can't decode byte 0xe9 ...`), and a directory named `x.csv` passed the existence and suffix checks and raised `IsADirectoryError`, instead of returning `{"error": ...}`.
+
+**Setup:** in a scratch directory, write `qa-import-cp1252.csv` with its bytes exactly `caf` `E9` `,1\n`, e.g. `printf 'caf\xe9,1\n' > <scratch>/qa-import-cp1252.csv`, and confirm with `xxd` that byte 3 is `e9`. Create a directory `<scratch>/qa-dir.csv` (`mkdir`).
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-import-cp1252.csv", title="QA TC-D323 cp1252", folder_id={FOLDER_ID})`
+2. `import_csv_to_sheet(local_path="<scratch>/qa-dir.csv", title="QA TC-D323 dir", folder_id={FOLDER_ID})`
+3. `search_files(query="QA TC-D323", folder_id={FOLDER_ID})`
+
+**Checks**
+- Step 1 returns a result whose only key is `error`, starting `File is not valid UTF-8: <scratch>/qa-import-cp1252.csv` and naming `"CSV UTF-8"`. It is a tool result, not a protocol error (`Error executing tool ...`)
+- Step 2 returns only `error`: `Not a regular file: <scratch>/qa-dir.csv`
+- Step 3 finds no file: neither call created a spreadsheet
+
+**Cleanup:** remove the local file and directory.
+
+**Result (2026-11-21) ✅ PASS — PR #1580 round 2 on `mcp-gee-sweet-sky`** — fixture bytes `6361 66e9 2c31 0a`. Step 1: `{"error": "File is not valid UTF-8: <scratch>/qa-import-cp1252.csv (invalid continuation byte). Save it as UTF-8 (in Excel, \"CSV UTF-8\") and import again."}`, a tool result, not `Error executing tool`. Step 2: `{"error": "Not a regular file: <scratch>/qa-dir.csv"}`. Step 3: `{"files": [], "exhaustive": true}`. Local fixtures removed.
+
+---
+
 ### TC-D173: Non-existent local path (unit test)
 
 **Checks (unit test)**

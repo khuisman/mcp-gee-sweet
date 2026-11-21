@@ -1,5 +1,7 @@
 """Tests for tools/drive/files.py (search_spreadsheets, create_folder, move_file, delete_file, etc.)."""
 
+import csv
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -1771,6 +1773,104 @@ class TestImportCsvToSheet:
         sheet_data_cache.mark_dirty.assert_called_once_with("sheet123")
         # No resize/rename needed — default title matches, data fits default grid.
         sheets_svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+
+    async def _import_values(self, path):
+        """Import `path` and return the values the one update wrote."""
+        sheets_svc = self._sheets_service()
+        ctx = _make_ctx(
+            drive_service=self._drive_service(),
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            folder_id=None,
+        )
+        result = await _drive_tools["import_csv_to_sheet"](
+            local_path=str(path), title="Imported", ctx=ctx
+        )
+        assert "error" not in result, result
+        update_call = sheets_svc.spreadsheets.return_value.values.return_value.update
+        return update_call.call_args.kwargs["body"]["values"]
+
+    async def test_drops_a_leading_utf8_bom(self, tmp_path):
+        """#1575: Excel's "CSV UTF-8" export starts with a BOM, which must not reach A1."""
+        path = tmp_path / "bom.csv"
+        path.write_bytes(b"\xef\xbb\xbfcase,value\nx,1\n")
+        values = await self._import_values(path)
+        assert values == [["case", "value"], ["x", "1"]]
+
+    async def test_bom_before_a_quoted_first_field_still_parses_the_quotes(self, tmp_path):
+        """With the BOM read as text, csv saw `\\ufeff"a,b"` and kept the quotes as data."""
+        path = tmp_path / "bom_quoted.csv"
+        path.write_bytes(b'\xef\xbb\xbf"a,b",c\n1,2\n')
+        values = await self._import_values(path)
+        assert values == [["a,b", "c"], ["1", "2"]]
+
+    async def test_keeps_a_bom_character_that_is_not_leading(self, tmp_path):
+        """Only the encoding signature is dropped; a U+FEFF later in the file is data."""
+        path = tmp_path / "inner_bom.csv"
+        path.write_bytes(b"h1,h2\nx,\xef\xbb\xbfy\n")
+        values = await self._import_values(path)
+        assert values == [["h1", "h2"], ["x", "\ufeffy"]]
+
+    async def test_file_without_bom_reads_unchanged(self, tmp_path):
+        path = tmp_path / "plain.csv"
+        path.write_bytes("café,v\n1,2\n".encode())
+        values = await self._import_values(path)
+        assert values == [["café", "v"], ["1", "2"]]
+
+    async def test_bom_only_file_is_empty(self, tmp_path):
+        path = tmp_path / "bom_only.csv"
+        path.write_bytes(b"\xef\xbb\xbf")
+        ctx = _make_ctx()
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert "error" in result
+        assert "empty" in result["error"].lower()
+
+    async def _import_error(self, path):
+        """Import `path`, expecting an error result before any Drive call."""
+        drive_svc = self._drive_service()
+        ctx = _make_ctx(drive_service=drive_svc, sheets_service=self._sheets_service())
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert set(result) == {"error"}, result
+        drive_svc.files.return_value.create.assert_not_called()
+        return result["error"]
+
+    async def test_non_utf8_file_returns_error_naming_utf8(self, tmp_path):
+        """PR #1580 QA round 1: a cp1252 file raised UnicodeDecodeError out of the tool."""
+        path = tmp_path / "cp1252.csv"
+        path.write_bytes(b"caf\xe9,1\n")
+        error = await self._import_error(path)
+        assert "not valid UTF-8" in error
+        assert "CSV UTF-8" in error
+
+    async def test_directory_named_csv_returns_error(self, tmp_path):
+        """PR #1580 QA round 1: a directory passed exists() and raised IsADirectoryError."""
+        path = tmp_path / "folder.csv"
+        path.mkdir()
+        error = await self._import_error(path)
+        assert error.startswith("Not a regular file")
+
+    async def test_csv_parse_error_returns_error(self, tmp_path):
+        """A field over csv's size limit raises csv.Error, which must not escape."""
+        path = tmp_path / "big_field.csv"
+        path.write_text("a," + "x" * 50 + "\n", encoding="utf-8")
+        old_limit = csv.field_size_limit(10)
+        try:
+            error = await self._import_error(path)
+        finally:
+            csv.field_size_limit(old_limit)
+        assert error.startswith("Could not parse CSV")
+
+    async def test_read_oserror_returns_error(self, tmp_path, monkeypatch):
+        path = tmp_path / "data.csv"
+        path.write_text("a,b\n", encoding="utf-8")
+
+        def _refuse(self, *args, **kwargs):
+            raise PermissionError(13, "Permission denied")
+
+        monkeypatch.setattr(Path, "open", _refuse)
+        error = await self._import_error(path)
+        assert error == f"Could not read file {path}: Permission denied"
 
     async def test_pads_ragged_rows_to_common_width(self, tmp_path):
         path = tmp_path / "ragged.csv"
