@@ -332,7 +332,7 @@ PR #1374, Amy's contributor-docs change, touches `README.md`, `CONTRIBUTING.md`,
 
 ### A fix pushed by a session the branch doesn't name (2026-11-20)
 
-PR #1561 came from a `chore/worker/...` branch, so under "The pass" its author was the user. After Rio sent round 1 back, Bob pushed the fix with the user's approval and messaged Rio to re-verify. The go-ahead list accepted a fix notice only from the author or Kai, so Rio asked the user, who said yes. The extra round-trip added nothing: the user had already started the PR's QA cycle and approved the push. The fixer's notice now counts too. It covers only a re-verification round on a PR Rio already sent back; a first pass still needs the user or Kai's relayed hand-off.
+PR #1561 came from a `chore/worker/...` branch, so under "The pass" its author was the user. After Rio sent round 1 back, Bob pushed the fix with the user's approval and messaged Rio to re-verify. The go-ahead list accepted a fix notice only from the author or Kai, so Rio asked the user, who said yes. The extra round-trip added nothing: the user had already started the PR's QA cycle and approved the push. The fixer's notice now counts too. Every persona pushes through one GitHub account, so Rio can't confirm who pushed; in Bob's prompt-QA review (PR #1571) the rule gained a condition Rio can check itself: the PR's head has moved past the commit in Rio's latest `sent back` verdict. It covers only a re-verification round on a PR Rio already sent back; a first pass still needs the user or Kai's relayed hand-off.
 
 ### Reconnect before a server call, whatever the diff (2026-11-05)
 
