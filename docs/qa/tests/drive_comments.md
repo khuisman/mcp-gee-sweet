@@ -257,6 +257,8 @@ Run 2 (ash).
 
 **Result (2026-11-20) ⚠️ PARTIAL — PR #1563 round 1 (Kit), `mcp-gee-sweet-kit` at `07e02d0`, OAuth, on a throwaway Doc (`QA PR1563 comments scratch`) in the QA folder, deleted afterward** — 1: `{"error": "Pass content for a plain reply, or an action ('resolve' or 'reopen'); a reply with neither has nothing to post."}`, no reply added. 2: refused by argument validation (`Input should be 'resolve' or 'reopen'`), nothing posted. Both checks met, but a probe outside them, `reply_to_comment(content="   ")` with no action, passed the guard and posted a reply Drive stored with `content: ""`: a whitespace-only reply has nothing to post either. Sent back on the PR.
 
+**Result (2026-11-20) ✅ PASS — PR #1563 round 2 (Kit), `mcp-gee-sweet-kit` at `024f62f`, OAuth, on a throwaway spreadsheet in the QA folder, deleted afterward** — step 3 only (the fix): `reply_to_comment(content="   ")` returned the same `{"error": ...}` as step 1, and the list showed no new reply. Probes beside it: `reply_to_comment(content="  ", action="resolve")` resolved the comment with a reply `content: ""` (the whitespace not sent), and `resolve_doc_comment(reply_content="  ")` did the same. Steps 1 and 2 are unchanged since round 1 and weren't re-run.
+
 ---
 
 ### TC-D314: The old comment tool names and `doc_id` still work for one release ⚠️ destructive
@@ -299,3 +301,5 @@ Run 2 (ash).
 - 3: both comments are listed, unresolved, with no replies
 
 **Cleanup:** `delete_file(file_id={SHEET_FILE_ID}, permanent=True)`
+
+**Result (2026-11-20) ❌ FAIL — PR #1563 round 2 (Kit), `mcp-gee-sweet-kit` at `024f62f`, OAuth, on a throwaway spreadsheet in the QA folder, deleted afterward** — 1: refused before any call: `1 validation error for add_file_commentArguments anchor Input should be a valid string [type=string_type, ... input_type=dict]`, the same with a leading space. mcp's `pre_parse_json` runs `json.loads` on a string argument whose annotation isn't exactly `str`, and `anchor`'s is `str | None`, so a `drive#commentRegion` JSON string reaches validation as a dict and is rejected; reproduced in a fresh interpreter through the registered tool's `fn_metadata`, so it isn't client-specific. 2: `anchor: null`, as expected. 3 not run: step 1 added nothing. Sent back on the PR.
