@@ -79,14 +79,21 @@ def _map_comment(comment: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _has_text(content: str | None) -> bool:
+    """Whether `content` holds anything but whitespace. Drive stores a reply of
+    only whitespace as `content: ""`, a blank reply on the thread (PR #1563)."""
+    return bool(content and content.strip())
+
+
 async def _create_reply(
     drive_service, file_id: str, comment_id: str, content: str | None, action: str | None
 ) -> dict[str, Any]:
-    """Post one reply (`replies.create`), with `action` when given. The raw resource."""
+    """Post one reply (`replies.create`), with `action` when given. The raw resource.
+    Whitespace-only `content` isn't sent: Drive stores it as an empty reply."""
     body: dict[str, Any] = {}
     if action:
         body["action"] = action
-    if content:
+    if _has_text(content):
         body["content"] = content
     return await execute_in_thread(
         drive_service.replies()
@@ -175,6 +182,7 @@ def register(tool):
         file_id: str,
         content: str,
         quoted_text: str | None = None,
+        anchor: str | None = None,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -184,25 +192,40 @@ def register(tool):
         Args:
             file_id: The file's ID.
             content: The comment text.
-            quoted_text: Optional text from the file to anchor the comment to,
-                         shown as the quoted range the comment refers to.
+            quoted_text: Optional text the comment quotes, shown with the comment
+                         as the text it refers to. It doesn't pin the comment to a
+                         position: in a Doc, Sheet or Slides deck the comment is
+                         unanchored (it isn't attached to that text, a cell, or a
+                         slide), since Drive's API can't anchor a comment in the
+                         Google editors.
+            anchor: Optional Drive anchor region, passed through as given (a JSON
+                    string in Drive's `drive#commentRegion` format). Drive's own
+                    viewer may honor it for a non-Google file such as an image or
+                    PDF; the Google editors ignore it, so it can't pin a comment to
+                    a cell or a range in a Doc, Sheet or Slides deck.
 
         Returns:
             Dictionary with id, content, author (display_name, email_address),
-            created_time, and quoted_text (echoing the anchor, if one was set).
+            created_time, quoted_text (echoed, if set), and anchor (echoed as Drive
+            stored it, if set).
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
         body: dict[str, Any] = {"content": content}
         if quoted_text:
             body["quotedFileContent"] = {"value": quoted_text}
+        if anchor:
+            body["anchor"] = anchor
 
         result = await execute_in_thread(
             drive_service.comments()
             .create(
                 fileId=file_id,
                 body=body,
-                fields="id,content,author(displayName,emailAddress),createdTime,quotedFileContent(value)",
+                fields=(
+                    "id,content,author(displayName,emailAddress),createdTime,"
+                    "quotedFileContent(value),anchor"
+                ),
             )
             .execute,
             drive_service,
@@ -215,6 +238,7 @@ def register(tool):
             "author": _map_author(result.get("author")),
             "created_time": result.get("createdTime"),
             "quoted_text": _quoted_text(result),
+            "anchor": result.get("anchor"),
         }
 
     @tool(
@@ -237,16 +261,17 @@ def register(tool):
             file_id: The file's ID.
             comment_id: The comment's ID (from list_file_comments).
             content: The reply text. Required for a plain reply; optional with an
-                     action.
+                     action. Text that is only whitespace counts as none.
             action: "resolve" to mark the comment resolved, "reopen" to reopen a
                     resolved one, or omit for a plain reply.
 
         Returns:
             Dictionary with file_id, comment_id, reply_id, action (None for a plain
             reply), content, and created_time. Returns {"error": ...} without
-            posting anything when neither content nor action is given.
+            posting anything when neither content (other than whitespace) nor
+            action is given.
         """
-        if not content and not action:
+        if not _has_text(content) and not action:
             return {
                 "error": "Pass content for a plain reply, or an action ('resolve' or "
                 "'reopen'); a reply with neither has nothing to post."
@@ -285,7 +310,8 @@ def register(tool):
         Args:
             doc_id: The Google Doc file ID.
             comment_id: The ID of the comment to resolve (from list_file_comments).
-            reply_content: Optional text to attach to the resolving reply.
+            reply_content: Optional text to attach to the resolving reply (text
+                           that is only whitespace isn't sent).
 
         Returns:
             Dictionary with doc_id, comment_id, reply id, and action ("resolve").

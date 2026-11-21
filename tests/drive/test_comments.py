@@ -246,6 +246,31 @@ class TestAddFileComment:
         await _tools["add_file_comment"](file_id="doc-xyz", content="hi", ctx=ctx)
         assert drive.comments.return_value.create.call_args.kwargs["fileId"] == "doc-xyz"
 
+    async def test_anchor_is_passed_through_and_echoed(self):
+        region = '{"r": "head", "a": [{"rect": {"x": 1, "y": 2, "w": 3, "h": 4}}]}'
+        drive = self._drive_svc()
+        drive.comments.return_value.create.return_value.execute.return_value["anchor"] = region
+        ctx = self._ctx(drive)
+        result = await _tools["add_file_comment"](
+            file_id="img1", content="here", anchor=region, ctx=ctx
+        )
+        call_kwargs = drive.comments.return_value.create.call_args.kwargs
+        assert call_kwargs["body"] == {"content": "here", "anchor": region}
+        assert "anchor" in call_kwargs["fields"].split(",")
+        assert result["anchor"] == region
+
+    async def test_no_anchor_sends_none_and_echoes_none(self):
+        drive = self._drive_svc()
+        ctx = self._ctx(drive)
+        result = await _tools["add_file_comment"](file_id="f1", content="hi", ctx=ctx)
+        assert "anchor" not in drive.comments.return_value.create.call_args.kwargs["body"]
+        assert result["anchor"] is None
+
+    def test_docstring_says_anchoring_is_inert_in_the_google_editors(self):
+        doc = " ".join(_tools["add_file_comment"].__doc__.split())
+        assert "doesn't pin the comment to a position" in doc
+        assert "the Google editors ignore it" in doc
+
     async def test_maps_author_to_snake_case(self):
         drive = self._drive_svc()
         ctx = self._ctx(drive)
@@ -286,6 +311,15 @@ class TestResolveDocComment:
         )
         create_body = drive.replies.return_value.create.call_args.kwargs["body"]
         assert create_body == {"action": "resolve", "content": "Fixed, thanks!"}
+
+    async def test_whitespace_reply_content_isnt_sent(self):
+        drive = self._drive_svc()
+        ctx = self._ctx(drive)
+        await _tools["resolve_doc_comment"](
+            doc_id="doc1", comment_id="c1", reply_content="  ", ctx=ctx
+        )
+        create_body = drive.replies.return_value.create.call_args.kwargs["body"]
+        assert create_body == {"action": "resolve"}
 
     async def test_ids_passed_through_to_api(self):
         drive = self._drive_svc()
@@ -356,7 +390,7 @@ class TestReplyToComment:
         body = drive.replies.return_value.create.call_args.kwargs["body"]
         assert body == {"action": "resolve", "content": "Done"}
 
-    @pytest.mark.parametrize("content", [None, ""])
+    @pytest.mark.parametrize("content", [None, "", "   ", "\n\t "])
     async def test_neither_content_nor_action_is_an_error_without_a_call(self, content):
         drive = MagicMock()
         result = await _tools["reply_to_comment"](
@@ -364,6 +398,27 @@ class TestReplyToComment:
         )
         assert "error" in result
         drive.replies.assert_not_called()
+
+    async def test_whitespace_content_with_an_action_isnt_sent(self):
+        # Drive stores whitespace-only content as an empty reply (PR #1563 round 1).
+        drive = self._drive_svc(action="resolve", content="")
+        await _tools["reply_to_comment"](
+            file_id="f1",
+            comment_id="c1",
+            content="   ",
+            action="resolve",
+            ctx=_make_ctx(drive_service=drive),
+        )
+        body = drive.replies.return_value.create.call_args.kwargs["body"]
+        assert body == {"action": "resolve"}
+
+    async def test_content_keeps_its_own_whitespace(self):
+        drive = self._drive_svc(content="  hi  ")
+        await _tools["reply_to_comment"](
+            file_id="f1", comment_id="c1", content="  hi  ", ctx=_make_ctx(drive_service=drive)
+        )
+        body = drive.replies.return_value.create.call_args.kwargs["body"]
+        assert body == {"content": "  hi  "}
 
     def test_action_is_limited_to_resolve_and_reopen(self):
         # mcp validates arguments against this annotation before the call.

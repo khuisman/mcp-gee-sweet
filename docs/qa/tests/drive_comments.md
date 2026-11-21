@@ -246,10 +246,12 @@ Run 2 (ash).
 **Steps**
 1. `reply_to_comment(file_id={DOC_ID}, comment_id=<any comment's id from list_file_comments>)`
 2. `reply_to_comment(file_id={DOC_ID}, comment_id=<the same id>, action="delete")`
+3. `reply_to_comment(file_id={DOC_ID}, comment_id=<the same id>, content="   ")` (added in PR #1563 round 2)
 
 **Checks**
 - 1: returns `{"error": ...}` saying to pass `content` or an `action`. `list_file_comments` shows no new reply on that comment
 - 2: refused as an invalid argument (only `resolve` and `reopen` are accepted), with no reply posted
+- 3: the same `{"error": ...}` as step 1: content that is only whitespace counts as none. `list_file_comments` shows no new reply
 
 **Cleanup:** none (no mutation applied)
 
@@ -278,3 +280,22 @@ Run 2 (ash).
 **Cleanup:** none available (see the note at the top)
 
 **Result (2026-11-20) ✅ PASS — PR #1563 round 1 (Kit), `mcp-gee-sweet-kit` at `07e02d0`, OAuth, on a throwaway Doc (`QA PR1563 comments scratch`) in the QA folder, deleted afterward** — 1 and 2: the same comments, `file_id` echoed, `deprecation_warnings` `["`doc_id` is deprecated: use `file_id`. `doc_id` is removed in the next feature release."]`. 3: comment added, no `deprecation_warnings`. 4: tool error `Pass only `file_id`: `doc_id` is its deprecated old name.` 5: returned `doc_id`, `comment_id`, `reply_id`, `action: "resolve"`; the list shows that comment `resolved: true` with the reply `QA TC-D314: resolved.` 6: `list_doc_comments`' description starts ``Deprecated: use `list_file_comments`.``; `resolve_doc_comment`'s starts ``Deprecated: use `reply_to_comment` with `action='resolve'` instead.``
+
+---
+
+### TC-D315: `add_file_comment(anchor=)` passes a Drive anchor through ⚠️ destructive
+**Background:** `decision-comments-first-class.md` gives `add_file_comment` an `anchor` passthrough for non-Google files (images, PDFs), where Drive's viewer may honor a `drive#commentRegion`. Decision 5 there confirmed the Google editors ignore any anchor, so this case checks the round trip, not a pinned comment.
+
+**Setup:** `create_spreadsheet(title="QA TC-D315 anchor", folder_id={FOLDER_ID})`; note the returned ID as `{SHEET_FILE_ID}`.
+
+**Steps**
+1. `add_file_comment(file_id={SHEET_FILE_ID}, content="QA TC-D315 anchored", anchor="{\"r\": \"head\", \"a\": [{\"rect\": {\"x\": 10, \"y\": 20, \"w\": 30, \"h\": 40, \"mw\": 100, \"mh\": 100}}]}")`
+2. `add_file_comment(file_id={SHEET_FILE_ID}, content="QA TC-D315 plain")`
+3. `list_file_comments(file_id={SHEET_FILE_ID})`
+
+**Checks**
+- 1: returns `anchor` equal to the string sent, character for character
+- 2: returns `anchor: null`
+- 3: both comments are listed, unresolved, with no replies
+
+**Cleanup:** `delete_file(file_id={SHEET_FILE_ID}, permanent=True)`

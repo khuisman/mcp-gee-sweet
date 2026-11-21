@@ -134,7 +134,7 @@ Requires the `drive.activity.readonly` scope; uses the Drive Activity API v2.
 | Tool | Description | Key parameters | Groups |
 |---|---|---|---|
 | `list_file_comments` | List the comments (and their replies) on a Drive file: a Google Doc, Sheet, or Slides deck, or any other file Drive supports comments on. | `file_id?`, `page_size?`, `page_token?`, `include_deleted?`, `doc_id?` | `drive`, `comments` |
-| `add_file_comment` | Add a comment to a Drive file: a Google Doc, Sheet, or Slides deck, or any other file Drive supports comments on. | `file_id?`, `content`, `quoted_text?`, `doc_id?` | `drive`, `comments` |
+| `add_file_comment` | Add a comment to a Drive file: a Google Doc, Sheet, or Slides deck, or any other file Drive supports comments on. | `file_id?`, `content`, `quoted_text?`, `anchor?`, `doc_id?` | `drive`, `comments` |
 | `reply_to_comment` | Reply to a comment on a Drive file, and optionally resolve or reopen it. Resolving and reopening are replies with an action, so they go through this tool too. | `file_id`, `comment_id`, `content?`, `action?` | `drive`, `comments` |
 | `resolve_doc_comment` | Deprecated: use `reply_to_comment` with `action='resolve'` instead. Removed in the next feature release. | `doc_id`, `comment_id`, `reply_content?` | `drive`, `comments` |
 
