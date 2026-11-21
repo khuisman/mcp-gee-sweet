@@ -179,25 +179,44 @@ def _resolve_hint_expr(
             }
         return combos
     if isinstance(node, ast.FormattedValue):
-        # str()-approximation of the format spec/conversion; hints interpolate
-        # plain values, and an unresolvable field still fails loudly below.
-        return {str(v) for v in _resolve_hint_expr(node.value, scope, where, resolving)}
+        # #1560: honor the !r/!a conversion and the format spec instead of a
+        # bare str() — hints interpolate plain values, and an unresolvable
+        # field still fails loudly below.
+        texts = _resolve_hint_expr(node.value, scope, where, resolving)
+        specs = (
+            _resolve_hint_expr(node.format_spec, scope, where, resolving)
+            if node.format_spec is not None
+            else {""}
+        )
+        converted: dict[int, type] = {-1: str, ord("s"): str, ord("r"): repr, ord("a"): ascii}
+        if node.conversion not in converted:
+            raise AssertionError(f"{where}: unknown f-string conversion {node.conversion!r}")
+        return {format(converted[node.conversion](text), spec) for text in texts for spec in specs}
     if isinstance(node, ast.IfExp):
         return _resolve_hint_expr(node.body, scope, where, resolving) | _resolve_hint_expr(
             node.orelse, scope, where, resolving
         )
     if isinstance(node, ast.Name):
-        if node.id in resolving:
-            raise AssertionError(f"{where}: hint {node.id!r} is self-referential")
         assigned = scope.get(node.id)
         if not assigned:
+            if node.id in resolving:
+                raise AssertionError(f"{where}: hint {node.id!r} is self-referential")
             raise AssertionError(
                 f"{where}: hint reads {node.id!r}, which no assignment in this "
                 "function's scope defines"
             )
         values: set[str] = set()
         for value in assigned:
-            values |= _resolve_hint_expr(value, scope, where, resolving | {node.id})
+            # #1560: `hint = hint + "…"` reads the name's earlier assignments,
+            # never the one being expanded — resolving that inner reference
+            # against every *other* assignment keeps that valid pattern from
+            # reading as self-referential. The shrunk lookup keeps recursion
+            # bounded; a reference with nothing left to read still fails
+            # loudly above, and a mutual cycle lands on the self-referential
+            # message once the shrinking lists run empty.
+            reduced = dict(scope)
+            reduced[node.id] = [other for other in assigned if other is not value]
+            values |= _resolve_hint_expr(value, reduced, where, resolving | {node.id})
         return values
     if isinstance(node, ast.Call) and _call_name(node.func) == "pagination_hint":
         page_params: set[str] = set()
@@ -218,10 +237,11 @@ def _resolve_hint_expr(
 
 def _iter_own_stmts(stmts: list[ast.stmt]):
     """Every statement in these statements, compound bodies included, but not
-    the bodies of functions defined among them — those get their own scope."""
+    the bodies of functions or classes defined among them — those get their
+    own scope."""
     for stmt in stmts:
         yield stmt
-        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             continue
         for field in ("body", "orelse", "finalbody"):
             sub = getattr(stmt, field, None)
@@ -230,6 +250,37 @@ def _iter_own_stmts(stmts: list[ast.stmt]):
         if isinstance(stmt, (ast.Try, getattr(ast, "TryStar", ast.Try))):
             for handler in stmt.handlers:
                 yield from _iter_own_stmts(handler.body)
+        if isinstance(stmt, ast.Match):
+            for case in stmt.cases:
+                yield from _iter_own_stmts(case.body)
+
+
+def _walk_scope(node: ast.AST):
+    """ast.walk without entering the bodies of functions or classes nested
+    inside — those are visited with their own scope (#1560), so a call inside
+    a function defined in a compound statement or a class is not resolved
+    against this one."""
+    yield node
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        yield from _walk_scope(child)
+
+
+def _record_assign(scope: dict[str, list[ast.expr]], target: ast.expr, value: ast.expr) -> None:
+    """Record `target = value` for later Name resolution. Tuple unpacking
+    pairs element-wise when the lengths match (#1560); other non-Name targets
+    (attributes, subscripts) can't be read by a bare-name hint."""
+    if isinstance(target, ast.Name):
+        scope.setdefault(target.id, []).append(value)
+    elif isinstance(target, ast.Tuple) and isinstance(value, ast.Tuple):
+        if len(target.elts) != len(value.elts):
+            return
+        for elt, val in zip(target.elts, value.elts, strict=True):
+            _record_assign(scope, elt, val)
+
+
+_SCOPE_DEFS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 
 
 def _collect_scope_hints(
@@ -249,20 +300,38 @@ def _collect_scope_hints(
     for stmt in own:
         if isinstance(stmt, ast.Assign):
             for target in stmt.targets:
-                if isinstance(target, ast.Name):
-                    scope.setdefault(target.id, []).append(stmt.value)
+                _record_assign(scope, target, stmt.value)
+        elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+            if stmt.value is not None:
+                _record_assign(scope, stmt.target, stmt.value)
+        elif isinstance(stmt, ast.AugAssign) and isinstance(stmt.target, ast.Name):
+            # `hint += "…"` is `hint = hint + "…"` — record the BinOp; the
+            # Name resolver reads the name's earlier assignments for the left
+            # side (#1560).
+            _record_assign(
+                scope,
+                stmt.target,
+                ast.BinOp(
+                    left=ast.Name(id=stmt.target.id, ctx=ast.Load()),
+                    op=ast.Add(),
+                    right=stmt.value,
+                ),
+            )
     for stmt in own:
-        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        if isinstance(stmt, _SCOPE_DEFS):
             continue
-        for node in ast.walk(stmt):
+        for node in _walk_scope(stmt):
             if isinstance(node, ast.Call) and _call_name(node.func) in _ENFORCE_CALL_NAMES:
                 where = f"{filename}:{node.lineno}"
                 for kw in node.keywords:
                     if kw.arg == "hint":
                         hints |= _resolve_hint_expr(kw.value, scope, where)
     for stmt in own:
-        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            _collect_scope_hints(stmt.body, dict(scope), filename, hints)
+        if isinstance(stmt, _SCOPE_DEFS):
+            # Fresh lists, not the parent's: a nested function's `hint`
+            # assignments must not append into its parent's or a sibling's
+            # scope (#1560) — a shallow dict copy shared the list objects.
+            _collect_scope_hints(stmt.body, {k: list(v) for k, v in scope.items()}, filename, hints)
 
 
 def _collect_cap_hints(src: Path | None = None) -> list[str]:
@@ -281,7 +350,13 @@ def _collect_cap_hints(src: Path | None = None) -> list[str]:
     hints: set[str] = set()
     for path in sorted(src.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        _collect_scope_hints(tree.body, {}, path.name, hints)
+        # #1560: several of the package's __init__.py files share that bare
+        # filename — label a call site by its path under the scanned root.
+        try:
+            label = str(path.relative_to(src))
+        except ValueError:
+            label = path.name
+        _collect_scope_hints(tree.body, {}, label, hints)
     return sorted(hints)
 
 
@@ -309,12 +384,30 @@ class TestCapHintsAreCompleteSentences:
         )
         assert (
             "A folder's direct children can still produce a very large result "
-            "list. Sync a narrower subfolder or a single direction. " in hints
+            "list. Sync a single direction. " in hints
         )
-        assert (
-            "A folder's direct children can still produce a very large result "
-            "list. Sync a narrower subfolder. " in hints
-        )
+        assert "A folder's direct children can still produce a very large result list. " in hints
+
+    def test_non_recursive_sync_hints_name_no_recursive_remedies(self):
+        # #1560: "Sync a narrower subfolder" can't shrink a non-recursive
+        # sync — its overflow is the folder's own direct children — and the
+        # recursive opener must not appear in a non-recursive message.
+        for hint in _collect_cap_hints():
+            if not hint.startswith("A folder's direct children"):
+                continue
+            assert "Sync a narrower subfolder" not in hint, hint
+            assert "Recursive syncs" not in hint, hint
+            message = str(
+                response_limits._over_cap_error(
+                    "the response is large",
+                    tool_name="sync_folder",
+                    hint=hint,
+                    local_path_available=True,
+                    local_path_param="result_local_path",
+                )
+            )
+            assert "Sync a narrower subfolder" not in message, message
+            assert "Recursive syncs" not in message, message
 
     def test_every_hint_ends_a_complete_sentence(self):
         for hint in _collect_cap_hints():
@@ -430,6 +523,135 @@ class TestCollectCapHints:
         )
         with pytest.raises(AssertionError, match="no assignment in this"):
             _collect_cap_hints(src)
+
+    def test_a_nested_functions_assignments_stay_in_its_scope(self, tmp_path):
+        # #1560: the child scope was a shallow dict copy — the nested
+        # function's `hint` append hit the parent's list too, so a *sibling*
+        # nested function reading the name resolved the leaked assignment
+        # (here: `extra`, a name only the first child defines) and failed
+        # falsely.
+        src = self._pkg(
+            tmp_path,
+            "def one(x):\n"
+            '    hint = "One sentence. "\n'
+            "    def inner(y):\n"
+            '        extra = "Inner sentence. "\n'
+            "        hint = extra\n"
+            '        enforce_response_size_cap(y, tool_name="t", hint=hint)\n'
+            "    def inner2(y):\n"
+            '        enforce_response_size_cap(y, tool_name="t", hint=hint)\n'
+            "    inner(x)\n"
+            "    inner2(x)\n"
+            '    enforce_response_size_cap(x, tool_name="t", hint=hint)\n',
+        )
+        assert _collect_cap_hints(src) == ["Inner sentence. ", "One sentence. "]
+
+    def test_a_function_defined_in_a_compound_stmt_gets_its_own_scope(self, tmp_path):
+        # #1560: ast.walk entered functions nested in a compound statement
+        # and resolved their calls against the outer scope — a false
+        # "no assignment" failure here.
+        src = self._pkg(
+            tmp_path,
+            "if FLAG:\n"
+            "    def one(x):\n"
+            '        hint = "One sentence. "\n'
+            '        enforce_response_size_cap(x, tool_name="t", hint=hint)\n',
+        )
+        assert _collect_cap_hints(src) == ["One sentence. "]
+
+    def test_a_method_gets_its_own_scope(self, tmp_path):
+        # #1560: same for a function defined in a class body — ast.walk on the
+        # ClassDef resolved the method's call against the module scope.
+        src = self._pkg(
+            tmp_path,
+            "class C:\n"
+            "    def one(self, x):\n"
+            '        hint = "One sentence. "\n'
+            '        enforce_response_size_cap(x, tool_name="t", hint=hint)\n',
+        )
+        assert _collect_cap_hints(src) == ["One sentence. "]
+
+    def test_augassign_annassign_tuple_and_match_assignments_resolve(self, tmp_path):
+        # #1560: `hint += …` was missed without an error, `hint: str = …` and
+        # tuple unpacking gave a misleading "no assignment", and a match
+        # body was never walked.
+        src = self._pkg(
+            tmp_path,
+            "def one(x):\n"
+            '    hint: str = "One sentence. "\n'
+            '    hint += "And another. "\n'
+            '    enforce_response_size_cap(x, tool_name="t", hint=hint)\n'
+            "\n"
+            "def two(x):\n"
+            '    hint, other = "Two sentences. ", 1\n'
+            '    enforce_response_size_cap(x, tool_name="t", hint=hint)\n'
+            "\n"
+            "def three(x):\n"
+            "    match x:\n"
+            "        case 1:\n"
+            '            hint = "Three sentences. "\n'
+            '            enforce_response_size_cap(x, tool_name="t", hint=hint)\n',
+        )
+        assert _collect_cap_hints(src) == [
+            "One sentence. ",
+            "One sentence. And another. ",
+            "Three sentences. ",
+            "Two sentences. ",
+        ]
+
+    def test_hint_assignment_chaining_is_not_self_referential(self, tmp_path):
+        # #1560: `hint = hint + "…"` after an earlier plain assignment read
+        # as self-referential; it names the earlier value. Both the plain and
+        # the chained assignment are reachable, so both land in the set.
+        src = self._pkg(
+            tmp_path,
+            "def one(x):\n"
+            '    hint = "One sentence. "\n'
+            '    hint = hint + "And another. "\n'
+            '    enforce_response_size_cap(x, tool_name="t", hint=hint)\n',
+        )
+        assert _collect_cap_hints(src) == [
+            "One sentence. ",
+            "One sentence. And another. ",
+        ]
+
+    def test_a_pure_self_reference_still_fails_loudly(self, tmp_path):
+        # The shrinking-lookup fix must not turn a genuine self-reference
+        # into a silent pass: with nothing else to read, the name fails
+        # loudly, as before (#1560).
+        src = self._pkg(
+            tmp_path,
+            "def one(x):\n"
+            '    hint = hint + "And another. "\n'
+            '    enforce_response_size_cap(x, tool_name="t", hint=hint)\n',
+        )
+        with pytest.raises(AssertionError, match="self-referential"):
+            _collect_cap_hints(src)
+
+    def test_f_string_conversions_and_format_specs_resolve(self, tmp_path):
+        # #1560: !r and the format spec were flattened to a bare str().
+        src = self._pkg(
+            tmp_path,
+            "def one():\n"
+            '    thing = "a folder"\n'
+            '    hint = f"Sync {thing!r} or {thing:>12} instead. "\n'
+            '    enforce_response_size_cap(x, tool_name="t", hint=hint)\n',
+        )
+        assert _collect_cap_hints(src) == ["Sync 'a folder' or     a folder instead. "]
+
+    def test_failure_labels_name_the_package_path(self, tmp_path):
+        # #1560: every __init__.py shared one bare-filename label.
+        tools = tmp_path / "pkg" / "tools"
+        drive = tmp_path / "pkg" / "drive"
+        tools.mkdir(parents=True)
+        drive.mkdir(parents=True)
+        (tools / "__init__.py").write_text(
+            'def one(x):\n    enforce_response_size_cap(x, tool_name="t", hint=build(p))\n',
+            encoding="utf-8",
+        )
+        (drive / "__init__.py").write_text("", encoding="utf-8")
+        with pytest.raises(AssertionError, match=r"tools/__init__\.py:2"):
+            _collect_cap_hints(tmp_path / "pkg")
 
 
 class TestWriteCappedResultToDisk:
