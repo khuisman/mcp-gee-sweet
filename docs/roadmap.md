@@ -506,7 +506,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [x] Tool reduction A: `get_sheet_data(value_render=)` replaces `get_sheet_formulas`; `copy_sheet` absorbs `duplicate_sheet` ([#1526](https://github.com/khuisman/mcp-gee-sweet/issues/1526)) (PR #1544)
 - [x] Tool reduction A+B2: Docs merges (table row/column, header/footer, theme source, `create_bookmark` into `create_named_range`), and the doc cache on `get_doc_as_markdown` before `get_doc_content` is deprecated ([#1527](https://github.com/khuisman/mcp-gee-sweet/issues/1527)) (PR #1548)
 - [x] Tool reduction A+B1: `search_files` absorbs the Drive finder tools and gains `created_time`, `star_file(starred=)`; folds in #1202 ([#1528](https://github.com/khuisman/mcp-gee-sweet/issues/1528)) (PR #1558)
-- [ ] Investigate `import_csv_to_sheet` against Drive's own CSV import, live ([#1529](https://github.com/khuisman/mcp-gee-sweet/issues/1529))
+- [x] Investigate `import_csv_to_sheet` against Drive's own CSV import, live. Keep the tool: Drive's import guesses the delimiter with no override and names the tab after the file; five defects filed below ([#1529](https://github.com/khuisman/mcp-gee-sweet/issues/1529)) (no PR; findings on the issue)
 - [ ] CI: lint every tool's schemas for client compatibility (root `oneOf`/`anyOf`, `$ref`, name rules), since some clients silently drop a tool that breaks them. Feature set, added 2026-11-01 ([#1342](https://github.com/khuisman/mcp-gee-sweet/issues/1342))
 - [x] Generalize the three comment tools to `tools/drive/comments.py` and rename `list_doc_comments`/`add_doc_comment` → `list_file_comments`/`add_file_comment` (param `doc_id` → `file_id`), and replace `resolve_doc_comment` with `reply_to_comment(action=)`; retire `tools/docs/comments.py`. Breaking change, under #1209's deprecation policy. Re-scoped 2026-11-16 to the six-tool comments shape (#1537). ([#663](https://github.com/khuisman/mcp-gee-sweet/issues/663)) (PR #1563)
 - [ ] Comments CRUD — `get_file_comment` (with every reply), `update_comment` and `delete_comment` (each also covering a reply through `reply_id`). Re-scoped 2026-11-16 to the six-tool comments shape (#1537). Depends on #663. ([#664](https://github.com/khuisman/mcp-gee-sweet/issues/664))
@@ -628,6 +628,14 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [x] Style the OAuth post-authorization page: name the server, say what happens next, light and dark mode. Placed 2026-11-14 by the maintainer; moved from velociraptor 2026-11-19 (maintainer). Scope restated: the `mcp-gee-sweet auth` terminal path keeps plain text ([#1513](https://github.com/khuisman/mcp-gee-sweet/issues/1513)) (PR #1541)
 - [ ] OAuth consent page follow-ups from community PR #1541's review: the page says authorized before the token exchange runs, the terminal message claims success on a declined consent, callback query parsing, one HTML template, the QA case #1513 asked for. `wrong/narrow`, not observed; placed in ankylosaurus by the maintainer 2026-11-19 to land before the release is cut; community PR #1567 claims it ([#1564](https://github.com/khuisman/mcp-gee-sweet/issues/1564))
 - [ ] Size-cap hint follow-ups from community PR #1555's review: the hint collector's scoping and syntax gaps, a non-recursive `sync_folder` hint that offers a narrower subfolder, CHANGELOG wording. `loud/narrow`, not observed; fourth in #1430's chain, placed in ankylosaurus by the maintainer 2026-11-21; community PR #1568 claims it ([#1560](https://github.com/khuisman/mcp-gee-sweet/issues/1560))
+
+**Triaged 2026-11-21** _(`import_csv_to_sheet` defects from #1529's live investigation; none a regression, all from the tool's first commit)_
+
+- [ ] A UTF-8 BOM is kept in cell A1. `wrong/narrow`, observed; lane A ([#1575](https://github.com/khuisman/mcp-gee-sweet/issues/1575))
+- [ ] The grid is padded to 26 columns, so a CSV over ~769k rows is refused. `loud/narrow`, observed ([#1573](https://github.com/khuisman/mcp-gee-sweet/issues/1573))
+- [ ] A failed import leaves an empty spreadsheet behind. `loud/narrow`, observed ([#1574](https://github.com/khuisman/mcp-gee-sweet/issues/1574))
+- [ ] A non-UTF-8 CSV raises a bare `UnicodeDecodeError`. `loud/narrow`, observed ([#1576](https://github.com/khuisman/mcp-gee-sweet/issues/1576))
+- [ ] Chunks are sized by row count only, so a wide-text CSV times out. `loud/rare`, observed ([#1577](https://github.com/khuisman/mcp-gee-sweet/issues/1577))
 
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
