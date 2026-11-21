@@ -128,6 +128,9 @@ class TestGroupGuards:
             "add_file_comment",
             "reply_to_comment",
             "resolve_doc_comment",
+            "get_file_comment",
+            "update_comment",
+            "delete_comment",
         }
 
     def test_local_files_is_exactly_the_local_only_tools(self):
