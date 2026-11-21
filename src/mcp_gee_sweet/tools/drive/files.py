@@ -192,7 +192,8 @@ def register(tool):
         Not available when the server runs with LOCAL_FILE_ACCESS=off.
 
         Reads the CSV as UTF-8, dropping a leading byte-order mark (Excel's
-        "CSV UTF-8" export writes one), creates the spreadsheet, expands the sheet's grid to fit
+        "CSV UTF-8" export writes one); a file in another encoding returns an
+        error before anything is created. Then creates the spreadsheet, expands the sheet's grid to fit
         the data (avoiding the default 1000-row/26-column limit), and writes
         every row in one or more batched value updates.
 
@@ -230,6 +231,8 @@ def register(tool):
             return {"error": str(e)}
         if not path.exists():
             return {"error": f"File not found: {local_path}"}
+        if not path.is_file():
+            return {"error": f"Not a regular file: {local_path}"}
         suffix = Path(local_path).suffix
         if suffix.lower() != ".csv":
             return {"error": f"Unsupported file extension '{suffix}'. Use .csv"}
@@ -240,7 +243,19 @@ def register(tool):
             with path.open(newline="", encoding="utf-8-sig") as f:
                 return list(csv.reader(f))
 
-        rows = await asyncio.to_thread(_read_csv)
+        try:
+            rows = await asyncio.to_thread(_read_csv)
+        except UnicodeDecodeError as e:
+            # No byte offset: the decoder reports one within its current buffer,
+            # not within the file.
+            return {
+                "error": f"File is not valid UTF-8: {local_path} ({e.reason}). "
+                'Save it as UTF-8 (in Excel, "CSV UTF-8") and import again.'
+            }
+        except csv.Error as e:
+            return {"error": f"Could not parse CSV {local_path}: {e}"}
+        except OSError as e:
+            return {"error": f"Could not read file {local_path}: {e.strerror or e}"}
 
         if not rows:
             return {"error": f"CSV file is empty: {local_path}"}

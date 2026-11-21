@@ -2203,6 +2203,25 @@ import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 
 ---
 
+### TC-D323: A non-UTF-8 CSV or a directory named `.csv` returns an error, creating nothing (PR #1580) ⚠️ local-filesystem
+**Background:** a CSV saved in Excel's plain "CSV" format is cp1252, not UTF-8. Reading one raised `UnicodeDecodeError` out of the tool (`Error executing tool import_csv_to_sheet: 'utf-8' codec can't decode byte 0xe9 ...`), and a directory named `x.csv` passed the existence and suffix checks and raised `IsADirectoryError`, instead of returning `{"error": ...}`.
+
+**Setup:** in a scratch directory, write `qa-import-cp1252.csv` with its bytes exactly `caf` `E9` `,1\n`, e.g. `printf 'caf\xe9,1\n' > <scratch>/qa-import-cp1252.csv`, and confirm with `xxd` that byte 3 is `e9`. Create a directory `<scratch>/qa-dir.csv` (`mkdir`).
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-import-cp1252.csv", title="QA TC-D323 cp1252", folder_id={FOLDER_ID})`
+2. `import_csv_to_sheet(local_path="<scratch>/qa-dir.csv", title="QA TC-D323 dir", folder_id={FOLDER_ID})`
+3. `search_files(query="QA TC-D323", folder_id={FOLDER_ID})`
+
+**Checks**
+- Step 1 returns a result whose only key is `error`, starting `File is not valid UTF-8: <scratch>/qa-import-cp1252.csv` and naming `"CSV UTF-8"`. It is a tool result, not a protocol error (`Error executing tool ...`)
+- Step 2 returns only `error`: `Not a regular file: <scratch>/qa-dir.csv`
+- Step 3 finds no file: neither call created a spreadsheet
+
+**Cleanup:** remove the local file and directory.
+
+---
+
 ### TC-D173: Non-existent local path (unit test)
 
 **Checks (unit test)**
