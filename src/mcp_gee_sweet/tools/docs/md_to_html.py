@@ -717,7 +717,13 @@ def _single_tilde_widths(state) -> None:
                 continue
             if state.tokens[delimiter.token].content == "~":
                 spans, offset = windows[delimiter.token]
-                if any(start <= offset < end for start, end in spans):
+                # The spans are in order, so the one that could cover the
+                # offset is the last that starts at or before it: one bisect,
+                # not a scan of every span, which was quadratic on a
+                # paragraph of many URLs and many tildes ("www.a.com ~ " *
+                # 20000, #1436 review).
+                idx = bisect.bisect_right(spans, offset, key=lambda span: span[0]) - 1
+                if idx >= 0 and spans[idx][1] > offset:
                     continue
                 delimiter.marker = _SINGLE_TILDE_MARKER
             kept.append(delimiter)

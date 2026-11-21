@@ -197,6 +197,17 @@ class TestStrikethrough:
         start = time.perf_counter()
         assert "<s>" in _md_to_html(md)
         assert time.perf_counter() - start < 2.0
+        # With URLs in the text, a 1-tilde delimiter must find whether it sits
+        # in a URL span without scanning every span in its window: the spans and
+        # the delimiter offsets are both in order, so a bisect keeps this case
+        # linear too instead of going quadratic (#1436 review). Measured on a
+        # slow host: about 2s this way, 31x over when each delimiter scanned
+        # every span.
+        md = "www.a.com ~ " * 20000
+        start = time.perf_counter()
+        html = _md_to_html(md)
+        assert "<s>" not in html and html.count("<a ") == 20000
+        assert time.perf_counter() - start < 5.0
 
     def test_single_tilde_pair_inside_a_bare_url_stays_text(self):
         # A `~` inside a GFM extended autolink is part of the URL, so the whole
