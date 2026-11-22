@@ -2126,6 +2126,45 @@ class TestImportCsvToSheet:
         ranges = {c.kwargs["range"] for c in update.call_args_list}
         assert ranges == {"Sheet1!A1", "Sheet1!A2", "Sheet1!A3", "Sheet1!A4"}
 
+    def _quota_ctx(self, monkeypatch, delay):
+        monkeypatch.setattr(drive_files_module, "_CSV_RATE_LIMIT_BASE_DELAY", delay)
+        monkeypatch.setattr(drive_files_module, "_CSV_RATE_LIMIT_MAX_DELAY", delay)
+        sheets_svc = self._sheets_service()
+        ctx = _make_ctx(
+            drive_service=self._drive_service(),
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            cache=MagicMock(),
+            folder_id=None,
+        )
+        ctx.report_progress = AsyncMock()
+        return ctx, sheets_svc
+
+    async def test_rate_limited_resize_is_resent(self, tmp_path, monkeypatch):
+        """PR #1589 QA round 1: the resize now goes out on almost every import and
+        counts against the same quota; a 429 there raised out of the tool after the
+        spreadsheet was created."""
+        ctx, sheets_svc = self._quota_ctx(monkeypatch, 0.0)
+        batch = sheets_svc.spreadsheets.return_value.batchUpdate
+        batch.return_value.execute.side_effect = [self._rate_limit_error(), {}]
+        path = self._write_csv(tmp_path, [["a"], ["1"]])
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert "error" not in result, result
+        assert result["rows_written"] == 2
+        assert batch.return_value.execute.call_count == 2
+
+    async def test_a_pause_reports_progress_when_it_starts(self, tmp_path, monkeypatch):
+        """PR #1589 QA round 1: a pause can last a minute with no chunk finishing."""
+        ctx, sheets_svc = self._quota_ctx(monkeypatch, 0.01)
+        update = sheets_svc.spreadsheets.return_value.values.return_value.update
+        update.return_value.execute.side_effect = [self._rate_limit_error(), {}]
+        path = self._write_csv(tmp_path, [["a"], ["1"]])
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert "error" not in result, result
+        messages = [c.args[2] for c in ctx.report_progress.call_args_list]
+        assert messages == ["Sheets write quota reached; waiting 0 s", "rows 1-2: ok"]
+
     async def test_chunks_large_row_counts(self, tmp_path, monkeypatch):
         monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 2)
         rows = [["a"]] + [[str(i)] for i in range(5)]
@@ -2270,46 +2309,9 @@ class TestRateLimitPause:
         monkeypatch.setattr(drive_files_module, "_CSV_RATE_LIMIT_MAX_WAIT", 600.0)
         return now
 
-    def test_a_429_pauses_every_chunk_for_the_base_delay(self, clock):
-        pause = drive_files_module._RateLimitPause()
-        assert pause.rate_limited(sent_at=1000.0) is True
-        assert pause._resume_at == 1005.0
-
-    def test_a_429_on_a_request_sent_before_the_pause_does_not_extend_it(self, clock):
-        pause = drive_files_module._RateLimitPause()
-        pause.rate_limited(sent_at=1000.0)
-        clock[0] = 1001.0
-        # In flight when the pause began: it says nothing new about the quota.
-        assert pause.rate_limited(sent_at=999.5) is True
-        assert pause._resume_at == 1005.0
-
-    def test_a_429_after_the_pause_doubles_it_up_to_the_cap(self, clock):
-        pause = drive_files_module._RateLimitPause()
-        waits = []
-        for _ in range(6):
-            pause.rate_limited(sent_at=clock[0])
-            waits.append(pause._resume_at - clock[0])
-            clock[0] = pause._resume_at
-        assert waits == [5.0, 10.0, 20.0, 40.0, 60.0, 60.0]
-
-    def test_a_success_resets_the_delay(self, clock):
-        pause = drive_files_module._RateLimitPause()
-        pause.rate_limited(sent_at=clock[0])
-        clock[0] = pause._resume_at
-        pause.rate_limited(sent_at=clock[0])
-        clock[0] = pause._resume_at
-        pause.succeeded()
-        pause.rate_limited(sent_at=clock[0])
-        assert pause._resume_at - clock[0] == 5.0
-
-    def test_no_retry_once_the_max_wait_is_spent(self, clock):
-        pause = drive_files_module._RateLimitPause()
-        clock[0] = 1599.0
-        assert pause.rate_limited(sent_at=clock[0]) is True
-        clock[0] = 1600.0
-        assert pause.rate_limited(sent_at=clock[0]) is False
-
-    async def test_wait_sleeps_until_the_pause_ends(self, clock, monkeypatch):
+    @pytest.fixture
+    def slept(self, clock, monkeypatch):
+        """Sleeps advance the fake clock instead of waiting."""
         slept = []
 
         async def fake_sleep(seconds):
@@ -2317,10 +2319,180 @@ class TestRateLimitPause:
             clock[0] += seconds
 
         monkeypatch.setattr(drive_files_module.asyncio, "sleep", fake_sleep)
+        return slept
+
+    @staticmethod
+    def _refusal():
+        resp = MagicMock()
+        resp.status = 429
+        return HttpError(resp=resp, content=b"{}")
+
+    @staticmethod
+    async def _no_report(seconds):
+        pass
+
+    def test_a_429_pauses_every_write_for_the_base_delay(self, clock):
         pause = drive_files_module._RateLimitPause()
-        assert await pause.wait() == 1000.0
+        assert pause._rate_limited(sent_at=1000.0) == 5.0
+        assert pause._resume_at == 1005.0
+
+    def test_a_429_on_a_request_sent_before_the_pause_does_not_extend_it(self, clock):
+        pause = drive_files_module._RateLimitPause()
+        pause._rate_limited(sent_at=1000.0)
+        clock[0] = 1001.0
+        # In flight when the pause began: it says nothing new about the quota.
+        assert pause._rate_limited(sent_at=999.5) == 0.0
+        assert pause._resume_at == 1005.0
+
+    def test_a_429_after_the_pause_doubles_it_up_to_the_cap(self, clock):
+        pause = drive_files_module._RateLimitPause()
+        waits = []
+        for _ in range(6):
+            waits.append(pause._rate_limited(sent_at=clock[0]))
+            clock[0] = pause._resume_at
+        assert waits == [5.0, 10.0, 20.0, 40.0, 60.0, 60.0]
+
+    def test_a_success_sent_after_the_pause_resets_the_delay(self, clock):
+        pause = drive_files_module._RateLimitPause()
+        pause._rate_limited(sent_at=clock[0])
+        clock[0] = pause._resume_at
+        pause._rate_limited(sent_at=clock[0])
+        clock[0] = pause._resume_at
+        pause._succeeded(sent_at=clock[0])
+        assert pause._rate_limited(sent_at=clock[0]) == 5.0
+
+    def test_a_success_sent_before_the_pause_keeps_the_delay(self, clock):
+        """PR #1589 QA round 1: a late 200 from an earlier burst reset the doubling, so
+        the pause never grew past the base delay."""
+        pause = drive_files_module._RateLimitPause()
+        pause._rate_limited(sent_at=1000.0)  # 5 s, started at 1000
+        clock[0] = 1005.0
+        pause._rate_limited(sent_at=1005.0)  # 10 s, started at 1005
+        pause._succeeded(sent_at=1002.0)  # sent before that pause began
+        clock[0] = 1015.0
+        assert pause._rate_limited(sent_at=1015.0) == 20.0
+
+    def test_no_pause_runs_past_the_deadline(self, clock):
+        pause = drive_files_module._RateLimitPause()
+        clock[0] = 1598.0
+        assert pause._rate_limited(sent_at=clock[0]) == 2.0
+        assert pause._resume_at == 1600.0
+
+    def test_a_429_at_the_deadline_is_final(self, clock):
+        pause = drive_files_module._RateLimitPause()
+        clock[0] = 1600.0
+        assert pause._rate_limited(sent_at=clock[0]) is None
+
+    async def test_send_waits_out_the_pause_then_resends(self, clock, slept):
+        pause = drive_files_module._RateLimitPause()
+        outcomes = [self._refusal(), "done"]
+        sends = []
+
+        async def call():
+            sends.append(clock[0])
+            outcome = outcomes.pop(0)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+        reports = []
+
+        async def on_pause(seconds):
+            reports.append(seconds)
+
+        assert await pause.send(call, on_pause) == "done"
+        assert sends == [1000.0, 1005.0]
+        assert slept == [5.0]
+        assert reports == [5.0]
+
+    async def test_send_waits_out_a_pause_already_on_without_reporting_it(self, clock, slept):
+        """Another write started this pause and reported it; this one only waits."""
+        pause = drive_files_module._RateLimitPause()
+        pause._rate_limited(sent_at=1000.0)
+        reports = []
+
+        async def on_pause(seconds):
+            reports.append(seconds)
+
+        sends = []
+
+        async def call():
+            sends.append(clock[0])
+            return "ok"
+
+        assert await pause.send(call, on_pause) == "ok"
+        assert sends == [1005.0]
+        assert slept == [5.0]
+        assert reports == []
+
+    async def test_send_raises_other_errors_without_resending(self, clock, slept):
+        pause = drive_files_module._RateLimitPause()
+        resp = MagicMock()
+        resp.status = 500
+        calls = []
+
+        async def call():
+            calls.append(1)
+            raise HttpError(resp=resp, content=b"{}")
+
+        with pytest.raises(HttpError):
+            await pause.send(call, self._no_report)
+        assert calls == [1]
         assert slept == []
-        pause.rate_limited(sent_at=1000.0)
-        clock[0] = 1002.0
-        assert await pause.wait() == 1005.0
-        assert slept == [3.0]
+
+    async def test_send_raises_the_429_once_the_deadline_has_passed(self, clock, slept):
+        pause = drive_files_module._RateLimitPause()
+        calls = []
+
+        async def call():
+            calls.append(clock[0])
+            raise self._refusal()
+
+        with pytest.raises(HttpError):
+            await pause.send(call, self._no_report)
+        # 5, 10, 20, 40, then 60 s pauses until the last one is cut at the deadline.
+        assert calls[-1] == 1600.0
+        assert sum(slept) == 600.0
+
+
+class TestCsvImportWriteConcurrency:
+    """PR #1589 QA round 1: with no limit, every chunk passed the pause at once and
+    queued in the thread pool, to be sent during a later pause."""
+
+    async def test_writes_in_flight_never_exceed_the_limit(self, tmp_path, monkeypatch):
+        import threading
+        import time as real_time
+
+        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 1)
+        monkeypatch.setattr(drive_files_module, "_CSV_WRITE_CONCURRENCY", 2)
+        lock = threading.Lock()
+        in_flight = [0]
+        peak = [0]
+
+        def execute(*args, **kwargs):
+            with lock:
+                in_flight[0] += 1
+                peak[0] = max(peak[0], in_flight[0])
+            real_time.sleep(0.02)
+            with lock:
+                in_flight[0] -= 1
+            return {}
+
+        path = tmp_path / "rows.csv"
+        path.write_text("".join(f"{i}\n" for i in range(12)), encoding="utf-8")
+        helper = TestImportCsvToSheet()
+        sheets_svc = helper._sheets_service(row_count=12, column_count=1)
+        update = sheets_svc.spreadsheets.return_value.values.return_value.update
+        update.return_value.execute.side_effect = execute
+        ctx = _make_ctx(
+            drive_service=helper._drive_service(),
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            cache=MagicMock(),
+            folder_id=None,
+        )
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert result["rows_written"] == 12
+        assert update.return_value.execute.call_count == 12
+        assert peak[0] == 2

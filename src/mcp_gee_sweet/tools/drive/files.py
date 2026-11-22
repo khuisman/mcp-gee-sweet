@@ -2,10 +2,11 @@ import asyncio
 import csv
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from contextlib import aclosing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
 
 from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import Context
@@ -28,15 +29,23 @@ from . import (
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
+
 _CSV_IMPORT_CHUNK_ROWS = 5000
 
 # Sheets allows 60 write requests per minute per user, so an import of more than 60
 # chunks (300k rows) has writes refused with 429 (measured live: 93 of 160, #1573).
-# A refusal pauses every chunk of the import; each pause after a refused retry
-# doubles, from the base to the cap, and an import stops retrying after the max wait.
+# A refusal pauses every write of the import; each pause after a refused retry
+# doubles, from the base to the cap, and no pause runs past the max wait, counted
+# from the import's first write, after which a refusal is final.
 _CSV_RATE_LIMIT_BASE_DELAY = 5.0
 _CSV_RATE_LIMIT_MAX_DELAY = 60.0
 _CSV_RATE_LIMIT_MAX_WAIT = 600.0
+
+# An import's writes in flight at once. Below the default executor's smallest size
+# (min(32, cpu + 4) is at least 5), so a write that passes the pause is sent then,
+# not queued behind a busy thread and sent during a later pause (PR #1589 QA round 1).
+_CSV_WRITE_CONCURRENCY = 4
 
 # Sheets' grid limits, both inclusive (checked live, #1573): a workbook holds at most
 # 20,000,000 cells, and a sheet at most 18,278 columns (ZZZ).
@@ -72,43 +81,78 @@ def _is_rate_limited(e: BaseException) -> bool:
 
 
 class _RateLimitPause:
-    """One import's shared pause for its concurrent chunk writes (#1573).
+    """One import's shared pause for its Sheets writes (#1573).
 
-    The write quota is per user, not per chunk, so a 429 on one chunk means every
-    chunk sent now would be refused too: it pauses them all instead of letting each
-    retry on its own and spend the window's requests on refusals. A 429 on a
-    request sent before the current pause began doesn't extend it, since it says
-    nothing new; one sent after it doubles the delay. Any success resets the delay.
+    The write quota is per user, not per request, so a 429 on one write means every
+    write sent now would be refused too: it pauses them all instead of letting each
+    retry on its own and spend the window's requests on refusals. Every write goes
+    through send(), which holds one of _CSV_WRITE_CONCURRENCY slots, so a write is
+    sent when it passes the pause, never queued behind a thread until a later pause.
+
+    A reply to a request sent before the current pause began says nothing about the
+    window the pause waits for: its 429 doesn't extend the pause, and its success
+    doesn't reset the delay. A 429 on a request sent after it doubles the delay; a
+    success resets it. No pause runs past the deadline, and a 429 at or after the
+    deadline is final.
     """
 
     def __init__(self) -> None:
+        self._slots = asyncio.Semaphore(_CSV_WRITE_CONCURRENCY)
         self._delay = 0.0
         self._pause_started = float("-inf")
         self._resume_at = 0.0
         self._deadline = time.monotonic() + _CSV_RATE_LIMIT_MAX_WAIT
 
-    async def wait(self) -> float:
-        """Wait out any pause; returns the send time to pass to rate_limited()."""
+    async def send(
+        self,
+        call: Callable[[], Awaitable[T]],
+        on_pause: Callable[[float], Awaitable[None]],
+    ) -> T:
+        """Await call() once a slot is free and no pause is on, resending it on a 429
+        until the deadline. on_pause(seconds) is awaited when a 429 starts a new
+        pause. Any other error, or a 429 at or after the deadline, is raised."""
+        async with self._slots:
+            while True:
+                sent_at = await self._wait()
+                try:
+                    result = await call()
+                except Exception as e:
+                    if not _is_rate_limited(e):
+                        raise
+                    paused_for = self._rate_limited(sent_at)
+                    if paused_for is None:
+                        raise
+                    if paused_for:
+                        await on_pause(paused_for)
+                    continue
+                self._succeeded(sent_at)
+                return result
+
+    async def _wait(self) -> float:
+        """Wait out any pause; returns the send time."""
         while (remaining := self._resume_at - time.monotonic()) > 0:
             await asyncio.sleep(remaining)
         return time.monotonic()
 
-    def succeeded(self) -> None:
-        self._delay = 0.0
+    def _succeeded(self, sent_at: float) -> None:
+        if sent_at >= self._pause_started:
+            self._delay = 0.0
 
-    def rate_limited(self, sent_at: float) -> bool:
-        """Record a 429 on a request sent at `sent_at`. Returns whether to retry it:
-        False once the import has spent its max wait."""
+    def _rate_limited(self, sent_at: float) -> float | None:
+        """Record a 429 on a request sent at `sent_at`. Returns None when it is final
+        (the deadline has passed), the length of the pause it started, or 0.0 when a
+        pause it doesn't extend is already on."""
         now = time.monotonic()
         if now >= self._deadline:
-            return False
-        if sent_at >= self._pause_started:
-            self._delay = min(
-                _CSV_RATE_LIMIT_MAX_DELAY, max(_CSV_RATE_LIMIT_BASE_DELAY, self._delay * 2)
-            )
-            self._pause_started = now
-            self._resume_at = now + self._delay
-        return True
+            return None
+        if sent_at < self._pause_started:
+            return 0.0
+        self._delay = min(
+            _CSV_RATE_LIMIT_MAX_DELAY, max(_CSV_RATE_LIMIT_BASE_DELAY, self._delay * 2)
+        )
+        self._pause_started = now
+        self._resume_at = min(now + self._delay, self._deadline)
+        return self._resume_at - now
 
 
 def _grid_resize_requests(
@@ -311,8 +355,9 @@ def register(tool):
         caller supplied a progressToken, a `notifications/progress` update is sent
         as each chunk finishes. Sheets allows 60 writes a minute, so a file of
         more than 300,000 rows waits for its quota between writes and can take
-        several minutes; a chunk still refused after 10 minutes of waiting is
-        reported in failed_ranges.
+        several minutes, with a progress update each time it starts waiting.
+        Retrying stops 10 minutes after the import's first write; a chunk
+        refused after that is reported in failed_ranges.
 
         Args:
             local_path: Absolute path to the local .csv file.
@@ -374,11 +419,12 @@ def register(tool):
             return {"error": f"CSV file is empty: {local_path}"}
 
         width = max(len(row) for row in rows)
-        rows = [row + [""] * (width - len(row)) for row in rows]
         # A file of blank lines has no columns, and a grid needs at least one.
         grid_columns = max(width, 1)
+        # Before the padding, which a refused file shouldn't pay for.
         if limit_error := _csv_grid_limit_error(local_path, len(rows), grid_columns):
             return {"error": limit_error}
+        rows = [row + [""] * (width - len(row)) for row in rows]
 
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
@@ -443,17 +489,6 @@ def register(tool):
         # was refused as 26 cells a row (#1573).
         requests.extend(_grid_resize_requests(sheet_id, grid, len(rows), grid_columns))
 
-        if requests:
-            with invalidating(lambda: lc.cache.mark_dirty(spreadsheet_id)):
-                await execute_in_thread(
-                    sheets_service.spreadsheets()
-                    .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
-                    .execute,
-                    sheets_service,
-                )
-
-        quoted_sheet = _quote_sheet_name(sheet_name)
-
         # Safe to parallelize: each chunk writes a disjoint row range of the same
         # sheet (A{start+1} onward, non-overlapping), so there's no read-modify-write
         # race between chunks. Unlike the old sequential loop — where a failure left a
@@ -466,15 +501,41 @@ def register(tool):
         ]
         total_chunks = len(chunks)
         completed = [0]
+        # Every Sheets write below, the rename and resize included, counts against
+        # the same per-user write quota, so all of them go through one pause.
         pause = _RateLimitPause()
+
+        async def _report_pause(seconds: float) -> None:
+            # A pause can last a minute with no chunk finishing; a client that resets
+            # its timeout on progress would otherwise hear nothing (PR #1589 QA round 1).
+            await report_progress_safe(
+                ctx,
+                completed[0],
+                total_chunks,
+                f"Sheets write quota reached; waiting {seconds:.0f} s",
+                "write quota pause",
+            )
+
+        if requests:
+            with invalidating(lambda: lc.cache.mark_dirty(spreadsheet_id)):
+                await pause.send(
+                    lambda: execute_in_thread(
+                        sheets_service.spreadsheets()
+                        .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
+                        .execute,
+                        sheets_service,
+                    ),
+                    _report_pause,
+                )
+
+        quoted_sheet = _quote_sheet_name(sheet_name)
 
         async def _write_chunk(item: tuple[int, list[list]]) -> dict[str, Any]:
             start, chunk = item
             row_range = {"start_row": start + 1, "end_row": start + len(chunk)}
-            while True:
-                sent_at = await pause.wait()
-                try:
-                    await execute_in_thread(
+            try:
+                await pause.send(
+                    lambda: execute_in_thread(
                         sheets_service.spreadsheets()
                         .values()
                         .update(
@@ -485,15 +546,12 @@ def register(tool):
                         )
                         .execute,
                         sheets_service,
-                    )
-                except Exception as e:
-                    if _is_rate_limited(e) and pause.rate_limited(sent_at):
-                        continue
-                    result = {**row_range, "ok": False, "error": str(e)}
-                else:
-                    pause.succeeded()
-                    result = {**row_range, "ok": True}
-                break
+                    ),
+                    _report_pause,
+                )
+                result = {**row_range, "ok": True}
+            except Exception as e:
+                result = {**row_range, "ok": False, "error": str(e)}
 
             # Reported here, inside the per-item coroutine, so updates stream in as
             # each concurrent chunk write finishes rather than arriving in one burst
