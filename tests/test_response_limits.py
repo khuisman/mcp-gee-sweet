@@ -138,6 +138,10 @@ class TestEnforceResponseSizeCap:
 
 
 _ENFORCE_CALL_NAMES = ("enforce_response_size_cap", "enforce_response_size_floor")
+# A call to this checks the cap with pagination_hint(page_param) (#329), so its
+# page_param is a hint source; its own body, which passes the parameter
+# through, is skipped, since every value it can take is collected at a call.
+_PAGE_FINISHER = "finish_list_page"
 
 
 def _call_name(func: ast.expr) -> str | None:
@@ -260,8 +264,17 @@ def _collect_scope_hints(
                 for kw in node.keywords:
                     if kw.arg == "hint":
                         hints |= _resolve_hint_expr(kw.value, scope, where)
+            if isinstance(node, ast.Call) and _call_name(node.func) == _PAGE_FINISHER:
+                where = f"{filename}:{node.lineno}"
+                page_params = [kw.value for kw in node.keywords if kw.arg == "page_param"]
+                as_hint = ast.Call(
+                    func=ast.Name(id="pagination_hint"), args=page_params, keywords=[]
+                )
+                hints |= _resolve_hint_expr(as_hint, scope, where)
     for stmt in own:
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if stmt.name == _PAGE_FINISHER:
+                continue
             _collect_scope_hints(stmt.body, dict(scope), filename, hints)
 
 
@@ -343,6 +356,36 @@ class TestCapHintsAreCompleteSentences:
                 assert not re.search(r", or [A-Z]", message), message
 
 
+class TestFinishListPage:
+    """#329: the shared tail of a list tool that pages via next_page_token."""
+
+    def test_adds_next_page_token_when_the_response_has_one(self):
+        result = {"items": [1]}
+        out = response_limits.finish_list_page(
+            result, {"nextPageToken": "tok"}, tool_name="t", page_param="page_size"
+        )
+        assert out is result
+        assert out == {"items": [1], "next_page_token": "tok"}
+
+    @pytest.mark.parametrize("response", [{}, {"nextPageToken": ""}, {"nextPageToken": None}])
+    def test_no_token_key_on_the_last_page(self, response):
+        out = response_limits.finish_list_page(
+            {"items": []}, response, tool_name="t", page_param="page_size"
+        )
+        assert out == {"items": []}
+
+    def test_over_cap_names_the_page_param_and_no_local_path(self, monkeypatch):
+        monkeypatch.setattr(response_limits, "MAX_TOOL_RESPONSE_CHARS", 10)
+        with pytest.raises(ValueError) as excinfo:
+            response_limits.finish_list_page(
+                {"items": ["x" * 50]}, {}, tool_name="list_things", page_param="max_results"
+            )
+        message = str(excinfo.value)
+        assert "list_things" in message
+        assert "Lower max_results and paginate via next_page_token." in message
+        assert "local_path" not in message
+
+
 class TestCollectCapHints:
     """#1552: the collector itself — attribute call sites, keyword pagination
     hints, whole-string folding, per-function scoping and loud failure."""
@@ -376,6 +419,29 @@ class TestCollectCapHints:
             "    )\n",
         )
         assert _collect_cap_hints(src) == ["Lower page_size and paginate via next_page_token. "]
+
+    def test_finish_list_page_call_resolves_its_page_param(self, tmp_path):
+        # #329: a list tool's page goes through finish_list_page, which checks
+        # the cap with pagination_hint(page_param): the call is the hint site,
+        # and the helper's own pass-through body isn't resolved.
+        src = self._pkg(
+            tmp_path,
+            "def finish_list_page(result, response, *, tool_name, page_param):\n"
+            "    enforce_response_size_cap(\n"
+            "        result, tool_name=tool_name, hint=pagination_hint(page_param)\n"
+            "    )\n"
+            "def one(x, r):\n"
+            '    return finish_list_page(x, r, tool_name="t", page_param="max_results")\n',
+        )
+        assert _collect_cap_hints(src) == ["Lower max_results and paginate via next_page_token. "]
+
+    def test_finish_list_page_without_page_param_fails_loudly(self, tmp_path):
+        src = self._pkg(
+            tmp_path,
+            'def one(x, r):\n    return finish_list_page(x, r, tool_name="t")\n',
+        )
+        with pytest.raises(AssertionError, match="no statically resolvable page_param"):
+            _collect_cap_hints(src)
 
     def test_concatenated_and_f_string_hints_fold_whole(self, tmp_path):
         # The old collector collected the pieces of a concatenated or

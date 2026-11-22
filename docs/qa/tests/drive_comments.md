@@ -6,7 +6,7 @@ Fixtures: see [`docs/qa/setup.md`](../setup.md). Substitute your `{SPREADSHEET_I
 
 The comment tools call the Drive `comments`/`replies` resource, not the Docs API, so they take any file Drive supports comments on. TC-DOC96–TC-DOC101 moved here from `docs_content.md` with #663, which renamed the tools (`list_doc_comments` → `list_file_comments`, `add_doc_comment` → `add_file_comment`, `doc_id` → `file_id`) and replaced `resolve_doc_comment` with `reply_to_comment(action=)`. They keep their IDs, so earlier results files still point at them; their Result entries before #663 record the old names as they were called. New cases here use `TC-D`.
 
-A comment added on `{DOC_ID}` stays there until it's deleted. Later cases build on the comments TC-DOC96, TC-DOC97 and TC-DOC99 leave, so delete them only once the cases that use them have run: `list_file_comments(file_id={DOC_ID})`, then `delete_comment(file_id={DOC_ID}, comment_id=<id>)` for each comment whose text starts `QA TC-` (`delete_comment` since #664; before it they were removed in the Docs UI). Keep test comment text prefixed `QA TC-…` so it's identifiable. TC-D310 and TC-D315 to TC-D321 work on a throwaway spreadsheet and delete it instead.
+A comment added on `{DOC_ID}` stays there until it's deleted. Later cases build on the comments TC-DOC96, TC-DOC97 and TC-DOC99 leave, so delete them only once the cases that use them have run: `list_file_comments(file_id={DOC_ID})`, then `delete_comment(file_id={DOC_ID}, comment_id=<id>)` for each comment whose text starts `QA TC-` (`delete_comment` since #664; before it they were removed in the Docs UI). Keep test comment text prefixed `QA TC-…` so it's identifiable. TC-D310, TC-D315 to TC-D321 and TC-D324 work on a throwaway spreadsheet and delete it instead.
 
 ---
 
@@ -424,3 +424,17 @@ Every case here works on its own throwaway spreadsheet. Setup for each: `create_
 **Result (2026-11-21) ✅ PASS — PR #1578 round 1 (Kit), `mcp-gee-sweet-kit` at `8b2c917`, step 1 and 4 OAuth, steps 2-3 the service account, on a throwaway spreadsheet in the QA folder (Shared Drive), deleted afterward** — steps 2-3 ran the branch's `update_comment`/`delete_comment` in a fresh interpreter with a Drive client from `auth._service_account_creds()`. 2: both returned the "Drive left the comment (then reply) ... unchanged: only its author can edit it" error, `content` `QA TC-D321 by user`, then `QA TC-D321 user reply`. 3: HttpError 403 (`insufficientFilePermissions`). 4: comment `QA TC-D321 by user` with its one reply `QA TC-D321 user reply`, neither deleted.
 
 **Result (2026-11-21) ✅ PASS — PR #1578 round 2 (Kit), `mcp-gee-sweet-kit` at `f5f6673`, steps 2-3 the service account in a fresh interpreter, on a throwaway spreadsheet in the QA folder (Shared Drive), deleted afterward** — rerun on the round 2 sheet, since the fix changed the comparison. 2: both returned the "only its author can edit it" error with the text left in place. 3: HttpError 403.
+
+### TC-D324: `list_file_comments` pages through comments with `page_size` and `next_page_token` (#329) ⚠️ destructive
+**Steps**
+1. `add_file_comment(file_id={SHEET_FILE_ID}, content="QA TC-D324 one")`, then the same with `content="QA TC-D324 two"` and `content="QA TC-D324 three"`
+2. `list_file_comments(file_id={SHEET_FILE_ID}, page_size=2)`
+3. `list_file_comments(file_id={SHEET_FILE_ID}, page_size=2, page_token=<step 2's next_page_token>)`
+4. `list_file_comments(file_id={SHEET_FILE_ID}, page_size=0)`
+
+**Checks**
+- 2: `file_id: {SHEET_FILE_ID}`, two `comments`, and a non-empty `next_page_token`
+- 3: the one remaining comment and no `next_page_token` key; across steps 2 and 3 the three comments are `QA TC-D324 one`, `two` and `three`, each once, each with `author` (`display_name`/`email_address`)
+- 4: one comment and a `next_page_token` (a `page_size` below 1 is raised to 1, not sent as 0)
+
+**Cleanup:** as the section says
