@@ -311,6 +311,24 @@ Run 2 (ash).
 
 **Result (2026-11-20) ✅ PASS — PR #1563 round 4 (Kit), `mcp-gee-sweet-kit` at `ba84c5e`, OAuth, on a throwaway spreadsheet in the QA folder, deleted afterward** — 1: `anchor` returned equal to the string sent, character for character. 2: `anchor: null`. 3: both comments listed, `resolved: false`, `replies: []`. Null probes through Claude Code (an argument written `null` reaches the server as JSON null): `add_file_comment(quoted_text=null)`, `list_file_comments(page_token=null)`, `reply_to_comment(content=null, action="resolve")` and `resolve_doc_comment(reply_content=null)` were all accepted, as no value, where round 3's head rejected them; `reply_to_comment(content="[1, 2]")` posted `[1, 2]` verbatim.
 
+### TC-D324: `list_file_comments` pages through comments with `page_size` and `next_page_token` (#329) ⚠️ destructive
+**Setup:** `create_spreadsheet(title="QA TC-D324 comments", folder_id={FOLDER_ID})`; note the returned ID as `{SHEET_FILE_ID}`.
+
+**Steps**
+1. `add_file_comment(file_id={SHEET_FILE_ID}, content="QA TC-D324 one")`, then the same with `content="QA TC-D324 two"` and `content="QA TC-D324 three"`
+2. `list_file_comments(file_id={SHEET_FILE_ID}, page_size=2)`
+3. `list_file_comments(file_id={SHEET_FILE_ID}, page_size=2, page_token=<step 2's next_page_token>)`
+4. `list_file_comments(file_id={SHEET_FILE_ID}, page_size=0)`
+
+**Checks**
+- 2: `file_id: {SHEET_FILE_ID}`, two `comments`, and a non-empty `next_page_token`
+- 3: the one remaining comment and no `next_page_token` key; across steps 2 and 3 the three comments are `QA TC-D324 one`, `two` and `three`, each once, each with `author` (`display_name`/`email_address`)
+- 4: one comment and a `next_page_token` (a `page_size` below 1 is raised to 1, not sent as 0)
+
+**Cleanup:** `delete_file(file_id={SHEET_FILE_ID}, permanent=True)`
+
+**Result (2026-11-22) ✅ PASS — PR #1588 round 1 (Kit), `mcp-gee-sweet-kit` at `e56d11b`, OAuth, on a throwaway spreadsheet in the QA folder (Shared Drive), deleted afterward** — 2: `three`, `two` and `next_page_token` `Mg==`. 3: `one` alone, no `next_page_token` key. Each comment once across the two pages, each with `author` `{display_name, email_address}` (`email_address` null for the caller's own comments, as Drive returns it and as before this PR). 4: one comment (`three`) and a `next_page_token`.
+
 ---
 
 ## `get_file_comment` / `update_comment` / `delete_comment` (#664)
@@ -424,17 +442,3 @@ Every case here works on its own throwaway spreadsheet. Setup for each: `create_
 **Result (2026-11-21) ✅ PASS — PR #1578 round 1 (Kit), `mcp-gee-sweet-kit` at `8b2c917`, step 1 and 4 OAuth, steps 2-3 the service account, on a throwaway spreadsheet in the QA folder (Shared Drive), deleted afterward** — steps 2-3 ran the branch's `update_comment`/`delete_comment` in a fresh interpreter with a Drive client from `auth._service_account_creds()`. 2: both returned the "Drive left the comment (then reply) ... unchanged: only its author can edit it" error, `content` `QA TC-D321 by user`, then `QA TC-D321 user reply`. 3: HttpError 403 (`insufficientFilePermissions`). 4: comment `QA TC-D321 by user` with its one reply `QA TC-D321 user reply`, neither deleted.
 
 **Result (2026-11-21) ✅ PASS — PR #1578 round 2 (Kit), `mcp-gee-sweet-kit` at `f5f6673`, steps 2-3 the service account in a fresh interpreter, on a throwaway spreadsheet in the QA folder (Shared Drive), deleted afterward** — rerun on the round 2 sheet, since the fix changed the comparison. 2: both returned the "only its author can edit it" error with the text left in place. 3: HttpError 403.
-
-### TC-D324: `list_file_comments` pages through comments with `page_size` and `next_page_token` (#329) ⚠️ destructive
-**Steps**
-1. `add_file_comment(file_id={SHEET_FILE_ID}, content="QA TC-D324 one")`, then the same with `content="QA TC-D324 two"` and `content="QA TC-D324 three"`
-2. `list_file_comments(file_id={SHEET_FILE_ID}, page_size=2)`
-3. `list_file_comments(file_id={SHEET_FILE_ID}, page_size=2, page_token=<step 2's next_page_token>)`
-4. `list_file_comments(file_id={SHEET_FILE_ID}, page_size=0)`
-
-**Checks**
-- 2: `file_id: {SHEET_FILE_ID}`, two `comments`, and a non-empty `next_page_token`
-- 3: the one remaining comment and no `next_page_token` key; across steps 2 and 3 the three comments are `QA TC-D324 one`, `two` and `three`, each once, each with `author` (`display_name`/`email_address`)
-- 4: one comment and a `next_page_token` (a `page_size` below 1 is raised to 1, not sent as 0)
-
-**Cleanup:** as the section says
