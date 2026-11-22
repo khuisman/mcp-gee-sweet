@@ -1027,10 +1027,15 @@ class TestContainerText:
     def test_container_inside_an_open_block_breaks_the_blocks_text(self):
         # #1403: the container drew no line of its own there, running the block's
         # text together with its ("xyz"); it breaks the block's text beside its
-        # own now, and stays a part of the block — not a paragraph boundary.
-        assert _para_texts("<p>x<div>y</div>z</p>") == ["x\vy\vz"]
+        # own and stays a part of the block — not a paragraph boundary. A
+        # heading keeps that behavior; a <p> now ends outright at the container
+        # (#1551, in the next test).
+        assert _para_texts("<h2>x<div>y</div>z</h2>") == ["x\vy\vz"]
         nodes = html_to_ast("<div><p>x<div>y</div>z</p>after</div>")
-        assert ["".join(r.text for r in n.runs) for n in nodes] == ["x\vy\vz", "after"]
+        # A browser's parser closes the <p> at the inner <div>'s start tag:
+        # three paragraphs, and "z" joins "after" as one anonymous line in the
+        # outer container, as adjacent text nodes do in a browser (#1551).
+        assert ["".join(r.text for r in n.runs) for n in nodes] == ["x", "y", "zafter"]
 
     def test_div_wrapping_a_list_items_text_is_still_the_bullet(self):
         nodes = html_to_ast("<ul><li><div>x</div></li></ul>")
@@ -1243,9 +1248,17 @@ class TestContainerInOpenBlockBreaksItsText:
         assert _node_text(nodes[0]) == "a\vb\vc"
 
     def test_issue_example_in_a_paragraph(self):
+        # #1551: a browser's parser closes a <p> at any block-level start tag, a
+        # container included, so the paragraph ends there — its named style with
+        # it — and the container's text and what follows read as their own
+        # paragraphs instead of breaks inside the <p>.
         nodes = html_to_ast("<p>x<div>y</div>z</p>")
-        assert [type(n) for n in nodes] == [Paragraph]
-        assert _node_text(nodes[0]) == "x\vy\vz"
+        assert [type(n) for n in nodes] == [Paragraph, Paragraph, Paragraph]
+        assert [_node_text(n) for n in nodes] == ["x", "y", "z"]
+        nodes = html_to_ast('<p data-style="title">x<div>y</div>z</p>')
+        assert [type(n).__name__ for n in nodes] == ["NamedBlock", "Paragraph", "Paragraph"]
+        assert nodes[0].style_type == "TITLE"
+        assert [_node_text(n) for n in nodes] == ["x", "y", "z"]
 
     def test_only_text_container_stays_transparent(self):
         assert _node_text(html_to_ast("<li><div>x</div></li>")[0]) == "x"
@@ -1278,20 +1291,31 @@ class TestContainerInOpenBlockBreaksItsText:
         assert _node_text(nodes[0]) == "a\vb\vc"
 
     def test_a_nested_block_inside_the_container_already_broke_the_line(self):
+        # #1551: a <p> inside a container that is itself inside an open block
+        # stays local to the container's stretch — the container never became a
+        # node of its own, so the block can't become one either. Its boundaries
+        # read as the breaks a browser's box draws, and the item keeps all its
+        # lines instead of splitting: `<li>a<div>b</div>c</li>` and
+        # `<li>a<div><p>b</p></div>c</li>` produce the same structure now.
         nodes = html_to_ast("<li>a<div><p>b</p></div>c</li>")
-        assert [type(n) for n in nodes] == [BulletItem, Paragraph, Paragraph]
-        assert [_node_text(n) for n in nodes] == ["a", "b", "c"]
+        assert [type(n) for n in nodes] == [BulletItem]
+        assert _node_text(nodes[0]) == "a\vb\vc"
+        nodes = html_to_ast("<li>a<div><h3>b</h3></div>c</li>")
+        assert [type(n) for n in nodes] == [BulletItem]
+        assert _node_text(nodes[0]) == "a\vb\vc"
 
     def test_text_after_a_nested_block_inside_the_container_breaks_again(self):
         nodes = html_to_ast("<li>a<div>b<p>c</p>d</div>e</li>")
-        assert [type(n) for n in nodes] == [BulletItem, Paragraph, Paragraph]
-        assert [_node_text(n) for n in nodes] == ["a\vb", "c", "d\ve"]
+        assert [type(n) for n in nodes] == [BulletItem]
+        assert _node_text(nodes[0]) == "a\vb\vc\vd\ve"
 
     def test_empty_container_after_a_nested_block_adds_no_break(self):
         # The whitespace between </p> and </div> is the container's own content
-        # in a fresh segment; whitespace alone doesn't draw a line (#1470 review).
+        # in a fresh segment; whitespace alone doesn't draw a line (#1470
+        # review), and the <p> stays local to the container's stretch (#1551).
         nodes = html_to_ast("<li>a<div><p>b</p> </div>c</li>")
-        assert [_node_text(n) for n in nodes] == ["a", "b", " c"]
+        assert [type(n) for n in nodes] == [BulletItem]
+        assert _node_text(nodes[0]) == "a\vb\vc"
 
     def test_whitespace_only_container_draws_no_line(self):
         # A container holding only whitespace renders empty, so no break goes in
@@ -1329,6 +1353,146 @@ class TestContainerInOpenBlockBreaksItsText:
             ("\v", None),
             ("c", None),
         ]
+
+    def test_a_marker_with_no_space_breaks_like_text(self):
+        # #1551: the guard and _make_bullet_item share one marker definition now:
+        # "[x]" with no following space is the item's own text — the checkbox
+        # isn't set, and the break beside the container belongs.
+        nodes = html_to_ast("<li>[x]<div>t</div></li>")
+        assert nodes[0].checked is None
+        assert _node_text(nodes[0]) == "[x]\vt"
+
+    def test_a_marker_behind_leading_whitespace_breaks_like_text(self):
+        # Same shared definition: leading whitespace means the stripper keeps
+        # the marker as text, so the container's break goes in beside it.
+        nodes = html_to_ast("<li>  [ ] <div>t</div></li>")
+        assert nodes[0].checked is None
+        assert _node_text(nodes[0]) == "  [ ]\vt"
+
+    def test_a_marker_in_a_resumed_segment_breaks_like_text(self):
+        # A resumed segment is a Paragraph, not a fresh item: nothing strips
+        # the marker there, so the break belongs beside it (#1551).
+        nodes = html_to_ast("<li>a<ul><li>n</li></ul>[ ] <div>t</div></li>")
+        assert _node_text(nodes[-1]) == "[ ]\vt"
+
+    def test_a_br_right_after_the_marker_draws_no_line(self):
+        # develop bug from the issue: `<li>[ ] <br>x</li>` read as a checkbox
+        # item whose text began with an empty line. The marker goes, and the
+        # <br> after it goes with it: the item reads "x" (#1551).
+        nodes = html_to_ast("<li>[ ] <br>x</li>")
+        assert nodes[0].checked is False
+        assert _node_text(nodes[0]) == "x"
+        nodes = html_to_ast("<li>[x] <br></li>")
+        assert nodes[0].checked is True
+        assert _node_text(nodes[0]) == ""
+
+    def test_whitespace_beside_a_break_collapses(self):
+        # #1551: a browser collapses the spaces beside a line break, so "a <br> b"
+        # reads a / b — the trailing space before the break and the leading one
+        # after it are gone, the same for a <br> and a container's boundary.
+        assert _para_texts("<p>a <br> b</p>") == ["a\vb"]
+        assert _node_text(html_to_ast("<li>a <div> b</div> c</li>")[0]) == "a\vb\vc"
+        # An authored "&nbsp;" is not ASCII whitespace and stays (#444).
+        assert _para_texts("<p>a&nbsp;<br> b</p>") == ["a\xa0\vb"]
+
+    def test_the_break_beside_a_marker_only_segment_stays_suppressed(self):
+        # The plain case keeps its #1470 fix: the marker is the item's only
+        # text before the container, so no break goes in beside it.
+        nodes = html_to_ast("<li>[ ] <div>details</div></li>")
+        assert nodes[0].checked is False
+        assert _node_text(nodes[0]) == "details"
+
+    def test_container_boundaries_are_linear_in_one_block(self):
+        # #1551: _segment_visible_size is a running count and the marker check
+        # is O(1), so a block holding many containers parses in linear time —
+        # each container's start and close used to rescan the whole segment.
+        import time
+
+        def elapsed(html):
+            start = time.perf_counter()
+            html_to_ast(html)
+            return time.perf_counter() - start
+
+        small = elapsed("<li>" + "<div>x</div>" * 200 + "</li>")
+        big = elapsed("<li>" + "<div>x</div>" * 1600 + "</li>")
+        # 8x the containers, well under 8x the time (the old rescan was ~64x).
+        assert big < small * 20
+
+    def test_running_count_and_marker_state_track_the_segment(self):
+        # White-box property check (#1551): at every step of a random walk the
+        # running count matches a fresh recomputation of what it summarizes, and
+        # the marker state machine matches the guard's own definition — the
+        # invariants that keep the O(1) queries exact.
+        import random
+
+        from mcp_gee_sweet.tools.docs.ast import Image
+        from mcp_gee_sweet.tools.docs.html_parser import (
+            _ASCII_FORMATTING_WHITESPACE,
+            _AstParser,
+            _LineBreak,
+            _strips_task_list_marker,
+        )
+
+        def naive_visible(parser):
+            total = 0
+            for r in parser._pending_runs:
+                total += (
+                    1
+                    if isinstance(r, Image)
+                    else len(r.text.strip(_ASCII_FORMATTING_WHITESPACE).replace("\v", ""))
+                )
+            return total + sum(
+                len(p.strip(_ASCII_FORMATTING_WHITESPACE).replace("\v", ""))
+                for p in parser._run_buf
+                if not isinstance(p, _LineBreak)
+            )
+
+        def naive_marker(parser):
+            if parser._block_tag != "li" or parser._block_resumed:
+                return False
+            text = "".join(r.text for r in parser._pending_runs) + "".join(
+                str(p) for p in parser._run_buf
+            )
+            marker = _strips_task_list_marker(text)
+            return marker is not None and not text[len(marker) :].strip(
+                _ASCII_FORMATTING_WHITESPACE
+            )
+
+        tokens = [
+            "a",
+            " ",
+            "[",
+            "]",
+            "x",
+            " ",
+            "[ ] ",
+            "[x] ",
+            "[X] ",
+            "\n",
+            "\v",
+            "&nbsp;",
+            "<b>",
+            "</b>",
+            "<br>",
+            "<li>",
+            "</li>",
+            "<div>",
+            "</div>",
+            "<ul>",
+            "</ul>",
+        ]
+        rng = random.Random(1551)
+        for _ in range(300):
+            parser = _AstParser()
+            for _ in range(rng.randint(1, 30)):
+                parser.feed(rng.choice(tokens))
+                if parser._block_tag is None:
+                    # Between segments the count and the state may hold the last
+                    # segment's residue until the next _open_block resets them;
+                    # they are only read while a segment is open.
+                    continue
+                assert parser._segment_visible_size() == naive_visible(parser)
+                assert parser._segment_is_only_a_task_list_marker() == naive_marker(parser)
 
 
 class TestMdToHtml:
