@@ -694,7 +694,8 @@ class TestTableCaption:
     async def test_a_no_rows_nested_caption_starts_on_its_own_line_after_cell_text(self):
         # PR #1459 review, finding 3: the table built no node, but its caption
         # still gets the line after the cell's own text, as it does above a
-        # nested table with rows.
+        # nested table with rows — and the cell's text after it starts on the
+        # line after the caption, never joined onto it (#1550).
         nodes = html_to_ast(
             "<table><tr><td>a<table><caption>inner</caption></table>b</td></tr></table>"
         )
@@ -703,8 +704,135 @@ class TestTableCaption:
             "a",
             "\v",
             "inner",
+            "\v",
             "b",
         ]
+
+    async def test_text_after_a_nested_table_in_a_caption_reads_on_its_own_line(self):
+        # #1550: the nested table inside a caption is dropped (as on develop,
+        # deferred with #1402), but the caption's text on either side of it
+        # reads separated, as a browser's caption box draws it — not joined
+        # onto one run-together line.
+        nodes = html_to_ast(
+            "<table><caption>Title<table><tr><td>x</td></tr></table>Sub</caption>"
+            "<tr><td>y</td></tr></table>"
+        )
+        assert [[r.text for r in n.runs] for n in nodes[:2]] == [["Title"], ["Sub"]]
+        assert isinstance(nodes[2], Table)
+
+    async def test_two_captions_read_as_separate_paragraphs(self):
+        # #1550: a browser's parser implies </caption> at a second <caption>,
+        # and draws both caption boxes stacked; reading them as one run joined
+        # the two.
+        nodes = html_to_ast(
+            "<table><caption>A</caption><caption>B</caption><tr><td>c</td></tr></table>"
+        )
+        assert [[r.text for r in n.runs] for n in nodes[:2]] == [["A"], ["B"]]
+        assert isinstance(nodes[2], Table)
+
+    async def test_a_caption_reopened_after_a_row_reads_as_its_own_paragraph(self):
+        # #1550: same implied close and same stacking for a caption reopened
+        # later in the same table.
+        nodes = html_to_ast(
+            "<table><caption>A</caption><tr><td>x</td></tr><caption>B</caption>"
+            "<tr><td>y</td></tr></table>"
+        )
+        assert [[r.text for r in n.runs] for n in nodes[:2]] == [["A"], ["B"]]
+        assert len(nodes[2].rows) == 2
+
+    async def test_a_nested_caption_after_a_br_draws_no_empty_line(self):
+        # #1550: the <br> already broke the line, so the caption of the table
+        # after it starts right there — no second break, no empty line.
+        nodes = html_to_ast(
+            "<table><tr><td>a<br><table><caption>inner</caption>"
+            "<tr><td>i</td></tr></table></td></tr></table>"
+        )
+        outer = nodes[0].rows[0].cells[0]
+        assert [ch.text if hasattr(ch, "text") else type(ch).__name__ for ch in outer.children] == [
+            "a",
+            "\v",
+            "inner",
+            "Table",
+        ]
+
+    async def test_a_nested_caption_after_a_nested_table_draws_no_empty_line(self):
+        # #1550: a nested table is a block, so the caption of the table after
+        # it starts on the line the block already ended — not on an empty
+        # line of its own.
+        nodes = html_to_ast(
+            "<table><tr><td><table><tr><td>x</td></tr></table>"
+            "<table><caption>inner</caption><tr><td>i</td></tr></table></td></tr></table>"
+        )
+        outer = nodes[0].rows[0].cells[0]
+        assert [ch.text if hasattr(ch, "text") else type(ch).__name__ for ch in outer.children] == [
+            "Table",
+            "inner",
+            "Table",
+        ]
+
+    async def test_a_pre_in_a_caption_keeps_its_lines(self):
+        # #1550: a <pre> inside a caption is code, as a <pre> block anywhere is
+        # — its line breaks are the code's, not soft breaks a browser would
+        # show as one space.
+        nodes = html_to_ast(
+            "<table><caption><pre>line1\nline2</pre></caption><tr><td>c</td></tr></table>"
+        )
+        assert [r.text for r in nodes[0].runs] == ["line1\vline2"]
+
+    async def test_an_open_cell_pre_does_not_leak_into_a_nested_caption(self):
+        # #1550: the outer cell's <pre> count is saved when the nested table
+        # opens and restored when it closes, so a <br> inside the nested
+        # table's caption is the caption's own line break, not the pre's
+        # literal "\n" collapsed to a space.
+        nodes = html_to_ast(
+            "<table><tr><td><pre>p<table><caption>cap<br>after</caption>"
+            "<tr><td>i</td></tr></table></pre></td></tr></table>"
+        )
+        outer = nodes[0].rows[0].cells[0]
+        assert [ch.text if hasattr(ch, "text") else type(ch).__name__ for ch in outer.children] == [
+            "p",
+            "\v",
+            "cap",
+            "\vafter",
+            "Table",
+        ]
+
+    async def test_a_p_in_a_caption_breaks_the_line(self):
+        # #1550: a <p> inside a caption can't open a block at table scope, but
+        # a browser draws it as its own line in the caption box, so the caption
+        # reads One / Two — not OneTwo.
+        nodes = html_to_ast(
+            "<table><caption><p>One</p><p>Two</p></caption><tr><td>c</td></tr></table>"
+        )
+        assert [r.text for r in nodes[0].runs] == ["One", "\v", "Two"]
+
+    async def test_an_hr_in_a_caption_breaks_the_line(self):
+        # #1550: same line for an <hr>: the rule itself stays dropped with the
+        # unrecognized tag, but the text on either side reads separated.
+        nodes = html_to_ast("<table><caption>One<hr>Two</caption><tr><td>c</td></tr></table>")
+        assert [r.text for r in nodes[0].runs] == ["One", "\v", "Two"]
+
+    async def test_a_caption_holding_only_a_br_is_one_empty_line(self):
+        # #1550: a caption that held only a <br> is one empty line above the
+        # table, as any block's `<p><br></p>` is — it isn't dropped, and the
+        # segment flags it left behind don't leak into what follows.
+        nodes = html_to_ast("<table><caption><br></caption><tr><td>c</td></tr></table>")
+        assert isinstance(nodes[0], Paragraph)
+        assert nodes[0].runs == []
+        assert isinstance(nodes[1], Table)
+
+    async def test_an_unclosed_table_at_end_of_input_keeps_its_caption(self):
+        # #1550: an unclosed <table> closes as its </table> would: its caption
+        # still reads above it, instead of the whole table — caption included —
+        # vanishing at end of input.
+        nodes = html_to_ast("<p>x</p><table><caption>cap</caption>")
+        assert [[r.text for r in n.runs] for n in nodes] == [["x"], ["cap"]]
+
+    async def test_an_unclosed_table_with_rows_still_builds(self):
+        # #1550: same unwind with rows and an open cell.
+        nodes = html_to_ast("<p>x</p><table><caption>cap</caption><tr><td>c</td></tr>")
+        assert [r.text for r in nodes[1].runs] == ["cap"]
+        assert [r.text for r in _runs_in(nodes[2].rows[0].cells[0])] == ["c"]
 
 
 class TestNestedTableEmitter:

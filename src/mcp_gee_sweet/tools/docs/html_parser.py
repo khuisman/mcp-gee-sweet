@@ -99,6 +99,15 @@ _TABLE_STRUCTURE_TAGS = {
     "td",
     "th",
 }
+# A browser's parser implies </caption> at any of these start tags, plus at a second
+# <caption>: the same implied close keeps one caption's capture from swallowing the
+# table's own content, and keeps a reopened caption from reading as one run with the
+# first (#1402, #1550). `col` closes it in a browser without being a structure tag.
+_CAPTION_IMPLIED_CLOSERS = _TABLE_STRUCTURE_TAGS - {"table"} | {"col", "caption"}
+# Block tags a caption can still hold, in a browser's own caption box, as lines of
+# their own: a <p> and an <hr> can't open a block at table scope, so their boundary
+# reads as the caption's line break (#1550).
+_CAPTION_BREAK_TAGS = {"p", "hr"}
 
 
 def _end_key(tag: str) -> str:
@@ -804,9 +813,6 @@ class _AstParser(HTMLParser):
         # as a browser draws it (see handle_data). Cleared at a cell's start and end.
         self._cell_after_table = False
 
-        # #1402: whether the innermost open table's own <caption> is capturing
-        # lives on that table's builder (in_caption, as in_cell does), not here.
-
         # --- named block style (data-style on <p>) ---
         self._block_named_style: str | None = None
 
@@ -994,6 +1000,16 @@ class _AstParser(HTMLParser):
             if positions and positions[-1] > table:
                 self.handle_endtag(part)
                 return
+
+    def _in_text_content(self) -> bool:
+        """Whether buffered text is being captured right now: an open block's, a
+        table cell's, or a caption's — the one gate the start- and end-tag inline
+        paths share, so the two can't drift (#1550 cleanup)."""
+        return bool(
+            self._block_tag
+            or self._capturing_caption()
+            or (self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell)
+        )
 
     def _capturing_caption(self) -> bool:
         """True while the innermost open table's own <caption> is capturing text
@@ -1598,7 +1614,7 @@ class _AstParser(HTMLParser):
         # nested inside a caption must not close the outer caption, which popped
         # the nested table's element along with it and made the nested row the
         # outer table's own, losing the outer table's next row (PR #1459 review).
-        if self._capturing_caption() and tag in _TABLE_STRUCTURE_TAGS - {"table"} | {"col"}:
+        if self._capturing_caption() and tag in _CAPTION_IMPLIED_CLOSERS:
             self.handle_endtag("caption")
         if tag not in _VOID_TAGS:
             self._push_element(_OpenElement(tag))
@@ -1612,19 +1628,29 @@ class _AstParser(HTMLParser):
                 # buffer is shared across nesting levels, so any text typed before
                 # this point must be flushed now and attached to the outer cell —
                 # otherwise it bleeds into the nested table's own first cell (#108).
+                # The cell's <pre> count is saved on its table's builder and reset
+                # here, and restored at the nested </table>: an open <pre> is the
+                # outer cell's, never the nested table's caption's or cells'
+                # (#1550).
+                self._table_stack[-1].saved_cell_pre_depth = self._cell_pre_depth
+                self._cell_pre_depth = 0
                 self._table_stack[-1].append_runs(self._flush_pending_runs())
                 self._cell_held_runs = []
             elif self._capturing_caption():
                 # A nested table is opening inside the caption's own table's
                 # caption, which stays open across it (deferred with #1402).
                 # The run buffer is shared across nesting levels, as above: the
-                # caption's runs so far move to the table builder's caption_runs
-                # now, or they would bleed into the nested table's own first
-                # cell at its </td> flush. Text after the nested table keeps
-                # capturing into the same caption (PR #1459 review).
+                # caption's runs so far move to the table builder now, or they
+                # would bleed into the nested table's own first cell at its </td>
+                # flush. Text after the nested table keeps capturing into the same
+                # caption, as its own captured stretch, so the text on either side
+                # of the dropped table reads separated, never joined (PR #1459
+                # review, #1550).
+                self._table_stack[-1].saved_cell_pre_depth = self._cell_pre_depth
+                self._cell_pre_depth = 0
                 runs = self._take_caption_runs()
                 if runs:
-                    self._table_stack[-1].caption_runs.extend(runs)
+                    self._table_stack[-1].caption_paragraphs.append(runs)
             self._table_depth += 1
             self._table_stack.append(
                 _TableBuilder(alignment=_cell_alignment(attr_dict, align_attribute=False))
@@ -1648,7 +1674,11 @@ class _AstParser(HTMLParser):
                 # stays counted; only the capture flag is new. It sits on the
                 # table builder, as in_cell does, so it follows table nesting
                 # (a nested table's <tr> can't imply this table's </caption>).
+                # A second <caption> never reaches here capturing: it's in
+                # _CAPTION_IMPLIED_CLOSERS, so the first closed at its start tag
+                # (#1550). A fresh capture starts a fresh pre state too.
                 tb.in_caption = True
+                tb.caption_had_pre = False
             if tag == "tr":
                 tb.start_row(alignment=_cell_alignment(attr_dict))
                 return
@@ -1877,6 +1907,17 @@ class _AstParser(HTMLParser):
             # No src — nothing to embed; fall through to the generic
             # unrecognized-tag handling below (a no-op at depth 0).
 
+        # --- a block tag inside a caption (#1550) ---
+        # A <p> or an <hr> can't open a block at table scope, so inside a caption it
+        # stays unrecognized — but a browser draws each on a line of its own inside
+        # the caption box, so the caption's text on either side reads separated,
+        # never joined. Nothing when no caption text precedes it: a leading <p>
+        # just starts the caption's text, with no empty line before.
+        if self._capturing_caption() and tag in _CAPTION_BREAK_TAGS and self._tail_kind() == "text":
+            self._flush_run()
+            self._run_buf.append(_LineBreak("\v"))
+            self._ends_with_line_break = True
+
         # --- inline elements / unrecognized tags ---
         if tag not in _VOID_TAGS:
             self._tag_depth += 1
@@ -1884,11 +1925,7 @@ class _AstParser(HTMLParser):
         if (tag not in _VOID_TAGS or tag == "br") and self._can_open_anonymous_block():
             # Opened before the tag's own handling below, so <div><b>x</b></div> is bold.
             self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None)
-        if (
-            self._block_tag
-            or self._capturing_caption()
-            or (self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell)
-        ):
+        if self._in_text_content():
             self._release_cell_whitespace()
             self._flush_run()
             if tag in _INLINE_BOLD:
@@ -1913,6 +1950,10 @@ class _AstParser(HTMLParser):
             elif tag == "pre":
                 # Only reachable in a table cell: a body <pre> is handled above.
                 self._cell_pre_depth += 1
+                if self._capturing_caption():
+                    # A <pre> inside this caption: its line breaks are the code's,
+                    # not soft breaks a browser would show as one space (#1550).
+                    self._table_stack[-1].caption_had_pre = True
             elif tag == "br":
                 in_pre = self._in_pre or self._cell_pre_depth > 0
                 self._run_buf.append(_LineBreak("\n" if in_pre else "\v"))
@@ -2006,39 +2047,49 @@ class _AstParser(HTMLParser):
             appended_to_cell = False
             if self._table_stack:
                 tb = self._table_stack.pop()
+                # The <pre> count of the cell (or caption) this table opened in,
+                # saved at its start tag, goes back to it (#1550).
+                self._cell_pre_depth = (
+                    self._table_stack[-1].saved_cell_pre_depth if self._table_stack else 0
+                )
                 node = tb.build()
-                caption = tb.caption_runs
+                caption = tb.caption_paragraphs
+                # The caption is the table's own text, so it reads above it, as a
+                # browser draws it (#1402) — one paragraph per captured stretch,
+                # so a reopened caption reads as its own line, never joined with
+                # the first (#1550). Inside a cell it reads ahead of the nested
+                # table the same way, one stretch per line.
+                fields = (
+                    {
+                        **self._blockquote_fields(),
+                        **self._list_item_fields(),
+                    }
+                    if self._table_depth == 1
+                    else None
+                )
+                if caption:
+                    if fields is not None:
+                        for chunk in caption:
+                            self._nodes.append(Paragraph(runs=chunk, **fields))
+                    elif self._table_stack and self._table_stack[-1].in_cell:
+                        target = self._table_stack[-1]
+                        for chunk in caption:
+                            target.append_caption_runs(chunk)
+                        if node is None:
+                            # The table built no node, so nothing structural
+                            # follows its caption in the cell: an explicit break
+                            # after the last stretch keeps any cell text after it
+                            # off the caption's line (#1550). A table with rows is
+                            # a block of its own and needs none.
+                            target.append_caption_runs([], break_after=True)
                 if node is not None:
-                    if self._table_depth == 1:
-                        fields = {
-                            **self._blockquote_fields(),
-                            **self._list_item_fields(),
-                        }
+                    if fields is not None:
                         for name, value in fields.items():
                             setattr(node, name, value)
-                        if caption:
-                            # The caption is the table's own text, so it reads
-                            # above it, as a browser draws it (#1402).
-                            self._nodes.append(Paragraph(runs=caption, **fields))
                         self._nodes.append(node)
                     elif self._table_stack:
-                        if caption and self._table_stack[-1].in_cell:
-                            self._table_stack[-1].append_caption_runs(caption)
                         self._table_stack[-1].append_nested_table(node)
                         appended_to_cell = True
-                elif caption:
-                    # The table has no rows, so no node of its own; its
-                    # caption's text still isn't dropped (#1402).
-                    if self._table_depth == 1:
-                        self._nodes.append(
-                            Paragraph(
-                                runs=caption,
-                                **self._blockquote_fields(),
-                                **self._list_item_fields(),
-                            )
-                        )
-                    elif self._table_stack and self._table_stack[-1].in_cell:
-                        self._table_stack[-1].append_caption_runs(caption)
             self._table_depth -= 1
             # #1418: back inside an open cell, the text that follows starts on the
             # line after the block that just closed, so its leading spacing
@@ -2225,13 +2276,18 @@ class _AstParser(HTMLParser):
             self._resume_interrupted_block(tag)
             return
 
+        # --- a block tag closing inside a caption (#1550) ---
+        # The same line its start tag draws (see handle_starttag): a </p> after
+        # the caption's text ends that paragraph's line, as a browser's caption
+        # box shows it.
+        if self._capturing_caption() and tag in _CAPTION_BREAK_TAGS and self._tail_kind() == "text":
+            self._flush_run()
+            self._run_buf.append(_LineBreak("\v"))
+            self._ends_with_line_break = True
+
         # --- inline elements / unrecognized tags ---
         # _pop_elements already took a counted element out of _tag_depth.
-        if (
-            self._block_tag
-            or self._capturing_caption()
-            or (self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell)
-        ):
+        if self._in_text_content():
             self._flush_run()
             if tag in _INLINE_BOLD:
                 self._bold_depth = max(0, self._bold_depth - 1)
@@ -2285,19 +2341,36 @@ class _AstParser(HTMLParser):
     def _finish_caption(self):
         """Stop capturing <caption> text and keep it on the innermost table
         builder (#1402). Called by </caption>, by the first table-structure tag
-        inside the caption (a browser's parser closes it there), and by the
-        unwind that closes an unclosed caption with its table."""
-        self._table_stack[-1].in_caption = False
+        (or a second <caption>) inside the caption (a browser's parser closes it
+        there), and by the unwind that closes an unclosed caption with its table.
+        The captured stretch is its own paragraph-to-be: a caption reopened
+        later reads as its own line, never joined with this one (#1550)."""
+        tb = self._table_stack[-1]
+        tb.in_caption = False
+        # Read before _take_caption_runs resets it: a stretch that held a <br>
+        # is one empty line in a browser, whatever its tag, so it stays as an
+        # empty paragraph even when its final break was dropped (#1550).
+        had_break = self._segment_had_line_break
         runs = self._take_caption_runs()
-        if runs:
-            self._table_stack[-1].caption_runs.extend(runs)
+        if runs or had_break:
+            tb.caption_paragraphs.append(runs)
 
     def _take_caption_runs(self) -> list[Run | Image]:
         """Take the caption's buffered runs and process them as caption text
         (#1402): leading/trailing formatting whitespace collapsed, soft breaks
         one space, a <br> at the end no line. Also called when a table nests
-        inside the caption, which moves its runs so far to the table builder's
-        caption_runs without closing the caption (PR #1459 review)."""
+        inside the caption, which moves its runs so far to the table builder as
+        their own captured stretch (PR #1459 review, #1550).
+
+        A caption that held a <pre> keeps its line breaks instead (#1550): they
+        are the code's, as a <pre> block's are, not soft breaks a browser shows
+        as one space — the "\n" a <br> wrote inside the pre included, which stays
+        a line break like the block's own.
+
+        The caption path resets _ends_with_line_break and _segment_had_line_break
+        as _open_block does for a block: the flags are per-segment, and the
+        segment after the caption — a row's cells, or the document after the
+        table — starts clean (#1550)."""
         self._flush_run()
         runs, self._pending_runs = self._pending_runs, []
         # A browser collapses a caption's leading/trailing formatting
@@ -2317,9 +2390,20 @@ class _AstParser(HTMLParser):
         # text gets in _emit_block_node (#1230). Built straight from the raw
         # runs, a caption that wrapped across source lines reached the Doc as
         # two paragraphs, and a trailing <br> left an empty line under it.
-        runs = _collapse_soft_breaks(runs)
+        if self._table_stack and self._table_stack[-1].caption_had_pre:
+            kept: list[Run | Image] = []
+            for r in runs:
+                if isinstance(r, Run) and "\n" in r.text:
+                    kept.append(replace(r, text=r.text.replace("\n", "\v")))
+                else:
+                    kept.append(r)
+            runs = kept
+        else:
+            runs = _collapse_soft_breaks(runs)
         if self._ends_with_line_break:
             runs, _ = _drop_final_line_break(runs)
+        self._ends_with_line_break = False
+        self._segment_had_line_break = False
         return runs
 
     def handle_data(self, data):
@@ -2422,6 +2506,19 @@ class _AstParser(HTMLParser):
         or malformed HTML missing a final close tag — so trailing content
         isn't silently dropped."""
         self._end_anonymous_block()
+        # An unclosed <table> closes as its </table> would: its open cell, row
+        # and caption unwind through the ordinary end-tag paths, so the table
+        # builds its node and its caption still reads above it instead of the
+        # whole table — caption included — vanishing at end of input (#1550).
+        while self._table_depth >= 1:
+            before = self._table_depth
+            self.handle_endtag("table")
+            if self._table_depth == before:
+                # Defensive only: no table element is left to close, so the
+                # counts can't be trusted; don't loop on it.
+                self._table_depth = 0
+                self._table_stack.clear()
+                break
         if self._block_tag is not None:
             runs = self._flush_pending_runs()
             self._emit_block_node(
@@ -2454,11 +2551,23 @@ class _TableBuilder:
         # a table nested inside the caption has its own builder, and its <tr>
         # never implies this caption's close (PR #1459 review).
         self.in_caption = False
+        # A <pre> opened inside this table's own caption while it captured
+        # (#1550): the caption's line breaks are the code's, not soft breaks.
+        # Reset when a capture starts, since a second <caption> implies the
+        # first one closed.
+        self.caption_had_pre = False
+        # The <pre> count of the cell (or caption) this table opened in, saved
+        # at its start tag and restored at its </table>, so an open <pre> never
+        # leaks into a nested table's caption or cells, and the enclosing cell's
+        # own count comes back when the nested table closes (#1550).
+        self.saved_cell_pre_depth = 0
         # ordered content of the open cell
         self._current_children: list[Run | Image | Table] = []
-        # The <caption>'s runs (#1402), kept instead of dropped with all other
-        # table-scope text; emitted with the table's node at </table>.
-        self.caption_runs: list[Run | Image] = []
+        # The <caption>'s captured stretches (#1402, #1550), kept instead of
+        # dropped with all other table-scope text; emitted with the table's node
+        # at </table>, one paragraph each, so a reopened caption or a stretch
+        # after a nested table reads as its own line, never joined.
+        self.caption_paragraphs: list[list[Run | Image]] = []
 
     def start_row(self, alignment: str | None = None):
         self._current_row_cells = []
@@ -2495,14 +2604,32 @@ class _TableBuilder:
         """Add flushed text runs to this still-open cell's ordered content."""
         self._current_children.extend(runs)
 
-    def append_caption_runs(self, runs: list[Run | Image]):
-        """Add a nested table's caption to this still-open cell's ordered content
-        (#1402). A browser draws the caption above the nested table, so when the
-        cell already holds text the caption starts on the line after it — not
-        joined onto it, which read the cell as one run-together line."""
-        if self._current_children:
-            self._current_children.append(Run(text="\v"))
-        self._current_children.extend(runs)
+    def _cell_break(self):
+        """One line break at the end of the cell's ordered content, unless the
+        line is already broken: a child run ending in "\v" (a <br>) or a nested
+        table's block already drew it, and another would read as an empty line
+        (#1550)."""
+        if not self._current_children:
+            return
+        last = self._current_children[-1]
+        if isinstance(last, Table) or (isinstance(last, Run) and last.text.endswith("\v")):
+            return
+        self._current_children.append(Run(text="\v"))
+
+    def append_caption_runs(self, chunk: list[Run | Image], *, break_after: bool = False):
+        """Add a captured caption stretch to this still-open cell's ordered content
+        (#1402, #1550). A browser draws the caption above the nested table, so when
+        the cell already holds text the caption starts on the line after it — not
+        joined onto it, which read the cell as one run-together line, and not after
+        a break the cell's last child already drew. break_after adds the line the
+        caption's own text ends on: for a nested table that built no node, nothing
+        structural follows its caption in the cell, so an explicit break is what
+        keeps any later cell text off the caption's line."""
+        if chunk:
+            self._cell_break()
+            self._current_children.extend(chunk)
+        if break_after:
+            self._cell_break()
 
     def append_nested_table(self, table: Table):
         """Add a completed nested <table> to this still-open cell's ordered content."""
