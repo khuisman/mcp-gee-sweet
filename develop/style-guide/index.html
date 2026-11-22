@@ -1352,7 +1352,7 @@
 
 <h1 id="style-guide">Style Guide<a class="headerlink" href="#style-guide" title="Permanent link">&para;</a></h1>
 <p>Code-level convention: how source and tests are organized, and what tooling enforces automatically. For product/architecture policy (what belongs in this server, when to build a composite tool), see <a href="../design/">Design Principles</a>. For the reasoning behind a specific past decision, see the <a href="../decisions/">Decision Log</a>.</p>
-<p>This is a v0, written after months of fast iteration with no retroactive documentation of the conventions that emerged. It codifies what the codebase already does in practice, plus a couple of low-churn additions — it isn't a wishlist of everything a style guide could cover. Sections not yet here (docstring conventions beyond the tool-docstring check below, error-handling patterns, naming, type-hint policy) are gaps to assess later, not omissions decided against.</p>
+<p>This is a v0, written after months of fast iteration with no retroactive documentation of the conventions that emerged. It codifies what the codebase already does in practice, plus a couple of low-churn additions — it isn't a wishlist of everything a style guide could cover. Sections not yet here (docstring conventions beyond the tool-docstring check below, error handling outside the modules <a href="#error-handling">Error handling</a> covers, naming, type-hint policy) are gaps to assess later, not omissions decided against.</p>
 <hr />
 <h2 id="module-size-and-domain-splitting">Module size and domain splitting<a class="headerlink" href="#module-size-and-domain-splitting" title="Permanent link">&para;</a></h2>
 <p>There's no enforced line-count limit. The signal that a file needs splitting is <strong>domain cohesion, not size</strong> — a file mixing unrelated responsibilities should split along those lines even if it's short; a large file that's genuinely one cohesive domain doesn't need to shrink for its own sake.</p>
@@ -1379,6 +1379,21 @@
 <hr />
 <h2 id="formatting">Formatting<a class="headerlink" href="#formatting" title="Permanent link">&para;</a></h2>
 <p><code>ruff format</code> runs via pre-commit (<code>.pre-commit-config.yaml</code>) alongside <code>ruff check --fix</code>, both as <code>uv run --frozen</code> hooks on the locked Ruff version. Nothing further to configure here — formatting is already automatic and enforced at commit time.</p>
+<hr />
+<h2 id="error-handling">Error handling<a class="headerlink" href="#error-handling" title="Permanent link">&para;</a></h2>
+<p>A tool reports a Google API failure in one of two ways, and the client sees the error text either way:</p>
+<ul>
+<li><strong>Raise it.</strong> <code>server._timed</code> turns an exception it recognizes (<code>_CLIENT_VISIBLE_ERRORS</code>: an <code>HttpError</code>, an auth error, a transport error, <code>ValueError</code>, <code>OSError</code>) into a <code>ToolError</code> carrying the exception's text, and logs the original with its traceback first. Nothing about a raised <code>HttpError</code> is lost or hidden from the client.</li>
+<li><strong>Return <code>{"error": "..."}</code>.</strong> The tool catches at its own boundary and returns a result dict. The call succeeds as far as MCP is concerned, and the dict can carry more than the message.</li>
+</ul>
+<p>Which to use (#329):</p>
+<ul>
+<li><strong><code>tools/docs/*.py</code> returns <code>{"error": ...}</code>.</strong> Every tool there catches the document read or edit it's built around and returns the error dict, often with what it knows about the doc (<code>docId</code>, the work that landed before the failure). Write a new Docs tool the same way. Two calls still raise: the deprecated <code>get_doc_content</code>, which keeps its behavior until it's removed, and <code>get_doc_as_markdown</code>'s optional comments read (<code>include_comments</code>).</li>
+<li><strong><code>tools/drive/comments.py</code> raises.</strong> Its tools let Drive's error through. <code>update_comment</code> returns <code>{"error": ...}</code> where Drive's answer would mislead: it answers an edit of a deleted comment or reply with a bare 500 or 400, so the tool reads the target back and returns a clear message when it's deleted (otherwise re-raising Drive's own error), and it answers an edit by anyone but the author with a 200 and the old text. A new comments tool raises too, unless Drive's answer misleads like that.</li>
+<li><strong>Anywhere, catch when the tool has something to add</strong>: an ID of something it created before the failure (<code>_restamp_failure_result</code>'s <code>fileId</code>), partial results, or a message clearer than Google's. A bare <code>except Exception: return {"error": str(e)}</code> adds nothing that raising wouldn't.</li>
+<li><strong>A tool whose return type isn't a dict raises.</strong> A <code>list[...]</code>-typed tool can't return <code>{"error": ...}</code>: the dict fails its output schema.</li>
+<li><strong>Don't change an existing tool from one form to the other in passing.</strong> Callers can depend on either shape, so a switch is a behavior change and gets its own ticket.</li>
+</ul>
 <hr />
 <h2 id="playwright">Playwright<a class="headerlink" href="#playwright" title="Permanent link">&para;</a></h2>
 <p>The operational protocol (lock path, acquire/release, staleness recovery for coordinating a single browser tab across parallel QA shards) already lives in <a href="../qa/run/#coordinating-playwright-across-parallel-shards"><code>docs/qa/run.md</code></a> — that's QA-execution detail, not code style, so it's linked here rather than duplicated.</p>
