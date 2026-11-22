@@ -2247,6 +2247,9 @@ import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 
 **Cleanup:** `delete_file(file_id=<step 1's spreadsheetId>, permanent=True)` and the same for step 3's; remove the local files.
 
+**Result (2026-11-22) ✅ PASS — PR #1589 QA round 1 (Sky) @ e5112546**
+Ran from the `sky` checkout on `mcp-gee-sweet-sky` (OAuth), into the Shared Drive fixture folder. Step 1: `rows_written: 2`. Step 2: `rowCount: 2`, `columnCount: 2`. Step 3: `rows_written: 1501`. Step 4: `rowCount: 1501`, `columnCount: 1`. Step 5: `[["1498"],["1499"],["1500"]]`. Extra probe: a 3x1 CSV whose last cell is `=SPLIT("x y z"," ")` returned `x, y, z` in row 3, and the grid grew to 13 columns by itself. Sheets expands an exact-size grid to fit a spilled result, so sizing the grid to the data doesn't break array formulas.
+
 ---
 
 ### TC-D325: A CSV wider than Sheets' 18,278 columns returns an error, creating nothing (#1573) ⚠️ local-filesystem
@@ -2263,6 +2266,9 @@ import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 - Step 2 finds no file
 
 **Cleanup:** remove the local file.
+
+**Result (2026-11-22) ✅ PASS — PR #1589 QA round 1 (Sky) @ e5112546**
+Step 1 returned only `error`: `CSV <scratch>/qa-wide.csv has 18,279 columns; a Google Sheet holds at most 18,278. Nothing was created.` Step 2: `{"files": [], "exhaustive": true}`.
 
 ---
 
@@ -2284,6 +2290,9 @@ import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 - Step 4's values are `[["row-335000"],["row-335001"]]`, across a chunk boundary
 
 **Cleanup:** `delete_file(file_id=<step 1's spreadsheetId>, permanent=True)`; remove the local file.
+
+**Result (2026-11-22) ✅ PASS — PR #1589 QA round 1 (Sky) @ e5112546**
+The import took about 3 to 4 minutes (the client moved it to the background after 120 s) and returned `rows_written: 800000` with no `error`, `failed_ranges`, or `written_ranges`. Step 2: `rowCount: 800000`, `columnCount: 1`. Step 3: `[["row-799999"],["row-800000"]]`. Step 4: `[["row-335000"],["row-335001"]]`. Landing every row doesn't show that the shared pause holds back chunks already queued for a worker thread. Round 1's review found it doesn't, and that finding was sent back.
 
 ---
 
