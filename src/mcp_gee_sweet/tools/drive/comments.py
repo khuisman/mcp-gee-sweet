@@ -18,7 +18,8 @@ from mcp.types import ToolAnnotations
 from ...auth import execute_in_thread
 from ...deprecation import deprecated_tool, renamed_params
 from ..params import OptionalText
-from ..response_limits import enforce_response_size_cap, pagination_hint
+from ..response_limits import clamp_max_results, enforce_response_size_cap, finish_list_page
+from . import _user_fields
 
 logger = logging.getLogger(__name__)
 
@@ -46,12 +47,7 @@ _EDIT_FIELDS = "id,content,modifiedTime"
 
 
 def _map_author(author: dict[str, Any] | None) -> dict[str, Any] | None:
-    if not author:
-        return None
-    return {
-        "display_name": author.get("displayName"),
-        "email_address": author.get("emailAddress"),
-    }
+    return _user_fields(author) if author else None
 
 
 def _map_reply(reply: dict[str, Any]) -> dict[str, Any]:
@@ -242,7 +238,7 @@ def register(tool):
             drive_service.comments()
             .list(
                 fileId=file_id,
-                pageSize=max(1, min(page_size, 100)),
+                pageSize=clamp_max_results(page_size, 100),
                 pageToken=page_token or None,
                 includeDeleted=include_deleted,
                 fields=f"comments({_COMMENT_FIELDS}),nextPageToken",
@@ -255,17 +251,9 @@ def register(tool):
             "file_id": file_id,
             "comments": [_map_comment(c) for c in response.get("comments", [])],
         }
-        if npt := response.get("nextPageToken"):
-            result["next_page_token"] = npt
-
-        enforce_response_size_cap(
-            result,
-            tool_name="list_file_comments",
-            hint=pagination_hint("page_size"),
-            local_path_available=False,
+        return finish_list_page(
+            result, response, tool_name="list_file_comments", page_param="page_size"
         )
-
-        return result
 
     @tool(
         annotations=ToolAnnotations(title="Add File Comment", destructiveHint=True),
