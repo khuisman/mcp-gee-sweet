@@ -2226,6 +2226,67 @@ import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 
 ---
 
+### TC-D324: The grid is sized to exactly the data, not padded to 1000x26 (#1573) ⚠️ requires-oauth ⚠️ local-filesystem
+**Background:** the grid was `max(rows, 1000)` × `max(columns, 26)`. The padding counts against the workbook's 20M-cell limit, so a 1-column file over ~769k rows was refused as 26 cells a row. The grid now matches the data on both axes.
+
+**Setup:** in a scratch directory write `qa-grid-short.csv` as `a,b\n1,2\n`, and `qa-grid-narrow.csv` as a header plus 1500 rows of one column: `(echo h; seq 1 1500) > <scratch>/qa-grid-narrow.csv`.
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-grid-short.csv", title="QA TC-D324 short", folder_id={FOLDER_ID})`
+2. Read the resource `spreadsheet://<step 1's spreadsheetId>/info`
+3. `import_csv_to_sheet(local_path="<scratch>/qa-grid-narrow.csv", title="QA TC-D324 narrow", folder_id={FOLDER_ID})`
+4. Read the resource `spreadsheet://<step 3's spreadsheetId>/info`
+5. `get_sheet_data(spreadsheet_id=<step 3's spreadsheetId>, sheet="Sheet1", range="A1499:A1501")`
+
+**Checks**
+- Step 1 returns `rows_written: 2`, no `error`
+- Step 2's `sheets[0].gridProperties` has `rowCount: 2` and `columnCount: 2`. Before the fix it was 1000 and 26
+- Step 3 returns `rows_written: 1501`, no `error`
+- Step 4's `sheets[0].gridProperties` has `rowCount: 1501` and `columnCount: 1`. Before the fix: 1501 and 26
+- Step 5's `valueRanges[0].values` is `[["1498"],["1499"],["1500"]]`
+
+**Cleanup:** `delete_file(file_id=<step 1's spreadsheetId>, permanent=True)` and the same for step 3's; remove the local files.
+
+---
+
+### TC-D325: A CSV wider than Sheets' 18,278 columns returns an error, creating nothing (#1573) ⚠️ local-filesystem
+**Background:** a file over Sheets' limits (18,278 columns, or 20,000,000 cells) is refused before the spreadsheet is created. The 20M-cell check needs a file of about 40 MB, so the cell limit is covered by unit tests (`test_grid_limit_error_allows_exactly_the_limits`, `test_csv_over_cell_limit_errors_before_create`) and this case covers the column limit, which a one-line file reaches.
+
+**Setup:** write a one-row CSV of 18,279 columns: `python3 -c "print(','.join(['x'] * 18279))" > <scratch>/qa-wide.csv`.
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-wide.csv", title="QA TC-D325 wide", folder_id={FOLDER_ID})`
+2. `search_files(query="QA TC-D325", folder_id={FOLDER_ID})`
+
+**Checks**
+- Step 1 returns a result whose only key is `error`: `CSV <scratch>/qa-wide.csv has 18,279 columns; a Google Sheet holds at most 18,278. Nothing was created.`
+- Step 2 finds no file
+
+**Cleanup:** remove the local file.
+
+---
+
+### TC-D326: An 800,000-row import waits out Sheets' write quota and lands every row (#1573) ⚠️ requires-oauth ⚠️ local-filesystem
+**Background:** the ticket's own failing file. Its grid was refused outright before the fix; with the grid fixed, 93 of its 160 chunk writes were refused with `429 RATE_LIMIT_EXCEEDED`, since Sheets allows 60 writes a minute per user and every chunk went at once. A 429 now pauses every chunk of the import and resends it.
+
+**Setup:** `seq -f "row-%.0f" 1 800000 > <scratch>/qa-800k.csv` (800,000 lines, one column, about 8 MB). Don't run this case alongside another Sheets-writing case on the same account: they share the quota.
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-800k.csv", title="QA TC-D326 800k", folder_id={FOLDER_ID})`. Expect it to take a few minutes
+2. Read the resource `spreadsheet://<step 1's spreadsheetId>/info`
+3. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="A799999:A800000")`
+4. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="A335000:A335001")`
+
+**Checks**
+- Step 1 returns `rows_written: 800000` and no `error`, `failed_ranges`, or `written_ranges`
+- Step 2's `sheets[0].gridProperties` has `rowCount: 800000` and `columnCount: 1`
+- Step 3's values are `[["row-799999"],["row-800000"]]`
+- Step 4's values are `[["row-335000"],["row-335001"]]`, across a chunk boundary
+
+**Cleanup:** `delete_file(file_id=<step 1's spreadsheetId>, permanent=True)`; remove the local file.
+
+---
+
 ### TC-D173: Non-existent local path (unit test)
 
 **Checks (unit test)**

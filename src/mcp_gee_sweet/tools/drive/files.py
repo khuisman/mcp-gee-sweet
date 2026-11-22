@@ -1,6 +1,7 @@
 import asyncio
 import csv
 import logging
+import time
 from contextlib import aclosing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -28,6 +29,111 @@ from . import (
 logger = logging.getLogger(__name__)
 
 _CSV_IMPORT_CHUNK_ROWS = 5000
+
+# Sheets allows 60 write requests per minute per user, so an import of more than 60
+# chunks (300k rows) has writes refused with 429 (measured live: 93 of 160, #1573).
+# A refusal pauses every chunk of the import; each pause after a refused retry
+# doubles, from the base to the cap, and an import stops retrying after the max wait.
+_CSV_RATE_LIMIT_BASE_DELAY = 5.0
+_CSV_RATE_LIMIT_MAX_DELAY = 60.0
+_CSV_RATE_LIMIT_MAX_WAIT = 600.0
+
+# Sheets' grid limits, both inclusive (checked live, #1573): a workbook holds at most
+# 20,000,000 cells, and a sheet at most 18,278 columns (ZZZ).
+_SHEETS_CELL_LIMIT = 20_000_000
+_SHEETS_COLUMN_LIMIT = 18_278
+
+
+def _csv_grid_limit_error(local_path: str, rows: int, columns: int) -> str | None:
+    """The error for a CSV too large for one sheet, or None when it fits.
+
+    Checked before the spreadsheet is created, so a refused file leaves nothing
+    behind.
+    """
+    if columns > _SHEETS_COLUMN_LIMIT:
+        return (
+            f"CSV {local_path} has {columns:,} columns; a Google Sheet holds at most "
+            f"{_SHEETS_COLUMN_LIMIT:,}. Nothing was created."
+        )
+    if rows * columns > _SHEETS_CELL_LIMIT:
+        return (
+            f"CSV {local_path} needs {rows:,} rows x {columns:,} columns = "
+            f"{rows * columns:,} cells; a Google Sheets spreadsheet holds at most "
+            f"{_SHEETS_CELL_LIMIT:,}. Split the file and import each part. "
+            "Nothing was created."
+        )
+    return None
+
+
+def _is_rate_limited(e: BaseException) -> bool:
+    """A 429: Sheets refused the request for its quota and applied nothing, so it is
+    safe to send again."""
+    return isinstance(e, HttpError) and int(e.resp.status) == 429
+
+
+class _RateLimitPause:
+    """One import's shared pause for its concurrent chunk writes (#1573).
+
+    The write quota is per user, not per chunk, so a 429 on one chunk means every
+    chunk sent now would be refused too: it pauses them all instead of letting each
+    retry on its own and spend the window's requests on refusals. A 429 on a
+    request sent before the current pause began doesn't extend it, since it says
+    nothing new; one sent after it doubles the delay. Any success resets the delay.
+    """
+
+    def __init__(self) -> None:
+        self._delay = 0.0
+        self._pause_started = float("-inf")
+        self._resume_at = 0.0
+        self._deadline = time.monotonic() + _CSV_RATE_LIMIT_MAX_WAIT
+
+    async def wait(self) -> float:
+        """Wait out any pause; returns the send time to pass to rate_limited()."""
+        while (remaining := self._resume_at - time.monotonic()) > 0:
+            await asyncio.sleep(remaining)
+        return time.monotonic()
+
+    def succeeded(self) -> None:
+        self._delay = 0.0
+
+    def rate_limited(self, sent_at: float) -> bool:
+        """Record a 429 on a request sent at `sent_at`. Returns whether to retry it:
+        False once the import has spent its max wait."""
+        now = time.monotonic()
+        if now >= self._deadline:
+            return False
+        if sent_at >= self._pause_started:
+            self._delay = min(
+                _CSV_RATE_LIMIT_MAX_DELAY, max(_CSV_RATE_LIMIT_BASE_DELAY, self._delay * 2)
+            )
+            self._pause_started = now
+            self._resume_at = now + self._delay
+        return True
+
+
+def _grid_resize_requests(
+    sheet_id: int, grid: dict[str, Any], rows: int, columns: int
+) -> list[dict[str, Any]]:
+    """updateSheetProperties requests that size a sheet's grid to rows x columns.
+
+    The column change goes first, as its own request: Sheets checks a row change
+    against the sheet's current column count even when one request sets both, so
+    growing the default 1000x26 grid to 1,000,000 x 20 in one request is refused
+    as 26M cells (checked live, #1573).
+    """
+    requests = []
+    for field, wanted, default in (("columnCount", columns, 26), ("rowCount", rows, 1000)):
+        if grid.get(field, default) != wanted:
+            requests.append(
+                {
+                    "updateSheetProperties": {
+                        "properties": {"sheetId": sheet_id, "gridProperties": {field: wanted}},
+                        "fields": f"gridProperties.{field}",
+                    }
+                }
+            )
+    return requests
+
 
 # max_results caps list_drives at 200 drives (2 full pages); the page bound only
 # stops a nextPageToken that never goes falsy over empty pages (#615).
@@ -193,13 +299,20 @@ def register(tool):
 
         Reads the CSV as UTF-8, dropping a leading byte-order mark (Excel's
         "CSV UTF-8" export writes one); a file in another encoding returns an
-        error before anything is created. Then creates the spreadsheet, expands the sheet's grid to fit
-        the data (avoiding the default 1000-row/26-column limit), and writes
-        every row in one or more batched value updates.
+        error before anything is created. Then creates the spreadsheet, sizes
+        the sheet's grid to exactly the data's rows and columns (replacing the
+        default 1000x26 grid, so a short or narrow file gets no blank padding),
+        and writes every row in one or more batched value updates.
+
+        A CSV over Google Sheets' limits (20,000,000 cells, or 18,278 columns)
+        returns an error before anything is created.
 
         Row chunks write concurrently rather than one at a time. If the
         caller supplied a progressToken, a `notifications/progress` update is sent
-        as each chunk finishes.
+        as each chunk finishes. Sheets allows 60 writes a minute, so a file of
+        more than 300,000 rows waits for its quota between writes and can take
+        several minutes; a chunk still refused after 10 minutes of waiting is
+        reported in failed_ranges.
 
         Args:
             local_path: Absolute path to the local .csv file.
@@ -262,6 +375,10 @@ def register(tool):
 
         width = max(len(row) for row in rows)
         rows = [row + [""] * (width - len(row)) for row in rows]
+        # A file of blank lines has no columns, and a grid needs at least one.
+        grid_columns = max(width, 1)
+        if limit_error := _csv_grid_limit_error(local_path, len(rows), grid_columns):
+            return {"error": limit_error}
 
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
@@ -321,22 +438,10 @@ def register(tool):
                     }
                 }
             )
-        needed_rows, needed_cols = len(rows), width
-        if needed_rows > grid.get("rowCount", 1000) or needed_cols > grid.get("columnCount", 26):
-            requests.append(
-                {
-                    "updateSheetProperties": {
-                        "properties": {
-                            "sheetId": sheet_id,
-                            "gridProperties": {
-                                "rowCount": max(needed_rows, grid.get("rowCount", 1000)),
-                                "columnCount": max(needed_cols, grid.get("columnCount", 26)),
-                            },
-                        },
-                        "fields": "gridProperties.rowCount,gridProperties.columnCount",
-                    }
-                }
-            )
+        # Exactly the data's size, never padded to the default 1000x26: the padding
+        # counts against the workbook's cell limit, so a 1-column CSV over ~769k rows
+        # was refused as 26 cells a row (#1573).
+        requests.extend(_grid_resize_requests(sheet_id, grid, len(rows), grid_columns))
 
         if requests:
             with invalidating(lambda: lc.cache.mark_dirty(spreadsheet_id)):
@@ -361,26 +466,34 @@ def register(tool):
         ]
         total_chunks = len(chunks)
         completed = [0]
+        pause = _RateLimitPause()
 
         async def _write_chunk(item: tuple[int, list[list]]) -> dict[str, Any]:
             start, chunk = item
             row_range = {"start_row": start + 1, "end_row": start + len(chunk)}
-            try:
-                await execute_in_thread(
-                    sheets_service.spreadsheets()
-                    .values()
-                    .update(
-                        spreadsheetId=spreadsheet_id,
-                        range=f"{quoted_sheet}!A{start + 1}",
-                        valueInputOption="USER_ENTERED",
-                        body={"values": chunk},
+            while True:
+                sent_at = await pause.wait()
+                try:
+                    await execute_in_thread(
+                        sheets_service.spreadsheets()
+                        .values()
+                        .update(
+                            spreadsheetId=spreadsheet_id,
+                            range=f"{quoted_sheet}!A{start + 1}",
+                            valueInputOption="USER_ENTERED",
+                            body={"values": chunk},
+                        )
+                        .execute,
+                        sheets_service,
                     )
-                    .execute,
-                    sheets_service,
-                )
-                result = {**row_range, "ok": True}
-            except Exception as e:
-                result = {**row_range, "ok": False, "error": str(e)}
+                except Exception as e:
+                    if _is_rate_limited(e) and pause.rate_limited(sent_at):
+                        continue
+                    result = {**row_range, "ok": False, "error": str(e)}
+                else:
+                    pause.succeeded()
+                    result = {**row_range, "ok": True}
+                break
 
             # Reported here, inside the per-item coroutine, so updates stream in as
             # each concurrent chunk write finishes rather than arriving in one burst
