@@ -139,9 +139,46 @@ class TestEnforceResponseSizeCap:
 
 _ENFORCE_CALL_NAMES = ("enforce_response_size_cap", "enforce_response_size_floor")
 # A call to this checks the cap with pagination_hint(page_param) (#329), so its
-# page_param is a hint source; its own body, which passes the parameter
-# through, is skipped, since every value it can take is collected at a call.
+# page_param is a hint source. Its own body, which passes the parameter
+# through, isn't resolved, since every value it can take is collected at a
+# call; _check_page_finisher fails loudly unless that body's every cap call
+# passes exactly that hint (PR #1588 QA round 1).
 _PAGE_FINISHER = "finish_list_page"
+
+
+def _is_page_param_hint(node: ast.expr) -> bool:
+    """Whether `node` is exactly `pagination_hint(page_param)`, positional or
+    by keyword."""
+    if not (isinstance(node, ast.Call) and _call_name(node.func) == "pagination_hint"):
+        return False
+    args = list(node.args) + [kw.value for kw in node.keywords if kw.arg == "page_param"]
+    return (
+        len(args) == 1
+        and len(node.args) + len(node.keywords) == 1
+        and isinstance(args[0], ast.Name)
+        and args[0].id == "page_param"
+    )
+
+
+def _check_page_finisher(fn: ast.FunctionDef | ast.AsyncFunctionDef, filename: str) -> None:
+    """Fail loudly unless the page finisher checks the cap, and every cap call
+    in it passes exactly `hint=pagination_hint(page_param)`: the hint the
+    collector credits to each call of it. Anything else there, a sentence
+    added after the hint included, would escape the sentence-form checks."""
+    calls = [
+        node
+        for node in ast.walk(fn)
+        if isinstance(node, ast.Call) and _call_name(node.func) in _ENFORCE_CALL_NAMES
+    ]
+    if not calls:
+        raise AssertionError(f"{filename}:{fn.lineno}: {_PAGE_FINISHER} checks no cap")
+    for call in calls:
+        hints = [kw.value for kw in call.keywords if kw.arg == "hint"]
+        if len(hints) != 1 or not _is_page_param_hint(hints[0]):
+            raise AssertionError(
+                f"{filename}:{call.lineno}: {_PAGE_FINISHER}'s cap call must pass exactly "
+                "hint=pagination_hint(page_param), the hint collected at its calls"
+            )
 
 
 def _call_name(func: ast.expr) -> str | None:
@@ -274,6 +311,7 @@ def _collect_scope_hints(
     for stmt in own:
         if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
             if stmt.name == _PAGE_FINISHER:
+                _check_page_finisher(stmt, filename)
                 continue
             _collect_scope_hints(stmt.body, dict(scope), filename, hints)
 
@@ -434,6 +472,46 @@ class TestCollectCapHints:
             '    return finish_list_page(x, r, tool_name="t", page_param="max_results")\n',
         )
         assert _collect_cap_hints(src) == ["Lower max_results and paginate via next_page_token. "]
+
+    @pytest.mark.parametrize(
+        "hint",
+        [
+            'pagination_hint(page_param) + "see docs, or Set it. "',
+            'pagination_hint("page_size")',
+            "pagination_hint(page_param, extra)",
+            '"A full sentence. "',
+        ],
+    )
+    def test_finish_list_page_body_with_another_hint_fails_loudly(self, tmp_path, hint):
+        # PR #1588 QA round 1: the helper's body isn't resolved, so any hint
+        # there but exactly pagination_hint(page_param) would escape the
+        # sentence-form checks.
+        src = self._pkg(
+            tmp_path,
+            "def finish_list_page(result, response, *, tool_name, page_param):\n"
+            f"    enforce_response_size_cap(result, tool_name=tool_name, hint={hint})\n",
+        )
+        with pytest.raises(AssertionError, match="must pass exactly"):
+            _collect_cap_hints(src)
+
+    def test_finish_list_page_body_with_no_cap_call_fails_loudly(self, tmp_path):
+        src = self._pkg(
+            tmp_path,
+            "def finish_list_page(result, response, *, tool_name, page_param):\n"
+            "    return result\n",
+        )
+        with pytest.raises(AssertionError, match="checks no cap"):
+            _collect_cap_hints(src)
+
+    def test_finish_list_page_hint_by_keyword_passes(self, tmp_path):
+        src = self._pkg(
+            tmp_path,
+            "def finish_list_page(result, response, *, tool_name, page_param):\n"
+            "    enforce_response_size_cap(\n"
+            "        result, tool_name=tool_name, hint=pagination_hint(page_param=page_param)\n"
+            "    )\n",
+        )
+        assert _collect_cap_hints(src) == []
 
     def test_finish_list_page_without_page_param_fails_loudly(self, tmp_path):
         src = self._pkg(
