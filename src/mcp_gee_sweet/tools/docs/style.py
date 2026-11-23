@@ -424,6 +424,28 @@ def _subtract_span(spans: list[dict[str, int]], lo: int, hi: int) -> list[dict[s
     return out
 
 
+def _is_paragraph_start(doc: dict, index: int) -> bool:
+    """Whether index is a paragraph's first index — the position right after
+    the previous paragraph's newline, at the start of a paragraph's own text.
+    #1584: Docs styles text inserted at such an index from the character
+    after index (the paragraph's own first character), not from the newline
+    before it, so a style-inheritance read must probe there instead. Walks
+    table cells like _bold_runs_in_range does; a missing startIndex only
+    happens on a document's very first element, which implicitly starts at 1."""
+
+    def _walk(items: list) -> bool:
+        for item in items or []:
+            if item.get("paragraph") and item.get("startIndex", 1) == index:
+                return True
+            for row in (item.get("table") or {}).get("tableRows") or []:
+                for cell in row.get("tableCells") or []:
+                    if _walk(cell.get("content") or []):
+                        return True
+        return False
+
+    return _walk((doc.get("body") or {}).get("content"))
+
+
 def _bold_runs_in_range(doc: dict, start_index: int, end_index: int) -> list[dict[str, int]]:
     """The [startIndex, endIndex) spans of directly bold runs inside a range. #1273
 

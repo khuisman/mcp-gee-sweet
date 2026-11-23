@@ -402,7 +402,7 @@ class TestUserConsent:
         attempt = await auth_module.start_user_consent()
         session = SimpleNamespace(send_elicit_complete=AsyncMock())
         attempt.notify_on_completion(session)
-        assert b"completed" in await self._callback()
+        assert await self._callback() == auth_module._CONSENT_SUCCESS_PAGE.encode()
         await asyncio.wait_for(asyncio.shield(attempt.future), 5)
         await self._until(lambda: session.send_elicit_complete.await_count == 1)
         session.send_elicit_complete.assert_awaited_once_with(attempt.elicitation_id)
@@ -492,7 +492,7 @@ class TestUserConsent:
         second.notify_on_completion(second_session)
         done, other = (first, second) if completed == "replaced" else (second, first)
         redirect = first_redirect if completed == "replaced" else second_redirect
-        assert b"completed" in await self._callback(redirect)
+        assert await self._callback(redirect) == auth_module._CONSENT_SUCCESS_PAGE.encode()
         await asyncio.wait_for(asyncio.shield(done.future), 5)
         await self._until(
             lambda: (

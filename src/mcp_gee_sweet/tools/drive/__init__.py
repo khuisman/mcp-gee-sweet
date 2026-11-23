@@ -36,6 +36,18 @@ def _quota_error_text(service: Any) -> str:
     return _USER_QUOTA_ERROR
 
 
+def _user_fields(resource: dict[str, Any]) -> dict[str, Any]:
+    """`display_name` and `email_address` from a Drive resource that carries
+    `displayName`/`emailAddress`: a comment's or reply's `author` (a User) or a
+    Permission (#329). `get_storage_quota` maps `about.user` under its own
+    `email` key and doesn't use this, since renaming that key would change its
+    output."""
+    return {
+        "display_name": resource.get("displayName"),
+        "email_address": resource.get("emailAddress"),
+    }
+
+
 def _escape_drive_query_mime_type(mime_type: str) -> str:
     """Escape a mimeType value for embedding in a Drive `files().list()` `q` string.
 
