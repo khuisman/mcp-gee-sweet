@@ -278,9 +278,9 @@ def register(tool):
             drive: the shared drive's organization owns its items, so they have
             no owner to transfer. A shared drive organizer can move the item into
             their own My Drive, which makes them its owner.
-            {"error": ...}, with nothing changed, between two personal (gmail.com)
-            accounts: Drive transfers ownership there only once the new owner
-            accepts a request, which this tool can't send.
+            {"error": ...}, with nothing changed, when Drive transfers ownership
+            only once the new owner accepts a transfer request (as between two
+            personal gmail.com accounts), which this tool doesn't send.
             A transfer to an account in another organization raises Drive's own
             error: Drive allows a transfer only within the current owner's
             organization.
@@ -330,15 +330,16 @@ def register(tool):
                     "owns it. Nothing was changed. A shared drive organizer can move "
                     "the item into their own My Drive, which makes them its owner."
                 }
-            # Between two consumer (gmail.com) accounts Drive answers "Consent is
-            # required to transfer ownership of a file to another user.", naming
-            # neither whose consent nor how to get it (checked live, #1181).
+            # Drive answers "Consent is required to transfer ownership of a file to
+            # another user.", naming neither whose consent nor how to get it (seen
+            # between two gmail.com accounts, #1181). The message is worded from the
+            # reason alone, so it holds for any pair of accounts Drive sends it for.
             if http_error_has_reason(e, 403, "consentRequiredForOwnershipTransfer"):
                 return {
-                    "error": f"Drive won't transfer ownership of {file_id} between "
-                    f"personal Google accounts until {new_owner_email} accepts it, and "
-                    "this tool can't send that request. Nothing was changed. The owner "
-                    "can send it from the file's Share dialog in Drive (Transfer "
+                    "error": f"Drive won't transfer ownership of {file_id} until "
+                    f"{new_owner_email} accepts a transfer request, and this tool "
+                    "doesn't send one. Nothing was changed. The owner can send the "
+                    "request from the file's Share dialog in Drive (Transfer "
                     f"ownership); {new_owner_email} then accepts it."
                 }
             raise

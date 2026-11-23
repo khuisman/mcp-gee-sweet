@@ -531,7 +531,7 @@ Listed schema: `send_notification` = `{"const": true, "default": true, "title": 
 
 ### TC-D329: Transfer between two personal accounts returns a clear error (#1181) ⚠️ requires-oauth
 
-**Fixture requirement:** a server signed in to a personal (gmail.com) account, and a second gmail.com account the tester owns. Drive refuses this transfer (403 `consentRequiredForOwnershipTransfer`, checked live 2026-11-23), so nothing changes owner; the second account still gets Drive's notification email. Skip as environmental when no such server or second account is available.
+**Fixture requirement:** a server signed in to a personal (gmail.com) account, and a second gmail.com account the tester owns. Drive refuses this transfer (403 `consentRequiredForOwnershipTransfer`, checked live 2026-11-23), so nothing changes owner. Skip as environmental when no such server or second account is available.
 
 **Setup:** `create_doc(title="QA-TC-D329")` in the personal account's My Drive (not a shared drive).
 

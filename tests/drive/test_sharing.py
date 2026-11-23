@@ -393,10 +393,10 @@ class TestTransferOwnership:
         _, kwargs = drive.permissions.return_value.create.call_args
         assert kwargs["sendNotificationEmail"] is True
 
-    async def test_request_sends_literal_true_not_the_parameter(self):
-        """#1181: the request states what Drive requires whatever the parameter
-        holds, so it stays correct if the local guard is ever removed. A truthy
-        non-True value is refused by the guard, never forwarded."""
+    async def test_guard_refuses_truthy_non_true_value(self):
+        """#1181: the guard tests `is not True`, so a truthy value that isn't True
+        (a caller that skipped schema validation) is refused, never forwarded.
+        test_default_still_notifies covers the request's literal kwarg."""
         drive = MagicMock()
         ctx = _make_ctx(drive_service=drive)
         result = await _sharing_tools["transfer_ownership"](
@@ -493,19 +493,39 @@ class TestTransferOwnership:
         assert "new-owner@gmail.com" in result["error"]
         assert "Nothing was changed" in result["error"]
         assert "Share dialog" in result["error"]
+        assert "doesn't send" in result["error"]
+        # Worded from the reason alone: only gmail.com -> gmail.com was seen live,
+        # and the rewrite applies to every account pair Drive sends it for.
+        assert "personal" not in result["error"]
 
     async def test_other_http_errors_still_raise(self):
         """Only the shared drive and consumer-consent reasons are rewritten; any
         other Drive error (a 404, a different 403, the cross-organization 400,
-        whose own message is already clear) propagates unchanged, as before."""
-        cross_org = _http_error(400, "Ownership can only be transferred within the organization.")
-        cross_org.content = json.dumps(
-            {"error": {"errors": [{"reason": "ownershipChangeAcrossDomainNotPermitted"}]}}
-        ).encode()
+        whose own message is already clear) propagates unchanged, as before.
+        The cross-organization 400 has been seen live with two reasons (#1181):
+        ownershipChangeAcrossDomainNotPermitted (gmail.com owner to a Workspace
+        account) and invalidSharingRequest (Workspace owner to an address with no
+        Google account, PR #1600 QA round 1)."""
+
+        def cross_org(reason: str) -> HttpError:
+            resp = MagicMock()
+            resp.status = 400
+            message = (
+                "Sorry, ownership can only be transferred to another user in the "
+                "same organization as the current owner."
+            )
+            return HttpError(
+                resp=resp,
+                content=json.dumps(
+                    {"error": {"message": message, "errors": [{"reason": reason}]}}
+                ).encode(),
+            )
+
         for err in (
             _http_error(404, "File not found: file-1."),
             _http_error(403, "Forbidden"),
-            cross_org,
+            cross_org("ownershipChangeAcrossDomainNotPermitted"),
+            cross_org("invalidSharingRequest"),
         ):
             drive = MagicMock()
             drive.permissions.return_value.create.return_value.execute.side_effect = err
