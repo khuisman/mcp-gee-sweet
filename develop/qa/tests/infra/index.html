@@ -3433,7 +3433,7 @@ Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
 <p><strong>Setup:</strong> as TC-I48, with <code>OAUTH_CONSENT_TIMEOUT_SECONDS=300</code>.</p>
 <p><strong>Action</strong>
 1. As TC-I48 step 1: get the consent link from <code>list_files</code>
-2. Open the link in the browser and approve every requested scope. The callback page reads <code>The authentication flow has completed. You may close this window.</code>
+2. Open the link in the browser and approve every requested scope. The callback page reads <code>Authorization received</code> — "You may close this window and go back to your MCP client."
 3. Call <code>list_files</code> again, then <code>list_sheets</code></p>
 <p><strong>Checks</strong>
 - 3: both calls succeed
