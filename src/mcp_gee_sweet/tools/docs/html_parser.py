@@ -1183,9 +1183,8 @@ class _AstParser(HTMLParser):
         <li> keeps its items, exactly as on develop. Also False with no block
         open at all: the container's element outlives the outer block's close,
         but its stretch died with it."""
-        return (
-            self._block_tag is not None
-            and any(e.container_in_block is not None for e in self._open_elements)
+        return self._block_tag is not None and any(
+            e.container_in_block is not None for e in self._open_elements
         )
 
     def _capturing_caption(self) -> bool:
