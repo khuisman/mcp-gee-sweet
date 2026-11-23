@@ -2329,6 +2329,9 @@ OAuth (`mcp-gee-sweet-sky`), {FOLDER_ID} = the Shared Drive test folder. Step 1 
 **Result (2026-11-23) ✅ PASS — PR #1599 QA round 2 (Sky) @ cc047fe2**
 OAuth (`mcp-gee-sweet-sky`), same folder. Step 1 returned only `error`: `Setting up the sheet failed (<HttpError 400 … "Invalid requests[0].updateSheetProperties: The sheet name cannot be greater than 100 characters." …>). No rows were written, and the new spreadsheet was deleted.` Step 2 returned only `error`: `The row write was refused (<HttpError 400 … "Your input contains more than the maximum of 50000 characters in a single cell." …>). No rows were written, and the new spreadsheet was deleted.`, with no `failed_ranges`. Neither has `">.`; both close `">).`. Step 3: `{"files": [], "exhaustive": true}`. `get_file_metadata` on both IDs from the error URLs returned 404 `File not found`. The cleanup retry path (a 5xx on the delete) can't be produced live; unit tests cover it.
 
+**Result (2026-11-23) ✅ PASS — PR #1599 QA round 3 (Sky) @ 057cc034**
+OAuth (`mcp-gee-sweet-sky`), same folder, after reconnecting to this head. Step 1 and step 2 returned the same `error`-only results as round 2, closing `">). No rows were written, and the new spreadsheet was deleted.`, with no `failed_ranges` on step 2. Step 3: `{"files": [], "exhaustive": true}`. `get_file_metadata` on both IDs from the error URLs returned 404 `File not found`. This round's fix (the folder is invalidated when a retried delete gets a 404) can't be produced live; `test_404_after_a_retried_delete_counts_as_deleted` covers it.
+
 ---
 
 ### TC-D173: Non-existent local path (unit test)
