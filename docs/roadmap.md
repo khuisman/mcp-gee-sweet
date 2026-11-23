@@ -639,7 +639,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 - [x] A UTF-8 BOM is kept in cell A1. `wrong/narrow`, observed (PR #1580 also returns an error naming UTF-8 for a non-UTF-8 file, #1576's scope) ([#1575](https://github.com/khuisman/mcp-gee-sweet/issues/1575)) (PR #1580)
 - [x] The grid is padded to 26 columns, so a CSV over ~769k rows is refused. `loud/narrow`, observed ([#1573](https://github.com/khuisman/mcp-gee-sweet/issues/1573)) (PR #1589)
-- [ ] A failed import leaves an empty spreadsheet behind. `loud/narrow`, observed ([#1574](https://github.com/khuisman/mcp-gee-sweet/issues/1574))
+- [x] A failed import leaves an empty spreadsheet behind. `loud/narrow`, observed ([#1574](https://github.com/khuisman/mcp-gee-sweet/issues/1574)) (PR #1599)
 - [x] A non-UTF-8 CSV raises a bare `UnicodeDecodeError`. `loud/narrow`, observed ([#1576](https://github.com/khuisman/mcp-gee-sweet/issues/1576)) (PR #1580)
 - [ ] Chunks are sized by row count only, so a wide-text CSV times out. `loud/rare`, observed ([#1577](https://github.com/khuisman/mcp-gee-sweet/issues/1577))
 - [x] `create_doc_from_file`/`update_doc_from_file` keep a UTF-8 BOM, which turns a leading Markdown heading into text. Follow-up to #1575 (PR #1580). `wrong/narrow`, observed through `_md_to_html`; placed 2026-11-21 ([#1581](https://github.com/khuisman/mcp-gee-sweet/issues/1581)) (PR #1595)
