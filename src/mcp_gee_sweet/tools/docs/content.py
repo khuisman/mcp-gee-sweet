@@ -421,7 +421,9 @@ def _read_doc_source_file(
     """Shared file reading for create_doc_from_file / update_doc_from_file (#567):
     returns (content, content_format), or {"error": ...} for a missing file, a path
     that isn't a regular file, an unreadable or non-UTF-8 file, or an extension with
-    no inferable format. content_format=None infers it from the extension.
+    no inferable format. A leading byte-order mark is dropped (utf-8-sig),
+    where a plain utf-8 read would keep it and break the first Markdown
+    heading (#1581). content_format=None infers it from the extension.
     format_overridable says whether the calling tool takes a content_format
     parameter, so the error only suggests one when it exists.
 
@@ -443,7 +445,11 @@ def _read_doc_source_file(
             return {"error": f"Unsupported file extension '{ext}'. Use .md or .html/.htm{hint}"}
         content_format = inferred
     try:
-        content = path.read_text(encoding="utf-8")
+        # utf-8-sig drops a leading byte-order mark (some editors write one),
+        # which would otherwise break the first Markdown heading or ride along
+        # at the start of an HTML source (#1581) — the same fix
+        # import_csv_to_sheet took in #1575.
+        content = path.read_text(encoding="utf-8-sig")
     except UnicodeDecodeError as e:
         return {"error": f"File is not valid UTF-8: {local_path} ({e.reason} at byte {e.start})"}
     except OSError as e:

@@ -4386,7 +4386,9 @@ def register(tool):
             # decision doc's own reproduction case (22 subfolders / ~225 files) is a
             # realistic scale to hit the cap. The hint names only the actions this
             # call can still take: a call that already syncs a single direction, or
-            # already runs non-recursively, has nothing to gain from that remedy (#1552).
+            # already runs non-recursively, has nothing to gain from that remedy
+            # (#1552), and a narrower subfolder can't shrink a non-recursive sync —
+            # its overflow is the folder's own direct children (#1560).
             if recursive and direction == "bidirectional":
                 hint = (
                     "Recursive syncs can produce very large result lists. Sync a "
@@ -4399,11 +4401,11 @@ def register(tool):
                 )
             elif direction == "bidirectional":
                 hint = (
-                    "A folder's direct children can still produce a very large result "
-                    "list. Sync a narrower subfolder or a single direction. "
+                    "A folder's direct children can still produce a very large "
+                    "result list. Sync a single direction. "
                 )
             else:
-                hint = "A folder's direct children can still produce a very large result list. Sync a narrower subfolder. "
+                hint = "A folder's direct children can still produce a very large result list. "
             enforce_response_size_cap(
                 result,
                 tool_name="sync_folder",

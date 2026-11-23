@@ -14,6 +14,7 @@ from mcp_gee_sweet import auth, cache, local_files
 from mcp_gee_sweet.local_files import LocalFileAccessError
 from mcp_gee_sweet.tools import gmail, response_limits
 from mcp_gee_sweet.tools.docs import content, images
+from mcp_gee_sweet.tools.docs.md_to_html import _md_to_html
 from mcp_gee_sweet.tools.drive import files as files_module
 from mcp_gee_sweet.tools.drive.transfer import _upload_local_file
 
@@ -420,6 +421,31 @@ class TestOtherReaders:
         assert content._read_doc_source_file(
             str(root / "notes.md"), None, format_overridable=False
         ) == ("# hi", "markdown")
+
+    def test_doc_source_file_drops_a_leading_byte_order_mark(self, root):
+        # #1581: a BOM at the start of the file would keep its U+FEFF in the
+        # text, so the parser missed the first Markdown heading (`_md_to_html`
+        # rendered it a plain paragraph reading "# Title") and an HTML source
+        # carried the stray character at its start. utf-8-sig drops it, as
+        # import_csv_to_sheet's reader did in #1575. Written as bytes, not a
+        # literal BOM character.
+        (root / "bom.md").write_bytes(b"\xef\xbb\xbf# Title\n\nbody\n")
+        text, fmt = content._read_doc_source_file(
+            str(root / "bom.md"), None, format_overridable=False
+        )
+        assert (text, fmt) == ("# Title\n\nbody\n", "markdown")
+        html = _md_to_html(text, autolink_urls=False)
+        assert "<h1>Title</h1>" in html and "\ufeff" not in html
+        (root / "bom.html").write_bytes(b"\xef\xbb\xbf<h1>Title</h1>\n")
+        assert content._read_doc_source_file(
+            str(root / "bom.html"), None, format_overridable=False
+        ) == ("<h1>Title</h1>\n", "html")
+
+    def test_doc_source_file_without_a_byte_order_mark_is_unchanged(self, root):
+        (root / "plain.md").write_text("no mark\n")
+        assert content._read_doc_source_file(
+            str(root / "plain.md"), None, format_overridable=False
+        ) == ("no mark\n", "markdown")
 
     def test_gmail_attachment_refused(self, off, tmp_path):
         (tmp_path / "a.pdf").write_bytes(b"x")
