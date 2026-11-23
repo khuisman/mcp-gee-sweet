@@ -2410,14 +2410,18 @@ class TestImportCsvFailureCleanup:
             assert execute.call_args.kwargs["num_retries"] == drive_files_module._CLEANUP_RETRIES
 
     async def test_404_after_a_retried_delete_counts_as_deleted(self, tmp_path):
-        """A retried delete whose earlier attempt landed finds the file gone."""
-        ctx, drive_svc, sheets_svc, _ = self._ctx(can_delete=True)
+        """A retried delete whose earlier attempt landed finds the file gone. The folder
+        is still invalidated for it (PR #1599 QA round 2: `invalidating` skips its
+        callback on a 4xx that leaves the block)."""
+        ctx, drive_svc, sheets_svc, folder_cache = self._ctx(can_delete=True)
         batch = sheets_svc.spreadsheets.return_value.batchUpdate
         batch.return_value.execute.side_effect = _http_error(400)
         drive_svc.files.return_value.delete.return_value.execute.side_effect = _http_error(404)
         result = await self._run(ctx, tmp_path)
         assert set(result) == {"error"}
         assert result["error"].endswith("the new spreadsheet was deleted.")
+        # Once for the create, once for the delete.
+        assert [c.args for c in folder_cache.mark_dirty.call_args_list] == [("folder1",)] * 2
 
     async def test_404_without_known_delete_permission_is_a_failed_removal(self, tmp_path):
         """Drive answers a delete it doesn't permit with a 404 too (#876), so a 404 is

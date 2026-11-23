@@ -184,17 +184,19 @@ async def _discard_new_spreadsheet(
         request = files.update(
             fileId=file_id, body={"trashed": True}, supportsAllDrives=True, fields="id"
         )
-    try:
-        with anyio.CancelScope(shield=True), invalidating(invalidate):
+    with anyio.CancelScope(shield=True), invalidating(invalidate):
+        try:
             await execute_in_thread(
                 functools.partial(request.execute, num_retries=_CLEANUP_RETRIES), drive_service
             )
-    except HttpError as e:
-        # A retried delete whose earlier attempt landed gets a 404. Only trusted when
-        # the create said this identity may delete: without that permission Drive
-        # answers a delete with a misleading 404 too (#876).
-        if not (capabilities.get("canDelete") is True and int(e.resp.status) == 404):
-            raise
+        except HttpError as e:
+            # A retried delete whose earlier attempt landed gets a 404. Only trusted
+            # when the create said this identity may delete: without that permission
+            # Drive answers a delete with a misleading 404 too (#876). Caught inside
+            # `invalidating`, which skips its callback on a 4xx, so the folder is
+            # still marked dirty for the delete that landed (PR #1599 QA round 2).
+            if not (capabilities.get("canDelete") is True and int(e.resp.status) == 404):
+                raise
     return "deleted" if can_delete else "trashed"
 
 
