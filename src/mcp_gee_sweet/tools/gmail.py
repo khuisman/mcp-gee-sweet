@@ -37,7 +37,7 @@ from .response_limits import (
     clamp_max_results,
     enforce_response_size_cap,
     enforce_response_size_floor,
-    pagination_hint,
+    finish_list_page,
     write_capped_result_to_disk,
 )
 
@@ -824,15 +824,7 @@ def _list_page(
     """Shape one list page: the items under `key`, result_size_estimate, and
     next_page_token when there is one, checked against the response-size cap."""
     out: dict[str, Any] = {key: items, "result_size_estimate": result.get("resultSizeEstimate")}
-    if npt := result.get("nextPageToken"):
-        out["next_page_token"] = npt
-    enforce_response_size_cap(
-        out,
-        tool_name=tool_name,
-        hint=pagination_hint("max_results"),
-        local_path_available=False,
-    )
-    return out
+    return finish_list_page(out, result, tool_name=tool_name, page_param="max_results")
 
 
 def _message_summary(msg: dict[str, Any]) -> dict[str, Any]:

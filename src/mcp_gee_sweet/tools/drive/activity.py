@@ -6,7 +6,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
-from ..response_limits import enforce_response_size_cap, pagination_hint
+from ..response_limits import clamp_max_results, finish_list_page
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +102,7 @@ def register(tool):
 
         body: dict[str, Any] = {
             "itemName": f"items/{file_id}",
-            "pageSize": max(1, min(page_size, 100)),
+            "pageSize": clamp_max_results(page_size, 100),
         }
         if page_token:
             body["pageToken"] = page_token
@@ -125,15 +125,7 @@ def register(tool):
             activities.append({"timestamp": timestamp, "action": action, "actors": actors})
 
         result: dict[str, Any] = {"file_id": file_id, "activities": activities}
-        if npt := response.get("nextPageToken"):
-            result["next_page_token"] = npt
-
-        enforce_response_size_cap(
-            result,
-            tool_name="list_file_activity",
-            hint=pagination_hint("page_size"),
-            local_path_available=False,
-        )
+        finish_list_page(result, response, tool_name="list_file_activity", page_param="page_size")
 
         logger.debug("list_file_activity: %d activities for file %s", len(activities), file_id)
         return result
