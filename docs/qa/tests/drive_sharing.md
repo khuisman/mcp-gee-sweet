@@ -448,7 +448,7 @@ A real ownership transfer; Shared Drive items can't transfer (403 ownerOnTeamDri
 > "Transfer ownership of {SPREADSHEET_ID} to {TEST_PERMISSION_EMAIL}"
 
 **Checks**
-- Call fails with a Drive API permission/consent error — not a silent success or unhandled crash
+- Call fails — not a silent success or unhandled crash. On the SA fixture every file is in {SHARED_DRIVE_ID}, so since #1181 the result is TC-D327's `{"error": ...}` (shared drive item, nothing changed), not a raised Drive 403
 - 🔍 **Known limitation:** service accounts have no personal Drive identity to own files; this documents the failure mode the tool's docstring OAuth requirement refers to
 
 **Result (2026-07-27) ⏭️ SKIP — environmental**
@@ -461,6 +461,8 @@ out of shard scope — requires the mcp-gee-sweet-sa server; this shard is restr
 SA → 403 ownerOnTeamDriveItemNotSupported: a clean Drive error, not a silent success.
 
 **Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — shard assignment defers every transfer_ownership call to Aziz, although this case targets the SA server; deferred to Aziz.
+
+**Result (2026-11-23) ⏭️ SKIP — PR #1600 round 1 (Kit)** — needs `mcp-gee-sweet-sa`, which isn't this slot's server. The Checks were updated for #1181's `{"error"}` result; the same code path ran under OAuth in TC-D327.
 
 ---
 
@@ -483,6 +485,9 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 
 **Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — transfer_ownership deferred to Aziz per shard assignment.
 
+**Result (2026-11-23) ✅ PASS — PR #1600 round 1 (Kit)**
+`transfer_ownership("fakefileid999", "qa-nonexistent-placeholder@example.com")` with `send_notification` omitted → HttpError 404 "File not found: fakefileid999." propagates; the request URL shows `sendNotificationEmail=true`.
+
 ---
 
 ### TC-D327: Shared drive item returns a clear error, nothing changed (#1181)
@@ -502,6 +507,9 @@ Non-destructive: Drive refuses every owner transfer on a shared drive item, so n
 
 **Cleanup:** `delete_file` the spreadsheet.
 
+**Result (2026-11-23) ✅ PASS — PR #1600 round 1 (Kit, OAuth)**
+Result was exactly `{"error"}`: names the file ID, the shared drive, the organization owning it, "Nothing was changed", and that an organizer can move the item into their own My Drive; no Drive "Owner role is invalid" text. `list_permissions` afterward: only the SA (`fileOrganizer`) and the user (`organizer`), with no recipient permission and no `owner`. Spreadsheet trashed.
+
 ---
 
 ### TC-D328: `send_notification` schema admits only `true` (#1181)
@@ -515,6 +523,9 @@ Non-destructive: Drive refuses every owner transfer on a shared drive item, so n
 - The same call without `send_notification` reaches Drive and returns its 404 (as TC-D235)
 
 **Cleanup:** none.
+
+**Result (2026-11-23) ✅ PASS — PR #1600 round 1 (Kit)**
+Listed schema: `send_notification` = `{"const": true, "default": true, "title": "Send Notification", "type": "boolean"}`. With `send_notification=false`: pydantic validation error `Input should be True [type=literal_error]` naming `send_notification`, with no Drive 404, so no request was made. Without it: Drive's 404 "File not found: fakefileid999." (TC-D235).
 
 ---
 
@@ -533,6 +544,9 @@ Non-destructive: Drive refuses every owner transfer on a shared drive item, so n
 - `list_permissions` on the Doc still shows the personal account as `owner`
 
 **Cleanup:** `delete_file` the Doc.
+
+**Result (2026-11-23) ⏭️ SKIP — environmental, PR #1600 round 1 (Kit)**
+`mcp-gee-sweet-kit` is signed in to a Workspace account (`is_service_account_identity: false`, a Workspace-org domain), not a personal gmail.com account, and this slot has no second consumer account. Not run.
 
 ---
 
