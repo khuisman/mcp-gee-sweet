@@ -2316,8 +2316,9 @@ With writes capped at 4 in flight (`_CSV_WRITE_CONCURRENCY`), the import ran pas
 3. `search_files(query="QA TC-D327", folder_id={FOLDER_ID})`
 
 **Checks**
-- Step 1 returns a tool result, not a protocol error, whose only key is `error`. It starts `Setting up the sheet failed:`, names Sheets' `The sheet name cannot be greater than 100 characters.`, and ends `No rows were written, and the new spreadsheet was deleted.`
-- Step 2 returns only `error`: it starts `The row write was refused:`, names `more than the maximum of 50000 characters in a single cell`, and ends with the same sentence as step 1. No `failed_ranges`
+- Step 1 returns a tool result, not a protocol error, whose only key is `error`. It starts `Setting up the sheet failed (`, names Sheets' `The sheet name cannot be greater than 100 characters.` inside the parentheses, and ends `No rows were written, and the new spreadsheet was deleted.`
+- Step 2 returns only `error`: it starts `The row write was refused (`, names `more than the maximum of 50000 characters in a single cell` inside the parentheses, and ends with the same sentence as step 1. No `failed_ranges`
+- Neither error has a period straight after the quoted API error (`">.`): the cause closes with `">).`
 - Step 3 finds no file in the folder. `search_files` doesn't list trashed files, so this check alone doesn't tell deleted from trashed. Each error's request URL names the spreadsheet's ID (`/spreadsheets/<id>/`). Under OAuth, `get_file_metadata` on each ID returns a 404 (`File not found`), which shows both were deleted outright, not trashed. The trash path (`canDelete` false) isn't reachable under this case's identity, and unit tests cover it.
 
 **Cleanup:** remove the local files.

@@ -1,5 +1,6 @@
 import asyncio
 import csv
+import functools
 import logging
 import time
 from collections.abc import Awaitable, Callable
@@ -52,6 +53,10 @@ _CSV_WRITE_CONCURRENCY = 4
 # 20,000,000 cells, and a sheet at most 18,278 columns (ZZZ).
 _SHEETS_CELL_LIMIT = 20_000_000
 _SHEETS_COLUMN_LIMIT = 18_278
+
+# Resends of the request that removes a failed import's spreadsheet (#1574), the same
+# as markdown_export's _CLEANUP_RETRIES for its temporary Docs.
+_CLEANUP_RETRIES = 3
 
 
 def _csv_grid_limit_error(local_path: str, rows: int, columns: int) -> str | None:
@@ -164,11 +169,14 @@ async def _discard_new_spreadsheet(
 
     Deleted outright, or moved to the trash when the create's response says this
     identity can't delete it (a Content manager on a Shared Drive can only trash).
-    Returns "deleted" or "trashed"; raises whatever the request raised. Shielded, so a
-    cancellation arriving meanwhile doesn't abandon the cleanup halfway.
+    Returns "deleted" or "trashed"; raises whatever the request raised. Retried on a
+    5xx or 429, the same policy as markdown_export._discard_temp_doc, since a failed
+    removal leaves the empty spreadsheet behind. Shielded, so a cancellation arriving
+    meanwhile doesn't abandon the cleanup halfway.
     """
     file_id = spreadsheet["id"]
-    can_delete = spreadsheet.get("capabilities", {}).get("canDelete") is not False
+    capabilities = spreadsheet.get("capabilities", {})
+    can_delete = capabilities.get("canDelete") is not False
     files = drive_service.files()
     if can_delete:
         request = files.delete(fileId=file_id, supportsAllDrives=True)
@@ -176,8 +184,17 @@ async def _discard_new_spreadsheet(
         request = files.update(
             fileId=file_id, body={"trashed": True}, supportsAllDrives=True, fields="id"
         )
-    with anyio.CancelScope(shield=True), invalidating(invalidate):
-        await execute_in_thread(request.execute, drive_service)
+    try:
+        with anyio.CancelScope(shield=True), invalidating(invalidate):
+            await execute_in_thread(
+                functools.partial(request.execute, num_retries=_CLEANUP_RETRIES), drive_service
+            )
+    except HttpError as e:
+        # A retried delete whose earlier attempt landed gets a 404. Only trusted when
+        # the create said this identity may delete: without that permission Drive
+        # answers a delete with a misleading 404 too (#876).
+        if not (capabilities.get("canDelete") is True and int(e.resp.status) == 404):
+            raise
     return "deleted" if can_delete else "trashed"
 
 
@@ -583,7 +600,7 @@ def register(tool):
                         _report_pause,
                     )
         except Exception as e:
-            return await _failed_before_rows(f"Setting up the sheet failed: {e}.")
+            return await _failed_before_rows(f"Setting up the sheet failed ({e}).")
 
         # Safe to parallelize: each chunk writes a disjoint row range of the same
         # sheet (A{start+1} onward, non-overlapping), so there's no read-modify-write
@@ -654,7 +671,7 @@ def register(tool):
             first = chunk_results[0]["error"]
             count = len(chunk_results)
             refused = "The row write was" if count == 1 else f"All {count} row writes were"
-            return await _failed_before_rows(f"{refused} refused: {first}.")
+            return await _failed_before_rows(f"{refused} refused ({first}).")
 
         failed_ranges = [
             {"start_row": r["start_row"], "end_row": r["end_row"], "error": r["error"]}

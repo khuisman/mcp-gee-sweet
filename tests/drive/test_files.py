@@ -2115,7 +2115,7 @@ class TestImportCsvToSheet:
         assert update.return_value.execute.call_count == 1
         # A final 429 wrote nothing, so the only chunk's refusal removes the spreadsheet.
         assert result == {
-            "error": f"The row write was refused: {refusal}. No rows were written, "
+            "error": f"The row write was refused ({refusal}). No rows were written, "
             "and the new spreadsheet was deleted."
         }
 
@@ -2359,7 +2359,7 @@ class TestImportCsvFailureCleanup:
         batch.return_value.execute.side_effect = refusal
         result = await self._run(ctx, tmp_path)
         assert result == {
-            "error": f"Setting up the sheet failed: {refusal}. No rows were written, "
+            "error": f"Setting up the sheet failed ({refusal}). No rows were written, "
             "and the new spreadsheet was deleted."
         }
         delete = drive_svc.files.return_value.delete
@@ -2383,7 +2383,7 @@ class TestImportCsvFailureCleanup:
         sheets_svc.spreadsheets.return_value.get.return_value.execute.side_effect = _http_error(503)
         result = await self._run(ctx, tmp_path)
         assert set(result) == {"error"}
-        assert result["error"].startswith("Setting up the sheet failed:")
+        assert result["error"].startswith("Setting up the sheet failed (")
         drive_svc.files.return_value.delete.assert_called_once()
 
     async def test_trashes_when_the_identity_cannot_delete(self, tmp_path):
@@ -2397,6 +2397,40 @@ class TestImportCsvFailureCleanup:
         drive_svc.files.return_value.update.assert_called_once_with(
             fileId="sheet123", body={"trashed": True}, supportsAllDrives=True, fields="id"
         )
+
+    async def test_removal_is_retried_on_transient_errors(self, tmp_path):
+        """PR #1599 QA round 1: one 5xx or 429 on the removal left the spreadsheet."""
+        for can_delete, method in ((True, "delete"), (False, "update")):
+            ctx, drive_svc, sheets_svc, _ = self._ctx(can_delete=can_delete)
+            batch = sheets_svc.spreadsheets.return_value.batchUpdate
+            batch.return_value.execute.side_effect = _http_error(400)
+            await self._run(ctx, tmp_path)
+            execute = getattr(drive_svc.files.return_value, method).return_value.execute
+            execute.assert_called_once()
+            assert execute.call_args.kwargs["num_retries"] == drive_files_module._CLEANUP_RETRIES
+
+    async def test_404_after_a_retried_delete_counts_as_deleted(self, tmp_path):
+        """A retried delete whose earlier attempt landed finds the file gone."""
+        ctx, drive_svc, sheets_svc, _ = self._ctx(can_delete=True)
+        batch = sheets_svc.spreadsheets.return_value.batchUpdate
+        batch.return_value.execute.side_effect = _http_error(400)
+        drive_svc.files.return_value.delete.return_value.execute.side_effect = _http_error(404)
+        result = await self._run(ctx, tmp_path)
+        assert set(result) == {"error"}
+        assert result["error"].endswith("the new spreadsheet was deleted.")
+
+    async def test_404_without_known_delete_permission_is_a_failed_removal(self, tmp_path):
+        """Drive answers a delete it doesn't permit with a 404 too (#876), so a 404 is
+        trusted only when the create said canDelete is true."""
+        ctx, drive_svc, sheets_svc, _ = self._ctx()
+        created = drive_svc.files.return_value.create.return_value.execute.return_value
+        del created["capabilities"]
+        batch = sheets_svc.spreadsheets.return_value.batchUpdate
+        batch.return_value.execute.side_effect = _http_error(400)
+        drive_svc.files.return_value.delete.return_value.execute.side_effect = _http_error(404)
+        result = await self._run(ctx, tmp_path)
+        assert result["spreadsheetId"] == "sheet123"
+        assert "it is left in place" in result["error"]
 
     async def test_failed_removal_names_the_spreadsheet(self, tmp_path):
         ctx, drive_svc, sheets_svc, _ = self._ctx()
@@ -2432,7 +2466,7 @@ class TestImportCsvFailureCleanup:
         self._chunk_effects(sheets_svc, {"Sheet1!A1": refusal, "Sheet1!A2": _http_error(403)})
         result = await self._run(ctx, tmp_path)
         assert result == {
-            "error": f"All 2 row writes were refused: {refusal}. No rows were written, "
+            "error": f"All 2 row writes were refused ({refusal}). No rows were written, "
             "and the new spreadsheet was deleted."
         }
         drive_svc.files.return_value.delete.assert_called_once()
