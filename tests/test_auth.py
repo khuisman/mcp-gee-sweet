@@ -902,7 +902,7 @@ class TestServeConsent:
             thread, box = self._serve_in_thread(flow, 30, threading.Event())
             redirect = self._wait_for_redirect_uri(flow)
             with urllib.request.urlopen(f"{redirect}?code=c&state=st", timeout=5) as resp:
-                assert b"completed" in resp.read()
+                assert resp.read() == auth_module._CONSENT_SUCCESS_PAGE.encode()
             thread.join(5)
         assert box == {"result": flow.credentials}
         flow.fetch_token.assert_called_once_with(
@@ -918,16 +918,37 @@ class TestServeConsent:
             socket.create_connection(("localhost", port), timeout=1).close()
 
     def test_the_callback_serves_the_styled_success_page_as_html(self, monkeypatch):
+        # #1564: a realistic code, not the redaction artifact the test used to
+        # send, and the exchange's authorization_response is asserted like its
+        # sibling — serving the page and handing the uri to fetch_token are
+        # both this callback's contract.
         monkeypatch.setattr(auth_module, "_CONSENT_POLL_SECONDS", 0.05)
         flow = self._flow()
         with patch.object(auth_module.webbrowser, "get", side_effect=webbrowser.Error("none")):
             thread, box = self._serve_in_thread(flow, 30, threading.Event())
             redirect = self._wait_for_redirect_uri(flow)
-            with urllib.request.urlopen(f"{redirect}?code=***&state=st", timeout=5) as resp:
+            with urllib.request.urlopen(f"{redirect}?code=fake-code&state=st", timeout=5) as resp:
                 assert resp.headers["Content-Type"].startswith("text/html")
                 assert resp.read() == auth_module._CONSENT_SUCCESS_PAGE.encode()
             thread.join(5)
         assert box == {"result": flow.credentials}
+        flow.fetch_token.assert_called_once_with(
+            authorization_response=f"{redirect.replace('http', 'https', 1)}?code=fake-code&state=st"
+        )
+
+    def test_a_malformed_host_still_gets_a_page_not_a_traceback(self):
+        # #1564: urlsplit() of the request uri raises ValueError on a Host
+        # like "[x" — the page choice reads QUERY_STRING instead, so the
+        # callback answers with a page rather than a 500 and a traceback.
+        app = auth_module._CallbackApp()
+        environ = {
+            "wsgi.url_scheme": "http",
+            "HTTP_HOST": "[x",
+            "PATH_INFO": "/",
+            "QUERY_STRING": "code=fake-code&state=st",
+        }
+        body = b"".join(app(environ, lambda status, headers: None))
+        assert body == auth_module._CONSENT_SUCCESS_PAGE.encode()
 
     def test_a_cancelled_consent_does_not_read_as_authorized(self, monkeypatch):
         # #1513 review: the callback answers the browser before the token
@@ -1009,8 +1030,11 @@ class TestServeConsent:
 class TestConsentSuccessPage:
     def test_names_the_server_and_the_next_step(self):
         page = auth_module._CONSENT_SUCCESS_PAGE
-        assert "mcp-gee-sweet is authorized" in page
-        assert "The authentication flow has completed." in page
+        # #1564: the callback answers before the token exchange runs, so the
+        # page reports the authorization, not the exchange's outcome.
+        assert "mcp-gee-sweet" in page
+        assert "Authorization received" in page
+        assert "mcp-gee-sweet is authorized" not in page
         assert "You may close this window and go back to your MCP client." in page
 
     def test_self_contained_and_light_and_dark(self):

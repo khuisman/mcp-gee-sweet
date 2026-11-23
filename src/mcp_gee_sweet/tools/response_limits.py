@@ -41,6 +41,25 @@ def pagination_hint(page_param: str) -> str:
     return f"Lower {page_param} and paginate via next_page_token. "
 
 
+def finish_list_page(
+    result: dict[str, Any], response: dict[str, Any], *, tool_name: str, page_param: str
+) -> dict[str, Any]:
+    """Finish one page of a list tool that pages via next_page_token (#329): add
+    the API response's `nextPageToken` to `result` as `next_page_token` when
+    there is one, then check the page against the response-size cap with
+    `pagination_hint(page_param)`. A page has no local_path bypass: a smaller
+    page is the fix. Returns `result`."""
+    if npt := response.get("nextPageToken"):
+        result["next_page_token"] = npt
+    enforce_response_size_cap(
+        result,
+        tool_name=tool_name,
+        hint=pagination_hint(page_param),
+        local_path_available=False,
+    )
+    return result
+
+
 def enforce_response_size_cap(
     result: Any,
     *,

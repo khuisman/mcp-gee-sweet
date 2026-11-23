@@ -1,5 +1,7 @@
 """Tests for tools/drive/files.py (search_spreadsheets, create_folder, move_file, delete_file, etc.)."""
 
+import csv
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -1769,8 +1771,106 @@ class TestImportCsvToSheet:
         ]
         folder_cache.mark_dirty.assert_called_once_with("folder1")
         sheet_data_cache.mark_dirty.assert_called_once_with("sheet123")
-        # No resize/rename needed — default title matches, data fits default grid.
-        sheets_svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+        # No rename (the default title matches); the grid shrinks to the data's 3x2.
+        assert self._grid_requests(sheets_svc) == [{"columnCount": 2}, {"rowCount": 3}]
+
+    async def _import_values(self, path):
+        """Import `path` and return the values the one update wrote."""
+        sheets_svc = self._sheets_service()
+        ctx = _make_ctx(
+            drive_service=self._drive_service(),
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            folder_id=None,
+        )
+        result = await _drive_tools["import_csv_to_sheet"](
+            local_path=str(path), title="Imported", ctx=ctx
+        )
+        assert "error" not in result, result
+        update_call = sheets_svc.spreadsheets.return_value.values.return_value.update
+        return update_call.call_args.kwargs["body"]["values"]
+
+    async def test_drops_a_leading_utf8_bom(self, tmp_path):
+        """#1575: Excel's "CSV UTF-8" export starts with a BOM, which must not reach A1."""
+        path = tmp_path / "bom.csv"
+        path.write_bytes(b"\xef\xbb\xbfcase,value\nx,1\n")
+        values = await self._import_values(path)
+        assert values == [["case", "value"], ["x", "1"]]
+
+    async def test_bom_before_a_quoted_first_field_still_parses_the_quotes(self, tmp_path):
+        """With the BOM read as text, csv saw `\\ufeff"a,b"` and kept the quotes as data."""
+        path = tmp_path / "bom_quoted.csv"
+        path.write_bytes(b'\xef\xbb\xbf"a,b",c\n1,2\n')
+        values = await self._import_values(path)
+        assert values == [["a,b", "c"], ["1", "2"]]
+
+    async def test_keeps_a_bom_character_that_is_not_leading(self, tmp_path):
+        """Only the encoding signature is dropped; a U+FEFF later in the file is data."""
+        path = tmp_path / "inner_bom.csv"
+        path.write_bytes(b"h1,h2\nx,\xef\xbb\xbfy\n")
+        values = await self._import_values(path)
+        assert values == [["h1", "h2"], ["x", "\ufeffy"]]
+
+    async def test_file_without_bom_reads_unchanged(self, tmp_path):
+        path = tmp_path / "plain.csv"
+        path.write_bytes("café,v\n1,2\n".encode())
+        values = await self._import_values(path)
+        assert values == [["café", "v"], ["1", "2"]]
+
+    async def test_bom_only_file_is_empty(self, tmp_path):
+        path = tmp_path / "bom_only.csv"
+        path.write_bytes(b"\xef\xbb\xbf")
+        ctx = _make_ctx()
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert "error" in result
+        assert "empty" in result["error"].lower()
+
+    async def _import_error(self, path):
+        """Import `path`, expecting an error result before any Drive call."""
+        drive_svc = self._drive_service()
+        ctx = _make_ctx(drive_service=drive_svc, sheets_service=self._sheets_service())
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert set(result) == {"error"}, result
+        drive_svc.files.return_value.create.assert_not_called()
+        return result["error"]
+
+    async def test_non_utf8_file_returns_error_naming_utf8(self, tmp_path):
+        """PR #1580 QA round 1: a cp1252 file raised UnicodeDecodeError out of the tool."""
+        path = tmp_path / "cp1252.csv"
+        path.write_bytes(b"caf\xe9,1\n")
+        error = await self._import_error(path)
+        assert "not valid UTF-8" in error
+        assert "CSV UTF-8" in error
+
+    async def test_directory_named_csv_returns_error(self, tmp_path):
+        """PR #1580 QA round 1: a directory passed exists() and raised IsADirectoryError."""
+        path = tmp_path / "folder.csv"
+        path.mkdir()
+        error = await self._import_error(path)
+        assert error.startswith("Not a regular file")
+
+    async def test_csv_parse_error_returns_error(self, tmp_path):
+        """A field over csv's size limit raises csv.Error, which must not escape."""
+        path = tmp_path / "big_field.csv"
+        path.write_text("a," + "x" * 50 + "\n", encoding="utf-8")
+        old_limit = csv.field_size_limit(10)
+        try:
+            error = await self._import_error(path)
+        finally:
+            csv.field_size_limit(old_limit)
+        assert error.startswith("Could not parse CSV")
+
+    async def test_read_oserror_returns_error(self, tmp_path, monkeypatch):
+        path = tmp_path / "data.csv"
+        path.write_text("a,b\n", encoding="utf-8")
+
+        def _refuse(self, *args, **kwargs):
+            raise PermissionError(13, "Permission denied")
+
+        monkeypatch.setattr(Path, "open", _refuse)
+        error = await self._import_error(path)
+        assert error == f"Could not read file {path}: Permission denied"
 
     async def test_pads_ragged_rows_to_common_width(self, tmp_path):
         path = tmp_path / "ragged.csv"
@@ -1816,48 +1916,254 @@ class TestImportCsvToSheet:
         )
         assert update_range == "'Imported Data'!A1"
 
-    async def test_resizes_grid_when_data_exceeds_default(self, tmp_path):
-        path = self._write_csv(tmp_path, [["a"], ["1"], ["2"], ["3"]])
-        drive_svc = self._drive_service()
-        # Force a resize by mocking a grid smaller than our 4-row CSV.
-        sheets_svc = self._sheets_service(row_count=1, column_count=1)
-        cache = MagicMock()
+    @staticmethod
+    def _grid_requests(sheets_svc):
+        """The gridProperties of each resize request sent, in order."""
+        batch = sheets_svc.spreadsheets.return_value.batchUpdate
+        if not batch.called:
+            return []
+        return [
+            r["updateSheetProperties"]["properties"]["gridProperties"]
+            for r in batch.call_args.kwargs["body"]["requests"]
+            if "gridProperties" in r["updateSheetProperties"]["properties"]
+        ]
+
+    @staticmethod
+    def _request_fields(sheets_svc):
+        batch = sheets_svc.spreadsheets.return_value.batchUpdate
+        assert batch.call_count == 1
+        return [
+            r["updateSheetProperties"]["fields"] for r in batch.call_args.kwargs["body"]["requests"]
+        ]
+
+    async def _import_grid(self, path, row_count=1000, column_count=26, cache=None):
+        """Import `path` into a sheet whose grid starts at row_count x column_count."""
+        sheets_svc = self._sheets_service(row_count=row_count, column_count=column_count)
         ctx = _make_ctx(
-            drive_service=drive_svc,
+            drive_service=self._drive_service(),
             sheets_service=sheets_svc,
             drive_folder_cache=MagicMock(),
             sheet_data_cache=MagicMock(),
-            cache=cache,
+            cache=cache or MagicMock(),
             folder_id=None,
         )
-        await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert "error" not in result, result
+        return sheets_svc
+
+    async def test_resizes_grid_when_data_exceeds_it(self, tmp_path):
+        path = self._write_csv(tmp_path, [["a"], ["1"], ["2"], ["3"]])
+        cache = MagicMock()
+        sheets_svc = await self._import_grid(path, row_count=1, column_count=1, cache=cache)
+        assert self._grid_requests(sheets_svc) == [{"rowCount": 4}]
+        assert self._request_fields(sheets_svc) == ["gridProperties.rowCount"]
+        cache.mark_dirty.assert_called_once_with("sheet123")
+
+    async def test_no_resize_when_grid_already_matches_data(self, tmp_path):
+        path = self._write_csv(tmp_path, [["a", "b"], ["1", "2"]])
+        cache = MagicMock()
+        sheets_svc = await self._import_grid(path, row_count=2, column_count=2, cache=cache)
+        sheets_svc.spreadsheets.return_value.batchUpdate.assert_not_called()
+        cache.mark_dirty.assert_not_called()
+
+    async def test_narrow_file_gets_its_own_width_not_26_columns(self, tmp_path):
+        """#1573: padding to 26 columns counted 26 cells a row against the cell limit."""
+        path = self._write_csv(tmp_path, [["a"]] + [[str(i)] for i in range(1500)])
+        sheets_svc = await self._import_grid(path)
+        assert self._grid_requests(sheets_svc) == [{"columnCount": 1}, {"rowCount": 1501}]
+
+    async def test_short_file_gets_its_own_row_count_not_1000(self, tmp_path):
+        path = self._write_csv(tmp_path, [["a", "b"], ["1", "2"]])
+        sheets_svc = await self._import_grid(path)
+        assert self._grid_requests(sheets_svc) == [{"columnCount": 2}, {"rowCount": 2}]
+
+    async def test_wide_file_grows_columns_only(self, tmp_path):
+        path = self._write_csv(tmp_path, [[f"c{i}" for i in range(40)]] * 1000)
+        sheets_svc = await self._import_grid(path)
+        assert self._grid_requests(sheets_svc) == [{"columnCount": 40}]
+
+    async def test_columns_resize_before_rows_as_separate_requests(self, tmp_path):
+        """Sheets checks a row change against the current column count, even when the
+        same request sets both, so the column change must land first (checked live)."""
+        path = self._write_csv(tmp_path, [["a", "b", "c"]] * 1200)
+        sheets_svc = await self._import_grid(path)
+        assert self._request_fields(sheets_svc) == [
+            "gridProperties.columnCount",
+            "gridProperties.rowCount",
+        ]
         requests = sheets_svc.spreadsheets.return_value.batchUpdate.call_args.kwargs["body"][
             "requests"
         ]
-        resize_req = next(
-            r for r in requests if "gridProperties" in r["updateSheetProperties"]["properties"]
-        )
-        grid = resize_req["updateSheetProperties"]["properties"]["gridProperties"]
-        assert grid["rowCount"] == 4
-        assert grid["columnCount"] == 1
-        cache.mark_dirty.assert_called_once_with("sheet123")
+        assert all(r["updateSheetProperties"]["properties"]["sheetId"] == 0 for r in requests)
 
-    async def test_no_resize_when_data_fits_default_grid(self, tmp_path):
-        path = self._write_csv(tmp_path, [["a", "b"], ["1", "2"]])
-        drive_svc = self._drive_service()
-        sheets_svc = self._sheets_service(row_count=1000, column_count=26)
-        cache = MagicMock()
+    async def test_rename_and_resize_share_one_batch(self, tmp_path):
+        path = self._write_csv(tmp_path, [["a"], ["1"]])
+        sheets_svc = self._sheets_service()
         ctx = _make_ctx(
-            drive_service=drive_svc,
+            drive_service=self._drive_service(),
             sheets_service=sheets_svc,
             drive_folder_cache=MagicMock(),
             sheet_data_cache=MagicMock(),
-            cache=cache,
+            cache=MagicMock(),
             folder_id=None,
         )
-        await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
-        sheets_svc.spreadsheets.return_value.batchUpdate.assert_not_called()
-        cache.mark_dirty.assert_not_called()
+        await _drive_tools["import_csv_to_sheet"](
+            local_path=str(path), title="X", sheet_name="Data", ctx=ctx
+        )
+        assert self._request_fields(sheets_svc) == [
+            "title",
+            "gridProperties.columnCount",
+            "gridProperties.rowCount",
+        ]
+
+    async def test_blank_lines_only_file_gets_one_column(self, tmp_path):
+        """csv yields [] for a blank line; a grid needs at least one column."""
+        path = tmp_path / "blank.csv"
+        path.write_text("\n\n\n", encoding="utf-8")
+        sheets_svc = await self._import_grid(path)
+        assert self._grid_requests(sheets_svc) == [{"columnCount": 1}, {"rowCount": 3}]
+
+    def test_grid_limit_error_allows_exactly_the_limits(self):
+        """Both limits are inclusive (checked live: 2,000,000 x 10 and 18,278 columns
+        were accepted, one more of either refused)."""
+        limit_error = drive_files_module._csv_grid_limit_error
+        assert limit_error("f.csv", 2_000_000, 10) is None
+        assert limit_error("f.csv", 1, 18_278) is None
+        assert limit_error("f.csv", 769_231, 26) is not None
+        assert limit_error("f.csv", 2_000_001, 10) is not None
+        assert limit_error("f.csv", 1, 18_279) is not None
+
+    async def test_csv_over_cell_limit_errors_before_create(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(drive_files_module, "_SHEETS_CELL_LIMIT", 5)
+        path = self._write_csv(tmp_path, [["a", "b"], ["1", "2"], ["3", "4"]])
+        error = await self._import_error(path)
+        assert "3 rows x 2 columns = 6 cells" in error
+        assert "at most 5" in error
+        assert "Nothing was created" in error
+
+    async def test_csv_at_cell_limit_imports(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(drive_files_module, "_SHEETS_CELL_LIMIT", 6)
+        path = self._write_csv(tmp_path, [["a", "b"], ["1", "2"], ["3", "4"]])
+        sheets_svc = await self._import_grid(path)
+        assert self._grid_requests(sheets_svc) == [{"columnCount": 2}, {"rowCount": 3}]
+
+    async def test_csv_over_column_limit_errors_before_create(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(drive_files_module, "_SHEETS_COLUMN_LIMIT", 2)
+        path = self._write_csv(tmp_path, [["a", "b", "c"]])
+        error = await self._import_error(path)
+        assert "3 columns" in error
+        assert "at most 2" in error
+
+    @staticmethod
+    def _rate_limit_error():
+        resp = MagicMock()
+        resp.status = 429
+        return HttpError(resp=resp, content=b'{"error": {"status": "RESOURCE_EXHAUSTED"}}')
+
+    async def _import_with_update_effects(self, tmp_path, monkeypatch, effects, rows=None):
+        """Import a CSV whose values().update().execute calls return/raise `effects`
+        in order. Pauses are 0 s long. Returns (result, the update mock)."""
+        monkeypatch.setattr(drive_files_module, "_CSV_RATE_LIMIT_BASE_DELAY", 0.0)
+        monkeypatch.setattr(drive_files_module, "_CSV_RATE_LIMIT_MAX_DELAY", 0.0)
+        path = self._write_csv(tmp_path, rows or [["a"], ["1"]])
+        sheets_svc = self._sheets_service()
+        update = sheets_svc.spreadsheets.return_value.values.return_value.update
+        update.return_value.execute.side_effect = effects
+        ctx = _make_ctx(
+            drive_service=self._drive_service(),
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            cache=MagicMock(),
+            folder_id=None,
+        )
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        return result, update
+
+    async def test_rate_limited_chunk_is_retried(self, tmp_path, monkeypatch):
+        """#1573: Sheets' 60 writes/min quota refused 93 of an 800k-row import's 160
+        chunks, which were reported failed instead of sent again."""
+        result, update = await self._import_with_update_effects(
+            tmp_path, monkeypatch, [self._rate_limit_error(), self._rate_limit_error(), {}]
+        )
+        assert "error" not in result, result
+        assert result["rows_written"] == 2
+        assert update.return_value.execute.call_count == 3
+
+    async def test_other_errors_are_not_retried(self, tmp_path, monkeypatch):
+        """A 5xx may have landed and a 4xx other than 429 won't change: neither is resent."""
+        for status in (400, 403, 500):
+            resp = MagicMock()
+            resp.status = status
+            error = HttpError(resp=resp, content=b"{}")
+            result, update = await self._import_with_update_effects(
+                tmp_path, monkeypatch, [error, {}]
+            )
+            assert update.return_value.execute.call_count == 1, status
+            assert result["failed_ranges"][0]["start_row"] == 1, status
+
+    async def test_rate_limited_chunk_fails_once_max_wait_is_spent(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(drive_files_module, "_CSV_RATE_LIMIT_MAX_WAIT", 0.0)
+        refusal = self._rate_limit_error()
+        result, update = await self._import_with_update_effects(
+            tmp_path, monkeypatch, [refusal, {}]
+        )
+        assert update.return_value.execute.call_count == 1
+        assert result["failed_ranges"] == [{"start_row": 1, "end_row": 2, "error": str(refusal)}]
+
+    async def test_rate_limited_chunks_retry_alongside_ones_that_landed(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 1)
+        rows = [["h"], ["1"], ["2"], ["3"]]
+        effects = [{}, self._rate_limit_error(), {}, self._rate_limit_error(), {}, {}]
+        result, update = await self._import_with_update_effects(
+            tmp_path, monkeypatch, effects, rows=rows
+        )
+        assert "error" not in result, result
+        assert result["rows_written"] == 4
+        assert update.return_value.execute.call_count == 6
+        ranges = {c.kwargs["range"] for c in update.call_args_list}
+        assert ranges == {"Sheet1!A1", "Sheet1!A2", "Sheet1!A3", "Sheet1!A4"}
+
+    def _quota_ctx(self, monkeypatch, delay):
+        monkeypatch.setattr(drive_files_module, "_CSV_RATE_LIMIT_BASE_DELAY", delay)
+        monkeypatch.setattr(drive_files_module, "_CSV_RATE_LIMIT_MAX_DELAY", delay)
+        sheets_svc = self._sheets_service()
+        ctx = _make_ctx(
+            drive_service=self._drive_service(),
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            cache=MagicMock(),
+            folder_id=None,
+        )
+        ctx.report_progress = AsyncMock()
+        return ctx, sheets_svc
+
+    async def test_rate_limited_resize_is_resent(self, tmp_path, monkeypatch):
+        """PR #1589 QA round 1: the resize now goes out on almost every import and
+        counts against the same quota; a 429 there raised out of the tool after the
+        spreadsheet was created."""
+        ctx, sheets_svc = self._quota_ctx(monkeypatch, 0.0)
+        batch = sheets_svc.spreadsheets.return_value.batchUpdate
+        batch.return_value.execute.side_effect = [self._rate_limit_error(), {}]
+        path = self._write_csv(tmp_path, [["a"], ["1"]])
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert "error" not in result, result
+        assert result["rows_written"] == 2
+        assert batch.return_value.execute.call_count == 2
+
+    async def test_a_pause_reports_progress_when_it_starts(self, tmp_path, monkeypatch):
+        """PR #1589 QA round 1: a pause can last a minute with no chunk finishing."""
+        ctx, sheets_svc = self._quota_ctx(monkeypatch, 0.01)
+        update = sheets_svc.spreadsheets.return_value.values.return_value.update
+        update.return_value.execute.side_effect = [self._rate_limit_error(), {}]
+        path = self._write_csv(tmp_path, [["a"], ["1"]])
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert "error" not in result, result
+        messages = [c.args[2] for c in ctx.report_progress.call_args_list]
+        assert messages == ["Sheets write quota reached; waiting 0 s", "rows 1-2: ok"]
 
     async def test_chunks_large_row_counts(self, tmp_path, monkeypatch):
         monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 2)
@@ -1987,3 +2293,206 @@ class TestImportCsvToSheet:
         ctx = _make_ctx(drive_service=drive_svc, sheets_service=MagicMock(), folder_id=None)
         with pytest.raises(HttpError):
             await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+
+
+class TestRateLimitPause:
+    """_RateLimitPause: one import's shared pause for its chunk writes (#1573)."""
+
+    @pytest.fixture
+    def clock(self, monkeypatch):
+        now = [1000.0]
+        fake_time = MagicMock()
+        fake_time.monotonic.side_effect = lambda: now[0]
+        monkeypatch.setattr(drive_files_module, "time", fake_time)
+        monkeypatch.setattr(drive_files_module, "_CSV_RATE_LIMIT_BASE_DELAY", 5.0)
+        monkeypatch.setattr(drive_files_module, "_CSV_RATE_LIMIT_MAX_DELAY", 60.0)
+        monkeypatch.setattr(drive_files_module, "_CSV_RATE_LIMIT_MAX_WAIT", 600.0)
+        return now
+
+    @pytest.fixture
+    def slept(self, clock, monkeypatch):
+        """Sleeps advance the fake clock instead of waiting."""
+        slept = []
+
+        async def fake_sleep(seconds):
+            slept.append(seconds)
+            clock[0] += seconds
+
+        monkeypatch.setattr(drive_files_module.asyncio, "sleep", fake_sleep)
+        return slept
+
+    @staticmethod
+    def _refusal():
+        resp = MagicMock()
+        resp.status = 429
+        return HttpError(resp=resp, content=b"{}")
+
+    @staticmethod
+    async def _no_report(seconds):
+        pass
+
+    def test_a_429_pauses_every_write_for_the_base_delay(self, clock):
+        pause = drive_files_module._RateLimitPause()
+        assert pause._rate_limited(sent_at=1000.0) == 5.0
+        assert pause._resume_at == 1005.0
+
+    def test_a_429_on_a_request_sent_before_the_pause_does_not_extend_it(self, clock):
+        pause = drive_files_module._RateLimitPause()
+        pause._rate_limited(sent_at=1000.0)
+        clock[0] = 1001.0
+        # In flight when the pause began: it says nothing new about the quota.
+        assert pause._rate_limited(sent_at=999.5) == 0.0
+        assert pause._resume_at == 1005.0
+
+    def test_a_429_after_the_pause_doubles_it_up_to_the_cap(self, clock):
+        pause = drive_files_module._RateLimitPause()
+        waits = []
+        for _ in range(6):
+            waits.append(pause._rate_limited(sent_at=clock[0]))
+            clock[0] = pause._resume_at
+        assert waits == [5.0, 10.0, 20.0, 40.0, 60.0, 60.0]
+
+    def test_a_success_sent_after_the_pause_resets_the_delay(self, clock):
+        pause = drive_files_module._RateLimitPause()
+        pause._rate_limited(sent_at=clock[0])
+        clock[0] = pause._resume_at
+        pause._rate_limited(sent_at=clock[0])
+        clock[0] = pause._resume_at
+        pause._succeeded(sent_at=clock[0])
+        assert pause._rate_limited(sent_at=clock[0]) == 5.0
+
+    def test_a_success_sent_before_the_pause_keeps_the_delay(self, clock):
+        """PR #1589 QA round 1: a late 200 from an earlier burst reset the doubling, so
+        the pause never grew past the base delay."""
+        pause = drive_files_module._RateLimitPause()
+        pause._rate_limited(sent_at=1000.0)  # 5 s, started at 1000
+        clock[0] = 1005.0
+        pause._rate_limited(sent_at=1005.0)  # 10 s, started at 1005
+        pause._succeeded(sent_at=1002.0)  # sent before that pause began
+        clock[0] = 1015.0
+        assert pause._rate_limited(sent_at=1015.0) == 20.0
+
+    def test_no_pause_runs_past_the_deadline(self, clock):
+        pause = drive_files_module._RateLimitPause()
+        clock[0] = 1598.0
+        assert pause._rate_limited(sent_at=clock[0]) == 2.0
+        assert pause._resume_at == 1600.0
+
+    def test_a_429_at_the_deadline_is_final(self, clock):
+        pause = drive_files_module._RateLimitPause()
+        clock[0] = 1600.0
+        assert pause._rate_limited(sent_at=clock[0]) is None
+
+    async def test_send_waits_out_the_pause_then_resends(self, clock, slept):
+        pause = drive_files_module._RateLimitPause()
+        outcomes = [self._refusal(), "done"]
+        sends = []
+
+        async def call():
+            sends.append(clock[0])
+            outcome = outcomes.pop(0)
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+
+        reports = []
+
+        async def on_pause(seconds):
+            reports.append(seconds)
+
+        assert await pause.send(call, on_pause) == "done"
+        assert sends == [1000.0, 1005.0]
+        assert slept == [5.0]
+        assert reports == [5.0]
+
+    async def test_send_waits_out_a_pause_already_on_without_reporting_it(self, clock, slept):
+        """Another write started this pause and reported it; this one only waits."""
+        pause = drive_files_module._RateLimitPause()
+        pause._rate_limited(sent_at=1000.0)
+        reports = []
+
+        async def on_pause(seconds):
+            reports.append(seconds)
+
+        sends = []
+
+        async def call():
+            sends.append(clock[0])
+            return "ok"
+
+        assert await pause.send(call, on_pause) == "ok"
+        assert sends == [1005.0]
+        assert slept == [5.0]
+        assert reports == []
+
+    async def test_send_raises_other_errors_without_resending(self, clock, slept):
+        pause = drive_files_module._RateLimitPause()
+        resp = MagicMock()
+        resp.status = 500
+        calls = []
+
+        async def call():
+            calls.append(1)
+            raise HttpError(resp=resp, content=b"{}")
+
+        with pytest.raises(HttpError):
+            await pause.send(call, self._no_report)
+        assert calls == [1]
+        assert slept == []
+
+    async def test_send_raises_the_429_once_the_deadline_has_passed(self, clock, slept):
+        pause = drive_files_module._RateLimitPause()
+        calls = []
+
+        async def call():
+            calls.append(clock[0])
+            raise self._refusal()
+
+        with pytest.raises(HttpError):
+            await pause.send(call, self._no_report)
+        # 5, 10, 20, 40, then 60 s pauses until the last one is cut at the deadline.
+        assert calls[-1] == 1600.0
+        assert sum(slept) == 600.0
+
+
+class TestCsvImportWriteConcurrency:
+    """PR #1589 QA round 1: with no limit, every chunk passed the pause at once and
+    queued in the thread pool, to be sent during a later pause."""
+
+    async def test_writes_in_flight_never_exceed_the_limit(self, tmp_path, monkeypatch):
+        import threading
+        import time as real_time
+
+        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 1)
+        monkeypatch.setattr(drive_files_module, "_CSV_WRITE_CONCURRENCY", 2)
+        lock = threading.Lock()
+        in_flight = [0]
+        peak = [0]
+
+        def execute(*args, **kwargs):
+            with lock:
+                in_flight[0] += 1
+                peak[0] = max(peak[0], in_flight[0])
+            real_time.sleep(0.02)
+            with lock:
+                in_flight[0] -= 1
+            return {}
+
+        path = tmp_path / "rows.csv"
+        path.write_text("".join(f"{i}\n" for i in range(12)), encoding="utf-8")
+        helper = TestImportCsvToSheet()
+        sheets_svc = helper._sheets_service(row_count=12, column_count=1)
+        update = sheets_svc.spreadsheets.return_value.values.return_value.update
+        update.return_value.execute.side_effect = execute
+        ctx = _make_ctx(
+            drive_service=helper._drive_service(),
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            cache=MagicMock(),
+            folder_id=None,
+        )
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert result["rows_written"] == 12
+        assert update.return_value.execute.call_count == 12
+        assert peak[0] == 2
