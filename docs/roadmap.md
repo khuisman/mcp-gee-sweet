@@ -642,6 +642,10 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] `create_doc_from_file`/`update_doc_from_file` keep a UTF-8 BOM, which turns a leading Markdown heading into text. Follow-up to #1575 (PR #1580). `wrong/narrow`, observed through `_md_to_html`; placed 2026-11-21 ([#1581](https://github.com/khuisman/mcp-gee-sweet/issues/1581))
 - [ ] Free-text parameters typed `str | None` are JSON-parsed by mcp before validation: array- or object-shaped text is rejected and `null` is dropped. #1563 fixed `tools/drive/comments.py` only; this covers every other module, so it's cross-cutting. `wrong/narrow`, observed through the registered tools' argument parsing; placed 2026-11-21 ([#1569](https://github.com/khuisman/mcp-gee-sweet/issues/1569))
 
+**Added 2026-11-23** _(maintainer's approval; a release-gate check, since this release ships the bump)_
+
+- [ ] Evaluate markdown-it-py 4.3.0's behavior changes (PR #1592) against the Markdown → Doc conversion: HTML blocks ending at a blank line in an item or quote (`_verbatim_lines`), image alt text (#1099 fallback), the whitespace set, task-list detection, code spans, the new `RuntimeError` on a non-advancing rule, and the import-time rule-cache warm-up. Joy ([#1596](https://github.com/khuisman/mcp-gee-sweet/issues/1596))
+
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
 - [ ] **Bundle:** `font_family` / `style_doc_range` text-style builder: one PR closing #1038, #1300, #1289 and #1037. #1300 and #1289 are #1273's two follow-ups, so the chain stop rule applies ([#1338](https://github.com/khuisman/mcp-gee-sweet/issues/1338))
