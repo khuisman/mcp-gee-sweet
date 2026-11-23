@@ -1,16 +1,19 @@
 import asyncio
 import csv
 import logging
+import time
+from collections.abc import Awaitable, Callable
 from contextlib import aclosing
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, TypeVar
 
 from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread, invalidating
+from ...deprecation import deprecated_tool
 from ...local_files import LocalFileAccessError, check_read
 from ..concurrency import gather_with_fallback, report_progress_safe
 from ..http_errors import is_storage_quota_error
@@ -26,11 +29,176 @@ from . import (
 
 logger = logging.getLogger(__name__)
 
+T = TypeVar("T")
+
 _CSV_IMPORT_CHUNK_ROWS = 5000
+
+# Sheets allows 60 write requests per minute per user, so an import of more than 60
+# chunks (300k rows) has writes refused with 429 (measured live: 93 of 160, #1573).
+# A refusal pauses every write of the import; each pause after a refused retry
+# doubles, from the base to the cap, and no pause runs past the max wait, counted
+# from the import's first write, after which a refusal is final.
+_CSV_RATE_LIMIT_BASE_DELAY = 5.0
+_CSV_RATE_LIMIT_MAX_DELAY = 60.0
+_CSV_RATE_LIMIT_MAX_WAIT = 600.0
+
+# An import's writes in flight at once. Below the default executor's smallest size
+# (min(32, cpu + 4) is at least 5), so a write that passes the pause is sent then,
+# not queued behind a busy thread and sent during a later pause (PR #1589 QA round 1).
+_CSV_WRITE_CONCURRENCY = 4
+
+# Sheets' grid limits, both inclusive (checked live, #1573): a workbook holds at most
+# 20,000,000 cells, and a sheet at most 18,278 columns (ZZZ).
+_SHEETS_CELL_LIMIT = 20_000_000
+_SHEETS_COLUMN_LIMIT = 18_278
+
+
+def _csv_grid_limit_error(local_path: str, rows: int, columns: int) -> str | None:
+    """The error for a CSV too large for one sheet, or None when it fits.
+
+    Checked before the spreadsheet is created, so a refused file leaves nothing
+    behind.
+    """
+    if columns > _SHEETS_COLUMN_LIMIT:
+        return (
+            f"CSV {local_path} has {columns:,} columns; a Google Sheet holds at most "
+            f"{_SHEETS_COLUMN_LIMIT:,}. Nothing was created."
+        )
+    if rows * columns > _SHEETS_CELL_LIMIT:
+        return (
+            f"CSV {local_path} needs {rows:,} rows x {columns:,} columns = "
+            f"{rows * columns:,} cells; a Google Sheets spreadsheet holds at most "
+            f"{_SHEETS_CELL_LIMIT:,}. Split the file and import each part. "
+            "Nothing was created."
+        )
+    return None
+
+
+def _is_rate_limited(e: BaseException) -> bool:
+    """A 429: Sheets refused the request for its quota and applied nothing, so it is
+    safe to send again."""
+    return isinstance(e, HttpError) and int(e.resp.status) == 429
+
+
+class _RateLimitPause:
+    """One import's shared pause for its Sheets writes (#1573).
+
+    The write quota is per user, not per request, so a 429 on one write means every
+    write sent now would be refused too: it pauses them all instead of letting each
+    retry on its own and spend the window's requests on refusals. Every write goes
+    through send(), which holds one of _CSV_WRITE_CONCURRENCY slots, so a write is
+    sent when it passes the pause, never queued behind a thread until a later pause.
+
+    A reply to a request sent before the current pause began says nothing about the
+    window the pause waits for: its 429 doesn't extend the pause, and its success
+    doesn't reset the delay. A 429 on a request sent after it doubles the delay; a
+    success resets it. No pause runs past the deadline, and a 429 at or after the
+    deadline is final.
+    """
+
+    def __init__(self) -> None:
+        self._slots = asyncio.Semaphore(_CSV_WRITE_CONCURRENCY)
+        self._delay = 0.0
+        self._pause_started = float("-inf")
+        self._resume_at = 0.0
+        self._deadline = time.monotonic() + _CSV_RATE_LIMIT_MAX_WAIT
+
+    async def send(
+        self,
+        call: Callable[[], Awaitable[T]],
+        on_pause: Callable[[float], Awaitable[None]],
+    ) -> T:
+        """Await call() once a slot is free and no pause is on, resending it on a 429
+        until the deadline. on_pause(seconds) is awaited when a 429 starts a new
+        pause. Any other error, or a 429 at or after the deadline, is raised."""
+        async with self._slots:
+            while True:
+                sent_at = await self._wait()
+                try:
+                    result = await call()
+                except Exception as e:
+                    if not _is_rate_limited(e):
+                        raise
+                    paused_for = self._rate_limited(sent_at)
+                    if paused_for is None:
+                        raise
+                    if paused_for:
+                        await on_pause(paused_for)
+                    continue
+                self._succeeded(sent_at)
+                return result
+
+    async def _wait(self) -> float:
+        """Wait out any pause; returns the send time."""
+        while (remaining := self._resume_at - time.monotonic()) > 0:
+            await asyncio.sleep(remaining)
+        return time.monotonic()
+
+    def _succeeded(self, sent_at: float) -> None:
+        if sent_at >= self._pause_started:
+            self._delay = 0.0
+
+    def _rate_limited(self, sent_at: float) -> float | None:
+        """Record a 429 on a request sent at `sent_at`. Returns None when it is final
+        (the deadline has passed), the length of the pause it started, or 0.0 when a
+        pause it doesn't extend is already on."""
+        now = time.monotonic()
+        if now >= self._deadline:
+            return None
+        if sent_at < self._pause_started:
+            return 0.0
+        self._delay = min(
+            _CSV_RATE_LIMIT_MAX_DELAY, max(_CSV_RATE_LIMIT_BASE_DELAY, self._delay * 2)
+        )
+        self._pause_started = now
+        self._resume_at = min(now + self._delay, self._deadline)
+        return self._resume_at - now
+
+
+def _grid_resize_requests(
+    sheet_id: int, grid: dict[str, Any], rows: int, columns: int
+) -> list[dict[str, Any]]:
+    """updateSheetProperties requests that size a sheet's grid to rows x columns.
+
+    The column change goes first, as its own request: Sheets checks a row change
+    against the sheet's current column count even when one request sets both, so
+    growing the default 1000x26 grid to 1,000,000 x 20 in one request is refused
+    as 26M cells (checked live, #1573).
+    """
+    requests = []
+    for field, wanted, default in (("columnCount", columns, 26), ("rowCount", rows, 1000)):
+        if grid.get(field, default) != wanted:
+            requests.append(
+                {
+                    "updateSheetProperties": {
+                        "properties": {"sheetId": sheet_id, "gridProperties": {field: wanted}},
+                        "fields": f"gridProperties.{field}",
+                    }
+                }
+            )
+    return requests
+
 
 # max_results caps list_drives at 200 drives (2 full pages); the page bound only
 # stops a nextPageToken that never goes falsy over empty pages (#615).
 _LIST_DRIVES_MAX_PAGES = 50
+
+# The five Drive finders search_files absorbed, and unstar_file, which star_file
+# absorbed (#1528, docs/design/tool-reduction.md tiers B1 and A).
+_FINDER_REMOVED_IN = "the next feature release"
+
+# search_files' modified_within_days ceiling: 100 years. A larger value overflows
+# the cutoff's datetime arithmetic (PR #1558 QA round 1).
+_MAX_MODIFIED_WITHIN_DAYS = 36500
+_DRIVE_EARLIEST_TIME = datetime(1970, 1, 1, tzinfo=UTC)
+
+# search_files' order_by values, as Drive's orderBy.
+_SEARCH_ORDER_BY = {"modified": "modifiedTime desc", "name": "name"}
+
+_SEARCH_FILE_FIELDS = (
+    "nextPageToken, incompleteSearch, "
+    "files(id, name, mimeType, createdTime, modifiedTime, owners, parents, webViewLink, starred)"
+)
 
 
 def _corpora_kwargs(folder_id: str | None) -> dict[str, str]:
@@ -173,13 +341,23 @@ def register(tool):
         Create a new Google Spreadsheet populated from a local CSV file.
         Not available when the server runs with LOCAL_FILE_ACCESS=off.
 
-        Reads the CSV, creates the spreadsheet, expands the sheet's grid to fit
-        the data (avoiding the default 1000-row/26-column limit), and writes
-        every row in one or more batched value updates.
+        Reads the CSV as UTF-8, dropping a leading byte-order mark (Excel's
+        "CSV UTF-8" export writes one); a file in another encoding returns an
+        error before anything is created. Then creates the spreadsheet, sizes
+        the sheet's grid to exactly the data's rows and columns (replacing the
+        default 1000x26 grid, so a short or narrow file gets no blank padding),
+        and writes every row in one or more batched value updates.
+
+        A CSV over Google Sheets' limits (20,000,000 cells, or 18,278 columns)
+        returns an error before anything is created.
 
         Row chunks write concurrently rather than one at a time. If the
         caller supplied a progressToken, a `notifications/progress` update is sent
-        as each chunk finishes.
+        as each chunk finishes. Sheets allows 60 writes a minute, so a file of
+        more than 300,000 rows waits for its quota between writes and can take
+        several minutes, with a progress update each time it starts waiting.
+        Retrying stops 10 minutes after the import's first write; a chunk
+        refused after that is reported in failed_ranges.
 
         Args:
             local_path: Absolute path to the local .csv file.
@@ -211,20 +389,41 @@ def register(tool):
             return {"error": str(e)}
         if not path.exists():
             return {"error": f"File not found: {local_path}"}
+        if not path.is_file():
+            return {"error": f"Not a regular file: {local_path}"}
         suffix = Path(local_path).suffix
         if suffix.lower() != ".csv":
             return {"error": f"Unsupported file extension '{suffix}'. Use .csv"}
 
         def _read_csv() -> list[list[str]]:
-            with path.open(newline="", encoding="utf-8") as f:
+            # utf-8-sig drops a leading byte-order mark (Excel's "CSV UTF-8" writes
+            # one), which would otherwise stay in cell A1 (#1575).
+            with path.open(newline="", encoding="utf-8-sig") as f:
                 return list(csv.reader(f))
 
-        rows = await asyncio.to_thread(_read_csv)
+        try:
+            rows = await asyncio.to_thread(_read_csv)
+        except UnicodeDecodeError as e:
+            # No byte offset: the decoder reports one within its current buffer,
+            # not within the file.
+            return {
+                "error": f"File is not valid UTF-8: {local_path} ({e.reason}). "
+                'Save it as UTF-8 (in Excel, "CSV UTF-8") and import again.'
+            }
+        except csv.Error as e:
+            return {"error": f"Could not parse CSV {local_path}: {e}"}
+        except OSError as e:
+            return {"error": f"Could not read file {local_path}: {e.strerror or e}"}
 
         if not rows:
             return {"error": f"CSV file is empty: {local_path}"}
 
         width = max(len(row) for row in rows)
+        # A file of blank lines has no columns, and a grid needs at least one.
+        grid_columns = max(width, 1)
+        # Before the padding, which a refused file shouldn't pay for.
+        if limit_error := _csv_grid_limit_error(local_path, len(rows), grid_columns):
+            return {"error": limit_error}
         rows = [row + [""] * (width - len(row)) for row in rows]
 
         lc = ctx.request_context.lifespan_context
@@ -285,33 +484,10 @@ def register(tool):
                     }
                 }
             )
-        needed_rows, needed_cols = len(rows), width
-        if needed_rows > grid.get("rowCount", 1000) or needed_cols > grid.get("columnCount", 26):
-            requests.append(
-                {
-                    "updateSheetProperties": {
-                        "properties": {
-                            "sheetId": sheet_id,
-                            "gridProperties": {
-                                "rowCount": max(needed_rows, grid.get("rowCount", 1000)),
-                                "columnCount": max(needed_cols, grid.get("columnCount", 26)),
-                            },
-                        },
-                        "fields": "gridProperties.rowCount,gridProperties.columnCount",
-                    }
-                }
-            )
-
-        if requests:
-            with invalidating(lambda: lc.cache.mark_dirty(spreadsheet_id)):
-                await execute_in_thread(
-                    sheets_service.spreadsheets()
-                    .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
-                    .execute,
-                    sheets_service,
-                )
-
-        quoted_sheet = _quote_sheet_name(sheet_name)
+        # Exactly the data's size, never padded to the default 1000x26: the padding
+        # counts against the workbook's cell limit, so a 1-column CSV over ~769k rows
+        # was refused as 26 cells a row (#1573).
+        requests.extend(_grid_resize_requests(sheet_id, grid, len(rows), grid_columns))
 
         # Safe to parallelize: each chunk writes a disjoint row range of the same
         # sheet (A{start+1} onward, non-overlapping), so there's no read-modify-write
@@ -325,22 +501,53 @@ def register(tool):
         ]
         total_chunks = len(chunks)
         completed = [0]
+        # Every Sheets write below, the rename and resize included, counts against
+        # the same per-user write quota, so all of them go through one pause.
+        pause = _RateLimitPause()
+
+        async def _report_pause(seconds: float) -> None:
+            # A pause can last a minute with no chunk finishing; a client that resets
+            # its timeout on progress would otherwise hear nothing (PR #1589 QA round 1).
+            await report_progress_safe(
+                ctx,
+                completed[0],
+                total_chunks,
+                f"Sheets write quota reached; waiting {seconds:.0f} s",
+                "write quota pause",
+            )
+
+        if requests:
+            with invalidating(lambda: lc.cache.mark_dirty(spreadsheet_id)):
+                await pause.send(
+                    lambda: execute_in_thread(
+                        sheets_service.spreadsheets()
+                        .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
+                        .execute,
+                        sheets_service,
+                    ),
+                    _report_pause,
+                )
+
+        quoted_sheet = _quote_sheet_name(sheet_name)
 
         async def _write_chunk(item: tuple[int, list[list]]) -> dict[str, Any]:
             start, chunk = item
             row_range = {"start_row": start + 1, "end_row": start + len(chunk)}
             try:
-                await execute_in_thread(
-                    sheets_service.spreadsheets()
-                    .values()
-                    .update(
-                        spreadsheetId=spreadsheet_id,
-                        range=f"{quoted_sheet}!A{start + 1}",
-                        valueInputOption="USER_ENTERED",
-                        body={"values": chunk},
-                    )
-                    .execute,
-                    sheets_service,
+                await pause.send(
+                    lambda: execute_in_thread(
+                        sheets_service.spreadsheets()
+                        .values()
+                        .update(
+                            spreadsheetId=spreadsheet_id,
+                            range=f"{quoted_sheet}!A{start + 1}",
+                            valueInputOption="USER_ENTERED",
+                            body={"values": chunk},
+                        )
+                        .execute,
+                        sheets_service,
+                    ),
+                    _report_pause,
                 )
                 result = {**row_range, "ok": True}
             except Exception as e:
@@ -420,32 +627,26 @@ def register(tool):
         annotations=ToolAnnotations(title="List Spreadsheets", readOnlyHint=True),
         groups=("sheets",),
     )
+    @deprecated_tool(
+        use=(
+            "`search_files` (add `folder_id` for one folder) with "
+            "`mime_type='application/vnd.google-apps.spreadsheet'` and this tool's default "
+            "`max_results=100`"
+        ),
+        removed_in=_FINDER_REMOVED_IN,
+    )
     async def list_spreadsheets(
         folder_id: str | None = None, max_results: int = 100, ctx: Context = None
     ) -> list[dict[str, str]]:
         """
-        List all spreadsheets in the specified Google Drive folder.
+        List spreadsheets in a Google Drive folder, newest modified first.
         If no folder is specified, uses the configured default folder; if that's
         also unset, searches across 'My Drive' AND every shared drive the
         authenticated account can access (corpora='allDrives') — not just
         'My Drive'.
 
-        Not list_files pre-filtered to spreadsheets: with no folder_id and
-        no default folder configured this searches every drive
-        (corpora='allDrives'), sorts by modifiedTime
-        descending, returns {id, title} per file, and isn't cached, while
-        list_files requires a folder_id, sorts by name, returns richer
-        fields, and caches — under the same cap the two tools can return
-        different sets, the most recently modified vs the first
-        alphabetically.
-
-        max_results is clamped at 1000 and there is no pagination (the
-        request's fields leave out nextPageToken), so the list can be
-        incomplete even when it's shorter than max_results — Drive can
-        return fewer results than it asked for with more left. For other
-        file types in a folder, or for a folder's spreadsheets with richer
-        fields (modified_time, web_link), use
-        list_files(folder_id, mime_type=..., ...) instead.
+        Returns at most max_results (clamped at 1000) from one page, and the
+        list can be incomplete even when it's shorter than max_results.
 
         Args:
             folder_id: Optional Google Drive folder ID to search in.
@@ -487,11 +688,19 @@ def register(tool):
         return [{"id": f["id"], "title": f["name"]} for f in results.get("files", [])]
 
     @tool(annotations=ToolAnnotations(title="List Folders", readOnlyHint=True))
+    @deprecated_tool(
+        use=(
+            "`search_files` (which never defaults to the configured folder) with "
+            "`folder_id`, `mime_type='application/vnd.google-apps.folder'`, and this tool's "
+            "`order_by='name'` and `max_results=100`"
+        ),
+        removed_in=_FINDER_REMOVED_IN,
+    )
     async def list_folders(
         parent_folder_id: str | None = None, max_results: int = 100, ctx: Context = None
     ) -> list[dict[str, str]]:
         """
-        List all folders in the specified Google Drive folder.
+        List the folders in a Google Drive folder, sorted by name.
         If no parent is specified, uses the configured default folder
         (DRIVE_FOLDER_ID); if that is also unset, searches across 'My Drive' AND
         every shared drive the authenticated account can access
@@ -605,16 +814,14 @@ def register(tool):
         ctx: Context = None,
     ) -> list[dict[str, Any]]:
         """
-        List files in a Google Drive folder, optionally filtered by MIME type.
+        List files in a Google Drive folder, optionally filtered by MIME type,
+        sorted by name.
 
-        For a spreadsheet-only listing, list_spreadsheets is not this call
-        pre-filtered: it can also search every drive with no folder_id and
-        no default folder configured, sorts by modifiedTime where this tool
-        sorts by name, returns {id, title} only, and isn't cached.
+        To search by name or content, across drives, or by date, use
+        search_files; its description lists how the two differ.
 
-        max_results is clamped at 1000 and no second page is fetched, so the
-        list can be incomplete even when it's shorter than max_results — the
-        cache entry records the truncation, the returned list does not.
+        Returns at most max_results (clamped at 1000) from one page, and the
+        list can be incomplete even when it's shorter than max_results.
 
         Args:
             folder_id: The Google Drive folder ID to list files from.
@@ -694,50 +901,122 @@ def register(tool):
         except Exception as e:
             return [{"error": f"List files failed: {e!s}"}]
 
-    @tool(annotations=ToolAnnotations(title="Search Files", readOnlyHint=True), default=True)
+    @tool(
+        annotations=ToolAnnotations(title="Search Files", readOnlyHint=True),
+        default=True,
+        groups=("sheets",),
+    )
     async def search_files(
-        query: str,
+        query: str | None = None,
         mime_type: str | None = None,
         folder_id: str | None = None,
         max_results: int = 20,
+        shared_with_me: bool = False,
+        modified_within_days: int | None = None,
+        order_by: Literal["modified", "name"] = "modified",
         ctx: Context = None,
-    ) -> list[dict[str, Any]]:
+    ) -> dict[str, Any]:
         """
-        Search for files in Google Drive by name or content. Without folder_id,
-        searches 'My Drive' AND every shared drive the authenticated account can
-        access (corpora='allDrives').
+        Find files and folders in Google Drive: by name or content, by type, in
+        one folder, shared with you, or recently modified. Every filter is
+        optional, and the ones given combine. With no folder_id and no
+        shared_with_me, it searches 'My Drive' AND every shared drive the
+        authenticated account can access (corpora='allDrives').
 
-        For a spreadsheet-only search, search_spreadsheets(query, max_results) is a
-        narrower convenience wrapper around this same query pre-filtered to the
-        spreadsheet MIME type.
+        Common calls:
+            spreadsheets: mime_type='application/vnd.google-apps.spreadsheet'
+            folders in a folder: mime_type='application/vnd.google-apps.folder',
+                folder_id=...
+            recently modified: modified_within_days=7
+            shared with you: shared_with_me=True
+
+        How this differs from list_files, which lists one folder's contents:
+        - Sort: newest modified first by default (order_by='name' sorts by name
+          when there's no query); list_files always sorts by name.
+        - Fields: this returns created_time, owners and parent; list_files
+          returns md5_checksum instead.
+        - Cache: this always asks Drive; list_files is cached.
+        - Folder: folder_id is optional here; list_files requires it. Neither
+          falls back to the server's default folder (DRIVE_FOLDER_ID): with no
+          folder_id this searches every drive.
 
         Args:
-            query: Search string matched against file name and full text.
+            query: Optional search string matched against file name and full
+                   text. Omit it to filter by the other arguments alone.
             mime_type: Optional MIME type filter, e.g.
                        'application/vnd.google-apps.document',
                        'application/vnd.google-apps.spreadsheet',
+                       'application/vnd.google-apps.folder',
                        'application/pdf'.
-            folder_id: Optional folder to restrict the search to.
-            max_results: Maximum results to return (default 20, max 100).
+            folder_id: Optional folder whose direct children to search.
+            max_results: Maximum results to return (default 20, max 1000).
+            shared_with_me: Only files shared with the authenticated account by
+                            someone else (with a service account, files shared with
+                            its email address).
+            modified_within_days: Only files modified within the last N days
+                                  (1 to 36500).
+            order_by: 'modified' (newest first, the default) or 'name'. 'name'
+                      needs no query: Drive won't sort a search by content.
 
         Returns:
-            List of matching files with id, name, mimeType, modified time, owners,
-            parent folder, webViewLink, and starred status. Trashed files are excluded; to find one to restore, use
-            get_file_metadata or restore_file with its file ID.
+            {"files": [...], "exhaustive": bool}. Each file has id, name,
+            mimeType, created_time, modified_time, owners, parent, web_link and
+            starred. exhaustive is false when Drive has more matches than were
+            returned or reports a partial search across drives; narrow the
+            filters or raise max_results. Trashed files are excluded; to find one
+            to restore, use get_file_metadata or restore_file with its file ID.
+            {"error": ...} if the search fails.
         """
-        drive_service = ctx.request_context.lifespan_context.drive_service
-        max_results = clamp_max_results(max_results, 100)
+        if modified_within_days is not None and not (
+            1 <= modified_within_days <= _MAX_MODIFIED_WITHIN_DAYS
+        ):
+            return {
+                "error": (
+                    f"modified_within_days must be from 1 to {_MAX_MODIFIED_WITHIN_DAYS}, "
+                    f"not {modified_within_days}."
+                )
+            }
+        if order_by not in _SEARCH_ORDER_BY:
+            return {"error": f"order_by must be 'modified' or 'name', not {order_by!r}."}
+        has_query = bool(query and query.strip())
+        # Drive refuses every orderBy but modifiedTime desc on a fullText query
+        # ("Sorting is not supported for queries with fullText terms", checked live).
+        # Sorting the page here would be the newest N by name, not the first N.
+        if has_query and order_by != "modified":
+            return {
+                "error": (
+                    "order_by='name' can't be combined with query: Drive doesn't sort a "
+                    "search by content. Omit query to sort by name, or use the default "
+                    "order_by='modified'."
+                )
+            }
 
-        safe_query = _escape_drive_query_value(query)
-        parts = [
-            f"(name contains '{safe_query}' or fullText contains '{safe_query}')",
-            "trashed=false",
-        ]
+        drive_service = ctx.request_context.lifespan_context.drive_service
+        max_results = clamp_max_results(max_results, 1000)
+
+        parts = []
+        if has_query:
+            safe_query = _escape_drive_query_value(query)
+            parts.append(f"(name contains '{safe_query}' or fullText contains '{safe_query}')")
+        parts.append("trashed=false")
         if mime_type:
             safe_mime = _escape_drive_query_mime_type(mime_type)
             parts.append(f"mimeType='{safe_mime}'")
         if folder_id:
             parts.append(f"'{_escape_drive_query_value(folder_id)}' in parents")
+        if shared_with_me:
+            parts.append("sharedWithMe=true")
+        if modified_within_days is not None:
+            cutoff = datetime.now(UTC) - timedelta(days=modified_within_days)
+            # Drive refuses a modifiedTime before the Unix epoch ("Invalid Value",
+            # checked live), and a window reaching back that far holds every file,
+            # so it adds no clause.
+            if cutoff > _DRIVE_EARLIEST_TIME:
+                parts.append(f"modifiedTime > '{cutoff.strftime('%Y-%m-%dT%H:%M:%S')}'")
+
+        # sharedWithMe=true is its own scope, and the default "user" corpus already
+        # holds what's shared directly with the caller, so it keeps that corpus.
+        corpora = {} if shared_with_me else _corpora_kwargs(folder_id)
 
         try:
             results = await execute_in_thread(
@@ -748,34 +1027,49 @@ def register(tool):
                     spaces="drive",
                     includeItemsFromAllDrives=True,
                     supportsAllDrives=True,
-                    **_corpora_kwargs(folder_id),
-                    fields="files(id, name, mimeType, createdTime, modifiedTime, owners, parents, webViewLink, starred)",
-                    orderBy="modifiedTime desc",
+                    **corpora,
+                    fields=_SEARCH_FILE_FIELDS,
+                    orderBy=_SEARCH_ORDER_BY[order_by],
                 )
                 .execute,
                 drive_service,
             )
-            return [
+            # Inside the try, so a file the mapping can't read returns an error
+            # dict rather than raising (PR #1558 QA round 1).
+            files = [
                 {
                     "id": f["id"],
                     "name": f["name"],
-                    "mimeType": f["mimeType"],
+                    "mimeType": f.get("mimeType"),
+                    "created_time": f.get("createdTime"),
                     "modified_time": f.get("modifiedTime"),
                     "owners": [o.get("emailAddress") for o in f.get("owners", [])],
-                    "parent": f.get("parents", [None])[0],
+                    "parent": (f.get("parents") or [None])[0],
                     "web_link": f.get("webViewLink"),
                     "starred": f.get("starred", False),
                 }
                 for f in results.get("files", [])
             ]
         except Exception as e:
-            return [{"error": f"Search failed: {e!s}"}]
+            return {"error": f"Search failed: {e!s}"}
+
+        # A short page doesn't prove the list is complete: Drive can return fewer
+        # than pageSize with more left, and incompleteSearch marks a partial
+        # all-drives search (#1202).
+        return {
+            "files": files,
+            "exhaustive": not results.get("nextPageToken") and not results.get("incompleteSearch"),
+        }
 
     @tool(
         annotations=ToolAnnotations(
             title="Search Spreadsheets by Name or Content", readOnlyHint=True
         ),
         groups=("sheets",),
+    )
+    @deprecated_tool(
+        use="`search_files` with `mime_type='application/vnd.google-apps.spreadsheet'`",
+        removed_in=_FINDER_REMOVED_IN,
     )
     async def search_spreadsheets(
         query: str, max_results: int = 20, ctx: Context = None
@@ -784,11 +1078,6 @@ def register(tool):
         Search for spreadsheets in Google Drive by name or content, across
         'My Drive' AND every shared drive the authenticated account can access
         (corpora='allDrives').
-
-        A strict, less-flexible special case of search_files pre-filtered to the
-        spreadsheet MIME type. For folder-scoped search or other file types, use
-        search_files(query, mime_type='application/vnd.google-apps.spreadsheet', ...)
-        instead.
 
         Args:
             query: Search query string. Searches in file name and content.
@@ -857,9 +1146,8 @@ def register(tool):
             for them. Compare it to a local file's md5 to detect real content
             drift instead of inferring change from modifiedTime alone;
             sync_folder(use_checksum=True) does that comparison itself (see its
-            docstring for the cases where modifiedTime misleads). starred reflects star_file/unstar_file's own effect.
-            Previously there was no way to read a file's starred state
-            independently of calling one of those two mutating tools.
+            docstring for the cases where modifiedTime misleads). starred is the
+            state star_file sets.
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
@@ -1160,27 +1448,15 @@ def register(tool):
             "parent": parents[0] if parents else "root",
         }
 
-    @tool(annotations=ToolAnnotations(title="Star File"))
-    async def star_file(file_id: str, ctx: Context = None) -> dict[str, Any]:
-        """
-        Mark a file or folder as starred in Google Drive, for easy retrieval later.
-
-        Args:
-            file_id: The ID of the file or folder to star.
-
-        Returns:
-            fileId, name, and the resulting starred state.
-        """
-        lc = ctx.request_context.lifespan_context
+    async def _set_starred(lc, file_id: str, starred: bool) -> dict[str, Any]:
         drive_service = lc.drive_service
-
         invalidate = _FolderInvalidation(lc)
         with invalidating(invalidate):
             updated = await execute_in_thread(
                 drive_service.files()
                 .update(
                     fileId=file_id,
-                    body={"starred": True},
+                    body={"starred": starred},
                     supportsAllDrives=True,
                     fields="id, name, starred, parents",
                 )
@@ -1188,14 +1464,29 @@ def register(tool):
                 drive_service,
             )
             invalidate.found(updated.get("parents"))
-        logger.debug("Starred file %s", file_id)
+        logger.debug("%s file %s", "Starred" if starred else "Unstarred", file_id)
         return {
             "fileId": updated.get("id"),
             "name": updated.get("name"),
             "starred": updated.get("starred", False),
         }
 
+    @tool(annotations=ToolAnnotations(title="Star File"))
+    async def star_file(file_id: str, starred: bool = True, ctx: Context = None) -> dict[str, Any]:
+        """
+        Star or unstar a file or folder in Google Drive.
+
+        Args:
+            file_id: The ID of the file or folder.
+            starred: True (the default) to star it, False to remove its star.
+
+        Returns:
+            fileId, name, and the resulting starred state.
+        """
+        return await _set_starred(ctx.request_context.lifespan_context, file_id, starred)
+
     @tool(annotations=ToolAnnotations(title="Unstar File"))
+    @deprecated_tool(use="`star_file` with `starred=False`", removed_in=_FINDER_REMOVED_IN)
     async def unstar_file(file_id: str, ctx: Context = None) -> dict[str, Any]:
         """
         Remove a file or folder's starred marker in Google Drive.
@@ -1206,31 +1497,16 @@ def register(tool):
         Returns:
             fileId, name, and the resulting starred state.
         """
-        lc = ctx.request_context.lifespan_context
-        drive_service = lc.drive_service
-
-        invalidate = _FolderInvalidation(lc)
-        with invalidating(invalidate):
-            updated = await execute_in_thread(
-                drive_service.files()
-                .update(
-                    fileId=file_id,
-                    body={"starred": False},
-                    supportsAllDrives=True,
-                    fields="id, name, starred, parents",
-                )
-                .execute,
-                drive_service,
-            )
-            invalidate.found(updated.get("parents"))
-        logger.debug("Unstarred file %s", file_id)
-        return {
-            "fileId": updated.get("id"),
-            "name": updated.get("name"),
-            "starred": updated.get("starred", False),
-        }
+        return await _set_starred(ctx.request_context.lifespan_context, file_id, False)
 
     @tool(annotations=ToolAnnotations(title="List Shared With Me", readOnlyHint=True))
+    @deprecated_tool(
+        use=(
+            "`search_files` (whose files carry `mimeType`, not `mime_type`) with "
+            "`shared_with_me=True` and this tool's default `max_results=50`"
+        ),
+        removed_in=_FINDER_REMOVED_IN,
+    )
     async def list_shared_with_me(
         mime_type: str | None = None,
         max_results: int = 50,
@@ -1264,6 +1540,13 @@ def register(tool):
         )
 
     @tool(annotations=ToolAnnotations(title="List Recent Files", readOnlyHint=True))
+    @deprecated_tool(
+        use=(
+            "`search_files` (newest first by default; its files carry `mimeType`, not "
+            "`mime_type`) with `modified_within_days`"
+        ),
+        removed_in=_FINDER_REMOVED_IN,
+    )
     async def list_recent_files(
         max_results: int = 20,
         days: int | None = None,

@@ -7,12 +7,13 @@ def register_all(tool):
     data.register(tool)
     structure.register(tool)
 
-    from .drive import activity, files, sharing, transfer
+    from .drive import activity, comments, files, sharing, transfer
 
     files.register(tool)
     sharing.register(tool)
     transfer.register(tool)
     activity.register(tool)
+    comments.register(tool)
 
     from . import cache, docs
 

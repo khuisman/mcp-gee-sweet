@@ -981,7 +981,7 @@ Run 1 (kai-oauth); folder/move/rename/copy/delete checks matched.
 
 ---
 
-## `star_file` / `unstar_file` (issue #139)
+## `star_file` / `unstar_file` (issue #139; `unstar_file` deprecated by #1528)
 
 **Note:** TC-D202/TC-D203 below predate #388 — at the time they were run, neither `get_file_metadata` nor `list_files` exposed a `starred` field, so verification was round-trip only (the tool's own response was the only readable signal). #388 (TC-D260 below) fixed that; `get_file_metadata`/`list_files`/`search_files` all now surface `starred`.
 
@@ -1052,6 +1052,21 @@ Ensure {SPREADSHEET_ID} ends unstarred (matches TC-D202/TC-D203's own convention
 Run on a throwaway spreadsheet; starred state visible in metadata, list_files and search_files.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — on the copy: after star, `get_file_metadata` `starred: true`; `refresh_cache(run folder)`; `list_files(run folder)` entry `starred: true`; `search_files("G-copy-qa-fixtures-sheet")` `starred: true`; `unstar_file` then `get_file_metadata` `starred: false`. Also: the warm `list_files` with no refresh showed `starred: false` right after unstar (parent marked dirty).
+
+---
+
+### TC-D309: `star_file(starred=False)` unstars, and `list_files` shows it with no refresh (#1528)
+
+**Setup:** `create_spreadsheet(title="QA-Star-1528", folder_id={FOLDER_ID})`; note its id. `list_files({FOLDER_ID})` once, so the folder listing is cached.
+
+**Checks**
+- `star_file(file_id=<id>)` (no `starred`) returns `starred: true`; `list_files({FOLDER_ID})` with no `refresh_cache` shows the entry `starred: true`.
+- `star_file(file_id=<id>, starred=False)` returns `starred: false`; `list_files({FOLDER_ID})`, again with no refresh, shows `starred: false`; `get_file_metadata(<id>)` shows `starred: false`.
+- `unstar_file(file_id=<id>)` after a `star_file(file_id=<id>)` still returns `starred: false`.
+
+**Cleanup:** `delete_file(file_id=<id>, permanent=True)`.
+
+**Result (2026-11-20) ✅ PASS — PR #1558 QA round 1 (Sky) @ f52134dc** — On `mcp-gee-sweet-sky` (OAuth). {FOLDER_ID} was a scratch folder on the Shared Drive, listed once before the first star. Spreadsheet `QA-Finder-1528-A` stood in for `QA-Star-1528`. `star_file(id)` returned `starred: true`, and `list_files` with no refresh showed `starred: true`. `star_file(id, starred=False)` returned `starred: false`, and both `list_files` with no refresh and `get_file_metadata` showed `starred: false`. `star_file(id)` then `unstar_file(id)` returned `starred: false`.
 
 ---
 
@@ -1498,6 +1513,75 @@ Setup on `mcp-gee-sweet-sky` (OAuth); every check in a fresh interpreter in the 
 Rerun from scratch on the new head, because it moves the all-drives flags into `_list_drive_files`, which `list_recent_files` uses. Fresh fixtures, same method as round 1. Positive control found both. The raw query without `corpora` again returned neither, and with `allDrives` returned both. Unscoped `search_files` → both ids; `search_spreadsheets` → the spreadsheet; `list_recent_files` (spreadsheet / document, `days=1`, 100) → each id. Under OAuth, `list_recent_files(max_results=100)` → 41 results, no error. Cleanup: both permanently deleted.
 
 **Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — Every check has to run as the service account. This shard may call only the OAuth `ash` prefix, and rule 4 bars borrowing an SA key for a fresh-interpreter run, since Aziz's worktree config has no SA credentials of its own. Without the SA checks the OAuth setup proves nothing, so I didn't create the fixtures. Needs SA identity, deferred to Aziz (setup on an OAuth server, checks on kai-sa/sa).
+
+---
+
+### TC-D304: `search_files` finds without a query, and returns `{files, exhaustive}` (#1528)
+
+**Setup:** `create_spreadsheet(title="QA-Finder-1528-Sheet", folder_id={FOLDER_ID})` and `create_folder(name="QA-Finder-1528-Folder", parent_folder_id={FOLDER_ID})`; note both ids.
+
+**Checks**
+- `search_files(mime_type="application/vnd.google-apps.spreadsheet", folder_id={FOLDER_ID}, max_results=1000)` (no `query`) returns a dict with exactly the keys `files` and `exhaustive`; `files` includes the spreadsheet's id and no entry whose `mimeType` isn't a spreadsheet; `exhaustive` is `true`.
+- `search_files(mime_type="application/vnd.google-apps.folder", folder_id={FOLDER_ID}, max_results=1000)` includes the folder's id and no non-folder entry. This is `list_folders(parent_folder_id={FOLDER_ID})`'s set: its ids equal that call's.
+- Every entry in both calls has `id`, `name`, `mimeType`, `created_time`, `modified_time`, `owners`, `parent`, `web_link` and `starred`, and `parent` is `{FOLDER_ID}`.
+- `search_files(query="")` and `search_files(query="   ")` return `{files, exhaustive}`, not an error.
+- A failure is a dict: `search_files(folder_id="x' in parents or trashed=true or 'y")` returns `{"error": "Search failed: ..."}`, not a list.
+
+**Cleanup:** `delete_file(file_id=<id>, permanent=True)` on both.
+
+**Result (2026-11-20) ✅ PASS — PR #1558 QA round 1 (Sky) @ f52134dc** — On `mcp-gee-sweet-sky` (OAuth). {FOLDER_ID} was a scratch folder on the Shared Drive. Its fixtures were two spreadsheets (TC-D306's `-A` and `-B`) and `QA-Finder-1528-Folder`. The spreadsheet search returned exactly `{files, exhaustive}` with both sheets, no other type, and `exhaustive: true`. The folder search returned only the folder, the same ids as `list_folders(parent_folder_id={FOLDER_ID})`. Every entry carried all nine fields, with `parent` = {FOLDER_ID}. `owners` is `[]` on a Shared Drive, since Shared Drive files have no owner. `query=""` and `query="   "` each returned all three entries in `{files, exhaustive}`. The injection-shaped `folder_id` returned `{"error": "Search failed: <HttpError 404 … File not found …>"}`: the quotes were escaped, and the query stayed one `in parents` clause.
+
+---
+
+### TC-D305: `search_files`' `exhaustive` is false when Drive has more (#1528, #1202)
+
+**Setup:** `{FOLDER_ID}` holds at least two non-trashed files (TC-D304's fixtures do, if it ran first).
+
+**Checks**
+- `search_files(folder_id={FOLDER_ID}, max_results=1)` returns one file and `exhaustive: false`.
+- `search_files(folder_id={FOLDER_ID}, max_results=1000)` returns every file `list_files({FOLDER_ID}, max_results=1000)` does (compare ids) and `exhaustive: true`.
+
+**Result (2026-11-20) ✅ PASS — PR #1558 QA round 1 (Sky) @ f52134dc** — On `mcp-gee-sweet-sky` (OAuth), using TC-D304's scratch folder with three entries. `max_results=1` returned one file (the folder, newest) with `exhaustive: false`. With no `query` and the default `max_results=20`, the search returned all three ids with `exhaustive: true`, the same ids as `list_files({FOLDER_ID}, max_results=1000)`.
+
+---
+
+### TC-D306: `search_files`' `modified_within_days` and `order_by` (#1528)
+
+**Setup:** `create_spreadsheet(title="QA-Finder-1528-A", folder_id={FOLDER_ID})`, then `create_spreadsheet(title="QA-Finder-1528-B", folder_id={FOLDER_ID})`, in that order; note both ids.
+
+**Checks**
+- `search_files(modified_within_days=1, mime_type="application/vnd.google-apps.spreadsheet", max_results=1000)` includes both ids, and every `modified_time` is within the last 24 hours.
+- `search_files(mime_type="application/vnd.google-apps.spreadsheet", folder_id={FOLDER_ID})` (default `order_by='modified'`, newest first) lists `-B` before `-A`; the same call with `order_by="name"` lists `-A` before `-B`.
+- `search_files(query="QA-Finder-1528", folder_id={FOLDER_ID}, order_by="name")` returns `{"error": ...}` naming `order_by='name'` and `query`, not a Drive 403: Drive refuses any sort but newest-first on a `fullText` query. The same call with the default `order_by` returns both.
+- `search_files(modified_within_days=0)` and `search_files(modified_within_days=1000000)` each return `{"error": ...}` naming `modified_within_days` (the second used to crash the call with a bare `Error executing tool`, PR #1558 QA round 1); `search_files(modified_within_days=36500, max_results=2)` returns two files with no error (its window reaches before 1970, where Drive refuses a `modifiedTime` cutoff, so it adds no date clause); `search_files(order_by="size")` is refused before the tool runs (schema) or returns an error naming `order_by`.
+
+**Cleanup:** `delete_file(file_id=<id>, permanent=True)` on both.
+
+**Result (2026-11-20) ✅ PASS — PR #1558 QA round 1 (Sky) @ f52134dc** — On `mcp-gee-sweet-sky` (OAuth), in a scratch folder on the Shared Drive. `modified_within_days=1` with the spreadsheet type and no folder returned both ids, each modified a few minutes earlier, with `exhaustive: true`. The default sort put `-B` before `-A`, and `order_by="name"` put `-A` before `-B`. `query` with `order_by="name"` returned the tool's own error, naming both, with no Drive call. With the default `order_by`, it returned both sheets plus the folder. `modified_within_days=0` returned `{"error": "modified_within_days must be at least 1."}`. `order_by="size"` was refused by schema validation (`Input should be 'modified' or 'name'`).
+
+**Result (2026-11-20) ✅ PASS — PR #1558 QA round 2 (Sky) @ 631ff599** — Re-ran the changed bounds check on `mcp-gee-sweet-sky` (OAuth) after the reconnect. `modified_within_days=1000000` and `modified_within_days=0` each returned `{"error": "modified_within_days must be from 1 to 36500, not <N>."}`. Round 1 got a bare `Error executing tool` for the first. `modified_within_days=36500, max_results=2` returned two files with `exhaustive: false` and no Drive error, since the pre-1970 window sends no date clause. `20000` (cutoff in 1972, so the clause is sent) did the same. `2` with the spreadsheet type returned one file modified the day before. `order_by="size"` was still refused by the schema. The injection-shaped `folder_id` still returned `{"error": "Search failed: …404…"}`, now from the mapping inside the `try`.
+
+---
+
+### TC-D307: `search_files(shared_with_me=True)` matches `list_shared_with_me` (#1528)
+
+**Checks**
+- `search_files(shared_with_me=True, max_results=200)` and `list_shared_with_me(max_results=200)` return the same ids in the same order (both newest first).
+- With a `mime_type` filter (`application/vnd.google-apps.spreadsheet`) on both, the ids again match.
+- If the account has nothing shared with it, both return no files; record that, since the check then only shows they agree on empty.
+
+**Result (2026-11-20) ⚠️ PARTIAL — PR #1558 QA round 1 (Sky) @ f52134dc** — On `mcp-gee-sweet-sky` (OAuth). The two calls agree only on empty. `search_files(shared_with_me=True, max_results=200)` returned `{"files": [], "exhaustive": true}`, and `list_shared_with_me(max_results=200)` returned `[]`. They also agreed with the spreadsheet `mime_type` filter. The OAuth QA account has nothing shared with it directly, so the same-ids-same-order check wasn't exercised on real data, and neither was a service account's view.
+
+---
+
+### TC-D308: the deprecated finders still work, and their descriptions name the `search_files` call (#1528)
+
+**Checks**
+- In the tool list (`tools/list`, or the deferred-tool schema), each of `search_spreadsheets`, `list_spreadsheets`, `list_folders`, `list_recent_files`, `list_shared_with_me` and `unstar_file` has a description starting `Deprecated: use` and naming `search_files` (`star_file` for `unstar_file`).
+- `search_spreadsheets(query="QA", max_results=5)`, `list_spreadsheets(folder_id={FOLDER_ID})`, `list_folders(parent_folder_id={FOLDER_ID})`, `list_recent_files(max_results=5)` and `list_shared_with_me(max_results=5)` each return a bare list as before, not `{files, exhaustive}`, with no error.
+- `search_spreadsheets`' description doesn't say "special case", `list_spreadsheets`' doesn't open "List all spreadsheets", and `search_files`' doesn't say "convenience wrapper".
+
+**Result (2026-11-20) ✅ PASS — PR #1558 QA round 1 (Sky) @ f52134dc** — On `mcp-gee-sweet-sky` (OAuth), reading the deferred-tool schemas after the reconnect. Each of the six descriptions starts `Deprecated: use` and names `search_files`, or `star_file` for `unstar_file`. The five finders each returned a bare list with no error: `search_spreadsheets(query="QA-Finder-1528")` and `list_spreadsheets(folder_id=<scratch>)` returned the two sheets, `list_folders` returned the one folder, `list_recent_files(max_results=5)` returned five entries, and `list_shared_with_me` returned `[]`. `search_spreadsheets`' description has no "special case", `list_spreadsheets`' opens "List spreadsheets in", and `search_files`' has no "convenience wrapper".
 
 ---
 
@@ -2094,6 +2178,130 @@ import_csv_to_sheet(ragged CSV a,b,c / 1,2 / 4,5,6) → rows_written=3. get_shee
 import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — `a,b,c / 1,2 / 4,5,6` → rows_written=3; `get_sheet_data` `[["a","b","c"],["1","2"],["4","5","6"]]`, short row under a/b with no shift, nothing dropped.
+
+---
+
+### TC-D322: A UTF-8 byte-order mark doesn't reach cell A1 (#1575) ⚠️ requires-oauth ⚠️ local-filesystem
+**Background:** Excel's "CSV UTF-8" export starts the file with the bytes `EF BB BF`. Read as plain UTF-8, they became a U+FEFF character at the start of A1, so the header read `"\ufeffcase"`, the call still succeeded, and nothing in the sheet showed it.
+
+**Setup:** in a scratch directory, write `qa-import-bom.csv` with its bytes exactly `EF BB BF` followed by `case,value\nx,1\n`, e.g. `printf '\xef\xbb\xbfcase,value\nx,1\n' > <scratch>/qa-import-bom.csv`. Confirm with `xxd <scratch>/qa-import-bom.csv | head -1` that it starts `efbb bf63`.
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-import-bom.csv", title="QA TC-D322 BOM", folder_id={FOLDER_ID})`
+2. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="A1:B2")`
+3. `update_cells(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="C1:D1", data=[["=LEN(A1)", "=A1=\"case\""]])`
+4. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="C1:D1")`
+
+**Checks**
+- Step 1 returns `rows_written: 2` and no `error`
+- Step 2's `valueRanges[0].values` is `[["case","value"],["x","1"]]`. U+FEFF is invisible, so this alone doesn't rule it out; step 4 does
+- Step 4's `valueRanges[0].values` is `[["4","TRUE"]]`. Before the fix it was `[["5","FALSE"]]`: A1 held the BOM as a fifth character
+
+**Cleanup:** `delete_file(file_id=<step 1's spreadsheetId>, permanent=True)`; remove the local file.
+
+**Result (2026-11-21) ✅ PASS — PR #1580 round 1 on `mcp-gee-sweet-sky`** — fixture bytes confirmed `efbb bf63`. Step 1: `rows_written: 2`, no `error`, created in the Shared Drive root. Step 2: `valueRanges[0].values` `[["case","value"],["x","1"]]`. Step 4: `[["4","TRUE"]]`, so A1 is exactly `case`. Cleanup done (deleted permanently, local file removed). Checks reworded this round: `get_sheet_data` returns `{spreadsheetId, valueRanges:[{range, values}]}`, not a bare list.
+
+**Result (2026-11-21) ✅ PASS — PR #1580 round 2 on `mcp-gee-sweet-sky`** — re-run after the read-error handling fix (ac41c5d5). `rows_written: 2`; `A1:D2` values `[["case","value","4","TRUE"],["x","1"]]`. Cleanup done.
+
+---
+
+### TC-D323: A non-UTF-8 CSV or a directory named `.csv` returns an error, creating nothing (PR #1580) ⚠️ local-filesystem
+**Background:** a CSV saved in Excel's plain "CSV" format is cp1252, not UTF-8. Reading one raised `UnicodeDecodeError` out of the tool (`Error executing tool import_csv_to_sheet: 'utf-8' codec can't decode byte 0xe9 ...`), and a directory named `x.csv` passed the existence and suffix checks and raised `IsADirectoryError`, instead of returning `{"error": ...}`.
+
+**Setup:** in a scratch directory, write `qa-import-cp1252.csv` with its bytes exactly `caf` `E9` `,1\n`, e.g. `printf 'caf\xe9,1\n' > <scratch>/qa-import-cp1252.csv`, and confirm with `xxd` that byte 3 is `e9`. Create a directory `<scratch>/qa-dir.csv` (`mkdir`).
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-import-cp1252.csv", title="QA TC-D323 cp1252", folder_id={FOLDER_ID})`
+2. `import_csv_to_sheet(local_path="<scratch>/qa-dir.csv", title="QA TC-D323 dir", folder_id={FOLDER_ID})`
+3. `search_files(query="QA TC-D323", folder_id={FOLDER_ID})`
+
+**Checks**
+- Step 1 returns a result whose only key is `error`, starting `File is not valid UTF-8: <scratch>/qa-import-cp1252.csv` and naming `"CSV UTF-8"`. It is a tool result, not a protocol error (`Error executing tool ...`)
+- Step 2 returns only `error`: `Not a regular file: <scratch>/qa-dir.csv`
+- Step 3 finds no file: neither call created a spreadsheet
+
+**Cleanup:** remove the local file and directory.
+
+**Result (2026-11-21) ✅ PASS — PR #1580 round 2 on `mcp-gee-sweet-sky`** — fixture bytes `6361 66e9 2c31 0a`. Step 1: `{"error": "File is not valid UTF-8: <scratch>/qa-import-cp1252.csv (invalid continuation byte). Save it as UTF-8 (in Excel, \"CSV UTF-8\") and import again."}`, a tool result, not `Error executing tool`. Step 2: `{"error": "Not a regular file: <scratch>/qa-dir.csv"}`. Step 3: `{"files": [], "exhaustive": true}`. Local fixtures removed.
+
+---
+
+### TC-D324: The grid is sized to exactly the data, not padded to 1000x26 (#1573) ⚠️ requires-oauth ⚠️ local-filesystem
+**Background:** the grid was `max(rows, 1000)` × `max(columns, 26)`. The padding counts against the workbook's 20M-cell limit, so a 1-column file over ~769k rows was refused as 26 cells a row. The grid now matches the data on both axes.
+
+**Setup:** in a scratch directory write `qa-grid-short.csv` as `a,b\n1,2\n`, and `qa-grid-narrow.csv` as a header plus 1500 rows of one column: `(echo h; seq 1 1500) > <scratch>/qa-grid-narrow.csv`.
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-grid-short.csv", title="QA TC-D324 short", folder_id={FOLDER_ID})`
+2. Read the resource `spreadsheet://<step 1's spreadsheetId>/info`
+3. `import_csv_to_sheet(local_path="<scratch>/qa-grid-narrow.csv", title="QA TC-D324 narrow", folder_id={FOLDER_ID})`
+4. Read the resource `spreadsheet://<step 3's spreadsheetId>/info`
+5. `get_sheet_data(spreadsheet_id=<step 3's spreadsheetId>, sheet="Sheet1", range="A1499:A1501")`
+
+**Checks**
+- Step 1 returns `rows_written: 2`, no `error`
+- Step 2's `sheets[0].gridProperties` has `rowCount: 2` and `columnCount: 2`. Before the fix it was 1000 and 26
+- Step 3 returns `rows_written: 1501`, no `error`
+- Step 4's `sheets[0].gridProperties` has `rowCount: 1501` and `columnCount: 1`. Before the fix: 1501 and 26
+- Step 5's `valueRanges[0].values` is `[["1498"],["1499"],["1500"]]`
+
+**Cleanup:** `delete_file(file_id=<step 1's spreadsheetId>, permanent=True)` and the same for step 3's; remove the local files.
+
+**Result (2026-11-22) ✅ PASS — PR #1589 QA round 1 (Sky) @ e5112546**
+Ran from the `sky` checkout on `mcp-gee-sweet-sky` (OAuth), into the Shared Drive fixture folder. Step 1: `rows_written: 2`. Step 2: `rowCount: 2`, `columnCount: 2`. Step 3: `rows_written: 1501`. Step 4: `rowCount: 1501`, `columnCount: 1`. Step 5: `[["1498"],["1499"],["1500"]]`. Extra probe: a 3x1 CSV whose last cell is `=SPLIT("x y z"," ")` returned `x, y, z` in row 3, and the grid grew to 13 columns by itself. Sheets expands an exact-size grid to fit a spilled result, so sizing the grid to the data doesn't break array formulas.
+
+**Result (2026-11-23) ✅ PASS — PR #1589 QA round 2 (Sky) @ 44875ab5**
+Re-ran on `mcp-gee-sweet-sky` after a reconnect, with the fix that routes the rename-and-resize `batchUpdate` through the same rate-limit pause. Step 1: `rows_written: 2`, grid 2 x 2. Step 3: `rows_written: 1501`, grid 1501 x 1. Step 5: `[["1498"],["1499"],["1500"]]`.
+
+---
+
+### TC-D325: A CSV wider than Sheets' 18,278 columns returns an error, creating nothing (#1573) ⚠️ local-filesystem
+**Background:** a file over Sheets' limits (18,278 columns, or 20,000,000 cells) is refused before the spreadsheet is created. The 20M-cell check needs a file of about 40 MB, so the cell limit is covered by unit tests (`test_grid_limit_error_allows_exactly_the_limits`, `test_csv_over_cell_limit_errors_before_create`) and this case covers the column limit, which a one-line file reaches.
+
+**Setup:** write a one-row CSV of 18,279 columns: `python3 -c "print(','.join(['x'] * 18279))" > <scratch>/qa-wide.csv`.
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-wide.csv", title="QA TC-D325 wide", folder_id={FOLDER_ID})`
+2. `search_files(query="QA TC-D325", folder_id={FOLDER_ID})`
+
+**Checks**
+- Step 1 returns a result whose only key is `error`: `CSV <scratch>/qa-wide.csv has 18,279 columns; a Google Sheet holds at most 18,278. Nothing was created.`
+- Step 2 finds no file
+
+**Cleanup:** remove the local file.
+
+**Result (2026-11-22) ✅ PASS — PR #1589 QA round 1 (Sky) @ e5112546**
+Step 1 returned only `error`: `CSV <scratch>/qa-wide.csv has 18,279 columns; a Google Sheet holds at most 18,278. Nothing was created.` Step 2: `{"files": [], "exhaustive": true}`.
+
+**Result (2026-11-23) ✅ PASS — PR #1589 QA round 2 (Sky) @ 44875ab5**
+Same error text as round 1, and step 2 found no file. The limit check now runs before the rows are padded, and the result is unchanged.
+
+---
+
+### TC-D326: An 800,000-row import waits out Sheets' write quota and lands every row (#1573) ⚠️ requires-oauth ⚠️ local-filesystem
+**Background:** the ticket's own failing file. Its grid was refused outright before the fix; with the grid fixed, 93 of its 160 chunk writes were refused with `429 RATE_LIMIT_EXCEEDED`, since Sheets allows 60 writes a minute per user and every chunk went at once. A 429 now pauses every chunk of the import and resends it.
+
+**Setup:** `seq -f "row-%.0f" 1 800000 > <scratch>/qa-800k.csv` (800,000 lines, one column, about 8 MB). Don't run this case alongside another Sheets-writing case on the same account: they share the quota.
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-800k.csv", title="QA TC-D326 800k", folder_id={FOLDER_ID})`. Expect it to take a few minutes
+2. Read the resource `spreadsheet://<step 1's spreadsheetId>/info`
+3. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="A799999:A800000")`
+4. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="A335000:A335001")`
+
+**Checks**
+- Step 1 returns `rows_written: 800000` and no `error`, `failed_ranges`, or `written_ranges`
+- Step 2's `sheets[0].gridProperties` has `rowCount: 800000` and `columnCount: 1`
+- Step 3's values are `[["row-799999"],["row-800000"]]`
+- Step 4's values are `[["row-335000"],["row-335001"]]`, across a chunk boundary
+
+**Cleanup:** `delete_file(file_id=<step 1's spreadsheetId>, permanent=True)`; remove the local file.
+
+**Result (2026-11-22) ✅ PASS — PR #1589 QA round 1 (Sky) @ e5112546**
+The import took about 3 to 4 minutes (the client moved it to the background after 120 s) and returned `rows_written: 800000` with no `error`, `failed_ranges`, or `written_ranges`. Step 2: `rowCount: 800000`, `columnCount: 1`. Step 3: `[["row-799999"],["row-800000"]]`. Step 4: `[["row-335000"],["row-335001"]]`. Landing every row doesn't show that the shared pause holds back chunks already queued for a worker thread. Round 1's review found it doesn't, and that finding was sent back.
+
+**Result (2026-11-23) ✅ PASS — PR #1589 QA round 2 (Sky) @ 44875ab5**
+With writes capped at 4 in flight (`_CSV_WRITE_CONCURRENCY`), the import ran past the client's 120 s foreground limit and returned `rows_written: 800000` with no `error`, `failed_ranges`, or `written_ranges`. Step 2: `rowCount: 800000`, `columnCount: 1`. Step 3: `[["row-799999"],["row-800000"]]`. Step 4: `[["row-335000"],["row-335001"]]`. Unit tests cover the pause's ordering (`TestCsvImportWriteConcurrency`, `test_a_success_sent_before_the_pause_keeps_the_delay`, `test_no_pause_runs_past_the_deadline`). This case shows only that the capped import still lands every row.
 
 ---
 

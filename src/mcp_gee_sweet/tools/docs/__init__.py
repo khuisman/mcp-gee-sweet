@@ -1,4 +1,3 @@
-from .comments import register as _register_comments
 from .content import register as _register_content
 from .editing import register as _register_editing
 from .images import register as _register_images
@@ -16,6 +15,5 @@ def register(tool):
     _register_tables(tool)
     _register_style(tool)
     _register_layout(tool)
-    _register_comments(tool)
     _register_named_ranges(tool)
     _register_markdown_export(tool)

@@ -66,6 +66,33 @@ If a command file scripts your message verbatim (e.g. `qa-kickoff.md`'s block), 
 
 Don't end an idle turn with wording that sounds like you're still working, even if you expect to be woken soon: a `working` label tells the human something is in progress when nothing is. Confirmed 2026-10-01: Sky and Kit both stopped with no partner PR, and Sky got `done` while Kit, who ended with "awaiting Jay's PR or /notify-partner", got `working`. The mislabeling itself is a harness issue, reported to Claude Code separately.
 
+### Status file
+
+**Every session, Kai included, also keeps a status file, which Kai reads before acting on a PR or ticket** (`kai.md` "Coordinating sessions"). Kai sees only what reaches git and GitHub, so without it Kai can't tell that a session has picked something up (#1557: on 2026-11-20 Kai offered to resolve a conflict on PR #1556 that Rio was already resolving).
+
+The file is `.workspace/status.json` at the root of this session's own checkout: `.claude/worktrees/<name>/.workspace/status.json`, or the main checkout's for Kai. `.workspace` is gitignored, so it's never committed. Replace the whole file with the Write tool each time; never append. One JSON object:
+
+```json
+{"name": "Rio", "updated": "2026-11-20T05:40Z", "state": "waiting-agent",
+ "pr": 1556, "issue": null, "round": 2,
+ "doing": "posted QA round 2's verdict: sent back",
+ "waiting_on": "Ash: a fix for round 2's send-backs"}
+```
+
+- `name`: this session's name from the Roles table.
+- `updated`: the output of `date -u +%Y-%m-%dT%H:%MZ`, run at the time of writing. Never estimate it.
+- `state`: exactly one of four values, and at a turn end it must agree with the closing line above:
+  - `Waiting on you:` → `waiting-user`
+  - `Running:` → `working`
+  - `Idle until`, while this session holds a PR or ticket → `waiting-agent`
+  - `Idle until`, while it holds none → `idle`
+- `pr`, `issue`: the PR or issue number this session holds, else `null`. A QA session holds the PR it reset to; a Dev holds its ticket and, once opened, its PR.
+- `round`: a QA session's current round number on that PR, else `null`.
+- `doing`: one line on what is in progress or just finished.
+- `waiting_on`: who or what this session is waiting for (the user, an agent, CI); `null` when `state` is `working` or `idle`.
+
+Write it at the end of every turn, at the same moment as the closing line. Also write it during a turn, right after each of these transitions and before the next step: creating a ticket branch or resetting to a PR's branch, pushing, opening a PR, posting a verdict or review, and letting a PR or ticket go (a merge reset, a hand-off to a fresh session). On letting go, write `pr` and `issue` as `null`. `/clear` doesn't touch the file, so until the next session writes its own, the last one written still stands for this slot.
+
 ## 5. Sign every PR and issue comment
 
 Every persona posts through the same GitHub account, so a comment's author can't be told apart from its text. **Every comment this session posts on a PR or an issue (`gh pr comment`, `gh issue comment`, `gh pr review` with a body, or an edit to one of those) ends with a last line of exactly `— <Name>`**, using this session's name from the Roles table (e.g. `— Sky`). Nothing goes after it. When a command file prescribes a comment's first line or layout (e.g. `qa.md` steps 7–8), follow that format and add the signature as the final line. PR and issue bodies are out of scope: they end with the Claude Code attribution line instead (#963).

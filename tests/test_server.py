@@ -231,6 +231,8 @@ class TestStartupToolsLine:
         return [c.args[0] for c in info.call_args_list if "Registered" in c.args[0]]
 
     def test_default_names_the_default_group_and_all(self, monkeypatch):
+        # The suite registers every alias; the default selection registers none.
+        monkeypatch.setattr(server, "_registered_aliases", [])
         lines = self._lines(monkeypatch, ["mcp-gee-sweet"], _selection())
         assert len(lines) == 1
         total = len(server._known_tools)
@@ -247,7 +249,7 @@ class TestStartupToolsLine:
 
     def test_all_doesnt_suggest_all(self, monkeypatch):
         lines = self._lines(monkeypatch, ["mcp-gee-sweet"], _selection("all"))
-        assert lines[0].endswith("tools from ENABLED_TOOLS=all.")
+        assert lines[0].endswith(" from ENABLED_TOOLS=all.")
 
     def test_the_smaller_default_warning_is_gone(self, monkeypatch):
         warning = MagicMock()
@@ -1392,13 +1394,14 @@ class TestLocalFilePolicyAtImport:
 
     def test_enabled_tools_all_registers_every_tool(self):
         everything, _ = _import_server_in_subprocess(["mcp-gee-sweet"], {"ENABLED_TOOLS": "all"})
-        assert everything == set(_captured_registrations())
+        # `all` registers every deprecated alias too (#1209).
+        assert everything == set(_captured_registrations()) | set(tool_groups.RENAMED_TOOLS)
 
     def test_include_tools_all_with_a_name_registers_every_tool(self):
         everything, _ = _import_server_in_subprocess(
             ["mcp-gee-sweet", "--include-tools", "all,get_sheet_data"], {}
         )
-        assert everything == set(_captured_registrations())
+        assert everything == set(_captured_registrations()) | set(tool_groups.RENAMED_TOOLS)
 
     def test_a_local_files_group_under_off_warns_for_each_dropped_tool(self):
         _, stderr = _import_server_in_subprocess(

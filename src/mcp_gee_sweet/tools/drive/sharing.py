@@ -8,6 +8,7 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from ..concurrency import report_progress_safe
+from . import _user_fields
 
 logger = logging.getLogger(__name__)
 
@@ -174,8 +175,7 @@ def register(tool):
                 "id": p["id"],
                 "type": p.get("type"),
                 "role": p.get("role"),
-                "email_address": p.get("emailAddress"),
-                "display_name": p.get("displayName"),
+                **_user_fields(p),
                 "domain": p.get("domain"),
                 "expiration_time": p.get("expirationTime"),
                 "deleted": p.get("deleted", False),
