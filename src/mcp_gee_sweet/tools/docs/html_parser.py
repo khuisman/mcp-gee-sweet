@@ -1676,9 +1676,9 @@ class _AstParser(HTMLParser):
                 # (a nested table's <tr> can't imply this table's </caption>).
                 # A second <caption> never reaches here capturing: it's in
                 # _CAPTION_IMPLIED_CLOSERS, so the first closed at its start tag
-                # (#1550). A fresh capture starts a fresh pre state too.
+                # (#1550). A fresh capture starts a fresh break state too.
                 tb.in_caption = True
-                tb.caption_had_pre = False
+                tb.caption_had_break = False
             if tag == "tr":
                 tb.start_row(alignment=_cell_alignment(attr_dict))
                 return
@@ -1948,17 +1948,28 @@ class _AstParser(HTMLParser):
             elif tag in _INLINE_CODE and not self._in_pre:
                 self._code_depth += 1
             elif tag == "pre":
-                # Only reachable in a table cell: a body <pre> is handled above.
+                # Only reachable in a table cell or a caption: a body <pre> is
+                # handled above. Inside a caption, the text captured while this
+                # is open keeps its line breaks as the code's (see handle_data),
+                # not as soft breaks a browser shows as one space.
                 self._cell_pre_depth += 1
-                if self._capturing_caption():
-                    # A <pre> inside this caption: its line breaks are the code's,
-                    # not soft breaks a browser would show as one space (#1550).
-                    self._table_stack[-1].caption_had_pre = True
             elif tag == "br":
                 in_pre = self._in_pre or self._cell_pre_depth > 0
-                self._run_buf.append(_LineBreak("\n" if in_pre else "\v"))
+                # Inside a <pre> in a caption the break is still "\v": the
+                # caption path collapses "\n"s as soft breaks, so the code's own
+                # break can't ride through as one (PR #1586 review).
+                self._run_buf.append(
+                    _LineBreak("\n" if in_pre and not self._capturing_caption() else "\v")
+                )
                 self._ends_with_line_break = True
                 self._segment_had_line_break = True
+                if self._capturing_caption():
+                    # This caption's own <br>: a captured stretch that held one
+                    # is one empty line in a browser even when its final break
+                    # was dropped (#1550). On the table builder, as the capture
+                    # is, so a <br> in an earlier paragraph or cell — none of
+                    # them this caption's — can't leak in (PR #1586 review).
+                    self._table_stack[-1].caption_had_break = True
             elif tag == "img" and not self._in_pre:
                 # In an open block (#333) or a table cell (#1073), where it joins the
                 # cell's children in source order; never inside <pre>, where an
@@ -2048,10 +2059,16 @@ class _AstParser(HTMLParser):
             if self._table_stack:
                 tb = self._table_stack.pop()
                 # The <pre> count of the cell (or caption) this table opened in,
-                # saved at its start tag, goes back to it (#1550).
+                # saved at its start tag, goes back to it (#1550). Consumed
+                # here: a table that opened at table scope saved nothing, and
+                # restoring an earlier table's save again would bring back a
+                # <pre> that closed with the table it belonged to (PR #1586
+                # review).
                 self._cell_pre_depth = (
                     self._table_stack[-1].saved_cell_pre_depth if self._table_stack else 0
                 )
+                if self._table_stack:
+                    self._table_stack[-1].saved_cell_pre_depth = 0
                 node = tb.build()
                 caption = tb.caption_paragraphs
                 # The caption is the table's own text, so it reads above it, as a
@@ -2077,10 +2094,13 @@ class _AstParser(HTMLParser):
                             target.append_caption_runs(chunk)
                         if node is None:
                             # The table built no node, so nothing structural
-                            # follows its caption in the cell: an explicit break
+                            # follows its caption in the cell: a pending break
                             # after the last stretch keeps any cell text after it
-                            # off the caption's line (#1550). A table with rows is
-                            # a block of its own and needs none.
+                            # off the caption's line, drawn only when such text
+                            # or table arrives — never as a trailing blank line
+                            # at the cell's end (#1550, PR #1586 review). A
+                            # table with rows is a block of its own and needs
+                            # none.
                             target.append_caption_runs([], break_after=True)
                 if node is not None:
                     if fields is not None:
@@ -2349,8 +2369,11 @@ class _AstParser(HTMLParser):
         tb.in_caption = False
         # Read before _take_caption_runs resets it: a stretch that held a <br>
         # is one empty line in a browser, whatever its tag, so it stays as an
-        # empty paragraph even when its final break was dropped (#1550).
-        had_break = self._segment_had_line_break
+        # empty paragraph even when its final break was dropped (#1550). On the
+        # builder, so a <br> outside this caption's own capture — an earlier
+        # paragraph, a cell of a table nested inside it — can't leak in (PR
+        # #1586 review).
+        had_break = tb.caption_had_break
         runs = self._take_caption_runs()
         if runs or had_break:
             tb.caption_paragraphs.append(runs)
@@ -2362,15 +2385,18 @@ class _AstParser(HTMLParser):
         inside the caption, which moves its runs so far to the table builder as
         their own captured stretch (PR #1459 review, #1550).
 
-        A caption that held a <pre> keeps its line breaks instead (#1550): they
-        are the code's, as a <pre> block's are, not soft breaks a browser shows
-        as one space — the "\n" a <br> wrote inside the pre included, which stays
-        a line break like the block's own.
+        A caption's <pre> keeps its own line breaks (#1550): the text captured
+        inside one is written "\v" as it arrives (see handle_data), the code's
+        own hard breaks, so the soft-break collapsing below leaves them alone —
+        while the text outside the <pre> keeps collapsing as a browser shows it
+        (PR #1586 review).
 
         The caption path resets _ends_with_line_break and _segment_had_line_break
-        as _open_block does for a block: the flags are per-segment, and the
-        segment after the caption — a row's cells, or the document after the
-        table — starts clean (#1550)."""
+        as _open_block does for a block, and this caption's captured <br> flag
+        with them: the flags are per-segment, and the segment after the caption —
+        a row's cells, or the document after the table — starts clean, as does
+        the caption's next stretch, after a nested table or a second <caption>
+        (#1550)."""
         self._flush_run()
         runs, self._pending_runs = self._pending_runs, []
         # A browser collapses a caption's leading/trailing formatting
@@ -2387,23 +2413,18 @@ class _AstParser(HTMLParser):
         # A caption's text is HTML, not plain lines: its source line breaks are
         # soft breaks a browser shows as one space (or nothing next to a <br>),
         # and a <br> that ends it draws no line — the same rules every block's
-        # text gets in _emit_block_node (#1230). Built straight from the raw
-        # runs, a caption that wrapped across source lines reached the Doc as
-        # two paragraphs, and a trailing <br> left an empty line under it.
-        if self._table_stack and self._table_stack[-1].caption_had_pre:
-            kept: list[Run | Image] = []
-            for r in runs:
-                if isinstance(r, Run) and "\n" in r.text:
-                    kept.append(replace(r, text=r.text.replace("\n", "\v")))
-                else:
-                    kept.append(r)
-            runs = kept
-        else:
-            runs = _collapse_soft_breaks(runs)
+        # text gets in _emit_block_node (#1230). The line breaks of a <pre>
+        # inside the caption are already "\v" (see handle_data), so the
+        # collapsing leaves them hard, as the code's own. Built straight from
+        # the raw runs, a caption that wrapped across source lines reached the
+        # Doc as two paragraphs, and a trailing <br> left an empty line under it.
+        runs = _collapse_soft_breaks(runs)
         if self._ends_with_line_break:
             runs, _ = _drop_final_line_break(runs)
         self._ends_with_line_break = False
         self._segment_had_line_break = False
+        if self._table_stack:
+            self._table_stack[-1].caption_had_break = False
         return runs
 
     def handle_data(self, data):
@@ -2418,6 +2439,13 @@ class _AstParser(HTMLParser):
             # ends the caption.
             if not all(c in _ASCII_FORMATTING_WHITESPACE for c in data):
                 self._ends_with_line_break = False
+            if self._cell_pre_depth > 0:
+                # Inside a <pre> of this caption: the code's own line breaks are
+                # hard breaks, written "\v" now so the soft-break collapsing at
+                # the caption's close leaves them — only the text inside the
+                # <pre> keeps them, and the text outside keeps collapsing as a
+                # browser shows it (PR #1586 review).
+                data = data.replace("\n", "\v")
             self._run_buf.append(data)
             return
         # An "&nbsp;" draws a line in a container, as source indentation doesn't.
@@ -2551,16 +2579,24 @@ class _TableBuilder:
         # a table nested inside the caption has its own builder, and its <tr>
         # never implies this caption's close (PR #1459 review).
         self.in_caption = False
-        # A <pre> opened inside this table's own caption while it captured
-        # (#1550): the caption's line breaks are the code's, not soft breaks.
-        # Reset when a capture starts, since a second <caption> implies the
-        # first one closed.
-        self.caption_had_pre = False
+        # True once this table's own caption's current captured stretch held a
+        # <br> (#1550): a stretch that held one is one empty line in a browser
+        # even when its final break was dropped. On the builder, as the capture
+        # is, so a <br> outside the caption's own capture — an earlier
+        # paragraph, a cell of a table nested inside it — can't leak in (PR
+        # #1586 review). Reset when a capture starts and when a stretch is
+        # taken, so each stretch answers for only its own <br>.
+        self.caption_had_break = False
         # The <pre> count of the cell (or caption) this table opened in, saved
         # at its start tag and restored at its </table>, so an open <pre> never
         # leaks into a nested table's caption or cells, and the enclosing cell's
         # own count comes back when the nested table closes (#1550).
         self.saved_cell_pre_depth = 0
+        # A line break a no-rows nested table's caption left pending at the end
+        # of the cell's content (#1550): drawn only when something follows it
+        # in the cell — the cell's later text, another caption or a nested
+        # table — never as a trailing blank line (PR #1586 review).
+        self._pending_cell_break = False
         # ordered content of the open cell
         self._current_children: list[Run | Image | Table] = []
         # The <caption>'s captured stretches (#1402, #1550), kept instead of
@@ -2602,6 +2638,8 @@ class _TableBuilder:
 
     def append_runs(self, runs: list[Run | Image]):
         """Add flushed text runs to this still-open cell's ordered content."""
+        if runs:
+            self._flush_pending_cell_break()
         self._current_children.extend(runs)
 
     def _cell_break(self):
@@ -2616,28 +2654,41 @@ class _TableBuilder:
             return
         self._current_children.append(Run(text="\v"))
 
+    def _flush_pending_cell_break(self):
+        """Draw the break a no-rows nested caption left pending (see
+        append_caption_runs), if one is."""
+        if self._pending_cell_break:
+            self._pending_cell_break = False
+            self._cell_break()
+
     def append_caption_runs(self, chunk: list[Run | Image], *, break_after: bool = False):
         """Add a captured caption stretch to this still-open cell's ordered content
         (#1402, #1550). A browser draws the caption above the nested table, so when
         the cell already holds text the caption starts on the line after it — not
         joined onto it, which read the cell as one run-together line, and not after
-        a break the cell's last child already drew. break_after adds the line the
-        caption's own text ends on: for a nested table that built no node, nothing
-        structural follows its caption in the cell, so an explicit break is what
-        keeps any later cell text off the caption's line."""
+        a break the cell's last child already drew. break_after leaves the caption's
+        own line pending instead of drawing it: for a nested table that built no
+        node, nothing structural follows its caption in the cell, so the break that
+        keeps later cell text off the caption's line is drawn only when such text
+        arrives — never as a trailing blank line at the cell's end (PR #1586
+        review)."""
         if chunk:
+            self._flush_pending_cell_break()
             self._cell_break()
             self._current_children.extend(chunk)
         if break_after:
-            self._cell_break()
+            self._pending_cell_break = True
 
     def append_nested_table(self, table: Table):
         """Add a completed nested <table> to this still-open cell's ordered content."""
+        self._flush_pending_cell_break()
         self._current_children.append(table)
 
     def end_cell(self, runs: list[Run | Image]):
         if self._current_cell is None:
             return
+        if runs:
+            self._flush_pending_cell_break()
         meta = self._current_cell
         # Record td width for col_widths (first row only)
         if meta["width_pt"] is not None and len(self.rows) == 0:
@@ -2653,6 +2704,9 @@ class _TableBuilder:
         self._current_cell = None
         self.in_cell = False
         self._current_children = []
+        # The cell ended: a break still pending at its end never draws (#1550,
+        # PR #1586 review).
+        self._pending_cell_break = False
 
     def build(self) -> Table | None:
         if not self.rows:

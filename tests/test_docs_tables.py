@@ -708,6 +708,37 @@ class TestTableCaption:
             "b",
         ]
 
+    async def test_a_no_rows_nested_caption_at_a_cells_end_draws_no_trailing_blank_line(self):
+        # PR #1586 review: the break after the caption is drawn only when
+        # something follows it in the cell. A cell ending on the caption ends
+        # on its text, with no trailing "\v" Docs would draw as a blank line —
+        # as develop reads it: a / inner.
+        nodes = html_to_ast(
+            "<table><tr><td>a<table><caption>inner</caption></table></td></tr></table>"
+        )
+        outer = nodes[0].rows[0].cells[0]
+        assert [ch.text if hasattr(ch, "text") else type(ch).__name__ for ch in outer.children] == [
+            "a",
+            "\v",
+            "inner",
+        ]
+
+    async def test_a_pending_caption_break_draws_before_a_nested_table_after_it(self):
+        # PR #1586 review: the same pending break draws before a later nested
+        # table too, keeping the table's block off the caption's line.
+        nodes = html_to_ast(
+            "<table><tr><td>a<table><caption>inner</caption></table>"
+            "<table><tr><td>x</td></tr></table></td></tr></table>"
+        )
+        outer = nodes[0].rows[0].cells[0]
+        assert [ch.text if hasattr(ch, "text") else type(ch).__name__ for ch in outer.children] == [
+            "a",
+            "\v",
+            "inner",
+            "\v",
+            "Table",
+        ]
+
     async def test_text_after_a_nested_table_in_a_caption_reads_on_its_own_line(self):
         # #1550: the nested table inside a caption is dropped (as on develop,
         # deferred with #1402), but the caption's text on either side of it
@@ -779,6 +810,17 @@ class TestTableCaption:
         )
         assert [r.text for r in nodes[0].runs] == ["line1\vline2"]
 
+    async def test_a_pre_in_a_caption_hardens_only_its_own_line_breaks(self):
+        # PR #1586 review: one <pre> used to make every line break in the
+        # caption a hard break. Only the text inside the <pre> keeps its "\n"s;
+        # the caption's own source line break outside it collapses to one
+        # space, as a browser (and develop) shows it.
+        nodes = html_to_ast(
+            "<table><caption>Quarterly\nresults <pre>x\ny</pre></caption>"
+            "<tr><td>c</td></tr></table>"
+        )
+        assert [r.text for r in nodes[0].runs] == ["Quarterly results ", "x\vy"]
+
     async def test_an_open_cell_pre_does_not_leak_into_a_nested_caption(self):
         # #1550: the outer cell's <pre> count is saved when the nested table
         # opens and restored when it closes, so a <br> inside the nested
@@ -796,6 +838,20 @@ class TestTableCaption:
             "\vafter",
             "Table",
         ]
+
+    async def test_a_table_at_table_scope_restores_no_stale_pre_depth(self):
+        # PR #1586 review: saved_cell_pre_depth was saved only when a nested
+        # table opened in a cell or a caption, but every nested </table>
+        # restored it — so a table opened at table scope brought back an
+        # earlier table's count, and the caption after it read its <br> as the
+        # closed <pre>'s "\n" collapsed to a space. The save is consumed at
+        # the restore now, so the caption breaks at its <br> as develop does.
+        nodes = html_to_ast(
+            "<table><tr><td><pre>p<table><tr><td>i</td></tr></table></pre></td></tr>"
+            "<tr><table><tr><td>z</td></tr></table><caption>a<br>b</caption></tr></table>"
+        )
+        assert [r.text for r in nodes[0].runs] == ["a", "\vb"]
+        assert isinstance(nodes[1], Table)
 
     async def test_a_p_in_a_caption_breaks_the_line(self):
         # #1550: a <p> inside a caption can't open a block at table scope, but
@@ -819,6 +875,27 @@ class TestTableCaption:
         nodes = html_to_ast("<table><caption><br></caption><tr><td>c</td></tr></table>")
         assert isinstance(nodes[0], Paragraph)
         assert nodes[0].runs == []
+        assert isinstance(nodes[1], Table)
+
+    async def test_an_empty_caption_picks_up_no_blank_line_from_an_earlier_br(self):
+        # PR #1586 review: a <br> in an earlier paragraph used to leak into an
+        # empty caption through the parser's segment flag, reading as one blank
+        # line above the table. The flag lives on the table builder now,
+        # cleared when the capture starts, so only the caption's own <br>
+        # counts.
+        nodes = html_to_ast("<p>a<br>b</p><table><caption></caption><tr><td>c</td></tr></table>")
+        assert [type(n).__name__ for n in nodes] == ["Paragraph", "Table"]
+        assert [r.text for r in nodes[0].runs] == ["a", "\vb"]
+
+    async def test_a_br_in_a_table_nested_in_a_caption_sets_no_caption_blank_line(self):
+        # PR #1586 review, same leak from the other side: a <br> in a cell of a
+        # table nested inside the caption isn't the caption's, so the resumed
+        # stretch after it reads as nothing, not as one blank line.
+        nodes = html_to_ast(
+            "<table><caption>Title<table><tr><td>a<br>b</td></tr></table>"
+            "</caption><tr><td>y</td></tr></table>"
+        )
+        assert [[r.text for r in n.runs] for n in nodes[:1]] == [["Title"]]
         assert isinstance(nodes[1], Table)
 
     async def test_an_unclosed_table_at_end_of_input_keeps_its_caption(self):
