@@ -1032,10 +1032,11 @@ class TestContainerText:
         # (#1551, in the next test).
         assert _para_texts("<h2>x<div>y</div>z</h2>") == ["x\vy\vz"]
         nodes = html_to_ast("<div><p>x<div>y</div>z</p>after</div>")
-        # A browser's parser closes the <p> at the inner <div>'s start tag:
-        # three paragraphs, and "z" joins "after" as one anonymous line in the
-        # outer container, as adjacent text nodes do in a browser (#1551).
-        assert ["".join(r.text for r in n.runs) for n in nodes] == ["x", "y", "zafter"]
+        # A browser's parser closes the <p> at the inner <div>'s start tag, and
+        # the stray </p> that follows "z" is an empty <p> there: a block
+        # boundary between "z" and "after", so they sit on separate lines, as
+        # they do on develop and in a browser (#1551 review, item 7).
+        assert ["".join(r.text for r in n.runs) for n in nodes] == ["x", "y", "z", "after"]
 
     def test_div_wrapping_a_list_items_text_is_still_the_bullet(self):
         nodes = html_to_ast("<ul><li><div>x</div></li></ul>")
@@ -1493,6 +1494,91 @@ class TestContainerInOpenBlockBreaksItsText:
                     continue
                 assert parser._segment_visible_size() == naive_visible(parser)
                 assert parser._segment_is_only_a_task_list_marker() == naive_marker(parser)
+
+    def test_text_after_the_container_keeps_the_ps_inline_span(self):
+        # #1551 review, item 1: the <p> a container closes keeps its inline
+        # tags open — their span formats the container's text and what follows
+        # it, as a browser reconstructs its formatting elements past the
+        # boundary — where the text after the container used to be dropped
+        # (the still-open inline tag kept _tag_depth above 0, so no block took
+        # it) and the container's text lost the style.
+        nodes = html_to_ast("<p><b>a<div>b</div>c</b></p>")
+        assert [_node_text(n) for n in nodes] == ["a", "b", "c"]
+        assert all(r.bold for n in nodes for r in n.runs)
+        # <span> and <a href> lose the text the same way; both keep it too, the
+        # link riding on every run as the span does.
+        nodes = html_to_ast("<p><span>a<div>b</div>c</span></p>")
+        assert [_node_text(n) for n in nodes] == ["a", "b", "c"]
+        nodes = html_to_ast('<p><a href="u">a<div>b</div>c</a></p>')
+        assert [_node_text(n) for n in nodes] == ["a", "b", "c"]
+        assert all(r.link_url == "u" for n in nodes for r in n.runs)
+
+    def test_a_list_inside_the_container_keeps_its_items(self):
+        # #1551 review, item 2: a nested list inside the container interrupts
+        # the item, so the container's stretch ends there — the nested <li>
+        # opens its block and its item appears, as on develop, where
+        # _in_block_container() staying true made it vanish.
+        nodes = html_to_ast("<ul><li>a<div><ul><li>c</li></ul></div></li></ul>")
+        assert [type(n).__name__ for n in nodes] == ["BulletItem", "BulletItem"]
+        assert [_node_text(n) for n in nodes] == ["a", "c"]
+        assert [n.depth for n in nodes] == [0, 1]
+
+    def test_the_ps_text_after_the_container_collapses_its_soft_breaks(self):
+        # #1551 review, item 3: the text after the container is the <p>'s
+        # continuation — a real paragraph whose source line breaks collapse,
+        # as the <p>'s own text's do, where the implicit top-level paragraph
+        # kept them and gave "c" and "d" separate paragraphs (and empty ones
+        # in pretty-printed HTML).
+        nodes = html_to_ast("<p>a<div>b</div>c\nd</p>")
+        assert [_node_text(n) for n in nodes] == ["a", "b", "c d"]
+
+    def test_a_p_that_interrupted_a_list_item_leaves_no_frame_behind(self):
+        # #1551 review, item 4: the <p> that interrupted the item ends at the
+        # container, and its </p> still resumes the item — the frame doesn't
+        # outlive it to be resumed by a later </p>, which made "two" parse as
+        # a list-item segment instead of the paragraph it is on develop.
+        nodes = html_to_ast("<ul><li>x<p>a<div>b</div></p>y</li></ul><p>one</p>two")
+        assert [type(n).__name__ for n in nodes] == ["BulletItem"] + ["Paragraph"] * 5
+        assert [_node_text(n) for n in nodes] == ["x", "a", "b", "y", "one", "two"]
+        assert [tuple(n.list_path) for n in nodes] == [(1,), (1,), (1,), (1,), (), ()]
+
+    def test_the_close_side_break_stays_out_of_table_cells(self):
+        # #1551 review, item 5: the end-tag branch has the same table and <pre>
+        # guards the start-tag side has, so a </p> inside a cell draws no
+        # line — "x\vy" in the cell reads "xy" again, as on develop.
+        nodes = html_to_ast("<li>a<div><table><tr><td><p>x</p>y</td></tr></table></div></li>")
+        cell = nodes[1].rows[0].cells[0]
+        assert "".join(r.text for r in cell.children if isinstance(r, Run)) == "xy"
+
+    def test_a_task_marker_followed_by_a_line_break(self):
+        # #1551 review, item 6: a marker whose following space is a line break
+        # is the same marker — the stripper, the container guard and the
+        # segment state machine share the definition — so both spellings read
+        # as a checkbox item "task", as develop did and as a Markdown "- [ ]"
+        # with its text on the next line arrives.
+        nodes = html_to_ast("<li>[ ] \n  task</li>")
+        assert nodes[0].checked is False
+        assert _node_text(nodes[0]) == "task"
+        nodes = html_to_ast("<li>[ ]\ntask</li>")
+        assert nodes[0].checked is False
+        assert _node_text(nodes[0]) == "task"
+
+    def test_the_soft_break_collapse_is_linear_in_breaks(self):
+        # #1551 review, item 8: the whitespace pass beside a "\v" no longer
+        # scans all of `edits` per stretch (K breaks cost O(K²) there); the
+        # spans it builds can never overlap a "\n" stretch, so the check was
+        # dead. K <br>s parse in linear time again.
+        import time
+
+        def elapsed(html):
+            start = time.perf_counter()
+            html_to_ast(html)
+            return time.perf_counter() - start
+
+        small = elapsed("<p>" + "a <br> b" * 100 + "</p>")
+        big = elapsed("<p>" + "a <br> b" * 800 + "</p>")
+        # 8x the breaks, well under 8x the time (the old scan was ~64x).
+        assert big < small * 20
 
 
 class TestMdToHtml:

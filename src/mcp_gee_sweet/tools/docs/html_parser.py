@@ -104,16 +104,28 @@ _TABLE_STRUCTURE_TAGS = {
 # _make_bullet_item strips. One definition for the stripper and the container
 # break's guard, so the two can't disagree on what a marker is (#1551).
 _TASK_LIST_MARKERS = ("[x] ", "[X] ", "[ ] ")
+# The same markers without the following space: a source line break right after
+# one is that space's stand-in — the soft-break collapse develop read the item
+# through turned "[ ]\ntask" into "[ ] task" — so the stripper takes the base
+# plus the break as the marker, and a <br> is not it: "[ ]<br>x" is the item's
+# own text and break, as "[x]" with nothing after it is (#1551 review).
+_TASK_LIST_MARKER_BASES = tuple(marker[:-1] for marker in _TASK_LIST_MARKERS)
 
 
 def _strips_task_list_marker(text: str) -> str | None:
-    """The task-list marker `text` begins with, exactly as _make_bullet_item strips
-    it (#1551): one of _TASK_LIST_MARKERS. None when there is none — a marker with
-    no following space, or one behind leading whitespace, is the item's own text
-    and stays."""
+    """The task-list marker `text` begins with, exactly as the item's text loses
+    it (#1551): one of _TASK_LIST_MARKERS, or one of _TASK_LIST_MARKER_BASES
+    followed by a line break "\n" — the break the collapse would have left as
+    the marker's own following space, so the item's text starts after it, as a
+    Markdown "- [ ]" with its text on the next line reads. None when there is
+    none — a marker with no following space or break, or one behind leading
+    whitespace, is the item's own text and stays."""
     for marker in _TASK_LIST_MARKERS:
         if text.startswith(marker):
             return marker
+    for base in _TASK_LIST_MARKER_BASES:
+        if text.startswith(base) and text[len(base) : len(base) + 1] == "\n":
+            return base
     return None
 
 
@@ -123,7 +135,10 @@ def _task_marker_head(head: str, text: str) -> str:
     _TASK_LIST_MARKERS still matches, "marker" once the whole marker is in with
     nothing but formatting whitespace after it, and "other" the moment anything
     else arrives — a non-marker character, leading whitespace before any marker,
-    a line break (fed as "other"), or an image. O(1) to query, where the old
+    a line break inside the marker's first three characters, or an image; a
+    <br> is never part of a marker-only segment. The marker's last character
+    may be a line break "\n" in the space's stead, agreeing with
+    _strips_task_list_marker's bases rule. O(1) to query, where the old
     guard rescanned the whole segment for every container."""
     if head == "other":
         return head
@@ -134,7 +149,9 @@ def _task_marker_head(head: str, text: str) -> str:
         if len(acc) == len(_TASK_LIST_MARKERS[0]):
             if c not in _ASCII_FORMATTING_WHITESPACE:
                 return "other"
-        elif not any(m[len(acc)] == c for m in _TASK_LIST_MARKERS):
+        elif not any(m[len(acc)] == c for m in _TASK_LIST_MARKERS) and not (
+            len(acc) == 3 and c == "\n"
+        ):
             return "other"
         else:
             acc += c
@@ -260,6 +277,12 @@ class _OpenElement:
     # segment). None while this element is no such container (#1551: the three
     # fields became one, and presence is the flag).
     container_in_block: tuple[int, int] | None = None
+    # A <p> whose block a container closed (#1551): the element itself, and the
+    # inline tags it holds, stay open — their span keeps formatting the text
+    # around the container, as a browser reconstructs its formatting elements
+    # past the boundary — until the element's own end tag inserts the boundary
+    # a browser's stray-</p> empty <p> draws (see _close_element).
+    p_split: bool = False
 
 
 # <mark> highlights its text in yellow, a browser's default <mark> color (#1119).
@@ -503,10 +526,10 @@ def _collapse_soft_breaks(runs: list[Run | Image]) -> list[Run | Image]:
         at_line_break = joined[start - 1] == "\v" or joined[end] == "\v"
         edits.append((start, end, "" if at_line_break else " "))
     for start, end in _break_adjacent_whitespace_spans(joined):
+        # A "\v"-adjacent stretch never holds a "\n" (that pass excludes them),
+        # so it can never overlap a "\n" span above — no overlap check scans
+        # `edits` per stretch, which made K breaks cost O(K²) (#1551 review).
         if start == 0 or end == len(joined):
-            continue
-        if any(s < end and e > start for s, e, _ in edits):
-            # Already part of a "\n" stretch above, widened over its whitespace.
             continue
         edits.append((start, end, ""))
     if not edits:
@@ -543,13 +566,31 @@ def _collapse_soft_breaks(runs: list[Run | Image]) -> list[Run | Image]:
     return result
 
 
+def _strip_leading_run_break(text: str) -> str:
+    """`text` without the line break that follows a task-list marker (#1551
+    review): a source line break with its indentation — the soft-break collapse
+    reads the break as the marker's own following space, so the item's text
+    starts after it, exactly as develop's post-collapse strip left it — or a
+    <br>'s "\v", which draws no line of the item's own. A whitespace stretch
+    holding no break keeps: it is the item's own spacing, not one."""
+    i = 0
+    while i < len(text) and text[i] in _ASCII_FORMATTING_WHITESPACE:
+        i += 1
+    if i and ("\n" in text[:i] or text[i : i + 1] == "\v"):
+        text = text[i:]
+    if text.startswith("\v"):
+        text = text[1:]
+    return text
+
+
 def _take_task_list_marker(runs: list[Run | Image]) -> tuple[list[Run | Image], bool | None]:
     """Strip a fresh <li>'s leading task-list marker, as markdown-it writes it
-    (#1551): one of _TASK_LIST_MARKERS, plus a <br> right after it — which draws
-    no line, the item's text starting on the marker's own line, where it used to
-    begin with a leading "\v" — and return the runs and the checkbox state.
-    Called before the soft-break collapse, whose "\v"-adjacent whitespace pass
-    would otherwise eat the marker's trailing space beside that <br>.
+    (#1551): one of _TASK_LIST_MARKERS — or one of _TASK_LIST_MARKER_BASES
+    whose following space is a line break, as a Markdown "- [ ]" with its text
+    on the next line arrives — plus the break that follows it, which draws no
+    line: a <br>, or the source line break that reads as the marker's own
+    space. Called before the soft-break collapse, whose "\v"-adjacent whitespace
+    pass would otherwise eat the marker's trailing space beside that <br>.
     An image can never be the first child here in practice (markdown always wraps
     a bare "![]()" in its own <p>, never mixes it as literal leading text before a
     checkbox marker) but the isinstance guard keeps this robust regardless."""
@@ -557,14 +598,17 @@ def _take_task_list_marker(runs: list[Run | Image]) -> tuple[list[Run | Image], 
     if runs and isinstance(runs[0], Run):
         marker = _strips_task_list_marker(runs[0].text)
         if marker is not None:
-            checked = marker != "[ ] "
+            checked = not marker.startswith("[ ]")
             runs[0].text = runs[0].text[len(marker) :]
             if not runs[0].text:
                 runs.pop(0)
-            if runs and isinstance(runs[0], Run) and runs[0].text.startswith("\v"):
-                runs[0].text = runs[0].text[1:]
-                if not runs[0].text:
-                    runs.pop(0)
+            if runs and isinstance(runs[0], Run):
+                head = runs[0].text
+                stripped = _strip_leading_run_break(head)
+                if stripped != head:
+                    runs[0].text = stripped
+                    if not runs[0].text:
+                        runs.pop(0)
     return runs, checked
 
 
@@ -876,6 +920,12 @@ class _AstParser(HTMLParser):
         # "empty" at the segment's start, "marker" while it holds nothing but a
         # marker and formatting whitespace, "other" once anything else arrived.
         self._segment_head = "empty"
+        # True while the <p> a container closed is still waiting for its own
+        # end tag (#1551): the text around the container is that paragraph's
+        # continuation — it opens a block of its own (see handle_data) that the
+        # pending </p> ends, as a browser's stray-</p> empty <p> draws the
+        # boundary — and the inline tags the <p> holds stay live across it.
+        self._p_split_pending = False
         # Open hidden elements (_is_hidden): nothing inside one reaches the Doc.
         self._hidden_depth = 0
 
@@ -1124,10 +1174,19 @@ class _AstParser(HTMLParser):
 
     def _in_block_container(self) -> bool:
         """Whether a block container that opened inside an open block (#1403) is
-        still open: a block tag inside it stays local to the container's stretch
-        (#1551), where it would otherwise interrupt the outer block and split
-        the item."""
-        return any(e.container_in_block is not None for e in self._open_elements)
+        still open *in that block's own segment* (#1551 review): a block tag
+        inside it stays local to the container's stretch, where it would
+        otherwise interrupt the outer block and split the item. A construct that
+        interrupts the outer block — a nested list, table, quote or code block
+        inside the container — ends the stretch: _interrupt_open_block cleared
+        _block_tag, so the container's blocks open normally again and its nested
+        <li> keeps its items, exactly as on develop. Also False with no block
+        open at all: the container's element outlives the outer block's close,
+        but its stretch died with it."""
+        return (
+            self._block_tag is not None
+            and any(e.container_in_block is not None for e in self._open_elements)
+        )
 
     def _capturing_caption(self) -> bool:
         """True while the innermost open table's own <caption> is capturing text
@@ -1222,7 +1281,37 @@ class _AstParser(HTMLParser):
         self._emit_block_node(tag, runs)
         self._block_tag = None
         self._block_named_style = None
-        self._close_dangling_inline_formatting()
+        if not self._p_split_pending:
+            # While a container-split <p> is still open (#1551), the inline
+            # tags it holds stay live across the boundary for the text after
+            # it — the pending </p> closes them (see _close_element); any other
+            # block boundary closes them as it always did.
+            self._close_dangling_inline_formatting()
+
+    def _close_paragraph_at_container(self):
+        """The <p> a container just interrupted (#1551): its text so far goes out
+        as the paragraph's own node, as a browser's parser closes it at any
+        block-level start tag — but the element itself, and the inline tags it
+        holds, stay open. Their span keeps formatting the container's text and
+        what follows it, as a browser reconstructs its formatting elements past
+        the boundary, where closing the dangling inline state here lost the
+        bold on the container's text and dropped the text after it entirely
+        (#1551 review). The element takes p_split, and its own end tag still
+        inserts the boundary a browser's stray-</p> empty <p> draws: the
+        continuation block the window grows (see handle_data) ends, the kept
+        inline state closes, and an interrupted block resumes — see
+        _close_element."""
+        tag = self._block_tag
+        self._trim_source_line_break()
+        runs = _without_trailing_line_break(self._flush_pending_runs())
+        self._emit_block_node(tag, runs)
+        self._block_tag = None
+        self._block_named_style = None
+        self._p_split_pending = True
+        for element in reversed(self._open_elements):
+            if element.tag == "p":
+                element.p_split = True
+                break
 
     def _trim_source_line_break(self):
         """Drop whitespace holding a line break from the end of the text not yet flushed,
@@ -1928,7 +2017,7 @@ class _AstParser(HTMLParser):
         if tag in _CONTAINER_TAGS and self._table_depth == 0:
             self._end_anonymous_block(implicit_too=True)
             if self._block_tag == "p":
-                self._end_open_block_text()
+                self._close_paragraph_at_container()
             if self._block_tag is None:
                 self._open_elements[-1].container_text = True
                 self._container_depth += 1
@@ -2365,6 +2454,24 @@ class _AstParser(HTMLParser):
                 self._open_block("li", resumed=True, named_style=None)
             return
 
+        # --- the </p> of a <p> a container split (#1551) ---
+        # The container already closed its block (see
+        # _close_paragraph_at_container); this end tag is the boundary a
+        # browser's stray-</p> empty <p> draws. The continuation block the
+        # window grew ends here — "z" and "after" sit on separate lines, as a
+        # browser draws them — the inline state the split kept alive closes
+        # with the element, so nothing leaks past it, and an interrupted block
+        # (a <p> that opened inside a list item, #1094) resumes, as its own
+        # </p> always resumed it — where the frame left on _block_stack made a
+        # later </p> resume it instead, and text after it parse as the item's.
+        if tag == "p" and element.p_split:
+            self._p_split_pending = False
+            if self._block_tag == _ANONYMOUS_BLOCK:
+                self._end_open_block_text()
+            self._close_dangling_inline_formatting()
+            self._resume_interrupted_block("p")
+            return
+
         # --- transparent paragraph inside a list item (#1111) ---
         # Its start tag opened no block of its own, so there is nothing here to
         # emit: the item's `</li>` builds the BulletItem from the runs collected
@@ -2395,7 +2502,16 @@ class _AstParser(HTMLParser):
         # --- a block tag closing inside an in-block container (#1551) ---
         # The same line its start tag draws (see handle_starttag): a </p> after
         # text ends that paragraph's line, as the container's box shows it.
-        if self._in_block_container() and tag in _BLOCK_TAGS and self._tail_kind() == "text":
+        # The same guards the start-tag side has: never inside a table cell
+        # (#1551 review — a block boundary inside one is not the container's
+        # box, and "x\vy" in the cell lost develop's "xy"), never in <pre>.
+        if (
+            self._in_block_container()
+            and tag in _BLOCK_TAGS
+            and self._table_depth == 0
+            and not self._in_pre
+            and self._tail_kind() == "text"
+        ):
             self._flush_run()
             self._run_buf.append(_LineBreak("\v"))
             self._ends_with_line_break = True
@@ -2600,12 +2716,30 @@ class _AstParser(HTMLParser):
                 self._ends_with_line_break = False
             self._note_text(data)
             self._run_buf.append(data)
-        elif self._table_depth == 0 and self._tag_depth == 0 and data.strip():
+        elif (
+            self._table_depth == 0
+            and (self._tag_depth == 0 or self._p_split_pending)
+            and data.strip()
+        ):
             # Genuinely bare text — no wrapping block tag, no enclosing tag of
             # any kind (#343). Implicitly open a paragraph so it isn't
             # silently dropped the way inline-only content
             # (e.g. "<span>no blocks</span>") intentionally is.
-            self._open_block("p", resumed=False, named_style=None, implicit=True)
+            if self._p_split_pending:
+                # The text after a container that closed a <p> is that
+                # paragraph's continuation (#1551 review), not bare text: it
+                # opens a real anonymous block — whose source line breaks
+                # collapse, as the <p>'s own text's do, where the implicit
+                # paragraph kept them — and it opens with an inline tag of the
+                # <p> still open too, whose span the split kept alive, where
+                # bare text dropped it. The pending </p> ends it, as a
+                # browser's stray-</p> empty <p> draws the boundary.
+                data = _without_line_break_edge(data, leading=True)
+                if not data:
+                    return
+                self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None)
+            else:
+                self._open_block("p", resumed=False, named_style=None, implicit=True)
             self._note_text(data)
             self._run_buf.append(data)
 
