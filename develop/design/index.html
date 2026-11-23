@@ -1464,6 +1464,11 @@
 <td>#1030/#1032: <code>http_transport.invalidating</code> around every Docs edit and Drive folder-changing write (abandoned-request hook plus an invalidation on every exit, <code>on_success=False</code> where a skip decides), <code>_FolderInvalidation</code> falling back to <code>mark_all_dirty()</code> when only the response names the folder, <code>sync_folder</code> wrapped per level, <code>DocContentCache.store</code> epoch guard</td>
 </tr>
 <tr>
+<td><a href="csv-import-grid-and-quota/">CSV Import: Exact Grid Sizing and the Write Quota</a></td>
+<td>2026-11-22</td>
+<td>#1573: <code>import_csv_to_sheet</code>'s grid sized exactly to the data, limits checked before create, columns resized before rows (Sheets checks a row change against the current column count), and one shared pause per import for 429s from the 60 writes/minute quota; the live measurements behind each</td>
+</tr>
+<tr>
 <td><a href="tool-reduction/">Tool Reduction</a></td>
 <td>2026-11-14</td>
 <td>#1514, proposed: a merge rule (same operation and annotations, same permission decision, no schema union, still findable, local-file boundary), every registered tool marked kept, merged or removed in three tiers (143 → 128 → 122 → 117), one Drive finder absorbing five listings with #1202 folded in, a six-tool comments shape against the decided eleven, deprecation and order</td>

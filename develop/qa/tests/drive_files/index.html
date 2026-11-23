@@ -2940,6 +2940,61 @@ import_csv_to_sheet; 12k-row import verified at every chunk boundary.</p>
 <p><strong>Cleanup:</strong> remove the local file and directory.</p>
 <p><strong>Result (2026-11-21) ✅ PASS — PR #1580 round 2 on <code>mcp-gee-sweet-sky</code></strong> — fixture bytes <code>6361 66e9 2c31 0a</code>. Step 1: <code>{"error": "File is not valid UTF-8: &lt;scratch&gt;/qa-import-cp1252.csv (invalid continuation byte). Save it as UTF-8 (in Excel, \"CSV UTF-8\") and import again."}</code>, a tool result, not <code>Error executing tool</code>. Step 2: <code>{"error": "Not a regular file: &lt;scratch&gt;/qa-dir.csv"}</code>. Step 3: <code>{"files": [], "exhaustive": true}</code>. Local fixtures removed.</p>
 <hr />
+<h3 id="tc-d324-the-grid-is-sized-to-exactly-the-data-not-padded-to-1000x26-1573-requires-oauth-local-filesystem">TC-D324: The grid is sized to exactly the data, not padded to 1000x26 (#1573) ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-d324-the-grid-is-sized-to-exactly-the-data-not-padded-to-1000x26-1573-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> the grid was <code>max(rows, 1000)</code> × <code>max(columns, 26)</code>. The padding counts against the workbook's 20M-cell limit, so a 1-column file over ~769k rows was refused as 26 cells a row. The grid now matches the data on both axes.</p>
+<p><strong>Setup:</strong> in a scratch directory write <code>qa-grid-short.csv</code> as <code>a,b\n1,2\n</code>, and <code>qa-grid-narrow.csv</code> as a header plus 1500 rows of one column: <code>(echo h; seq 1 1500) &gt; &lt;scratch&gt;/qa-grid-narrow.csv</code>.</p>
+<p><strong>Steps</strong>
+1. <code>import_csv_to_sheet(local_path="&lt;scratch&gt;/qa-grid-short.csv", title="QA TC-D324 short", folder_id={FOLDER_ID})</code>
+2. Read the resource <code>spreadsheet://&lt;step 1's spreadsheetId&gt;/info</code>
+3. <code>import_csv_to_sheet(local_path="&lt;scratch&gt;/qa-grid-narrow.csv", title="QA TC-D324 narrow", folder_id={FOLDER_ID})</code>
+4. Read the resource <code>spreadsheet://&lt;step 3's spreadsheetId&gt;/info</code>
+5. <code>get_sheet_data(spreadsheet_id=&lt;step 3's spreadsheetId&gt;, sheet="Sheet1", range="A1499:A1501")</code></p>
+<p><strong>Checks</strong>
+- Step 1 returns <code>rows_written: 2</code>, no <code>error</code>
+- Step 2's <code>sheets[0].gridProperties</code> has <code>rowCount: 2</code> and <code>columnCount: 2</code>. Before the fix it was 1000 and 26
+- Step 3 returns <code>rows_written: 1501</code>, no <code>error</code>
+- Step 4's <code>sheets[0].gridProperties</code> has <code>rowCount: 1501</code> and <code>columnCount: 1</code>. Before the fix: 1501 and 26
+- Step 5's <code>valueRanges[0].values</code> is <code>[["1498"],["1499"],["1500"]]</code></p>
+<p><strong>Cleanup:</strong> <code>delete_file(file_id=&lt;step 1's spreadsheetId&gt;, permanent=True)</code> and the same for step 3's; remove the local files.</p>
+<p><strong>Result (2026-11-22) ✅ PASS — PR #1589 QA round 1 (Sky) @ e5112546</strong>
+Ran from the <code>sky</code> checkout on <code>mcp-gee-sweet-sky</code> (OAuth), into the Shared Drive fixture folder. Step 1: <code>rows_written: 2</code>. Step 2: <code>rowCount: 2</code>, <code>columnCount: 2</code>. Step 3: <code>rows_written: 1501</code>. Step 4: <code>rowCount: 1501</code>, <code>columnCount: 1</code>. Step 5: <code>[["1498"],["1499"],["1500"]]</code>. Extra probe: a 3x1 CSV whose last cell is <code>=SPLIT("x y z"," ")</code> returned <code>x, y, z</code> in row 3, and the grid grew to 13 columns by itself. Sheets expands an exact-size grid to fit a spilled result, so sizing the grid to the data doesn't break array formulas.</p>
+<p><strong>Result (2026-11-23) ✅ PASS — PR #1589 QA round 2 (Sky) @ 44875ab5</strong>
+Re-ran on <code>mcp-gee-sweet-sky</code> after a reconnect, with the fix that routes the rename-and-resize <code>batchUpdate</code> through the same rate-limit pause. Step 1: <code>rows_written: 2</code>, grid 2 x 2. Step 3: <code>rows_written: 1501</code>, grid 1501 x 1. Step 5: <code>[["1498"],["1499"],["1500"]]</code>.</p>
+<hr />
+<h3 id="tc-d325-a-csv-wider-than-sheets-18278-columns-returns-an-error-creating-nothing-1573-local-filesystem">TC-D325: A CSV wider than Sheets' 18,278 columns returns an error, creating nothing (#1573) ⚠️ local-filesystem<a class="headerlink" href="#tc-d325-a-csv-wider-than-sheets-18278-columns-returns-an-error-creating-nothing-1573-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> a file over Sheets' limits (18,278 columns, or 20,000,000 cells) is refused before the spreadsheet is created. The 20M-cell check needs a file of about 40 MB, so the cell limit is covered by unit tests (<code>test_grid_limit_error_allows_exactly_the_limits</code>, <code>test_csv_over_cell_limit_errors_before_create</code>) and this case covers the column limit, which a one-line file reaches.</p>
+<p><strong>Setup:</strong> write a one-row CSV of 18,279 columns: <code>python3 -c "print(','.join(['x'] * 18279))" &gt; &lt;scratch&gt;/qa-wide.csv</code>.</p>
+<p><strong>Steps</strong>
+1. <code>import_csv_to_sheet(local_path="&lt;scratch&gt;/qa-wide.csv", title="QA TC-D325 wide", folder_id={FOLDER_ID})</code>
+2. <code>search_files(query="QA TC-D325", folder_id={FOLDER_ID})</code></p>
+<p><strong>Checks</strong>
+- Step 1 returns a result whose only key is <code>error</code>: <code>CSV &lt;scratch&gt;/qa-wide.csv has 18,279 columns; a Google Sheet holds at most 18,278. Nothing was created.</code>
+- Step 2 finds no file</p>
+<p><strong>Cleanup:</strong> remove the local file.</p>
+<p><strong>Result (2026-11-22) ✅ PASS — PR #1589 QA round 1 (Sky) @ e5112546</strong>
+Step 1 returned only <code>error</code>: <code>CSV &lt;scratch&gt;/qa-wide.csv has 18,279 columns; a Google Sheet holds at most 18,278. Nothing was created.</code> Step 2: <code>{"files": [], "exhaustive": true}</code>.</p>
+<p><strong>Result (2026-11-23) ✅ PASS — PR #1589 QA round 2 (Sky) @ 44875ab5</strong>
+Same error text as round 1, and step 2 found no file. The limit check now runs before the rows are padded, and the result is unchanged.</p>
+<hr />
+<h3 id="tc-d326-an-800000-row-import-waits-out-sheets-write-quota-and-lands-every-row-1573-requires-oauth-local-filesystem">TC-D326: An 800,000-row import waits out Sheets' write quota and lands every row (#1573) ⚠️ requires-oauth ⚠️ local-filesystem<a class="headerlink" href="#tc-d326-an-800000-row-import-waits-out-sheets-write-quota-and-lands-every-row-1573-requires-oauth-local-filesystem" title="Permanent link">&para;</a></h3>
+<p><strong>Background:</strong> the ticket's own failing file. Its grid was refused outright before the fix; with the grid fixed, 93 of its 160 chunk writes were refused with <code>429 RATE_LIMIT_EXCEEDED</code>, since Sheets allows 60 writes a minute per user and every chunk went at once. A 429 now pauses every chunk of the import and resends it.</p>
+<p><strong>Setup:</strong> <code>seq -f "row-%.0f" 1 800000 &gt; &lt;scratch&gt;/qa-800k.csv</code> (800,000 lines, one column, about 8 MB). Don't run this case alongside another Sheets-writing case on the same account: they share the quota.</p>
+<p><strong>Steps</strong>
+1. <code>import_csv_to_sheet(local_path="&lt;scratch&gt;/qa-800k.csv", title="QA TC-D326 800k", folder_id={FOLDER_ID})</code>. Expect it to take a few minutes
+2. Read the resource <code>spreadsheet://&lt;step 1's spreadsheetId&gt;/info</code>
+3. <code>get_sheet_data(spreadsheet_id=&lt;step 1's spreadsheetId&gt;, sheet="Sheet1", range="A799999:A800000")</code>
+4. <code>get_sheet_data(spreadsheet_id=&lt;step 1's spreadsheetId&gt;, sheet="Sheet1", range="A335000:A335001")</code></p>
+<p><strong>Checks</strong>
+- Step 1 returns <code>rows_written: 800000</code> and no <code>error</code>, <code>failed_ranges</code>, or <code>written_ranges</code>
+- Step 2's <code>sheets[0].gridProperties</code> has <code>rowCount: 800000</code> and <code>columnCount: 1</code>
+- Step 3's values are <code>[["row-799999"],["row-800000"]]</code>
+- Step 4's values are <code>[["row-335000"],["row-335001"]]</code>, across a chunk boundary</p>
+<p><strong>Cleanup:</strong> <code>delete_file(file_id=&lt;step 1's spreadsheetId&gt;, permanent=True)</code>; remove the local file.</p>
+<p><strong>Result (2026-11-22) ✅ PASS — PR #1589 QA round 1 (Sky) @ e5112546</strong>
+The import took about 3 to 4 minutes (the client moved it to the background after 120 s) and returned <code>rows_written: 800000</code> with no <code>error</code>, <code>failed_ranges</code>, or <code>written_ranges</code>. Step 2: <code>rowCount: 800000</code>, <code>columnCount: 1</code>. Step 3: <code>[["row-799999"],["row-800000"]]</code>. Step 4: <code>[["row-335000"],["row-335001"]]</code>. Landing every row doesn't show that the shared pause holds back chunks already queued for a worker thread. Round 1's review found it doesn't, and that finding was sent back.</p>
+<p><strong>Result (2026-11-23) ✅ PASS — PR #1589 QA round 2 (Sky) @ 44875ab5</strong>
+With writes capped at 4 in flight (<code>_CSV_WRITE_CONCURRENCY</code>), the import ran past the client's 120 s foreground limit and returned <code>rows_written: 800000</code> with no <code>error</code>, <code>failed_ranges</code>, or <code>written_ranges</code>. Step 2: <code>rowCount: 800000</code>, <code>columnCount: 1</code>. Step 3: <code>[["row-799999"],["row-800000"]]</code>. Step 4: <code>[["row-335000"],["row-335001"]]</code>. Unit tests cover the pause's ordering (<code>TestCsvImportWriteConcurrency</code>, <code>test_a_success_sent_before_the_pause_keeps_the_delay</code>, <code>test_no_pause_runs_past_the_deadline</code>). This case shows only that the capped import still lands every row.</p>
+<hr />
 <h3 id="tc-d173-non-existent-local-path-unit-test">TC-D173: Non-existent local path (unit test)<a class="headerlink" href="#tc-d173-non-existent-local-path-unit-test" title="Permanent link">&para;</a></h3>
 <p><strong>Checks (unit test)</strong>
 - Missing <code>local_path</code> returns <code>{"error": "..."}</code> mentioning the path — no Drive API call made</p>
