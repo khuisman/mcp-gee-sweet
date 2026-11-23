@@ -433,6 +433,99 @@ class TestInsertSoftbreakParagraphBoldRestore:
         docs_svc.documents().get.assert_not_called()
 
 
+class TestBoldRestoreAtParagraphStart:
+    """#1584: at a paragraph's first index, Docs styles the inserted text from
+    the character after index — the paragraph's own first character — not from
+    the previous paragraph's newline, so the bold restore must probe there,
+    in both directions (live-verified in the issue via raw documents().get())."""
+
+    def _ctx(self, docs_svc=None):
+        return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
+
+    @staticmethod
+    def _two_paragraph_doc(first: dict, second: dict) -> dict:
+        # Two one-run paragraphs: <p>{first}</p><p>{second}</p>, the trailing
+        # newline inside each paragraph's run (the Docs API shape).
+        content = []
+        start = 1
+        for text, style in (first, second):
+            end = start + len(text) + 1  # +1 for the paragraph's newline
+            element = {
+                "startIndex": start,
+                "endIndex": end,
+                "textRun": {"content": text + "\n", "textStyle": style},
+            }
+            content.append(
+                {"startIndex": start, "endIndex": end, "paragraph": {"elements": [element]}}
+            )
+            start = end
+        return {"documentId": "doc1", "body": {"content": content}}
+
+    async def test_plain_paragraph_start_after_bold_sends_no_restore(self):
+        # <p><b>Header</b></p><p>tail</p>, insert at the start of `tail`
+        # (index 8): Docs renders the insert plain — it follows `tail` — so a
+        # restore reading the previous paragraph's bold newline would bold a
+        # line that should stay plain.
+        docs_svc = MagicMock()
+        docs_svc.documents().get().execute.return_value = self._two_paragraph_doc(
+            ("Header", {"bold": True}), ("tail", {})
+        )
+        ctx = self._ctx(docs_svc)
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=8,
+            lines=[{"text": "code", "font_family": "Courier New"}],
+            ctx=ctx,
+        )
+        reqs = docs_svc.documents().batchUpdate.call_args.kwargs["body"]["requests"]
+        assert [next(iter(r)) for r in reqs] == ["insertText", "updateTextStyle"]
+        assert reqs[1]["updateTextStyle"]["fields"] == "weightedFontFamily"
+
+    async def test_bold_paragraph_start_after_plain_restores_bold(self):
+        # <p>plain</p><p><b>Bold</b></p>, insert at the start of `Bold`
+        # (index 7): Docs renders the insert bold — it follows `Bold` — so the
+        # font request clears the inherited bold and the restore must bring it
+        # back (the original #1499 symptom).
+        docs_svc = MagicMock()
+        docs_svc.documents().get().execute.return_value = self._two_paragraph_doc(
+            ("plain", {}), ("Bold", {"bold": True})
+        )
+        ctx = self._ctx(docs_svc)
+        result = await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=7,
+            lines=[{"text": "code", "font_family": "Courier New"}],
+            ctx=ctx,
+        )
+        assert result["line_ranges"][0] == {"start_index": 7, "end_index": 11}
+        reqs = docs_svc.documents().batchUpdate.call_args.kwargs["body"]["requests"]
+        assert [next(iter(r)) for r in reqs] == ["insertText", "updateTextStyle", "updateTextStyle"]
+        bold_restore = reqs[2]["updateTextStyle"]
+        assert bold_restore["range"] == {"startIndex": 7, "endIndex": 11}
+        assert bold_restore["textStyle"] == {"bold": True}
+        assert bold_restore["fields"] == "bold"
+
+    async def test_empty_paragraph_read_pins_its_lone_newline(self):
+        # <p><b>Header</b></p><p></p>, insert at the empty paragraph's start
+        # (index 8, its lone newline): the neighbour read is the character at
+        # index — the empty paragraph's own plain newline — not the previous
+        # paragraph's bold one, so nothing restores.
+        docs_svc = MagicMock()
+        docs_svc.documents().get().execute.return_value = self._two_paragraph_doc(
+            ("Header", {"bold": True}), ("", {})
+        )
+        ctx = self._ctx(docs_svc)
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=8,
+            lines=[{"text": "code", "font_family": "Courier New"}],
+            ctx=ctx,
+        )
+        reqs = docs_svc.documents().batchUpdate.call_args.kwargs["body"]["requests"]
+        assert [next(iter(r)) for r in reqs] == ["insertText", "updateTextStyle"]
+        assert reqs[1]["updateTextStyle"]["fields"] == "weightedFontFamily"
+
+
 class TestInsertSoftbreakParagraphExplicitNormalText:
     """#1499 item 5: the fix depends on telling None apart from an explicit
     NORMAL_TEXT — pin that the explicit one still sends updateParagraphStyle."""

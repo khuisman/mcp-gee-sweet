@@ -7,7 +7,12 @@ from mcp.types import ToolAnnotations
 from ...auth import execute_in_thread
 from .indices import utf16_len
 from .invalidation import doc_invalidating
-from .style import _NAMED_STYLE_TYPES, _bold_runs_in_range, _text_style_and_fields
+from .style import (
+    _NAMED_STYLE_TYPES,
+    _bold_runs_in_range,
+    _is_paragraph_start,
+    _text_style_and_fields,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +211,9 @@ def register(tool):
         Either way, set the styles you want on the line dicts rather than
         relying on the paragraph's previous formatting: inserted lines inherit
         the inline style of the character before index (bold, italic,
-        strikethrough, link included), and a line can set a field to false to
+        strikethrough, link included) — except at a paragraph's first index,
+        where the style comes from the character at index, the paragraph's own
+        first character — and a line can set a field to false to
         clear an inherited style. A font_family line that sends no bold of its
         own keeps the bold the insert inherited: the weightedFontFamily request
         would clear it, so it is restored after, as style_doc_range does. Not
@@ -257,11 +264,13 @@ def register(tool):
         # #1499 item 4: a font_family line that sends no bold of its own would
         # clear the direct bold the insert inherits from the character before
         # index — the same weightedFontFamily behaviour style_doc_range restores
-        # after (#1273) — so read the preceding character's own bold once,
+        # after (#1273) — so read the neighbour's own bold once,
         # before the insert. Bold a run carries via its paragraph's named style
         # is not the run's and not affected by the font request, exactly as
         # _bold_runs_in_range's own docstring says, so only a directly bold
-        # preceding character restores anything. Skipped entirely when
+        # neighbour restores anything. At a paragraph's first index the
+        # neighbour is the character at index itself — the paragraph's own
+        # first character — not the one before it (#1584). Skipped entirely when
         # named_style_type is set: the updateParagraphStyle request goes out
         # first and clears the inherited bold over the whole paragraph, so a
         # restore would re-bold the font-only lines alone.
@@ -277,7 +286,12 @@ def register(tool):
                 )
             except Exception as e:
                 return {"error": str(e)}
-            inherits_bold = bool(_bold_runs_in_range(doc, index - 1, index))
+            # #1584: Docs styles text inserted at a paragraph's first index
+            # from the character after index, not from the previous
+            # paragraph's newline, so probe the neighbour the insert actually
+            # inherits from.
+            probe = index if _is_paragraph_start(doc, index) else index - 1
+            inherits_bold = bool(_bold_runs_in_range(doc, probe, probe + 1))
 
         requests: list[dict[str, Any]] = [
             {"insertText": {"location": {"index": index}, "text": joined_text}},
