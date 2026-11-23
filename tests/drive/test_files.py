@@ -2100,7 +2100,11 @@ class TestImportCsvToSheet:
                 tmp_path, monkeypatch, [error, {}]
             )
             assert update.return_value.execute.call_count == 1, status
-            assert result["failed_ranges"][0]["start_row"] == 1, status
+            if status == 500:
+                assert result["failed_ranges"][0]["start_row"] == 1, status
+            else:
+                # The only chunk was refused, so the spreadsheet was removed (#1574).
+                assert "No rows were written" in result["error"], status
 
     async def test_rate_limited_chunk_fails_once_max_wait_is_spent(self, tmp_path, monkeypatch):
         monkeypatch.setattr(drive_files_module, "_CSV_RATE_LIMIT_MAX_WAIT", 0.0)
@@ -2109,7 +2113,11 @@ class TestImportCsvToSheet:
             tmp_path, monkeypatch, [refusal, {}]
         )
         assert update.return_value.execute.call_count == 1
-        assert result["failed_ranges"] == [{"start_row": 1, "end_row": 2, "error": str(refusal)}]
+        # A final 429 wrote nothing, so the only chunk's refusal removes the spreadsheet.
+        assert result == {
+            "error": f"The row write was refused: {refusal}. No rows were written, "
+            "and the new spreadsheet was deleted."
+        }
 
     async def test_rate_limited_chunks_retry_alongside_ones_that_landed(
         self, tmp_path, monkeypatch
@@ -2293,6 +2301,170 @@ class TestImportCsvToSheet:
         ctx = _make_ctx(drive_service=drive_svc, sheets_service=MagicMock(), folder_id=None)
         with pytest.raises(HttpError):
             await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+
+
+def _http_error(status: int, body: bytes = b"{}") -> HttpError:
+    resp = MagicMock()
+    resp.status = status
+    return HttpError(resp=resp, content=body)
+
+
+class TestImportCsvFailureCleanup:
+    """#1574: an import that fails before any row lands removes the spreadsheet it
+    created, and never raises the setup's error bare."""
+
+    _helpers = TestImportCsvToSheet()
+
+    def _ctx(self, can_delete=True):
+        drive_svc = self._helpers._drive_service()
+        created = drive_svc.files.return_value.create.return_value.execute.return_value
+        created["capabilities"] = {"canDelete": can_delete}
+        sheets_svc = self._helpers._sheets_service()
+        folder_cache = MagicMock()
+        ctx = _make_ctx(
+            drive_service=drive_svc,
+            sheets_service=sheets_svc,
+            drive_folder_cache=folder_cache,
+            sheet_data_cache=MagicMock(),
+            cache=MagicMock(),
+            folder_id=None,
+        )
+        return ctx, drive_svc, sheets_svc, folder_cache
+
+    async def _run(self, ctx, tmp_path, rows=None):
+        path = self._helpers._write_csv(tmp_path, rows or [["a"], ["1"]])
+        return await _drive_tools["import_csv_to_sheet"](
+            local_path=str(path), title="X", folder_id="folder1", ctx=ctx
+        )
+
+    async def test_create_asks_for_can_delete(self, tmp_path):
+        ctx, drive_svc, _, _ = self._ctx()
+        await self._run(ctx, tmp_path)
+        fields = drive_svc.files.return_value.create.call_args.kwargs["fields"]
+        assert "capabilities(canDelete)" in fields
+
+    async def test_success_removes_nothing(self, tmp_path):
+        ctx, drive_svc, _, _ = self._ctx()
+        result = await self._run(ctx, tmp_path)
+        assert result["rows_written"] == 2
+        drive_svc.files.return_value.delete.assert_not_called()
+        drive_svc.files.return_value.update.assert_not_called()
+
+    async def test_refused_resize_deletes_the_spreadsheet(self, tmp_path):
+        """The live case: a grid over the 20M-cell limit raised a raw HttpError and
+        left an empty spreadsheet in the folder."""
+        ctx, drive_svc, sheets_svc, folder_cache = self._ctx()
+        refusal = _http_error(400, b'{"error": {"message": "above the limit"}}')
+        batch = sheets_svc.spreadsheets.return_value.batchUpdate
+        batch.return_value.execute.side_effect = refusal
+        result = await self._run(ctx, tmp_path)
+        assert result == {
+            "error": f"Setting up the sheet failed: {refusal}. No rows were written, "
+            "and the new spreadsheet was deleted."
+        }
+        delete = drive_svc.files.return_value.delete
+        delete.assert_called_once_with(fileId="sheet123", supportsAllDrives=True)
+        sheets_svc.spreadsheets.return_value.values.return_value.update.assert_not_called()
+        folder_cache.mark_dirty.assert_called_with("folder1")
+
+    async def test_resize_that_may_have_landed_still_deletes(self, tmp_path):
+        """No row write has started, so a 5xx or timeout on the resize loses nothing."""
+        for error in (_http_error(500), TimeoutError("timed out")):
+            ctx, drive_svc, sheets_svc, _ = self._ctx()
+            batch = sheets_svc.spreadsheets.return_value.batchUpdate
+            batch.return_value.execute.side_effect = error
+            result = await self._run(ctx, tmp_path)
+            assert set(result) == {"error"}, error
+            assert "was deleted" in result["error"], error
+            drive_svc.files.return_value.delete.assert_called_once()
+
+    async def test_failed_sheet_read_deletes_the_spreadsheet(self, tmp_path):
+        ctx, drive_svc, sheets_svc, _ = self._ctx()
+        sheets_svc.spreadsheets.return_value.get.return_value.execute.side_effect = _http_error(503)
+        result = await self._run(ctx, tmp_path)
+        assert set(result) == {"error"}
+        assert result["error"].startswith("Setting up the sheet failed:")
+        drive_svc.files.return_value.delete.assert_called_once()
+
+    async def test_trashes_when_the_identity_cannot_delete(self, tmp_path):
+        """A Content manager on a Shared Drive can trash but not delete (#876)."""
+        ctx, drive_svc, sheets_svc, _ = self._ctx(can_delete=False)
+        batch = sheets_svc.spreadsheets.return_value.batchUpdate
+        batch.return_value.execute.side_effect = _http_error(400)
+        result = await self._run(ctx, tmp_path)
+        assert result["error"].endswith("the new spreadsheet was moved to the trash.")
+        drive_svc.files.return_value.delete.assert_not_called()
+        drive_svc.files.return_value.update.assert_called_once_with(
+            fileId="sheet123", body={"trashed": True}, supportsAllDrives=True, fields="id"
+        )
+
+    async def test_failed_removal_names_the_spreadsheet(self, tmp_path):
+        ctx, drive_svc, sheets_svc, _ = self._ctx()
+        batch = sheets_svc.spreadsheets.return_value.batchUpdate
+        batch.return_value.execute.side_effect = _http_error(400)
+        drive_svc.files.return_value.delete.return_value.execute.side_effect = RuntimeError(
+            "delete broke"
+        )
+        result = await self._run(ctx, tmp_path)
+        assert "Removing the new, empty spreadsheet failed too (delete broke)" in (result["error"])
+        assert result["spreadsheetId"] == "sheet123"
+        assert result["title"] == "Imported"
+        assert result["web_link"] == "https://docs.google.com/spreadsheets/d/sheet123"
+
+    def _chunk_effects(self, sheets_svc, by_range):
+        """values().update(range=R).execute raises by_range[R] when given, else succeeds."""
+
+        def _update(**kwargs):
+            m = MagicMock()
+            effect = by_range.get(kwargs["range"])
+            if effect is None:
+                m.execute.return_value = {}
+            else:
+                m.execute.side_effect = effect
+            return m
+
+        sheets_svc.spreadsheets.return_value.values.return_value.update.side_effect = _update
+
+    async def test_every_chunk_refused_deletes_the_spreadsheet(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 1)
+        ctx, drive_svc, sheets_svc, _ = self._ctx()
+        refusal = _http_error(400)
+        self._chunk_effects(sheets_svc, {"Sheet1!A1": refusal, "Sheet1!A2": _http_error(403)})
+        result = await self._run(ctx, tmp_path)
+        assert result == {
+            "error": f"All 2 row writes were refused: {refusal}. No rows were written, "
+            "and the new spreadsheet was deleted."
+        }
+        drive_svc.files.return_value.delete.assert_called_once()
+
+    async def test_a_chunk_that_may_have_landed_keeps_the_spreadsheet(self, tmp_path, monkeypatch):
+        """A 5xx may have been written, so the partial-failure result stands."""
+        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 1)
+        ctx, drive_svc, sheets_svc, _ = self._ctx()
+        self._chunk_effects(
+            sheets_svc, {"Sheet1!A1": _http_error(400), "Sheet1!A2": _http_error(500)}
+        )
+        result = await self._run(ctx, tmp_path)
+        assert result["spreadsheetId"] == "sheet123"
+        assert [r["start_row"] for r in result["failed_ranges"]] == [1, 2]
+        drive_svc.files.return_value.delete.assert_not_called()
+
+    async def test_some_rows_written_keeps_the_spreadsheet(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 1)
+        ctx, drive_svc, sheets_svc, _ = self._ctx()
+        self._chunk_effects(sheets_svc, {"Sheet1!A1": _http_error(400)})
+        result = await self._run(ctx, tmp_path)
+        assert result["written_ranges"] == [{"start_row": 2, "end_row": 2}]
+        assert "rejected" not in result["failed_ranges"][0]
+        drive_svc.files.return_value.delete.assert_not_called()
+
+    async def test_unexpected_chunk_exception_keeps_the_spreadsheet(self, tmp_path):
+        """A non-HttpError says nothing about whether the write landed."""
+        ctx, drive_svc, sheets_svc, _ = self._ctx()
+        self._chunk_effects(sheets_svc, {"Sheet1!A1": RuntimeError("boom")})
+        result = await self._run(ctx, tmp_path)
+        assert result["failed_ranges"][0]["error"] == "boom"
+        drive_svc.files.return_value.delete.assert_not_called()
 
 
 class TestRateLimitPause:

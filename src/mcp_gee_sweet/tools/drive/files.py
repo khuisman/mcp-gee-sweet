@@ -8,11 +8,12 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal, TypeVar
 
+import anyio
 from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
-from ...auth import execute_in_thread, invalidating
+from ...auth import execute_in_thread, invalidating, is_rejection
 from ...deprecation import deprecated_tool
 from ...local_files import LocalFileAccessError, check_read
 from ..concurrency import gather_with_fallback, report_progress_safe
@@ -153,6 +154,31 @@ class _RateLimitPause:
         self._pause_started = now
         self._resume_at = min(now + self._delay, self._deadline)
         return self._resume_at - now
+
+
+async def _discard_new_spreadsheet(
+    drive_service, spreadsheet: dict[str, Any], invalidate: _FolderInvalidation
+) -> str:
+    """Remove a spreadsheet import_csv_to_sheet created when the import failed before
+    any row could have landed, so a failed import leaves nothing behind (#1574).
+
+    Deleted outright, or moved to the trash when the create's response says this
+    identity can't delete it (a Content manager on a Shared Drive can only trash).
+    Returns "deleted" or "trashed"; raises whatever the request raised. Shielded, so a
+    cancellation arriving meanwhile doesn't abandon the cleanup halfway.
+    """
+    file_id = spreadsheet["id"]
+    can_delete = spreadsheet.get("capabilities", {}).get("canDelete") is not False
+    files = drive_service.files()
+    if can_delete:
+        request = files.delete(fileId=file_id, supportsAllDrives=True)
+    else:
+        request = files.update(
+            fileId=file_id, body={"trashed": True}, supportsAllDrives=True, fields="id"
+        )
+    with anyio.CancelScope(shield=True), invalidating(invalidate):
+        await execute_in_thread(request.execute, drive_service)
+    return "deleted" if can_delete else "trashed"
 
 
 def _grid_resize_requests(
@@ -368,10 +394,15 @@ def register(tool):
             sheet_name: Name of the sheet the data is written to (default "Sheet1").
 
         Returns:
-            spreadsheetId, title, web_link, and rows_written on full success. Rows are
-            written in row-range chunks that run concurrently; if one or more chunks
-            fail, the spreadsheet (already created) may have some rows missing — not
-            necessarily a clean prefix. In that case returns an 'error' summary plus
+            spreadsheetId, title, web_link, and rows_written on full success. If the
+            import fails before any row is written (setting up the sheet fails, or
+            Sheets refuses every row write), the new spreadsheet is removed (deleted,
+            or moved to the trash where the caller can't delete it) and only 'error'
+            is returned; if removing it fails too, the error says so and
+            spreadsheetId, title, and web_link name it. Rows are written in
+            row-range chunks that run concurrently; otherwise, if one or more chunks
+            fail, the spreadsheet may have some rows missing — not necessarily
+            a clean prefix. In that case returns an 'error' summary plus
             spreadsheetId, title, web_link, rows_attempted, failed_ranges (start_row,
             end_row, error per failed chunk), and written_ranges (start_row, end_row
             per chunk that succeeded), so the missing rows can be retried precisely.
@@ -445,7 +476,8 @@ def register(tool):
                     .create(
                         supportsAllDrives=True,
                         body=file_body,
-                        fields="id, name, parents, webViewLink",
+                        # canDelete picks how a failed import removes it (#1574).
+                        fields="id, name, parents, webViewLink, capabilities(canDelete)",
                     )
                     .execute,
                     drive_service,
@@ -459,51 +491,41 @@ def register(tool):
         spreadsheet_id = spreadsheet.get("id")
         target_folder_id = target_folder_id or (spreadsheet.get("parents", [None])[0])
 
-        spreadsheet_meta = await execute_in_thread(
-            sheets_service.spreadsheets()
-            .get(
-                spreadsheetId=spreadsheet_id,
-                fields="sheets(properties(sheetId,title,gridProperties))",
-            )
-            .execute,
-            sheets_service,
-        )
-        default_sheet = spreadsheet_meta.get("sheets", [{}])[0]
-        default_props = default_sheet.get("properties", {})
-        sheet_id = default_props.get("sheetId", 0)
-        default_title = default_props.get("title")
-        grid = default_props.get("gridProperties", {})
-
-        requests: list[dict[str, Any]] = []
-        if default_title != sheet_name:
-            requests.append(
-                {
-                    "updateSheetProperties": {
-                        "properties": {"sheetId": sheet_id, "title": sheet_name},
-                        "fields": "title",
-                    }
+        async def _failed_before_rows(error: str) -> dict[str, Any]:
+            """The result of an import that failed before any row could have landed:
+            the spreadsheet is removed, so nothing is left behind (#1574). Only if
+            that fails too does the result name it."""
+            try:
+                action = await _discard_new_spreadsheet(drive_service, spreadsheet, invalidate)
+            except Exception as e:
+                logger.warning(
+                    "import_csv_to_sheet: couldn't remove spreadsheet %s after a failed import",
+                    spreadsheet_id,
+                    exc_info=True,
+                )
+                return {
+                    "error": (
+                        f"{error} Removing the new, empty spreadsheet failed too ({e}); "
+                        "it is left in place."
+                    ),
+                    "spreadsheetId": spreadsheet_id,
+                    "title": spreadsheet.get("name", title),
+                    "web_link": spreadsheet.get("webViewLink"),
                 }
-            )
-        # Exactly the data's size, never padded to the default 1000x26: the padding
-        # counts against the workbook's cell limit, so a 1-column CSV over ~769k rows
-        # was refused as 26 cells a row (#1573).
-        requests.extend(_grid_resize_requests(sheet_id, grid, len(rows), grid_columns))
+            removed = "deleted" if action == "deleted" else "moved to the trash"
+            return {
+                "error": f"{error} No rows were written, and the new spreadsheet was {removed}."
+            }
 
-        # Safe to parallelize: each chunk writes a disjoint row range of the same
-        # sheet (A{start+1} onward, non-overlapping), so there's no read-modify-write
-        # race between chunks. Unlike the old sequential loop — where a failure left a
-        # clean truncated prefix — a concurrent failure can leave a hole mid-sheet (an
-        # earlier chunk can still be in flight when a later one succeeds), so failures
-        # are reported per-range rather than as a single opaque exception.
+        # The rename and resize have no rows to lose, so any failure here, a raw
+        # HttpError included, removes the spreadsheet rather than leaving it empty.
+        pause = _RateLimitPause()
+        completed = [0]
         chunks = [
             (start, rows[start : start + _CSV_IMPORT_CHUNK_ROWS])
             for start in range(0, len(rows), _CSV_IMPORT_CHUNK_ROWS)
         ]
         total_chunks = len(chunks)
-        completed = [0]
-        # Every Sheets write below, the rename and resize included, counts against
-        # the same per-user write quota, so all of them go through one pause.
-        pause = _RateLimitPause()
 
         async def _report_pause(seconds: float) -> None:
             # A pause can last a minute with no chunk finishing; a client that resets
@@ -516,18 +538,59 @@ def register(tool):
                 "write quota pause",
             )
 
-        if requests:
-            with invalidating(lambda: lc.cache.mark_dirty(spreadsheet_id)):
-                await pause.send(
-                    lambda: execute_in_thread(
-                        sheets_service.spreadsheets()
-                        .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
-                        .execute,
-                        sheets_service,
-                    ),
-                    _report_pause,
+        try:
+            spreadsheet_meta = await execute_in_thread(
+                sheets_service.spreadsheets()
+                .get(
+                    spreadsheetId=spreadsheet_id,
+                    fields="sheets(properties(sheetId,title,gridProperties))",
                 )
+                .execute,
+                sheets_service,
+            )
+            default_sheet = spreadsheet_meta.get("sheets", [{}])[0]
+            default_props = default_sheet.get("properties", {})
+            sheet_id = default_props.get("sheetId", 0)
+            default_title = default_props.get("title")
+            grid = default_props.get("gridProperties", {})
 
+            requests: list[dict[str, Any]] = []
+            if default_title != sheet_name:
+                requests.append(
+                    {
+                        "updateSheetProperties": {
+                            "properties": {"sheetId": sheet_id, "title": sheet_name},
+                            "fields": "title",
+                        }
+                    }
+                )
+            # Exactly the data's size, never padded to the default 1000x26: the padding
+            # counts against the workbook's cell limit, so a 1-column CSV over ~769k
+            # rows was refused as 26 cells a row (#1573).
+            requests.extend(_grid_resize_requests(sheet_id, grid, len(rows), grid_columns))
+
+            # Every Sheets write, the rename and resize included, counts against the
+            # same per-user write quota, so all of them go through one pause.
+            if requests:
+                with invalidating(lambda: lc.cache.mark_dirty(spreadsheet_id)):
+                    await pause.send(
+                        lambda: execute_in_thread(
+                            sheets_service.spreadsheets()
+                            .batchUpdate(spreadsheetId=spreadsheet_id, body={"requests": requests})
+                            .execute,
+                            sheets_service,
+                        ),
+                        _report_pause,
+                    )
+        except Exception as e:
+            return await _failed_before_rows(f"Setting up the sheet failed: {e}.")
+
+        # Safe to parallelize: each chunk writes a disjoint row range of the same
+        # sheet (A{start+1} onward, non-overlapping), so there's no read-modify-write
+        # race between chunks. Unlike the old sequential loop — where a failure left a
+        # clean truncated prefix — a concurrent failure can leave a hole mid-sheet (an
+        # earlier chunk can still be in flight when a later one succeeds), so failures
+        # are reported per-range rather than as a single opaque exception.
         quoted_sheet = _quote_sheet_name(sheet_name)
 
         async def _write_chunk(item: tuple[int, list[list]]) -> dict[str, Any]:
@@ -551,7 +614,8 @@ def register(tool):
                 )
                 result = {**row_range, "ok": True}
             except Exception as e:
-                result = {**row_range, "ok": False, "error": str(e)}
+                # rejected: a 4xx, so Sheets wrote none of this chunk's rows.
+                result = {**row_range, "ok": False, "error": str(e), "rejected": is_rejection(e)}
 
             # Reported here, inside the per-item coroutine, so updates stream in as
             # each concurrent chunk write finishes rather than arriving in one burst
@@ -575,12 +639,22 @@ def register(tool):
                 "end_row": start + len(chunk),
                 "ok": False,
                 "error": str(exc),
+                "rejected": False,
             }
 
         with invalidating(lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id)):
             chunk_results: list[dict[str, Any]] = (
                 await gather_with_fallback(chunks, _write_chunk, _chunk_fallback) if chunks else []
             )
+
+        # Every chunk refused outright: no row landed, so nothing is worth keeping.
+        # A chunk that failed any other way (a 5xx, a timeout) may have been written,
+        # and then the partial-failure result below names the spreadsheet (#1574).
+        if chunk_results and all(r.get("rejected") for r in chunk_results):
+            first = chunk_results[0]["error"]
+            count = len(chunk_results)
+            refused = "The row write was" if count == 1 else f"All {count} row writes were"
+            return await _failed_before_rows(f"{refused} refused: {first}.")
 
         failed_ranges = [
             {"start_row": r["start_row"], "end_row": r["end_row"], "error": r["error"]}

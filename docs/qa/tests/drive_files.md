@@ -2305,6 +2305,25 @@ With writes capped at 4 in flight (`_CSV_WRITE_CONCURRENCY`), the import ran pas
 
 ---
 
+### TC-D327: An import that fails before any row lands leaves no spreadsheet behind (#1574) ⚠️ requires-oauth ⚠️ local-filesystem
+**Background:** the spreadsheet is created first, then its sheet is renamed and resized, then the rows are written. A failure in the rename or resize raised a raw `HttpError` out of the tool (`Error executing tool ...`) and left an empty spreadsheet in the folder, with no ID to find it by. A file whose every row write Sheets refused returned `failed_ranges` and also left the empty spreadsheet. Now both remove it: deleted, or moved to the trash when the identity can't delete it (a service account that is a Content manager on a Shared Drive). A chunk that may have landed (a 5xx, a timeout) still keeps the spreadsheet and returns `failed_ranges`, which unit tests cover.
+
+**Setup:** in a scratch directory write `qa-1574-ok.csv` as `a,b\n1,2\n`, and `qa-1574-cell.csv` as a header plus one cell of 50,001 characters, over Sheets' 50,000-character cell limit: `python3 -c "print('h'); print('x' * 50001)" > <scratch>/qa-1574-cell.csv`.
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-1574-ok.csv", title="QA TC-D327 setup", folder_id={FOLDER_ID}, sheet_name="<101 characters, e.g. 's' repeated 101 times>")`
+2. `import_csv_to_sheet(local_path="<scratch>/qa-1574-cell.csv", title="QA TC-D327 cell", folder_id={FOLDER_ID})`
+3. `search_files(query="QA TC-D327", folder_id={FOLDER_ID})`
+
+**Checks**
+- Step 1 returns a tool result, not a protocol error, whose only key is `error`. It starts `Setting up the sheet failed:`, names Sheets' `The sheet name cannot be greater than 100 characters.`, and ends `No rows were written, and the new spreadsheet was deleted.`
+- Step 2 returns only `error`: it starts `The row write was refused:`, names `more than the maximum of 50000 characters in a single cell`, and ends with the same sentence as step 1. No `failed_ranges`
+- Step 3 finds no file: neither call left a spreadsheet, in the folder or its trash (`search_files` doesn't list trashed files; under OAuth both were deleted outright)
+
+**Cleanup:** remove the local files.
+
+---
+
 ### TC-D173: Non-existent local path (unit test)
 
 **Checks (unit test)**
