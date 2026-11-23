@@ -7059,11 +7059,13 @@ class TestSyncFolderResponseSizeCap:
                 ctx=self._ctx(fs),
             )
         assert "result_local_path" in str(exc_info.value)
-        # #1465/#1552: pin the hint/shared-text sentence boundary too — the
+        # #1465/#1552/#1560: pin the hint/shared-text sentence boundary too — the
         # hint is a complete sentence naming actions this call (bidirectional,
         # non-recursive) can actually take, and the shared clause starts
-        # fresh after it.
+        # fresh after it. A non-recursive sync can't be shrunk with a narrower
+        # subfolder (#1560).
         assert "a single direction. Pass result_local_path" in str(exc_info.value)
+        assert "narrower subfolder" not in str(exc_info.value)
 
     async def test_over_cap_hint_matches_the_calls_own_arguments(self, tmp_path, monkeypatch):
         # #1552: the hint is built from the call's own arguments — a call
@@ -7084,9 +7086,11 @@ class TestSyncFolderResponseSizeCap:
             return str(exc_info.value)
 
         one_way_non_recursive = await _raises(direction="download")
-        assert "Sync a narrower subfolder. Pass result_local_path" in one_way_non_recursive
+        assert "a very large result list. Pass result_local_path" in one_way_non_recursive
+        assert "narrower subfolder" not in one_way_non_recursive
         assert "single direction" not in one_way_non_recursive
         assert "recursive=False" not in one_way_non_recursive
+        assert "Recursive syncs" not in one_way_non_recursive
 
         one_way_recursive = await _raises(direction="download", recursive=True)
         assert "Sync a narrower subfolder or set recursive=False. Pass" in one_way_recursive
