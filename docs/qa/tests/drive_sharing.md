@@ -488,6 +488,9 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 **Result (2026-11-23) ✅ PASS — PR #1600 round 1 (Kit)**
 `transfer_ownership("fakefileid999", "qa-nonexistent-placeholder@example.com")` with `send_notification` omitted → HttpError 404 "File not found: fakefileid999." propagates; the request URL shows `sendNotificationEmail=true`.
 
+**Result (2026-11-23) ✅ PASS — PR #1600 round 2 (Kit) @ 8ad37992**
+Same call → Drive's 404 "File not found: fakefileid999." propagates, with `sendNotificationEmail=true` in the request.
+
 ---
 
 ### TC-D327: Shared drive item returns a clear error, nothing changed (#1181)
@@ -510,6 +513,9 @@ Non-destructive: Drive refuses every owner transfer on a shared drive item, so n
 **Result (2026-11-23) ✅ PASS — PR #1600 round 1 (Kit, OAuth)**
 Result was exactly `{"error"}`: names the file ID, the shared drive, the organization owning it, "Nothing was changed", and that an organizer can move the item into their own My Drive; no Drive "Owner role is invalid" text. `list_permissions` afterward: only the SA (`fileOrganizer`) and the user (`organizer`), with no recipient permission and no `owner`. Spreadsheet trashed.
 
+**Result (2026-11-23) ✅ PASS — PR #1600 round 2 (Kit, OAuth) @ 8ad37992**
+The same `{"error"}` text as round 1. `list_permissions` afterward showed only the SA (`fileOrganizer`) and the user (`organizer`). Spreadsheet trashed. Extra probe, the same round: a My Drive spreadsheet sent to `qa-recipient@example.com` raised Drive's 400 (`invalidSharingRequest`, "ownership can only be transferred to another user in the same organization") unrewritten, the owner unchanged. Trashed.
+
 ---
 
 ### TC-D328: `send_notification` schema admits only `true` (#1181)
@@ -526,6 +532,9 @@ Result was exactly `{"error"}`: names the file ID, the shared drive, the organiz
 
 **Result (2026-11-23) ✅ PASS — PR #1600 round 1 (Kit)**
 Listed schema: `send_notification` = `{"const": true, "default": true, "title": "Send Notification", "type": "boolean"}`. With `send_notification=false`: pydantic validation error `Input should be True [type=literal_error]` naming `send_notification`, with no Drive 404, so no request was made. Without it: Drive's 404 "File not found: fakefileid999." (TC-D235).
+
+**Result (2026-11-23) ✅ PASS — PR #1600 round 2 (Kit) @ 8ad37992**
+The schema is unchanged (`const: true`). `send_notification=false` → `literal_error` naming `send_notification`, with no Drive request; omitted → Drive's 404.
 
 ---
 
@@ -547,6 +556,9 @@ Listed schema: `send_notification` = `{"const": true, "default": true, "title": 
 
 **Result (2026-11-23) ⏭️ SKIP — environmental, PR #1600 round 1 (Kit)**
 `mcp-gee-sweet-kit` is signed in to a Workspace account (`is_service_account_identity: false`, a Workspace-org domain), not a personal gmail.com account, and this slot has no second consumer account. Not run.
+
+**Result (2026-11-23) ⏭️ SKIP — environmental, PR #1600 round 2 (Kit)**
+Same as round 1: no consumer-account fixture on this slot. The message's new wording is covered by `test_consumer_accounts_return_clear_error`.
 
 ---
 
