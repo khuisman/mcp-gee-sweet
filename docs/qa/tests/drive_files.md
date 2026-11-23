@@ -2318,9 +2318,12 @@ With writes capped at 4 in flight (`_CSV_WRITE_CONCURRENCY`), the import ran pas
 **Checks**
 - Step 1 returns a tool result, not a protocol error, whose only key is `error`. It starts `Setting up the sheet failed:`, names Sheets' `The sheet name cannot be greater than 100 characters.`, and ends `No rows were written, and the new spreadsheet was deleted.`
 - Step 2 returns only `error`: it starts `The row write was refused:`, names `more than the maximum of 50000 characters in a single cell`, and ends with the same sentence as step 1. No `failed_ranges`
-- Step 3 finds no file: neither call left a spreadsheet, in the folder or its trash (`search_files` doesn't list trashed files; under OAuth both were deleted outright)
+- Step 3 finds no file in the folder. `search_files` doesn't list trashed files, so this check alone doesn't tell deleted from trashed. Each error's request URL names the spreadsheet's ID (`/spreadsheets/<id>/`). Under OAuth, `get_file_metadata` on each ID returns a 404 (`File not found`), which shows both were deleted outright, not trashed. The trash path (`canDelete` false) isn't reachable under this case's identity, and unit tests cover it.
 
 **Cleanup:** remove the local files.
+
+**Result (2026-11-23) ✅ PASS — PR #1599 QA round 1 (Sky) @ dbdaf1bf**
+OAuth (`mcp-gee-sweet-sky`), {FOLDER_ID} = the Shared Drive test folder. Step 1 returned only `error`: `Setting up the sheet failed: <HttpError 400 … "Invalid requests[0].updateSheetProperties: The sheet name cannot be greater than 100 characters." …>. No rows were written, and the new spreadsheet was deleted.` Step 2 returned only `error`: `The row write was refused: <HttpError 400 … "Your input contains more than the maximum of 50000 characters in a single cell." …>. No rows were written, and the new spreadsheet was deleted.`, with no `failed_ranges`. Step 3: `{"files": [], "exhaustive": true}`. `get_file_metadata` on both IDs taken from the error URLs returned 404 `File not found`, so both were deleted, not trashed. A happy-path import of `qa-1574-ok.csv` (default sheet name) returned `rows_written: 2` with the new create `fields`; it was then deleted. Both messages end `">.`, which round 1 sent back as a formatting finding. The trash path wasn't exercised live.
 
 ---
 
