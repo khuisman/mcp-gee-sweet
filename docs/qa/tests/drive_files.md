@@ -2250,6 +2250,9 @@ import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 **Result (2026-11-22) ✅ PASS — PR #1589 QA round 1 (Sky) @ e5112546**
 Ran from the `sky` checkout on `mcp-gee-sweet-sky` (OAuth), into the Shared Drive fixture folder. Step 1: `rows_written: 2`. Step 2: `rowCount: 2`, `columnCount: 2`. Step 3: `rows_written: 1501`. Step 4: `rowCount: 1501`, `columnCount: 1`. Step 5: `[["1498"],["1499"],["1500"]]`. Extra probe: a 3x1 CSV whose last cell is `=SPLIT("x y z"," ")` returned `x, y, z` in row 3, and the grid grew to 13 columns by itself. Sheets expands an exact-size grid to fit a spilled result, so sizing the grid to the data doesn't break array formulas.
 
+**Result (2026-11-23) ✅ PASS — PR #1589 QA round 2 (Sky) @ 44875ab5**
+Re-ran on `mcp-gee-sweet-sky` after a reconnect, with the fix that routes the rename-and-resize `batchUpdate` through the same rate-limit pause. Step 1: `rows_written: 2`, grid 2 x 2. Step 3: `rows_written: 1501`, grid 1501 x 1. Step 5: `[["1498"],["1499"],["1500"]]`.
+
 ---
 
 ### TC-D325: A CSV wider than Sheets' 18,278 columns returns an error, creating nothing (#1573) ⚠️ local-filesystem
@@ -2269,6 +2272,9 @@ Ran from the `sky` checkout on `mcp-gee-sweet-sky` (OAuth), into the Shared Driv
 
 **Result (2026-11-22) ✅ PASS — PR #1589 QA round 1 (Sky) @ e5112546**
 Step 1 returned only `error`: `CSV <scratch>/qa-wide.csv has 18,279 columns; a Google Sheet holds at most 18,278. Nothing was created.` Step 2: `{"files": [], "exhaustive": true}`.
+
+**Result (2026-11-23) ✅ PASS — PR #1589 QA round 2 (Sky) @ 44875ab5**
+Same error text as round 1, and step 2 found no file. The limit check now runs before the rows are padded, and the result is unchanged.
 
 ---
 
@@ -2293,6 +2299,9 @@ Step 1 returned only `error`: `CSV <scratch>/qa-wide.csv has 18,279 columns; a G
 
 **Result (2026-11-22) ✅ PASS — PR #1589 QA round 1 (Sky) @ e5112546**
 The import took about 3 to 4 minutes (the client moved it to the background after 120 s) and returned `rows_written: 800000` with no `error`, `failed_ranges`, or `written_ranges`. Step 2: `rowCount: 800000`, `columnCount: 1`. Step 3: `[["row-799999"],["row-800000"]]`. Step 4: `[["row-335000"],["row-335001"]]`. Landing every row doesn't show that the shared pause holds back chunks already queued for a worker thread. Round 1's review found it doesn't, and that finding was sent back.
+
+**Result (2026-11-23) ✅ PASS — PR #1589 QA round 2 (Sky) @ 44875ab5**
+With writes capped at 4 in flight (`_CSV_WRITE_CONCURRENCY`), the import ran past the client's 120 s foreground limit and returned `rows_written: 800000` with no `error`, `failed_ranges`, or `written_ranges`. Step 2: `rowCount: 800000`, `columnCount: 1`. Step 3: `[["row-799999"],["row-800000"]]`. Step 4: `[["row-335000"],["row-335001"]]`. Unit tests cover the pause's ordering (`TestCsvImportWriteConcurrency`, `test_a_success_sent_before_the_pause_keeps_the_delay`, `test_no_pause_runs_past_the_deadline`). This case shows only that the capped import still lands every row.
 
 ---
 
