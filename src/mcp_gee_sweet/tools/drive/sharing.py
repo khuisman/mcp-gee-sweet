@@ -1,13 +1,15 @@
 import asyncio
 import json
 import logging
-from typing import Any
+from typing import Any, Literal
 
+from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from ..concurrency import report_progress_safe
+from ..http_errors import http_error_has_reason
 from . import _user_fields
 
 logger = logging.getLogger(__name__)
@@ -257,7 +259,7 @@ def register(tool):
     async def transfer_ownership(
         file_id: str,
         new_owner_email: str,
-        send_notification: bool = True,
+        send_notification: Literal[True] = True,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -266,13 +268,22 @@ def register(tool):
         Args:
             file_id: The Google Drive file or folder ID.
             new_owner_email: Email address of the new owner.
-            send_notification: Whether to send a notification email to the new owner.
-                                Defaults to True, and must stay True: Drive refuses
-                                any ownership transfer whose notification is disabled.
+            send_notification: Always True, so it can be omitted: Drive refuses an
+                                ownership transfer whose notification email is
+                                disabled, so the new owner is always emailed.
 
         Returns:
             Confirmation with fileId, new_owner, and permissionId.
-            {"error": ...} if send_notification is False, before any API call.
+            {"error": ...}, with nothing changed, when the file is in a shared
+            drive: the shared drive's organization owns its items, so they have
+            no owner to transfer. A shared drive organizer can move the item into
+            their own My Drive, which makes them its owner.
+            {"error": ...}, with nothing changed, between two personal (gmail.com)
+            accounts: Drive transfers ownership there only once the new owner
+            accepts a request, which this tool can't send.
+            A transfer to an account in another organization raises Drive's own
+            error: Drive allows a transfer only within the current owner's
+            organization.
 
         Note:
             Requires OAuth auth — service accounts have no personal Drive identity
@@ -281,32 +292,56 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        if not send_notification:
-            # Drive answers a transfer with a disabled notification by 403'ing
-            # "The sendNotificationEmail parameter … must not be disabled for
-            # ownership transfers" — before it even looks the file up (confirmed
-            # with a nonexistent file ID in the v0.9.2 QA pass, #1055). Forwarding
-            # the request would only turn that into an opaque API error, so the
-            # unsupported value is rejected here.
+        if send_notification is not True:
+            # The schema allows only True, so only a caller that skips validation
+            # gets here. Drive answers a transfer with a disabled notification with
+            # a 403 ("must not be disabled for ownership transfers") before it even
+            # looks the file up (confirmed with a nonexistent file ID in the v0.9.2
+            # QA pass, #1055), so the value is refused here instead.
             return {
                 "error": "send_notification=False is not supported for ownership "
-                "transfers: Drive requires sendNotificationEmail, so the new owner "
-                "always gets the notification email. Omit the parameter or pass True."
+                "transfers: Drive refuses an ownership transfer whose notification "
+                "email is disabled, so the new owner is always emailed. Omit the "
+                "parameter or pass True."
             }
 
-        result = await execute_in_thread(
-            drive_service.permissions()
-            .create(
-                fileId=file_id,
-                body={"type": "user", "role": "owner", "emailAddress": new_owner_email},
-                transferOwnership=True,
-                sendNotificationEmail=send_notification,
-                supportsAllDrives=True,
-                fields="id",
+        try:
+            result = await execute_in_thread(
+                drive_service.permissions()
+                .create(
+                    fileId=file_id,
+                    body={"type": "user", "role": "owner", "emailAddress": new_owner_email},
+                    transferOwnership=True,
+                    # Literal, not the parameter: Drive refuses False here (#1181).
+                    sendNotificationEmail=True,
+                    supportsAllDrives=True,
+                    fields="id",
+                )
+                .execute,
+                drive_service,
             )
-            .execute,
-            drive_service,
-        )
+        except HttpError as e:
+            # Drive's own text ("Owner role is invalid for shared drive items.")
+            # says neither why nor what to do instead (#1181).
+            if http_error_has_reason(e, 403, "ownerOnTeamDriveItemNotSupported"):
+                return {
+                    "error": f"File {file_id} is in a shared drive, and a shared drive "
+                    "item has no owner to transfer: the shared drive's organization "
+                    "owns it. Nothing was changed. A shared drive organizer can move "
+                    "the item into their own My Drive, which makes them its owner."
+                }
+            # Between two consumer (gmail.com) accounts Drive answers "Consent is
+            # required to transfer ownership of a file to another user.", naming
+            # neither whose consent nor how to get it (checked live, #1181).
+            if http_error_has_reason(e, 403, "consentRequiredForOwnershipTransfer"):
+                return {
+                    "error": f"Drive won't transfer ownership of {file_id} between "
+                    f"personal Google accounts until {new_owner_email} accepts it, and "
+                    "this tool can't send that request. Nothing was changed. The owner "
+                    "can send it from the file's Share dialog in Drive (Transfer "
+                    f"ownership); {new_owner_email} then accepts it."
+                }
+            raise
 
         logger.debug("Transferred ownership of %s to %s", file_id, new_owner_email)
         return {

@@ -485,6 +485,57 @@ Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway 
 
 ---
 
+### TC-D327: Shared drive item returns a clear error, nothing changed (#1181)
+
+Non-destructive: Drive refuses every owner transfer on a shared drive item, so nothing is transferred. Runs on either auth method.
+
+**Setup:** `create_spreadsheet(title="QA-TC-D327")`, which lands in `{SHARED_DRIVE_ID}`.
+
+**Prompt**
+> `transfer_ownership(file_id=<that spreadsheet's ID>, new_owner_email="qa-recipient@example.com")`
+
+**Checks**
+- Result is exactly `{"error": ...}` (a successful tool result, not a raised tool error)
+- The message names the file ID, says the item is in a shared drive whose organization owns it, says nothing was changed, and says an organizer can move the item into their own My Drive to own it
+- It doesn't contain Drive's bare "Owner role is invalid for shared drive items."
+- `list_permissions` on the file shows no `qa-recipient@example.com` permission and no `owner` role
+
+**Cleanup:** `delete_file` the spreadsheet.
+
+---
+
+### TC-D328: `send_notification` schema admits only `true` (#1181)
+
+**Prompt**
+> List the server's tools and read `transfer_ownership`'s input schema; then call `transfer_ownership(file_id="fakefileid999", new_owner_email="qa-nonexistent-placeholder@example.com", send_notification=false)`.
+
+**Checks**
+- `send_notification` in the schema is `{"const": true, "default": true, "type": "boolean", ...}`
+- The call with `false` fails input validation (a tool error naming `send_notification`) and makes no Drive request: the error isn't Drive's 404 "File not found: fakefileid999."
+- The same call without `send_notification` reaches Drive and returns its 404 (as TC-D235)
+
+**Cleanup:** none.
+
+---
+
+### TC-D329: Transfer between two personal accounts returns a clear error (#1181) ⚠️ requires-oauth
+
+**Fixture requirement:** a server signed in to a personal (gmail.com) account, and a second gmail.com account the tester owns. Drive refuses this transfer (403 `consentRequiredForOwnershipTransfer`, checked live 2026-11-23), so nothing changes owner; the second account still gets Drive's notification email. Skip as environmental when no such server or second account is available.
+
+**Setup:** `create_doc(title="QA-TC-D329")` in the personal account's My Drive (not a shared drive).
+
+**Prompt**
+> `transfer_ownership(file_id=<that Doc's ID>, new_owner_email=<second gmail.com address>)`
+
+**Checks**
+- Result is exactly `{"error": ...}`, naming the file ID and the second address
+- The message says Drive transfers ownership between personal accounts only once the new owner accepts, that this tool can't send that request, that nothing was changed, and that the owner sends it from the file's Share dialog
+- `list_permissions` on the Doc still shows the personal account as `owner`
+
+**Cleanup:** `delete_file` the Doc.
+
+---
+
 ## `share_file`
 
 > ⚠️ **Fixture requirement:** TC-D132, TC-D137, TC-D139 require `TEST_PERMISSION_EMAIL` in `.env` to be a **real Google account** you control (e.g. a secondary Gmail). `example.com` addresses are not Google accounts: Drive accepts a share to one only with `send_notification` left at `True` (TC-D138, TC-D177), and refuses it with `send_notification=False` (seen in TC-D138's v0.9.2 run; see the note at the top of this file). TC-D135 (domain share) requires a Google Workspace domain — `example.com` will also fail; use your actual GWS domain or skip and note as environmental. See the approval note at the top of this file before running any case here.
