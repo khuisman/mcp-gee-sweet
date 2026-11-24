@@ -245,6 +245,29 @@ Both entries in successes; progress notifications aren't visible in this client.
 
 ---
 
+### TC-D330: `share_spreadsheet` is deprecated, still works, and its note's `share_file` call grants the same permission (#665)
+
+**Background:** `share_spreadsheet` is kept for one release under the deprecation policy (`docs/design.md`, "Renaming or Removing a Tool"). Its description opens with the `share_file` call that replaces it. `share_file` defaults a missing `role` to `reader` where `share_spreadsheet` defaults it to `writer`, so the note tells the caller to set `'role': 'writer'` explicitly.
+
+**Approval:** shares to `@example.com` test addresses, named in the user's approval (see the note at the top of this file). Leave `send_notification` at its default.
+
+**Steps**
+1. Read `share_spreadsheet`'s description from the tool list (`tools/list`, or the deferred-tool schema).
+2. `share_spreadsheet(spreadsheet_id="{SPREADSHEET_ID}", recipients=[{"email_address": "qa-665-a@example.com"}])`, with no `role`.
+3. `share_file(file_id="{SPREADSHEET_ID}", permissions=[{"type": "user", "email_address": "qa-665-b@example.com", "role": "writer"}])`, the call the note describes for the same recipient shape.
+4. `list_permissions(file_id="{SPREADSHEET_ID}")`.
+
+**Checks**
+- The description starts with "Deprecated: use `share_file`", names `'type': 'user'` and `'role': 'writer'`, and says `Removed in the next feature release.`
+- Step 2 returns `qa-665-a@example.com` in `successes` with `role: "writer"` and a `permissionId`, `failures: []`: the deprecated tool still works, with its old default.
+- Step 3 returns `qa-665-b@example.com` in `successes` with `role: "writer"`, `type: "user"` and a `permissionId`, `failures: []`.
+- In step 4, both addresses appear as `type: "user"`, `role: "writer"`.
+
+**Teardown**
+`remove_permission` for both permission IDs.
+
+---
+
 ## `list_permissions`
 
 ### TC-D124: List permissions on a file — top-level entry present

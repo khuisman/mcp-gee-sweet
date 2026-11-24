@@ -222,6 +222,68 @@ class TestShareSpreadsheet:
         assert result["successes"][0]["permissionId"] == "perm-xyz"
 
 
+class TestShareSpreadsheetDeprecation:
+    """#665: share_spreadsheet stays callable for one release, its description
+    opening with the share_file call that replaces it."""
+
+    def test_deprecated_with_share_file_as_replacement(self):
+        from mcp_gee_sweet.deprecation import tool_deprecation
+
+        func = _sharing_tools["share_spreadsheet"]
+        deprecation = tool_deprecation(func)
+        assert deprecation is not None
+        assert deprecation.removed_in == "the next feature release"
+        assert func.__doc__.startswith("Deprecated: use `share_file`")
+
+    def test_note_names_the_role_default_that_differs(self):
+        # share_file defaults a missing `role` to reader, so following the note for
+        # a recipient that omits it must not quietly share read-only what this tool
+        # would have shared as writer.
+        note = _sharing_tools["share_spreadsheet"].__doc__.split("\n\n", 1)[0]
+        assert "'type': 'user'" in note
+        assert "`'role': 'writer'` explicitly" in note
+
+    @pytest.mark.parametrize("tool_name", ["share_file", "list_permissions"])
+    def test_survivors_not_deprecated(self, tool_name):
+        from mcp_gee_sweet.deprecation import tool_deprecation
+
+        assert tool_deprecation(_sharing_tools[tool_name]) is None
+
+    @pytest.mark.parametrize("send_notification", [True, False])
+    async def test_share_file_as_the_note_says_sends_the_same_request(self, send_notification):
+        """The note's share_file call creates the same permission, with the same
+        notification setting, as the share_spreadsheet call it replaces."""
+        calls = {}
+        for tool_name, kwargs in (
+            (
+                "share_spreadsheet",
+                {
+                    "spreadsheet_id": "ss1",
+                    "recipients": [{"email_address": "a@example.com", "role": "commenter"}],
+                },
+            ),
+            (
+                "share_file",
+                {
+                    "file_id": "ss1",
+                    "permissions": [
+                        {"type": "user", "email_address": "a@example.com", "role": "commenter"}
+                    ],
+                },
+            ),
+        ):
+            drive = MagicMock()
+            drive.permissions.return_value.create.return_value.execute.return_value = {"id": "p1"}
+            ctx = _make_ctx(drive_service=drive)
+            ctx.report_progress = AsyncMock()
+            result = await _sharing_tools[tool_name](
+                **kwargs, send_notification=send_notification, ctx=ctx
+            )
+            assert result["failures"] == []
+            calls[tool_name] = drive.permissions.return_value.create.call_args.kwargs
+        assert calls["share_file"] == calls["share_spreadsheet"]
+
+
 class TestListPermissions:
     """list_permissions maps Drive API camelCase field names to snake_case output."""
 

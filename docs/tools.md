@@ -110,16 +110,16 @@
 
 | Tool | Description | Key parameters | Groups |
 |---|---|---|---|
-| `share_spreadsheet` | Share a Google Spreadsheet with multiple users via email, assigning specific roles. | `spreadsheet_id`, `recipients`, `send_notification?` | `drive`, `sheets` |
+| `share_spreadsheet` | Deprecated: use `share_file` with each recipient as `{'type': 'user', 'email_address': ..., 'role': ...}`, setting this tool's default `'role': 'writer'` explicitly instead. Removed in the next feature release. | `spreadsheet_id`, `recipients`, `send_notification?` | `drive`, `sheets` |
 | `list_permissions` | List all permissions on a file or folder in Google Drive. | `file_id` | `drive` |
 | `update_permission` | Change the role on an existing permission for a file or folder. | `file_id`, `permission_id`, `role` | `drive` |
 | `remove_permission` | Revoke a permission on a file or folder. | `file_id`, `permission_id` | `drive` |
 | `transfer_ownership` | Transfer ownership of a file or folder to another user. | `file_id`, `new_owner_email`, `send_notification?` | `drive` |
 | `share_file` | Share any file or folder with one or more principals. | `file_id`, `permissions`, `send_notification?` | `drive`, `default` |
 
-`share_spreadsheet`'s `recipients` is a list of `{email_address, role}` objects. Valid roles: `reader`, `commenter`, `writer`, `owner`.
+`share_file`'s `permissions` is a list of `{type, role, ...}` objects — `type` is `user`, `group`, `domain`, or `anyone`; `user`/`group` also need `email_address`, `domain` needs `domain`. Valid roles: `reader`, `commenter`, `writer`; a `role` left out means `reader`.
 
-`share_file`'s `permissions` is a list of `{type, role, ...}` objects — `type` is `user`, `group`, `domain`, or `anyone`; `user`/`group` also need `email_address`, `domain` needs `domain`. Valid roles: `reader`, `commenter`, `writer`.
+`share_spreadsheet` is deprecated: its `recipients` entry `{email_address, role}` is `share_file`'s `{type: 'user', email_address, role}`, except that a `role` left out means `writer`. Valid roles: `reader`, `commenter`, `writer`.
 
 ## Drive — activity
 

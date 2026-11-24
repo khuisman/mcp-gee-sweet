@@ -8,6 +8,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
+from ...deprecation import deprecated_tool
 from ..concurrency import report_progress_safe
 from ..http_errors import http_error_has_reason
 from . import _user_fields
@@ -19,6 +20,14 @@ def register(tool):
     @tool(
         annotations=ToolAnnotations(title="Share Spreadsheet", destructiveHint=True),
         groups=("sheets",),
+    )
+    @deprecated_tool(
+        use=(
+            "`share_file` with each recipient as "
+            "`{'type': 'user', 'email_address': ..., 'role': ...}`, setting this tool's "
+            "default `'role': 'writer'` explicitly"
+        ),
+        removed_in="the next feature release",
     )
     async def share_spreadsheet(
         spreadsheet_id: str,
@@ -492,7 +501,9 @@ def register(tool):
             )
             return item_result
 
-        # Same return_exceptions=True + tagged-result pattern as share_spreadsheet.
+        # return_exceptions=True: _share_one already catches its own errors, but this
+        # also lets every in-flight share finish before surfacing an unexpected
+        # exception, instead of orphaning in-flight tasks.
         raw = await asyncio.gather(*(_share_one(p) for p in permissions), return_exceptions=True)
         successes = []
         failures = []
