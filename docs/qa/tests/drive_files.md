@@ -2305,6 +2305,35 @@ With writes capped at 4 in flight (`_CSV_WRITE_CONCURRENCY`), the import ran pas
 
 ---
 
+### TC-D327: An import that fails before any row lands leaves no spreadsheet behind (#1574) ⚠️ requires-oauth ⚠️ local-filesystem
+**Background:** the spreadsheet is created first, then its sheet is renamed and resized, then the rows are written. A failure in the rename or resize raised a raw `HttpError` out of the tool (`Error executing tool ...`) and left an empty spreadsheet in the folder, with no ID to find it by. A file whose every row write Sheets refused returned `failed_ranges` and also left the empty spreadsheet. Now both remove it: deleted, or moved to the trash when the identity can't delete it (a service account that is a Content manager on a Shared Drive). A chunk that may have landed (a 5xx, a timeout) still keeps the spreadsheet and returns `failed_ranges`, which unit tests cover.
+
+**Setup:** in a scratch directory write `qa-1574-ok.csv` as `a,b\n1,2\n`, and `qa-1574-cell.csv` as a header plus one cell of 50,001 characters, over Sheets' 50,000-character cell limit: `python3 -c "print('h'); print('x' * 50001)" > <scratch>/qa-1574-cell.csv`.
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-1574-ok.csv", title="QA TC-D327 setup", folder_id={FOLDER_ID}, sheet_name="<101 characters, e.g. 's' repeated 101 times>")`
+2. `import_csv_to_sheet(local_path="<scratch>/qa-1574-cell.csv", title="QA TC-D327 cell", folder_id={FOLDER_ID})`
+3. `search_files(query="QA TC-D327", folder_id={FOLDER_ID})`
+
+**Checks**
+- Step 1 returns a tool result, not a protocol error, whose only key is `error`. It starts `Setting up the sheet failed (`, names Sheets' `The sheet name cannot be greater than 100 characters.` inside the parentheses, and ends `No rows were written, and the new spreadsheet was deleted.`
+- Step 2 returns only `error`: it starts `The row write was refused (`, names `more than the maximum of 50000 characters in a single cell` inside the parentheses, and ends with the same sentence as step 1. No `failed_ranges`
+- Neither error has a period straight after the quoted API error (`">.`): the cause closes with `">).`
+- Step 3 finds no file in the folder. `search_files` doesn't list trashed files, so this check alone doesn't tell deleted from trashed. Each error's request URL names the spreadsheet's ID (`/spreadsheets/<id>/`). Under OAuth, `get_file_metadata` on each ID returns a 404 (`File not found`), which shows both were deleted outright, not trashed. The trash path (`canDelete` false) isn't reachable under this case's identity, and unit tests cover it.
+
+**Cleanup:** remove the local files.
+
+**Result (2026-11-23) ✅ PASS — PR #1599 QA round 1 (Sky) @ dbdaf1bf**
+OAuth (`mcp-gee-sweet-sky`), {FOLDER_ID} = the Shared Drive test folder. Step 1 returned only `error`: `Setting up the sheet failed: <HttpError 400 … "Invalid requests[0].updateSheetProperties: The sheet name cannot be greater than 100 characters." …>. No rows were written, and the new spreadsheet was deleted.` Step 2 returned only `error`: `The row write was refused: <HttpError 400 … "Your input contains more than the maximum of 50000 characters in a single cell." …>. No rows were written, and the new spreadsheet was deleted.`, with no `failed_ranges`. Step 3: `{"files": [], "exhaustive": true}`. `get_file_metadata` on both IDs taken from the error URLs returned 404 `File not found`, so both were deleted, not trashed. A happy-path import of `qa-1574-ok.csv` (default sheet name) returned `rows_written: 2` with the new create `fields`; it was then deleted. Both messages end `">.`, which round 1 sent back as a formatting finding. The trash path wasn't exercised live.
+
+**Result (2026-11-23) ✅ PASS — PR #1599 QA round 2 (Sky) @ cc047fe2**
+OAuth (`mcp-gee-sweet-sky`), same folder. Step 1 returned only `error`: `Setting up the sheet failed (<HttpError 400 … "Invalid requests[0].updateSheetProperties: The sheet name cannot be greater than 100 characters." …>). No rows were written, and the new spreadsheet was deleted.` Step 2 returned only `error`: `The row write was refused (<HttpError 400 … "Your input contains more than the maximum of 50000 characters in a single cell." …>). No rows were written, and the new spreadsheet was deleted.`, with no `failed_ranges`. Neither has `">.`; both close `">).`. Step 3: `{"files": [], "exhaustive": true}`. `get_file_metadata` on both IDs from the error URLs returned 404 `File not found`. The cleanup retry path (a 5xx on the delete) can't be produced live; unit tests cover it.
+
+**Result (2026-11-23) ✅ PASS — PR #1599 QA round 3 (Sky) @ 057cc034**
+OAuth (`mcp-gee-sweet-sky`), same folder, after reconnecting to this head. Step 1 and step 2 returned the same `error`-only results as round 2, closing `">). No rows were written, and the new spreadsheet was deleted.`, with no `failed_ranges` on step 2. Step 3: `{"files": [], "exhaustive": true}`. `get_file_metadata` on both IDs from the error URLs returned 404 `File not found`. This round's fix (the folder is invalidated when a retried delete gets a 404) can't be produced live; `test_404_after_a_retried_delete_counts_as_deleted` covers it.
+
+---
+
 ### TC-D173: Non-existent local path (unit test)
 
 **Checks (unit test)**
