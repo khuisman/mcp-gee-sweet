@@ -117,6 +117,137 @@ class TestStrikethrough:
             (" now", None),
         ]
 
+    def test_single_tilde_strikes_through(self):
+        # GFM accepts one or two tildes: `~gone~` strikes like `~~gone~~` (#1335).
+        (para,) = _ast("This is ~gone~ now")
+        assert [(r.text, r.strikethrough) for r in para.runs] == [
+            ("This is ", None),
+            ("gone", True),
+            (" now", None),
+        ]
+
+    def test_three_tildes_stay_literal(self):
+        # A run of three or more tildes is not strikethrough in GFM (#1335).
+        (para,) = _ast("This is ~~~gone~~~ now")
+        assert [(r.text, r.strikethrough) for r in para.runs] == [
+            ("This is ~~~gone~~~ now", None),
+        ]
+
+    def test_mismatched_tilde_widths_do_not_strike(self):
+        # The opening and closing runs must have the same width (#1335).
+        (para,) = _ast("This is ~gone~~ now")
+        assert [(r.text, r.strikethrough) for r in para.runs] == [
+            ("This is ~gone~~ now", None),
+        ]
+
+    def test_lone_tildes_inside_a_double_tilde_span_stay_inside(self):
+        # A lone ~ within a ~~...~~ span must not claim the closing run and
+        # un-strike the whole span; the ~~ pair still wins (#1436).
+        (para,) = _ast("~~was ~5 ms~~")
+        assert [(r.text, r.strikethrough) for r in para.runs] == [
+            ("was ~5 ms", True),
+        ]
+        (para,) = _ast("~~a~b~~")
+        assert [(r.text, r.strikethrough) for r in para.runs] == [
+            ("a~b", True),
+        ]
+
+    def test_double_tilde_pair_survives_a_leading_lone_tilde(self):
+        # `~a` has no matching single-tilde closer, so it stays literal while
+        # the `~~b~~` pair strikes, as on develop (#1436).
+        (para,) = _ast("~a~~b~~")
+        assert [(r.text, r.strikethrough) for r in para.runs] == [
+            ("~a", None),
+            ("b", True),
+        ]
+
+    def test_tilde_pair_does_not_cross_an_emphasis_pair(self):
+        # Once the * pair matches, a tilde run inside it can no longer pair with
+        # one outside, as CommonMark's delimiter rules give on develop (#1436
+        # review). The unpaired tildes stay literal.
+        (para,) = _ast("*a ~~b* c~~")
+        assert [(r.text, r.italic, r.strikethrough) for r in para.runs] == [
+            ("a ~~b", True, None),
+            (" c~~", None, None),
+        ]
+        (para,) = _ast("*a ~b* c~")
+        assert [(r.text, r.italic, r.strikethrough) for r in para.runs] == [
+            ("a ~b", True, None),
+            (" c~", None, None),
+        ]
+
+    def test_single_tilde_pair_does_not_cross_a_double_tilde_pair(self):
+        # balance_pairs never pairs an opener that sits inside an already-matched
+        # span, so GFM strikes "a ~~b" and leaves the closing `~~` literal; a pass
+        # that pairs the tilde runs itself crossed the pairs and struck "a b c"
+        # with no literal tildes (#1502).
+        (para,) = _ast("~a ~~b~ c~~")
+        assert [(r.text, r.strikethrough) for r in para.runs] == [
+            ("a ~~b", True),
+            (" c~~", None),
+        ]
+
+    def test_tilde_pairing_is_linear_on_a_paragraph_of_unmatched_runs(self):
+        # One-tilde openers that can never close, then 2-tilde runs pairing among
+        # themselves. Pairing that walks every earlier delimiter per closer is
+        # quadratic here (#1502); the per-width marking hands pairing to
+        # balance_pairs, whose openers-bottom bookkeeping keeps this linear in
+        # the text, as the module's other linear-in-the-text rules are.
+        md = " ~a" * 8000 + "b~~" * 8000
+        start = time.perf_counter()
+        assert "<s>" in _md_to_html(md)
+        assert time.perf_counter() - start < 2.0
+        # With URLs in the text, a 1-tilde delimiter must find whether it sits
+        # in a URL span without scanning every span in its window: the spans and
+        # the delimiter offsets are both in order, so a bisect keeps this case
+        # linear too instead of going quadratic (#1436 review). Measured on a
+        # slow host: about 2s this way, 31x over when each delimiter scanned
+        # every span.
+        md = "www.a.com ~ " * 20000
+        start = time.perf_counter()
+        html = _md_to_html(md)
+        assert "<s>" not in html and html.count("<a ") == 20000
+        assert time.perf_counter() - start < 5.0
+
+    def test_single_tilde_pair_inside_a_bare_url_stays_text(self):
+        # A `~` inside a GFM extended autolink is part of the URL, so the whole
+        # URL links and nothing strikes, as on develop and GitHub (#1436 review).
+        html = _md_to_html("see https://cs.example.edu/~alice/paper~v2.pdf")
+        assert "<s>" not in html
+        assert 'href="https://cs.example.edu/~alice/paper~v2.pdf"' in html.replace("&amp;", "&")
+        # A tilde pair around a URL still strikes, with the URL linked inside.
+        html = _md_to_html("~https://x.com/a~")
+        assert html.count("<a ") == 1 and "<s>" in html
+
+    def test_tilde_pair_inside_a_url_with_an_escape_stays_text(self):
+        # An escaped `\_` is a `text_special` token, which must not split the
+        # URL's window: text_join hands the autolink core rule one whole text
+        # token, so the tildes stay inside the span, the URL links whole and
+        # nothing strikes, as on develop (#1436 review).
+        html = _md_to_html("see https://example.com/a\\_b/~site/doc~v2.pdf")
+        assert "<s>" not in html
+        assert html.count("<a ") == 1
+        assert 'href="https://example.com/a_b/~site/doc~v2.pdf"' in html.replace("&amp;", "&")
+
+    def test_tilde_pair_inside_a_url_with_an_entity_stays_text(self):
+        # Same for `&amp;` in a query string: the entity is a `text_special`
+        # token too, and the URL around it links whole, as on develop
+        # (#1436 review).
+        html = _md_to_html("see https://example.com/search?q=a&amp;b=~doc~v2 end")
+        assert "<s>" not in html
+        assert html.count("<a ") == 1
+        assert 'href="https://example.com/search?q=a&b=~doc~v2"' in html.replace("&amp;", "&")
+
+    def test_tilde_pairs_inside_words_strike(self):
+        # GFM imposes no word-boundary flanking rule on tildes, so this is the
+        # expected strike (#1436, also noted in markdown-support.md).
+        (para,) = _ast("100~200 and 300~400")
+        assert [(r.text, r.strikethrough) for r in para.runs] == [
+            ("100", None),
+            ("200 and 300", True),
+            ("400", None),
+        ]
+
 
 class TestGfmAutolinks:
     @pytest.mark.parametrize(
