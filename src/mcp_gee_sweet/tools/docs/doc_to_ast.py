@@ -637,8 +637,6 @@ def _link_url(ts: dict, document: dict) -> str | None:
 
 def _text_run_to_run(text: str, ts: dict, link_url: str | None = None) -> Run:
     fg = ts.get("foregroundColor", {}).get("color", {}).get("rgbColor")
-    bg = ts.get("backgroundColor", {}).get("color", {}).get("rgbColor")
-    baseline = ts.get("baselineOffset")
     # A soft break ("\v") is a line break inside the paragraph, whatever
     # wrote it: emitter.py's code-block line breaks (#719) or
     # insert_softbreak_paragraph in prose (#1057). The AST spells a line break
@@ -646,17 +644,10 @@ def _text_run_to_run(text: str, ts: dict, link_url: str | None = None) -> Run:
     text = text.replace("\v", "\n")
     return Run(
         text=text,
-        bold=ts.get("bold"),
-        italic=ts.get("italic"),
-        underline=ts.get("underline"),
-        strikethrough=ts.get("strikethrough"),
         link_url=link_url,
         font_size=ts.get("fontSize", {}).get("magnitude"),
         foreground_color=_rgb_color(fg),
-        font_family=ts.get("weightedFontFamily", {}).get("fontFamily"),
-        background_color=_rgb_color(bg),
-        baseline_offset=baseline if baseline not in (None, "NONE") else None,
-        small_caps=ts.get("smallCaps"),
+        **_character_style(ts),
     )
 
 
@@ -664,6 +655,28 @@ def _rgb_color(rgb: dict | None) -> RGBColor | None:
     if not rgb:
         return None
     return RGBColor(red=rgb.get("red", 0.0), green=rgb.get("green", 0.0), blue=rgb.get("blue", 0.0))
+
+
+def _character_style(ts: dict) -> dict:
+    """The character-style fields a Run and an Image read the same way from
+    a Docs textStyle (#1583) — the fields the write side styles on an image
+    and its fallback text (emitter's _character_text_style) are the ones a
+    run carries too. fontSize and foregroundColor stay out: the write side
+    never sets them on an image, so they stay the paragraph's (#1099), and
+    only _text_run_to_run reads them, for the run."""
+    baseline = ts.get("baselineOffset")
+    return {
+        "bold": ts.get("bold"),
+        "italic": ts.get("italic"),
+        "underline": ts.get("underline"),
+        "strikethrough": ts.get("strikethrough"),
+        "baseline_offset": baseline if baseline not in (None, "NONE") else None,
+        "small_caps": ts.get("smallCaps"),
+        "font_family": ts.get("weightedFontFamily", {}).get("fontFamily"),
+        "background_color": _rgb_color(
+            ts.get("backgroundColor", {}).get("color", {}).get("rgbColor")
+        ),
+    }
 
 
 def _resolve_inline_image(
@@ -688,21 +701,13 @@ def _resolve_inline_image(
     # foregroundColor stay out — the write side never sets them on an image, so
     # they stay the paragraph's (#1099).
     ts = text_style or {}
-    baseline = ts.get("baselineOffset")
     return Image(
         src=uri,
         alt=embedded.get("title") or embedded.get("description") or None,
         width=size.get("width", {}).get("magnitude"),
         height=size.get("height", {}).get("magnitude"),
         link_url=link_url,
-        bold=ts.get("bold"),
-        italic=ts.get("italic"),
-        underline=ts.get("underline"),
-        strikethrough=ts.get("strikethrough"),
-        background_color=_rgb_color(ts.get("backgroundColor", {}).get("color", {}).get("rgbColor")),
-        baseline_offset=baseline if baseline not in (None, "NONE") else None,
-        small_caps=ts.get("smallCaps"),
-        font_family=ts.get("weightedFontFamily", {}).get("fontFamily"),
+        **_character_style(ts),
     )
 
 
