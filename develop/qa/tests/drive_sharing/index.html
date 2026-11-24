@@ -1674,7 +1674,7 @@ A real ownership transfer; Shared Drive items can't transfer (403 ownerOnTeamDri
 <p>"Transfer ownership of {SPREADSHEET_ID} to {TEST_PERMISSION_EMAIL}"</p>
 </blockquote>
 <p><strong>Checks</strong>
-- Call fails with a Drive API permission/consent error — not a silent success or unhandled crash
+- Call fails — not a silent success or unhandled crash. On the SA fixture every file is in {SHARED_DRIVE_ID}, so since #1181 the result is TC-D327's <code>{"error": ...}</code> (shared drive item, nothing changed), not a raised Drive 403
 - 🔍 <strong>Known limitation:</strong> service accounts have no personal Drive identity to own files; this documents the failure mode the tool's docstring OAuth requirement refers to</p>
 <p><strong>Result (2026-07-27) ⏭️ SKIP — environmental</strong>
 The <code>mcp-gee-sweet-sa</code> server available in this role worktree is a separate long-running process not tracking this PR's branch — <code>transfer_ownership</code> isn't registered on it even after <code>/mcp reconnect</code>, so the tool doesn't exist to call yet on that connection. Not a product defect; needs re-running once this PR's code reaches wherever that server's process is pointed (e.g. post-merge).</p>
@@ -1683,6 +1683,7 @@ out of shard scope — requires the mcp-gee-sweet-sa server; this shard is restr
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 SA → 403 ownerOnTeamDriveItemNotSupported: a clean Drive error, not a silent success.</p>
 <p><strong>Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on <code>mcp-gee-sweet-sa</code></strong> — shard assignment defers every transfer_ownership call to Aziz, although this case targets the SA server; deferred to Aziz.</p>
+<p><strong>Result (2026-11-23) ⏭️ SKIP — PR #1600 round 1 (Kit)</strong> — needs <code>mcp-gee-sweet-sa</code>, which isn't this slot's server. The Checks were updated for #1181's <code>{"error"}</code> result; the same code path ran under OAuth in TC-D327.</p>
 <hr />
 <h3 id="tc-d235-non-existent-file-id">TC-D235: Non-existent file ID<a class="headerlink" href="#tc-d235-non-existent-file-id" title="Permanent link">&para;</a></h3>
 <p><strong>Prompt</strong></p>
@@ -1698,6 +1699,60 @@ transfer_ownership("fakefileid999", ...) -&gt; HttpError 404 "File not found: fa
 <p><strong>Result (2026-10-17) ✅ PASS — v0.9.2 release pass</strong>
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.</p>
 <p><strong>Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on <code>mcp-gee-sweet-sa</code></strong> — transfer_ownership deferred to Aziz per shard assignment.</p>
+<p><strong>Result (2026-11-23) ✅ PASS — PR #1600 round 1 (Kit)</strong>
+<code>transfer_ownership("fakefileid999", "qa-nonexistent-placeholder@example.com")</code> with <code>send_notification</code> omitted → HttpError 404 "File not found: fakefileid999." propagates; the request URL shows <code>sendNotificationEmail=true</code>.</p>
+<p><strong>Result (2026-11-23) ✅ PASS — PR #1600 round 2 (Kit) @ 8ad37992</strong>
+Same call → Drive's 404 "File not found: fakefileid999." propagates, with <code>sendNotificationEmail=true</code> in the request.</p>
+<hr />
+<h3 id="tc-d327-shared-drive-item-returns-a-clear-error-nothing-changed-1181">TC-D327: Shared drive item returns a clear error, nothing changed (#1181)<a class="headerlink" href="#tc-d327-shared-drive-item-returns-a-clear-error-nothing-changed-1181" title="Permanent link">&para;</a></h3>
+<p>Non-destructive: Drive refuses every owner transfer on a shared drive item, so nothing is transferred. Runs on either auth method.</p>
+<p><strong>Setup:</strong> <code>create_spreadsheet(title="QA-TC-D327")</code>, which lands in <code>{SHARED_DRIVE_ID}</code>.</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p><code>transfer_ownership(file_id=&lt;that spreadsheet's ID&gt;, new_owner_email="qa-recipient@example.com")</code></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Result is exactly <code>{"error": ...}</code> (a successful tool result, not a raised tool error)
+- The message names the file ID, says the item is in a shared drive whose organization owns it, says nothing was changed, and says an organizer can move the item into their own My Drive to own it
+- It doesn't contain Drive's bare "Owner role is invalid for shared drive items."
+- <code>list_permissions</code> on the file shows no <code>qa-recipient@example.com</code> permission and no <code>owner</code> role</p>
+<p><strong>Cleanup:</strong> <code>delete_file</code> the spreadsheet.</p>
+<p><strong>Result (2026-11-23) ✅ PASS — PR #1600 round 1 (Kit, OAuth)</strong>
+Result was exactly <code>{"error"}</code>: names the file ID, the shared drive, the organization owning it, "Nothing was changed", and that an organizer can move the item into their own My Drive; no Drive "Owner role is invalid" text. <code>list_permissions</code> afterward: only the SA (<code>fileOrganizer</code>) and the user (<code>organizer</code>), with no recipient permission and no <code>owner</code>. Spreadsheet trashed.</p>
+<p><strong>Result (2026-11-23) ✅ PASS — PR #1600 round 2 (Kit, OAuth) @ 8ad37992</strong>
+The same <code>{"error"}</code> text as round 1. <code>list_permissions</code> afterward showed only the SA (<code>fileOrganizer</code>) and the user (<code>organizer</code>). Spreadsheet trashed. Extra probe, the same round: a My Drive spreadsheet sent to <code>qa-recipient@example.com</code> raised Drive's 400 (<code>invalidSharingRequest</code>, "ownership can only be transferred to another user in the same organization") unrewritten, the owner unchanged. Trashed.</p>
+<hr />
+<h3 id="tc-d328-send_notification-schema-admits-only-true-1181">TC-D328: <code>send_notification</code> schema admits only <code>true</code> (#1181)<a class="headerlink" href="#tc-d328-send_notification-schema-admits-only-true-1181" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p>List the server's tools and read <code>transfer_ownership</code>'s input schema; then call <code>transfer_ownership(file_id="fakefileid999", new_owner_email="qa-nonexistent-placeholder@example.com", send_notification=false)</code>.</p>
+</blockquote>
+<p><strong>Checks</strong>
+- <code>send_notification</code> in the schema is <code>{"const": true, "default": true, "type": "boolean", ...}</code>
+- The call with <code>false</code> fails input validation (a tool error naming <code>send_notification</code>) and makes no Drive request: the error isn't Drive's 404 "File not found: fakefileid999."
+- The same call without <code>send_notification</code> reaches Drive and returns its 404 (as TC-D235)</p>
+<p><strong>Cleanup:</strong> none.</p>
+<p><strong>Result (2026-11-23) ✅ PASS — PR #1600 round 1 (Kit)</strong>
+Listed schema: <code>send_notification</code> = <code>{"const": true, "default": true, "title": "Send Notification", "type": "boolean"}</code>. With <code>send_notification=false</code>: pydantic validation error <code>Input should be True [type=literal_error]</code> naming <code>send_notification</code>, with no Drive 404, so no request was made. Without it: Drive's 404 "File not found: fakefileid999." (TC-D235).</p>
+<p><strong>Result (2026-11-23) ✅ PASS — PR #1600 round 2 (Kit) @ 8ad37992</strong>
+The schema is unchanged (<code>const: true</code>). <code>send_notification=false</code> → <code>literal_error</code> naming <code>send_notification</code>, with no Drive request; omitted → Drive's 404.</p>
+<hr />
+<h3 id="tc-d329-transfer-between-two-personal-accounts-returns-a-clear-error-1181-requires-oauth">TC-D329: Transfer between two personal accounts returns a clear error (#1181) ⚠️ requires-oauth<a class="headerlink" href="#tc-d329-transfer-between-two-personal-accounts-returns-a-clear-error-1181-requires-oauth" title="Permanent link">&para;</a></h3>
+<p><strong>Fixture requirement:</strong> a server signed in to a personal (gmail.com) account, and a second gmail.com account the tester owns. Drive refuses this transfer (403 <code>consentRequiredForOwnershipTransfer</code>, checked live 2026-11-23), so nothing changes owner. Skip as environmental when no such server or second account is available.</p>
+<p><strong>Setup:</strong> <code>create_doc(title="QA-TC-D329")</code> in the personal account's My Drive (not a shared drive).</p>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<p><code>transfer_ownership(file_id=&lt;that Doc's ID&gt;, new_owner_email=&lt;second gmail.com address&gt;)</code></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Result is exactly <code>{"error": ...}</code>, naming the file ID and the second address
+- The message says Drive transfers ownership between personal accounts only once the new owner accepts, that this tool can't send that request, that nothing was changed, and that the owner sends it from the file's Share dialog
+- <code>list_permissions</code> on the Doc still shows the personal account as <code>owner</code></p>
+<p><strong>Cleanup:</strong> <code>delete_file</code> the Doc.</p>
+<p><strong>Result (2026-11-23) ⏭️ SKIP — environmental, PR #1600 round 1 (Kit)</strong>
+<code>mcp-gee-sweet-kit</code> is signed in to a Workspace account (<code>is_service_account_identity: false</code>, a Workspace-org domain), not a personal gmail.com account, and this slot has no second consumer account. Not run.</p>
+<p><strong>Result (2026-11-23) ⏭️ SKIP — environmental, PR #1600 round 2 (Kit)</strong>
+Same as round 1: no consumer-account fixture on this slot. The message's new wording is covered by <code>test_consumer_accounts_return_clear_error</code>.</p>
 <hr />
 <h2 id="share_file"><code>share_file</code><a class="headerlink" href="#share_file" title="Permanent link">&para;</a></h2>
 <blockquote>
