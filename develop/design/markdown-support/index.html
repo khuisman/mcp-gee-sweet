@@ -1519,6 +1519,12 @@ another registered tool), passing <code>content_format</code> through to <code>_
 <td>struck-through text run (#1077)</td>
 </tr>
 <tr>
+<td><code>~strikethrough~</code></td>
+<td><code>&lt;s&gt;</code> (GFM single-tilde strikethrough; opening and closing runs must match, and a run of three or more tildes stays literal. As in GFM, a tilde pair may sit inside a word: <code>100~200 and 300~400</code> strikes <code>200 and 300</code>.)</td>
+<td><code>Run(strikethrough=True)</code></td>
+<td>struck-through text run (#1335)</td>
+</tr>
+<tr>
 <td><code>&lt;s&gt;</code>, <code>&lt;strike&gt;</code>, <code>&lt;del&gt;</code> (inline HTML)</td>
 <td>passed through</td>
 <td><code>Run(strikethrough=True)</code></td>
