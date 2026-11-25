@@ -2303,6 +2303,9 @@ The import took about 3 to 4 minutes (the client moved it to the background afte
 **Result (2026-11-23) ✅ PASS — PR #1589 QA round 2 (Sky) @ 44875ab5**
 With writes capped at 4 in flight (`_CSV_WRITE_CONCURRENCY`), the import ran past the client's 120 s foreground limit and returned `rows_written: 800000` with no `error`, `failed_ranges`, or `written_ranges`. Step 2: `rowCount: 800000`, `columnCount: 1`. Step 3: `[["row-799999"],["row-800000"]]`. Step 4: `[["row-335000"],["row-335001"]]`. Unit tests cover the pause's ordering (`TestCsvImportWriteConcurrency`, `test_a_success_sent_before_the_pause_keeps_the_delay`, `test_no_pause_runs_past_the_deadline`). This case shows only that the capped import still lands every row.
 
+**Result (2026-11-25) ✅ PASS — PR #1615 QA round 1 (Sky) @ e74c274f**
+OAuth (`mcp-gee-sweet-sky`), same folder, 200,000-cell chunks (4 writes). Returned in the foreground, under 120 s: `rows_written: 800000`, no `error`, `failed_ranges`, or `written_ranges`. Step 2: `rowCount: 800000`, `columnCount: 1`. Step 3: `[["row-799999"],["row-800000"]]`. Step 4 (`A200000:A200001`): `[["row-200000"],["row-200001"]]`. Deleted after.
+
 ---
 
 ### TC-D327: An import that fails before any row lands leaves no spreadsheet behind (#1574) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -2332,6 +2335,9 @@ OAuth (`mcp-gee-sweet-sky`), same folder. Step 1 returned only `error`: `Setting
 **Result (2026-11-23) ✅ PASS — PR #1599 QA round 3 (Sky) @ 057cc034**
 OAuth (`mcp-gee-sweet-sky`), same folder, after reconnecting to this head. Step 1 and step 2 returned the same `error`-only results as round 2, closing `">). No rows were written, and the new spreadsheet was deleted.`, with no `failed_ranges` on step 2. Step 3: `{"files": [], "exhaustive": true}`. `get_file_metadata` on both IDs from the error URLs returned 404 `File not found`. This round's fix (the folder is invalidated when a retried delete gets a 404) can't be produced live; `test_404_after_a_retried_delete_counts_as_deleted` covers it.
 
+**Result (2026-11-25) ✅ PASS — PR #1615 QA round 1 (Sky) @ e74c274f**
+OAuth (`mcp-gee-sweet-sky`), same folder, a regression check with chunks now sized by cells and bytes. Step 1 and step 2 returned the same `error`-only results as round 3 of PR #1599, closing `">). No rows were written, and the new spreadsheet was deleted.`, with no `failed_ranges` on step 2. Step 3: `{"files": [], "exhaustive": true}`. `get_file_metadata` on both IDs from the error URLs returned 404 `File not found`.
+
 ---
 
 ### TC-D328: A CSV of long cells goes in requests small enough to finish, and lands every row (#1577) ⚠️ requires-oauth ⚠️ local-filesystem
@@ -2350,6 +2356,9 @@ OAuth (`mcp-gee-sweet-sky`), same folder, after reconnecting to this head. Step 
 - Step 3's one cell starts `0000000000`. (Read single cells only: a wider range of 40,000-character cells is quickly over the response cap.)
 
 **Cleanup:** `delete_file(file_id=<step 1's spreadsheetId>, permanent=True)`; remove the local file.
+
+**Result (2026-11-25) ✅ PASS — PR #1615 QA round 1 (Sky) @ e74c274f**
+OAuth (`mcp-gee-sweet-sky`), same folder. Step 1 ran past the client's 120 s foreground limit, finished in the background in about 3 minutes, and returned `rows_written: 3000` with no `error`, `failed_ranges`, or `written_ranges`. Steps 2 and 3, read to a scratch file through `local_path`: A3000 is one cell, 40,000 characters long, starting `0000002999`; A1 is one cell, 40,000 characters long, starting `0000000000`. Deleted after.
 
 ---
 
@@ -2441,6 +2450,9 @@ import_csv_to_sheet(12001-row CSV → 'QA-CSV-Concurrent-183') → rows_written=
 import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — 12,000-row CSV → rows_written=12001, no error. Boundary reads (rows 1-2, 4998-5002, 9998-10002, 11998-12000) all match. Full read of A1:B12010 to a scratch file: 12,001 rows, data rows equal exactly `row-1..row-12000` in order (no gaps, overlap or duplicates).
+
+**Result (2026-11-25) ✅ PASS — PR #1615 QA round 1 (Sky) @ e74c274f**
+OAuth (`mcp-gee-sweet-sky`), the Shared Drive test folder, with the 50-column file the case's new Setup writes. Step 1 returned `rows_written: 12001` and no `error`. Step 2: `[["row-3998"],["row-3999"],["row-4000"],["row-4001"]]`. Step 3: `[["row-7998"],["row-7999"],["row-8000"],["row-8001"]]`. Step 4: three rows starting `row-11998`, `row-11999`, `row-12000`, 50 cells each, the last `x`. Deleted after.
 
 ---
 
