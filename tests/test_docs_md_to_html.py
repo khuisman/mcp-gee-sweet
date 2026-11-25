@@ -1135,3 +1135,37 @@ class TestLineBreakQaRound1:
 
     def test_text_in_tags_still_collapses(self):
         assert _html_inserted_text("<p>Line one\nLine two</p>") == "Line one Line two\n"
+
+
+class TestMarkdownItPy43:
+    """Behavior that needs markdown-it-py 4.3.0, the floor in pyproject.toml (#1596).
+    Under 4.2.0 each of these lost content."""
+
+    def test_comment_with_a_blank_line_in_an_item_hides_only_itself(self):
+        # 4.2.0 ended the comment at the blank line and escaped its "-->", so
+        # html_to_ast saw an unclosed "<!--" and dropped the rest of the document.
+        md = "- a\n  <!-- c\n\n  - hidden\n  -->\n  - b\n- after\n"
+        assert _outline(md) == [("UL", 0, "a"), ("UL", 1, "b"), ("UL", 0, "after")]
+
+    def test_pre_with_a_blank_line_in_an_item_stays_one_block(self):
+        md = "- a\n  <pre>\n  x\n\n  - y\n  </pre>\n- b\n"
+        html = _md_to_html(md)
+        assert "<pre>\nx\n\n- y\n</pre>" in html
+        assert "--&gt;" not in html and "&lt;/pre&gt;" not in html
+
+    @pytest.mark.parametrize(
+        ("md", "alt"),
+        [
+            ("![a \\* b](x.png)", "a * b"),
+            ("![a &amp; b &copy;](x.png)", "a & b ©"),
+            ("![see `code` here](x.png)", "see code here"),
+            ("![line\\\nbreak](x.png)", "line\nbreak"),
+            # A spaced destination (_spaced_image_rule) gets the same alt text.
+            ("![a \\* `c` &amp;](./Screen Shot.png)", "a * c &"),
+        ],
+    )
+    def test_image_alt_keeps_escapes_entities_code_and_breaks(self, md, alt):
+        # The alt is the fallback text for an image Docs can't embed (#1099); 4.2.0
+        # dropped each of these from it.
+        images = [r for r in _ast(md)[0].runs if isinstance(r, Image)]
+        assert [i.alt for i in images] == [alt]

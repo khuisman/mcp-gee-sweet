@@ -215,6 +215,80 @@ import) and EP-8 don't use it.
 - Change EP-8 (`upload_file`), which kept Python-Markdown until #1102.
 - Read table column alignment.
 
+## markdown-it-py 4.3.0 (#1596)
+
+PR #1592 bumped markdown-it-py from 4.2.0 to 4.3.0. Each upstream change listed in #1596 was
+checked against `_md_to_html` by rendering the same inputs under both versions and diffing the
+pre-pass output, the verbatim map, the HTML, the AST and every image's fallback text. The inputs
+were all 652 CommonMark 0.31.2 spec examples, every fixture under `docs/qa/fixtures/md/`, and
+targeted cases for each item. The spec examples and the fixtures came out identical. Items 1 to 4
+were also run live: two Docs per version through `create_doc`'s own path (`_create_doc_with_content`),
+read back with `documents().get`. Verdict: **the bump is safe and fixes two kinds of lost content.**
+No code change is needed for 4.3.0 itself. The floor in `pyproject.toml` is now `>=4.3.0`, so an
+environment that already has 4.2.0 can't keep it, and `TestMarkdownItPy43` covers both fixes (each
+of its cases fails under 4.2.0). Two defects turned up, each filed separately.
+
+1. **Raw HTML blocks in a list item or quote.** #1596 states this one backwards. 4.2.0 ended a
+   comment, `<pre>`, `<script>`, `<style>`, `<?…?>`, `<!X>` or CDATA block at a blank line inside
+   a list item, because a blank line counts as outdented. 4.3.0 runs it to its closing sequence, as
+   CommonMark does. So `_verbatim_lines` now protects more lines, never fewer, and D1/D2 rewrite
+   nothing they didn't before. The effect on output is a fix. Under 4.2.0 the block's closing `-->`
+   or `</pre>` was rendered as escaped text, so `html_to_ast` saw an unclosed `<!--` and hid the
+   rest of the document. Live, a Doc with a commented-out sub-list in an item kept only its first
+   item under 4.2.0. Under 4.3.0 it keeps every item and hides only the comment. No change.
+   One shape still differs from what the source looks like. D1 can move an outdented line into an
+   item whose raw block is still open, because `_verbatim_lines` scans the source before D1 and the
+   renderer reads the result after it. The moved line then becomes the block's text
+   (`1. A` / `   <pre>` / blank / `  - x` / `   </pre>`: `- x` lands inside the `<pre>`). That is the
+   same under both versions for a non-blank line. Only the blank-line route is new. No change.
+2. **`<!doctype …>` and other `<!` + lowercase-letter lines** now start an HTML block and can
+   interrupt a paragraph, as CommonMark 0.31 specifies. `html_to_ast` ignores a declaration, so the
+   only difference is that the text after it is now its own paragraph (`text` / `<!x>` / `more` is
+   two paragraphs, not one). The live Doc under 4.3.0 shows the two paragraphs. Under 4.2.0 this part
+   was checked only locally, because item 1's lost content cut that Doc off before it. No change.
+3. **Image alt text** now keeps what 4.2.0 dropped: backslash escapes and entities (`a \* b` was
+   `a b`, `a &amp; b` was `a b`), code-span text, and hard breaks (`line\` + newline was `linebreak`).
+   Live, the fallback text written for an image that can't be embedded (#1099) is now `a * b`,
+   `a & b ©`, `see code here` and `line break`. Spaced destinations (`_spaced_image_rule`) get the
+   same text, since `text_join` now joins an image's own children. One change is a judgment call:
+   inline HTML in the alt is kept as source, so `![a <b>bold</b> c](x.png)` falls back to the text
+   `a <b>bold</b> c` where 4.2.0 wrote `a bold c`. That matches upstream markdown-it and the alt
+   attribute a browser shows when the image fails. It is literal text in the Doc and never markup.
+   Accepted, no change.
+4. **Trimming uses CommonMark's whitespace set**, so a leading or trailing U+0085 or
+   U+001C–U+001F now stays in a heading, paragraph, table cell or fence info string, and a
+   reference label ending in one no longer matches the label without it. `_spaced_destination`
+   compares labels through markdown-it's own `normalizeReference`, so it follows automatically. Live,
+   Docs keeps U+0085 and silently drops U+001C–U+001F. It already did that for characters in the
+   middle of a run under 4.2.0, so no new kind of character reaches the API. `html_to_ast` keeps
+   the character, as the parser does. One of our checks disagrees with the parser: D2's
+   `_starts_table` trims with `str.strip()`, so a header row ending in U+0085 passes it but isn't a
+   table to markdown-it. Filed as #1620.
+5. **Task checkboxes in an indented code block** are detected only when the `tasklists` option is
+   on, and `_build_markdown_parser` doesn't set it. Our checkboxes are literal `[ ] `/`[x] ` text
+   that `html_to_ast` reads. Not applicable.
+6. **Code spans.** In the corpus, only padding changed: `` ` \t ` `` is now the code `\t`, because
+   the one-space strip is tested on U+0020 alone. The backtick-cache fix (a code span after an
+   unclosed link label) changed no example. No change.
+7. **A rule that matches without advancing now raises `RuntimeError`.** `_spaced_image_rule` and
+   `_spaced_link_rule` set `state.pos` to the end of a regex match that is at least `[](x y)` long,
+   in silent mode too. `_spaced_link_rule` restores `posMax` and moves `pos` past the match after
+   its nested `tokenize`. `_gfm_autolink_rule` is a core rule, which the check doesn't cover. 40,000
+   random inputs built from link, image, autolink, tilde, code and HTML fragments raised nothing
+   under 4.3.0. No change.
+8. **Rule caches and `StateBase.src`.** `Ruler.enable`/`disable` now reset the cache on failure.
+   Ours never fail, and each ruler's cache is built after the last mutation, at import. The new
+   per-parse caches (`html_terminator_last`, the backtick runs) live on the state object, not the
+   shared parser. Nothing in our code assigns `state.src`. No change.
+
+Also seen, outside #1596's list: block tag names now match ASCII only, so `<ſcript>` (long s) is no
+longer a `<script>` block. The IPv6 change in `normalizeLink` doesn't reach us, since
+`normalizeLink` is the identity here.
+
+While running the live checks, a separate older defect showed up: a raw HTML block (a comment,
+`<script>` or `<style>`) right after an item's text leaves a stray empty bullet under the item
+(#1619). It happens under both versions.
+
 ## Review history
 
 PR #1228's QA rounds, and what each changed. The invariants they produced are in `CLAUDE.md`'s
