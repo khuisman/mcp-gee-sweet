@@ -245,6 +245,31 @@ Both entries in successes; progress notifications aren't visible in this client.
 
 ---
 
+### TC-D330: `share_spreadsheet` is deprecated, still works, and its note's `share_file` call grants the same permission (#665)
+
+**Background:** `share_spreadsheet` is kept for one release under the deprecation policy (`docs/design.md`, "Renaming or Removing a Tool"). Its description opens with the `share_file` call that replaces it. `share_file` defaults a missing `role` to `reader` where `share_spreadsheet` defaults it to `writer`, so the note tells the caller to set `'role': 'writer'` explicitly.
+
+**Approval:** shares to `@example.com` test addresses, named in the user's approval (see the note at the top of this file). Leave `send_notification` at its default.
+
+**Steps**
+1. Read `share_spreadsheet`'s description from the tool list (`tools/list`, or the deferred-tool schema).
+2. `share_spreadsheet(spreadsheet_id="{SPREADSHEET_ID}", recipients=[{"email_address": "qa-665-a@example.com"}])`, with no `role`.
+3. `share_file(file_id="{SPREADSHEET_ID}", permissions=[{"type": "user", "email_address": "qa-665-b@example.com", "role": "writer"}])`, the call the note describes for the same recipient shape.
+4. `list_permissions(file_id="{SPREADSHEET_ID}")`.
+
+**Checks**
+- The description starts with "Deprecated: use `share_file`", names `'type': 'user'` and `'role': 'writer'`, and says `Removed in the next feature release.`
+- Step 2 returns `qa-665-a@example.com` in `successes` with `role: "writer"` and a `permissionId`, `failures: []`: the deprecated tool still works, with its old default.
+- Step 3 returns `qa-665-b@example.com` in `successes` with `role: "writer"`, `type: "user"` and a `permissionId`, `failures: []`.
+- In step 4, both addresses appear as `type: "user"`, `role: "writer"`.
+
+**Teardown**
+`remove_permission` for both permission IDs.
+
+**Result (2026-11-25) ✅ PASS — PR #1614 QA round 2 (Kit) @ 01a1cc0d, on `mcp-gee-sweet-kit`** — run on a throwaway spreadsheet created in the Shared Drive default folder, not `{SPREADSHEET_ID}`. Step 1: the description opens "Deprecated: use `share_file` with each recipient as `{'type': 'user', 'email_address': ..., 'role': ...}`, setting this tool's default `'role': 'writer'` explicitly instead. Removed in the next feature release." Step 2: `qa-665-a@example.com` in `successes`, `role: "writer"`, a `permissionId`, `failures: []`. Step 3: `qa-665-b@example.com` in `successes`, `type: "user"`, `role: "writer"`, a `permissionId`, `failures: []`. Step 4: both listed as `type: "user"`, `role: "writer"`. Both permissions removed and the spreadsheet trashed.
+
+---
+
 ## `list_permissions`
 
 ### TC-D124: List permissions on a file — top-level entry present
@@ -765,7 +790,7 @@ list_permissions cross-check: every principal had exactly its requested role.
 
 ### TC-D259: `share_file` emits `notifications/progress` updates as each permission entry completes (issue #355)
 
-**Background:** #355 extends #316/#319's per-item `ctx.report_progress()` pattern (originally added to `download_folder`/`sync_folder` — see TC-D199) to `share_file`'s concurrent per-permission shares (the same concurrent loop TC-D177 exercises for cross-attribution): `ctx.report_progress(completed, total, f"{perm_type}: {outcome}")` fires from inside each entry's own coroutine as its share finishes, wrapped in try/except so a broken notification channel can't demote an already-successful share. Unit-tested against a mocked `ctx` in `tests/drive/test_sharing.py::TestShareFile::test_reports_progress_per_permission`/`test_report_progress_failure_does_not_demote_a_successful_share`.
+**Background:** #355 extends #316/#319's per-item `ctx.report_progress()` pattern (originally added to `download_folder`/`sync_folder` — see TC-D199) to `share_file`'s concurrent per-permission shares (the same concurrent loop TC-D177 exercises for cross-attribution): `ctx.report_progress(completed, total, f"{principal}: {outcome}")` fires (`principal` is the entry's `email_address` or `domain`, else its `type`, since #665) from inside each entry's own coroutine as its share finishes, wrapped in try/except so a broken notification channel can't demote an already-successful share. Unit-tested against a mocked `ctx` in `tests/drive/test_sharing.py::TestShareFile::test_reports_progress_per_permission`/`test_report_progress_failure_does_not_demote_a_successful_share`.
 
 **Note:** Same protocol-level caveat as TC-D199 — visibility depends on whether this QA client sets a `progressToken`.
 
