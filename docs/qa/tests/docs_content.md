@@ -7725,6 +7725,9 @@ Run on 2026-11-23 in an isolated service-account sandbox on a Shared Drive, agai
 **Result (2026-11-23) ❌ FAIL — steps 4 and 5: Docs inherits bold from a bold inline image, but the restore reads text runs only (#1606 item 1)**
 Step 1: the control's `code` is plain (it follows the empty paragraph's own newline, not `Header`); the font line's `code` is Courier New, not bold. Step 2: control plain; font line Courier New, not bold. Step 3: control bold (one run with `Bold`); font line bold + Courier New. Step 4: control `code` bold, ahead of the bold image; font line Courier New, not bold. Step 5: control `code` bold, after the bold image; font line Courier New, not bold. Step 6 pending: no tool inserts a person chip. Docs trashed.
 
+**Result (2026-11-25) ❌ FAIL (step 4) — Rio's re-run for PR #1613's review, on `mcp-gee-sweet-rio` (OAuth, Shared Drive default folder) at `35c98df9` (on `develop` `7f87481`)**
+Steps 1 and 4 only, raw reads from a read-only `documents().get()` script. Step 1: control `code` plain; font line `code` Courier New, not bold. Step 4: the image is `bold: true`; control `code` bold; font line `code` Courier New, not bold. The same failure as above (#1606 item 1). Steps 2, 3 and 5 weren't re-run; they rest on the run above. Docs trashed.
+
 ### TC-DOC273: A leading UTF-8 byte-order mark in a doc source file is dropped (#1581) ⚠️ destructive ⚠️ local-filesystem
 
 **Purpose:** `create_doc_from_file` and `update_doc_from_file` read the source file as `utf-8-sig`, so a leading byte-order mark (`EF BB BF`) no longer reaches the parser.
@@ -7746,3 +7749,6 @@ Step 1: the control's `code` is plain (it follows the empty paragraph's own newl
 
 **Result (2026-11-23) ✅ PASS**
 Steps 1 and 2: `HEADING_1` `Title` at index 1, then `NORMAL_TEXT` `body`. Step 3: `HEADING_1` `Title`. Step 4: `HEADING_1` `H`, then only the trailing empty paragraph. Step 5: Drive's import also gives `HEADING_1` `Title`, then `body`, so that path needs no change. No U+FEFF in any doc. Docs trashed.
+
+**Result (2026-11-25) ✅ PASS — Rio's re-run for PR #1613's review, on `mcp-gee-sweet-rio` (OAuth, Shared Drive default folder) at `35c98df9` (on `develop` `7f87481`)**
+Steps 1–4, read with `get_doc_structure`. Steps 1 and 2: `HEADING_1` `Title` spanning [1, 7), then `NORMAL_TEXT` `body`. Step 3: `HEADING_1` `Title` [1, 7). Step 4: `HEADING_1` `H` [1, 3), then only the trailing empty paragraph. Every span is exactly its text's length, so no U+FEFF survived. Step 5 (Drive's import, no code path this fix changes) wasn't re-run; it rests on the run above. Docs trashed.
