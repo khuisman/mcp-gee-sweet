@@ -1413,8 +1413,95 @@
 <li><strong>Starting a pause sends a progress update</strong> ("Sheets write quota reached; waiting N s"), since a pause can last a minute with no chunk finishing, and a client that resets its timeout on progress would otherwise hear nothing.</li>
 </ul>
 <p><strong>The limit check runs before the rows are padded</strong>, so a refused file doesn't pay for building the padded copy.</p>
-<h2 id="known-ceiling-left">Known ceiling left<a class="headerlink" href="#known-ceiling-left" title="Permanent link">&para;</a></h2>
+<h2 id="known-ceiling-left-closed-by-1577">Known ceiling left (closed by #1577)<a class="headerlink" href="#known-ceiling-left-closed-by-1577" title="Permanent link">&para;</a></h2>
 <p>With 5,000-row chunks, a file needs <code>rows / 5000</code> writes at 60 a minute. At the 20M-cell limit a 10-column file is 400 chunks (about 7 minutes), inside the 10-minute budget; a 1-column file is 4,000 chunks (over an hour), so its rows past the budget come back in <code>failed_ranges</code>. Sizing chunks by cells as well as rows is the fix, and it's the same mechanism #1577 adds for bytes.</p>
+<h2 id="chunks-sized-by-cells-and-bytes-1577-2026-11-24">Chunks sized by cells and bytes (#1577, 2026-11-24)<a class="headerlink" href="#chunks-sized-by-cells-and-bytes-1577-2026-11-24" title="Permanent link">&para;</a></h2>
+<p>A fixed 5,000-row chunk was wrong at both ends: 3,000 rows of 40,000-character cells (120 MB) went as one request and timed out at 60 s with nothing written (#1529), and a narrow file made thousands of tiny writes. <code>_csv_chunks</code> now closes a chunk before a row would take it past <code>_CSV_CHUNK_MAX_CELLS</code> (200,000) cells or <code>_CSV_CHUNK_MAX_BYTES</code> (5 MB) of the request's <code>values</code> array. Bytes are counted as googleapiclient sends them, <code>json.dumps</code> with ASCII escaping, so a non-ASCII character counts 6 bytes and an astral one 12. A row is never split: a row over a budget on its own is a chunk of one row, at its own size. Splitting a row would mean column-range writes and column-aware <code>failed_ranges</code>. What makes a row that large is its total size, not any one cell: 100 cells of 50,000 characters, 2,000 columns of 2,500, or 10,000 of 500 all reach 5 MB. Such rows are each a lone chunk over the budget, up to four in flight at once, so a file of them can still time out (a known limitation, <code>docs/known-limitations.md</code>).</p>
+<p><strong>Counting bytes without encoding (PR #1615 QA round 1).</strong> Planning ran <code>json.dumps</code> once per row: 4.9 s for 2M one-column rows, about 49 s at the 20M-cell limit, with no progress update. <code>_row_json_bytes</code> counts a row arithmetically (its text, two quotes a cell, <code>,</code> between cells, brackets) unless <code>_JSON_ESCAPED</code> finds a character <code>json.dumps</code> escapes, the same set as the json module's own <code>ESCAPE_ASCII</code> (anything outside space to <code>~</code>, DEL included, plus the quote and backslash), and only then encodes. It's checked against <code>json.dumps</code> for every ASCII character. Planning 2M one-column rows now takes about 1.5 s; prefix sums with bisect weren't faster, since the cost is per row. A file of 200,000 rows or more announces the planning step with a progress update first (<code>_CSV_PLAN_PROGRESS_ROWS</code>).</p>
+<p><strong>A refused chunk is split (PR #1615 QA round 1).</strong> Sheets refuses a whole <code>values.update</code> with a 400 when any one cell is over its 50,000-character limit, and writes none of it. With 5,000-row chunks one bad cell lost 5,000 rows; with 200k-cell chunks a narrow file under 200,000 cells is one chunk, so one bad cell sent the whole import down #1574's all-refused path and deleted the spreadsheet (observed live: 10,000 rows, one 50,001-character cell). Now a chunk of several rows refused with a 400 is split in half and each half resent, first half first, until the refused rows stand alone; one bad row in a 200,000-row chunk costs about 36 extra writes. Only a 400 splits: a 403 or 404 refuses every row alike, a final 429 is the quota, and a 5xx may have landed. <code>_CSV_SPLIT_MAX_WRITES</code> (100) caps the extra writes per import, so a 400 that every row would get can't multiply the import's writes; past it, a refused chunk is reported whole. A chunk reports one progress update whatever its splits, and <code>written_ranges</code> joins adjacent ranges, so a split chunk reads as the rows on either side of each refused row.</p>
+<h3 id="measured-live-oauth-shared-drive-one-valuesupdate-each">Measured live (OAuth, Shared Drive, one <code>values.update</code> each)<a class="headerlink" href="#measured-live-oauth-shared-drive-one-valuesupdate-each" title="Permanent link">&para;</a></h3>
+<p>One write at a time:</p>
+<table>
+<thead>
+<tr>
+<th>Payload</th>
+<th>Time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>50 cells, 2 MB</td>
+<td>3.3 s</td>
+</tr>
+<tr>
+<td>125 cells, 5 MB</td>
+<td>9.7 s</td>
+</tr>
+<tr>
+<td>250 cells, 10 MB</td>
+<td>18.9 s</td>
+</tr>
+<tr>
+<td>500 cells, 20 MB</td>
+<td>25.6 s</td>
+</tr>
+<tr>
+<td>200k cells × 1 column, 2.4 MB</td>
+<td>4.3 s</td>
+</tr>
+<tr>
+<td>500k cells, 6 MB</td>
+<td>9–11 s</td>
+</tr>
+<tr>
+<td>1M cells × 10 columns, 10.2 MB</td>
+<td>16.5 s</td>
+</tr>
+</tbody>
+</table>
+<p>Four at once into one spreadsheet, as the import sends them (<code>_CSV_WRITE_CONCURRENCY</code>), each write's time:</p>
+<table>
+<thead>
+<tr>
+<th>Each write</th>
+<th>Time each</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>5 MB, 125 long cells</td>
+<td>12 s</td>
+</tr>
+<tr>
+<td>10 MB, 250 long cells</td>
+<td>38 s</td>
+</tr>
+<tr>
+<td>100k cells × 1 column</td>
+<td>4–5 s</td>
+</tr>
+<tr>
+<td>200k cells × 1 column</td>
+<td>8–9 s</td>
+</tr>
+<tr>
+<td>400k cells × 1 column</td>
+<td>31–34 s</td>
+</tr>
+<tr>
+<td>400k cells × 10 columns (40k rows)</td>
+<td>25–29 s</td>
+</tr>
+</tbody>
+</table>
+<p>Sheets doesn't serialize writes to one spreadsheet, but a write's time grows faster than its size under concurrency, and cells cost time on their own as well as bytes (400k short cells, 4.8 MB, took longer than 5 MB of long ones). So both budgets are needed, and each is set where four concurrent writes finish in about 10 s, well inside the 60 s default socket timeout.</p>
+<h3 id="what-it-gives">What it gives<a class="headerlink" href="#what-it-gives" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>The 120 MB file imports</strong>: 25 chunks, all 3,000 rows, 172 s end to end through the tool code (fresh interpreter, real services).</li>
+<li><strong>A narrow file at the 20M-cell limit imports, in far fewer writes.</strong> A 1-column file at the 20M-cell limit (20M rows, 189 MB) is 100 writes, not 4,000. Through the tool code it landed every row in 190 s: about 4 s a write from the first chunk to the last, so a write doesn't slow as the sheet fills. That is about 48 writes a minute, close to the 60-a-minute quota without reaching it (no pause), so the shared pause still matters, for a faster link or a second import from the same user. The 800k × 1 file of TC-D326 is 4 chunks now and no longer exercises the pause live.</li>
+<li><strong>A stall on Google's side still fails a chunk.</strong> In one of two 20M × 1 runs, 10 consecutive chunks (rows 16.6M–18.6M) hit the 60 s timeout and the chunks after them landed; the other run showed the same kind of stall, every write in flight taking 12–14 s, for about 10 s. Smaller chunks don't help with that. A timed-out write may have landed, so it isn't resent (#1573's rule) and comes back in <code>failed_ranges</code>.</li>
+<li><strong>Chunk planning runs before the spreadsheet is created, off the loop</strong> (<code>asyncio.to_thread</code>), since it encodes every row: a cancellation while it runs leaves nothing behind.</li>
+</ul>
 
 
 
