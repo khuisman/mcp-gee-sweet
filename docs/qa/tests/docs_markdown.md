@@ -1790,6 +1790,8 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Cleanup:** trash both Docs.
 
+**Result (2026-11-25, PR #1622 QA round 1 @ 7652bfeb, Rio) ✅ PASS — steps 1–2, one run, server on markdown-it-py 4.3.0.** Step 1: four paragraphs "a" (level 0), "b visible" (level 1), "after" (level 0), one list, then the unbulleted "Last paragraph."; nothing from the comment appears. Step 2: `images` has four entries, each with an `error` (`No file found at …`) and `fallback_text` `a * b`, `a & b ©`, `see code here`, `line break`; the Doc's four paragraphs read the same. Both Docs trashed.
+
 ---
 
 ## Known gaps and not-applicable
