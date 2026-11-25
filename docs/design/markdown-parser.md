@@ -228,7 +228,7 @@ No code change is needed for 4.3.0 itself. The floor in `pyproject.toml` is now 
 environment that already has 4.2.0 can't keep it, and `TestMarkdownItPy43` covers both fixes (each
 of its cases fails under 4.2.0). Two defects turned up, each filed separately.
 
-1. **Raw HTML blocks in a list item or quote.** #1596 states this one backwards. 4.2.0 ended a
+1. **Raw HTML blocks in a list item.** #1596 states this one backwards. 4.2.0 ended a
    comment, `<pre>`, `<script>`, `<style>`, `<?…?>`, `<!X>` or CDATA block at a blank line inside
    a list item, because a blank line counts as outdented. 4.3.0 runs it to its closing sequence, as
    CommonMark does. So `_verbatim_lines` now protects more lines, never fewer, and D1/D2 rewrite

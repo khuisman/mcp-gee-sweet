@@ -1151,7 +1151,7 @@ class TestMarkdownItPy43:
         md = "- a\n  <pre>\n  x\n\n  - y\n  </pre>\n- b\n"
         html = _md_to_html(md)
         assert "<pre>\nx\n\n- y\n</pre>" in html
-        assert "--&gt;" not in html and "&lt;/pre&gt;" not in html
+        assert "&lt;/pre&gt;" not in html
 
     @pytest.mark.parametrize(
         ("md", "alt"),
