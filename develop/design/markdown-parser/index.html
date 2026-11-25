@@ -1649,6 +1649,77 @@ import) and EP-8 don't use it.</p>
 <li>Change EP-8 (<code>upload_file</code>), which kept Python-Markdown until #1102.</li>
 <li>Read table column alignment.</li>
 </ul>
+<h2 id="markdown-it-py-430-1596">markdown-it-py 4.3.0 (#1596)<a class="headerlink" href="#markdown-it-py-430-1596" title="Permanent link">&para;</a></h2>
+<p>PR #1592 bumped markdown-it-py from 4.2.0 to 4.3.0. Each upstream change listed in #1596 was
+checked against <code>_md_to_html</code> by rendering the same inputs under both versions and diffing the
+pre-pass output, the verbatim map, the HTML, the AST and every image's fallback text. The inputs
+were all 652 CommonMark 0.31.2 spec examples, every fixture under <code>docs/qa/fixtures/md/</code>, and
+targeted cases for each item. The spec examples and the fixtures came out identical. Items 1 to 4
+were also run live: two Docs per version through <code>create_doc</code>'s own path (<code>_create_doc_with_content</code>),
+read back with <code>documents().get</code>. Verdict: <strong>the bump is safe and fixes two kinds of lost content.</strong>
+No code change is needed for 4.3.0 itself. The floor in <code>pyproject.toml</code> is now <code>&gt;=4.3.0</code>, so an
+environment that already has 4.2.0 can't keep it, and <code>TestMarkdownItPy43</code> covers both fixes (each
+of its cases fails under 4.2.0). Two defects turned up, each filed separately.</p>
+<ol>
+<li><strong>Raw HTML blocks in a list item.</strong> #1596 states this one backwards. 4.2.0 ended a
+   comment, <code>&lt;pre&gt;</code>, <code>&lt;script&gt;</code>, <code>&lt;style&gt;</code>, <code>&lt;?…?&gt;</code>, <code>&lt;!X&gt;</code> or CDATA block at a blank line inside
+   a list item, because a blank line counts as outdented. 4.3.0 runs it to its closing sequence, as
+   CommonMark does. So <code>_verbatim_lines</code> now protects more lines, never fewer, and D1/D2 rewrite
+   nothing they didn't before. The effect on output is a fix. Under 4.2.0 the block's closing <code>--&gt;</code>
+   or <code>&lt;/pre&gt;</code> was rendered as escaped text, so <code>html_to_ast</code> saw an unclosed <code>&lt;!--</code> and hid the
+   rest of the document. Live, a Doc with a commented-out sub-list in an item kept only its first
+   item under 4.2.0. Under 4.3.0 it keeps every item and hides only the comment. No change.
+   One shape still differs from what the source looks like. D1 can move an outdented line into an
+   item whose raw block is still open, because <code>_verbatim_lines</code> scans the source before D1 and the
+   renderer reads the result after it. The moved line then becomes the block's text
+   (<code>1. A</code> / <code>&lt;pre&gt;</code> / blank / <code>- x</code> / <code>&lt;/pre&gt;</code>: <code>- x</code> lands inside the <code>&lt;pre&gt;</code>). That is the
+   same under both versions for a non-blank line. Only the blank-line route is new. No change.</li>
+<li><strong><code>&lt;!doctype …&gt;</code> and other <code>&lt;!</code> + lowercase-letter lines</strong> now start an HTML block and can
+   interrupt a paragraph, as CommonMark 0.31 specifies. <code>html_to_ast</code> ignores a declaration, so the
+   only difference is that the text after it is now its own paragraph (<code>text</code> / <code>&lt;!x&gt;</code> / <code>more</code> is
+   two paragraphs, not one). The live Doc under 4.3.0 shows the two paragraphs. Under 4.2.0 this part
+   was checked only locally, because item 1's lost content cut that Doc off before it. No change.</li>
+<li><strong>Image alt text</strong> now keeps what 4.2.0 dropped: backslash escapes and entities (<code>a \* b</code> was
+   <code>a b</code>, <code>a &amp;amp; b</code> was <code>a b</code>), code-span text, and hard breaks (<code>line\</code> + newline was <code>linebreak</code>).
+   Live, the fallback text written for an image that can't be embedded (#1099) is now <code>a * b</code>,
+   <code>a &amp; b ©</code>, <code>see code here</code> and <code>line break</code>. Spaced destinations (<code>_spaced_image_rule</code>) get the
+   same text, since <code>text_join</code> now joins an image's own children. One change is a judgment call:
+   inline HTML in the alt is kept as source, so <code>![a &lt;b&gt;bold&lt;/b&gt; c](x.png)</code> falls back to the text
+   <code>a &lt;b&gt;bold&lt;/b&gt; c</code> where 4.2.0 wrote <code>a bold c</code>. That matches upstream markdown-it and the alt
+   attribute a browser shows when the image fails. It is literal text in the Doc and never markup.
+   Accepted, no change.</li>
+<li><strong>Trimming uses CommonMark's whitespace set</strong>, so a leading or trailing U+0085 or
+   U+001C–U+001F now stays in a heading, paragraph, table cell or fence info string, and a
+   reference label ending in one no longer matches the label without it. <code>_spaced_destination</code>
+   compares labels through markdown-it's own <code>normalizeReference</code>, so it follows automatically. Live,
+   Docs keeps U+0085 and silently drops U+001C–U+001F. It already did that for characters in the
+   middle of a run under 4.2.0, so no new kind of character reaches the API. <code>html_to_ast</code> keeps
+   the character, as the parser does. One of our checks disagrees with the parser: D2's
+   <code>_starts_table</code> trims with <code>str.strip()</code>, so a header row ending in U+0085 passes it but isn't a
+   table to markdown-it. Filed as #1620.</li>
+<li><strong>Task checkboxes in an indented code block</strong> are detected only when the <code>tasklists</code> option is
+   on, and <code>_build_markdown_parser</code> doesn't set it. Our checkboxes are literal <code>[ ]</code>/<code>[x]</code> text
+   that <code>html_to_ast</code> reads. Not applicable.</li>
+<li><strong>Code spans.</strong> In the corpus, only padding changed: <code>` \t `</code> is now the code <code>\t</code>, because
+   the one-space strip is tested on U+0020 alone. The backtick-cache fix (a code span after an
+   unclosed link label) changed no example. No change.</li>
+<li><strong>A rule that matches without advancing now raises <code>RuntimeError</code>.</strong> <code>_spaced_image_rule</code> and
+   <code>_spaced_link_rule</code> set <code>state.pos</code> to the end of a regex match that is at least <code>[](x y)</code> long,
+   in silent mode too. <code>_spaced_link_rule</code> restores <code>posMax</code> and moves <code>pos</code> past the match after
+   its nested <code>tokenize</code>. <code>_gfm_autolink_rule</code> is a core rule, which the check doesn't cover. 40,000
+   random inputs built from link, image, autolink, tilde, code and HTML fragments raised nothing
+   under 4.3.0. No change.</li>
+<li><strong>Rule caches and <code>StateBase.src</code>.</strong> <code>Ruler.enable</code>/<code>disable</code> now reset the cache on failure.
+   Ours never fail, and each ruler's cache is built after the last mutation, at import. The new
+   per-parse caches (<code>html_terminator_last</code>, the backtick runs) live on the state object, not the
+   shared parser. Nothing in our code assigns <code>state.src</code>. No change.</li>
+</ol>
+<p>Also seen, outside #1596's list: block tag names now match ASCII only, so <code>&lt;ſcript&gt;</code> (long s) is no
+longer a <code>&lt;script&gt;</code> block. The IPv6 change in <code>normalizeLink</code> doesn't reach us, since
+<code>normalizeLink</code> is the identity here.</p>
+<p>While running the live checks, a separate older defect showed up: a raw HTML block (a comment,
+<code>&lt;script&gt;</code> or <code>&lt;style&gt;</code>) right after an item's text leaves a stray empty bullet under the item
+(#1619). It happens under both versions.</p>
 <h2 id="review-history">Review history<a class="headerlink" href="#review-history" title="Permanent link">&para;</a></h2>
 <p>PR #1228's QA rounds, and what each changed. The invariants they produced are in <code>CLAUDE.md</code>'s
 <code>docs/md_to_html.py</code> entry.</p>

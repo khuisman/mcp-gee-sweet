@@ -5291,6 +5291,40 @@
 <p><strong>Result (2026-11-14, PR #1476 QA round 1 @ c6e3445d, Kit) ✅ PASS — one run, before #1436 merged.</strong> Step 2: two runs "a" and "b", both struck. Step 3: <code>x ~~ab~~ y</code>. Step 4: the text is <code>x ab y</code>, with "ab" as one struck run and no <code>~</code>; the second export is <code>x ~~ab~~ y</code>. Step 5: the old reading: "a ~b~ c" struck, then " and ~a ", "b" struck, " c~"; it exports as <code>~~a \~b\~ c~~ and \~a ~~b~~ c\~</code>. QA fixed the step 2 check: it named a <code>get_doc_structure</code> call the step never made and a color that tool doesn't report.</p>
 <p><strong>Result (2026-11-14, PR #1476 QA round 2 @ 4cfa8d2e, Kit) ✅ PASS — steps 1–7, one run, before #1436 merged.</strong> Steps 1–5 are unchanged from round 1. Step 6: three struck runs ("AT&amp;", "amp", ";T\n"); the export is <code>~~AT\&amp;amp;T~~</code>; after the update the text is <code>AT&amp;amp;T</code>, one struck run. Step 7: two bold struck runs; the export is <code>x **~~ab~~** y</code>; after the update "ab" is one bold struck run, with no <code>*</code> or <code>~</code>. QA added steps 6 and 7 for round 1's send-backs.</p>
 <hr />
+<h3 id="tc-md511-content-markdown-it-py-420-lost-raw-html-with-a-blank-line-in-an-item-image-alt-text-destructive">TC-MD511: Content markdown-it-py 4.2.0 lost: raw HTML with a blank line in an item, image alt text ⚠️ destructive<a class="headerlink" href="#tc-md511-content-markdown-it-py-420-lost-raw-html-with-a-blank-line-in-an-item-image-alt-text-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong></p>
+<blockquote>
+<h1 id="1596s-two-fixes-live-under-markdown-it-py-420-a-comment-holding-a-blank-line-inside-a-list-item-hid-the-rest-of-the-doc-and-an-images-fallback-text-lost-its-escapes-entities-code-and-line-breaks-run-on-a-server-whose-environment-has-markdown-it-py-430-or-later">1596's two fixes, live. Under markdown-it-py 4.2.0 a comment holding a blank line inside a list item hid the rest of the Doc, and an image's fallback text lost its escapes, entities, code and line breaks. Run on a server whose environment has markdown-it-py 4.3.0 or later.<a class="headerlink" href="#1596s-two-fixes-live-under-markdown-it-py-420-a-comment-holding-a-blank-line-inside-a-list-item-hid-the-rest-of-the-doc-and-an-images-fallback-text-lost-its-escapes-entities-code-and-line-breaks-run-on-a-server-whose-environment-has-markdown-it-py-430-or-later" title="Permanent link">&para;</a></h1>
+<ol>
+<li><code>create_doc(title="TC-MD511 html", content=&lt;the Markdown below&gt;, content_format="markdown")</code>, then <code>get_doc_structure(doc_id)</code>:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>- a
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  &lt;!-- hidden comment
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>  - hidden x
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>  --&gt;
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>  - b visible
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>- after
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>Last paragraph.
+</code></pre></div></li>
+<li><code>create_doc(title="TC-MD511 alt", content=&lt;the Markdown below&gt;, content_format="markdown")</code>. Each image path names no file, so each image is written as its fallback text:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>![a \* b](missing-tc-md511-1.png)
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>![a &amp;amp; b &amp;copy;](missing-tc-md511-2.png)
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>![see `code` here](missing-tc-md511-3.png)
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>![line\
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>break](missing-tc-md511-4.png)
+</code></pre></div></li>
+</ol>
+</blockquote>
+<p><strong>Checks</strong>
+- Step 1: the Doc's text is "a", "b visible", "after", "Last paragraph.", in that order. "a" and "after" are bullets at nesting level 0 and "b visible" at level 1. Nothing from the comment ("hidden comment", "hidden x", <code>--&gt;</code>) appears.
+- Step 2: the response's <code>images</code> has four entries, each with an <code>error</code> and a <code>fallback_text</code> of <code>a * b</code>, <code>a &amp; b ©</code>, <code>see code here</code> and <code>line break</code>. The Doc's four paragraphs read the same.</p>
+<p><strong>Cleanup:</strong> trash both Docs.</p>
+<p><strong>Result (2026-11-25, PR #1622 QA round 1 @ 7652bfeb, Rio) ✅ PASS — steps 1–2, one run, server on markdown-it-py 4.3.0.</strong> Step 1: four paragraphs "a" (level 0), "b visible" (level 1), "after" (level 0), one list, then the unbulleted "Last paragraph."; nothing from the comment appears. Step 2: <code>images</code> has four entries, each with an <code>error</code> (<code>No file found at …</code>) and <code>fallback_text</code> <code>a * b</code>, <code>a &amp; b ©</code>, <code>see code here</code>, <code>line break</code>; the Doc's four paragraphs read the same. Both Docs trashed.</p>
+<hr />
 <h2 id="known-gaps-and-not-applicable">Known gaps and not-applicable<a class="headerlink" href="#known-gaps-and-not-applicable" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Insert Markdown at an index:</strong> no tool does this (see "Entry points").</li>
