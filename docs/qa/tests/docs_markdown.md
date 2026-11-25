@@ -1562,6 +1562,28 @@ How our converter (EP-1 to EP-4 and EP-8) renders inline styling tags.
 
 **Result (2026-11-08) ✅ PASS — 10/10 case×EP cells pass; failures: none — ornithomimus release pass, shard M7**
 
+**Result (2026-11-23)** pending — no browser in this session, so no on-screen check (Rule 1). Run in an isolated service-account sandbox on a Shared Drive, against `develop` with PR #1436 merged (`faab6cc`), `inline-scope.md` only, one run. Read from the stored text styles (raw `documents().get()`): IS-01's runs are identical through EP-1 to EP-4 and EP-8. `x`, `y`, `hij` and `v` are `strikethrough: true`; ` and ~~~w~~~; ~q~~.` is plain, tildes kept. `get_doc_as_markdown` gives `~~x~~ and ~~y~~; ~~hij~~k. ~~v~~ and \~\~\~w\~\~\~; \~q\~\~.`. IS-02 to IS-04 weren't checked for this PR.
+
+### TC-MD511: A tilde inside a bare URL stays part of the link; a single-tilde pair around a URL strikes it (#1335, #1502) ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render each line below as its own paragraph through EP-1:
+> `see https://cs.example.edu/~alice/paper~v2.pdf`
+> `see https://example.com/a\_b/~site/doc~v2.pdf`
+> `~https://x.com/a~`
+> `~~x~~`
+> `*a ~~b* c~~`
+
+**Checks**
+- Line 1: one link covering the whole URL, `https://cs.example.edu/~alice/paper~v2.pdf`; nothing struck.
+- Line 2: one link covering the whole URL, the escape resolved: `https://example.com/a_b/~site/doc~v2.pdf`; nothing struck.
+- Line 3: `https://x.com/a` linked and struck, no tildes left.
+- Line 4: `x` struck.
+- Line 5: `a ~~b` italic with the tildes literal, ` c~~` plain.
+- Out of scope: the mixed-width cases where GitHub renders differently (`~a ~~b~ c~~`, `~~was ~5 ms~~`) and `~~` inside a bare URL (#1612).
+
+**Result (2026-11-23)** pending — no browser in this session, so no on-screen check (Rule 1). Run in an isolated service-account sandbox on a Shared Drive, against `develop` with PR #1436 merged (`faab6cc`), EP-1, one run. Read from the stored text styles (raw `documents().get()`), every check holds. Line 1: one run linked to `https://cs.example.edu/~alice/paper~v2.pdf`, no strike. Line 2: one run linked to `https://example.com/a_b/~site/doc~v2.pdf`, no strike. Line 3: `https://x.com/a` with `strikethrough` and the link. Line 4: `x` struck. Line 5: `a ~~b` italic, ` c~~` plain.
+
 ---
 
 ## Line breaks
