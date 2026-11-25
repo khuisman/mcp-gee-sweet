@@ -522,7 +522,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 - [ ] `batch_update_cells` empty input — validation error vs silent no-op — decided 2026-10-18: return `{"error": ...}` ([#32](https://github.com/khuisman/mcp-gee-sweet/issues/32))
 - [ ] `search_spreadsheets` empty query — return all or require non-empty input — decided 2026-10-18: return `{"error": ...}` pointing to `list_spreadsheets` ([#39](https://github.com/khuisman/mcp-gee-sweet/issues/39))
-- [ ] Deprecate `share_spreadsheet` in favor of `share_file`, and remove it before 1.0 (decided 2026-10-18). Under #1209's policy: `share_spreadsheet` keeps working for one release through the `@deprecated_tool(use=, removed_in=)` decorator in `deprecation.py`, listed under the CHANGELOG's Deprecated section (moved from #1209, 2026-11-14) ([#665](https://github.com/khuisman/mcp-gee-sweet/issues/665))
+- [x] Deprecate `share_spreadsheet` in favor of `share_file`, and remove it before 1.0 (decided 2026-10-18). Under #1209's policy: `share_spreadsheet` keeps working for one release through the `@deprecated_tool(use=, removed_in=)` decorator in `deprecation.py`, listed under the CHANGELOG's Deprecated section (moved from #1209, 2026-11-14) ([#665](https://github.com/khuisman/mcp-gee-sweet/issues/665)) (PR #1614)
 
 **Candidates**
 
