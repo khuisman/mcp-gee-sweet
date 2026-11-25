@@ -1,6 +1,7 @@
 import asyncio
 import csv
 import functools
+import json
 import logging
 import time
 from collections.abc import Awaitable, Callable
@@ -33,10 +34,20 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
-_CSV_IMPORT_CHUNK_ROWS = 5000
+# One row write's budget (#1577): a chunk closes before it would pass either, so no
+# request is too large to finish inside the default 60 s socket timeout, however
+# wide or long the cells are. Measured live with _CSV_WRITE_CONCURRENCY (4) writes in
+# flight into one spreadsheet, where a write's time grows faster than its size:
+# four 200k-cell writes took 9 s each and four 400k-cell writes 34 s; four 5 MB writes
+# took 12 s each and four 10 MB writes 38 s. A single 120 MB write of 3,000 rows timed
+# out with nothing written (#1529). The cell budget also sizes a narrow file's chunks
+# up: a 1-column file at the 20M-cell limit is 100 writes, not the 4,000 a fixed
+# 5,000-row chunk made. Bytes are the request's own JSON, as googleapiclient encodes it.
+_CSV_CHUNK_MAX_CELLS = 200_000
+_CSV_CHUNK_MAX_BYTES = 5_000_000
 
 # Sheets allows 60 write requests per minute per user, so an import of more than 60
-# chunks (300k rows) has writes refused with 429 (measured live: 93 of 160, #1573).
+# chunks has writes refused with 429 (measured live: 93 of 160, #1573).
 # A refusal pauses every write of the import; each pause after a refused retry
 # doubles, from the base to the cap, and no pause runs past the max wait, counted
 # from the import's first write, after which a refusal is final.
@@ -78,6 +89,35 @@ def _csv_grid_limit_error(local_path: str, rows: int, columns: int) -> str | Non
             "Nothing was created."
         )
     return None
+
+
+def _csv_chunks(rows: list[list[str]]) -> list[tuple[int, list[list[str]]]]:
+    """Split rows into (start index, rows) chunks, one row write each (#1577).
+
+    A chunk closes before adding a row would take it past _CSV_CHUNK_MAX_CELLS cells
+    or _CSV_CHUNK_MAX_BYTES bytes of request JSON. A row is never split, so a chunk
+    always holds at least one row, even one over a budget on its own. A row of no
+    cells counts as one, the grid's minimum width, so a file of blank lines still
+    closes its chunks.
+    """
+    chunks: list[tuple[int, list[list[str]]]] = []
+    start = 0
+    cells = size = 0
+    for index, row in enumerate(rows):
+        row_cells = max(len(row), 1)
+        # json.dumps as googleapiclient's JsonModel encodes the body (ASCII-escaped),
+        # plus the ", " that separates the row from the next in "values".
+        row_bytes = len(json.dumps(row)) + 2
+        if index > start and (
+            cells + row_cells > _CSV_CHUNK_MAX_CELLS or size + row_bytes > _CSV_CHUNK_MAX_BYTES
+        ):
+            chunks.append((start, rows[start:index]))
+            start, cells, size = index, 0, 0
+        cells += row_cells
+        size += row_bytes
+    if start < len(rows):
+        chunks.append((start, rows[start:]))
+    return chunks
 
 
 def _is_rate_limited(e: BaseException) -> bool:
@@ -396,13 +436,16 @@ def register(tool):
         A CSV over Google Sheets' limits (20,000,000 cells, or 18,278 columns)
         returns an error before anything is created.
 
+        Rows are written in chunks of whole rows, each at most 200,000 cells or
+        5 MB, so a file of long cells and a file of many short ones both go in
+        requests that finish well inside the request timeout. A file at the
+        20,000,000-cell limit takes about 100 writes and several minutes.
         Row chunks write concurrently rather than one at a time. If the
         caller supplied a progressToken, a `notifications/progress` update is sent
-        as each chunk finishes. Sheets allows 60 writes a minute, so a file of
-        more than 300,000 rows waits for its quota between writes and can take
-        several minutes, with a progress update each time it starts waiting.
-        Retrying stops 10 minutes after the import's first write; a chunk
-        refused after that is reported in failed_ranges.
+        as each chunk finishes. Sheets allows 60 writes a minute; an import that
+        reaches it waits for its quota between writes, with a progress update
+        each time it starts waiting. Retrying stops 10 minutes after the import's
+        first write; a chunk refused after that is reported in failed_ranges.
 
         Args:
             local_path: Absolute path to the local .csv file.
@@ -475,6 +518,9 @@ def register(tool):
         if limit_error := _csv_grid_limit_error(local_path, len(rows), grid_columns):
             return {"error": limit_error}
         rows = [row + [""] * (width - len(row)) for row in rows]
+        # Off the loop, since it encodes every row, and before the create, so a
+        # cancellation while it runs leaves nothing behind.
+        chunks = await asyncio.to_thread(_csv_chunks, rows)
 
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
@@ -540,10 +586,6 @@ def register(tool):
         # HttpError included, removes the spreadsheet rather than leaving it empty.
         pause = _RateLimitPause()
         completed = [0]
-        chunks = [
-            (start, rows[start : start + _CSV_IMPORT_CHUNK_ROWS])
-            for start in range(0, len(rows), _CSV_IMPORT_CHUNK_ROWS)
-        ]
         total_chunks = len(chunks)
 
         async def _report_pause(seconds: float) -> None:
