@@ -1779,6 +1779,43 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 ---
 
+### TC-MD511: Content markdown-it-py 4.2.0 lost: raw HTML with a blank line in an item, image alt text ⚠️ destructive
+**Prompt**
+> #1596's two fixes, live. Under markdown-it-py 4.2.0 a comment holding a blank line inside a list item hid the rest of the Doc, and an image's fallback text lost its escapes, entities, code and line breaks. Run on a server whose environment has markdown-it-py 4.3.0 or later.
+> 1. `create_doc(title="TC-MD511 html", content=<the Markdown below>, content_format="markdown")`, then `get_doc_structure(doc_id)`:
+>    ```
+>    - a
+>      <!-- hidden comment
+>
+>      - hidden x
+>      -->
+>      - b visible
+>    - after
+>
+>    Last paragraph.
+>    ```
+> 2. `create_doc(title="TC-MD511 alt", content=<the Markdown below>, content_format="markdown")`. Each image path names no file, so each image is written as its fallback text:
+>    ```
+>    ![a \* b](missing-tc-md511-1.png)
+>
+>    ![a &amp; b &copy;](missing-tc-md511-2.png)
+>
+>    ![see `code` here](missing-tc-md511-3.png)
+>
+>    ![line\
+>    break](missing-tc-md511-4.png)
+>    ```
+
+**Checks**
+- Step 1: the Doc's text is "a", "b visible", "after", "Last paragraph.", in that order. "a" and "after" are bullets at nesting level 0 and "b visible" at level 1. Nothing from the comment ("hidden comment", "hidden x", `-->`) appears.
+- Step 2: the response's `images` has four entries, each with an `error` and a `fallback_text` of `a * b`, `a & b ©`, `see code here` and `line break`. The Doc's four paragraphs read the same.
+
+**Cleanup:** trash both Docs.
+
+**Result (2026-11-25, PR #1622 QA round 1 @ 7652bfeb, Rio) ✅ PASS — steps 1–2, one run, server on markdown-it-py 4.3.0.** Step 1: four paragraphs "a" (level 0), "b visible" (level 1), "after" (level 0), one list, then the unbulleted "Last paragraph."; nothing from the comment appears. Step 2: `images` has four entries, each with an `error` (`No file found at …`) and `fallback_text` `a * b`, `a & b ©`, `see code here`, `line break`; the Doc's four paragraphs read the same. Both Docs trashed.
+
+---
+
 ## Known gaps and not-applicable
 
 - **Insert Markdown at an index:** no tool does this (see "Entry points").
