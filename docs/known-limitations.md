@@ -629,6 +629,24 @@ A rename means the destination only ever holds the old content or the complete n
 **Workaround:** Re-apply ACLs, tags, or ownership after downloading, if they matter. Delete a
 leftover `.gee-sweet-partial-*` file once no download into that folder is running.
 
+### `import_csv_to_sheet` — a CSV of very large rows can time out
+
+**What:** `import_csv_to_sheet` writes rows in chunks of at most 200,000 cells or 5 MB, so each
+request finishes well inside the 60 s request timeout. A single row is never split across
+requests, though, so a row over 5 MB on its own goes as one request at its full size, and up to
+four such requests are in flight at once. A row that large comes from its total size, not one
+cell: 100 cells of 50,000 characters, 2,000 columns of 2,500 characters, or 10,000 columns of
+500 all reach 5 MB. A file made of such rows can have chunks time out, and they come back in
+`failed_ranges`.
+
+**Why:** Splitting a row would mean writing it in column ranges and reporting failures by
+column as well as by row. Rows this large are rare in a CSV.
+
+**Workaround:** Raise `HTTP_TIMEOUT_SECONDS`, or import the file with
+`upload_local_file(convert=True)`, Drive's own conversion, which took an 80 MB file of
+40,000-character cells in one upload (#1529). It guesses the delimiter, though, and names the
+sheet after the file.
+
 ## Local file access
 
 ### `LOCAL_FILE_ACCESS=roots` checks a path before it's used, not as it's used

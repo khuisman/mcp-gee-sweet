@@ -2091,13 +2091,14 @@ class TestImportCsvToSheet:
         assert update.return_value.execute.call_count == 3
 
     async def test_other_errors_are_not_retried(self, tmp_path, monkeypatch):
-        """A 5xx may have landed and a 4xx other than 429 won't change: neither is resent."""
+        """A 5xx may have landed and a 4xx other than 429 won't change: neither is resent.
+        (A 400 on a chunk of several rows is split instead: TestCsvRefusedChunkSplit.)"""
         for status in (400, 403, 500):
             resp = MagicMock()
             resp.status = status
             error = HttpError(resp=resp, content=b"{}")
             result, update = await self._import_with_update_effects(
-                tmp_path, monkeypatch, [error, {}]
+                tmp_path, monkeypatch, [error, {}], rows=[["a"]]
             )
             assert update.return_value.execute.call_count == 1, status
             if status == 500:
@@ -2122,7 +2123,7 @@ class TestImportCsvToSheet:
     async def test_rate_limited_chunks_retry_alongside_ones_that_landed(
         self, tmp_path, monkeypatch
     ):
-        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 1)
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_CELLS", 1)
         rows = [["h"], ["1"], ["2"], ["3"]]
         effects = [{}, self._rate_limit_error(), {}, self._rate_limit_error(), {}, {}]
         result, update = await self._import_with_update_effects(
@@ -2174,7 +2175,7 @@ class TestImportCsvToSheet:
         assert messages == ["Sheets write quota reached; waiting 0 s", "rows 1-2: ok"]
 
     async def test_chunks_large_row_counts(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 2)
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_CELLS", 2)
         rows = [["a"]] + [[str(i)] for i in range(5)]
         path = self._write_csv(tmp_path, rows)
         drive_svc = self._drive_service()
@@ -2199,7 +2200,7 @@ class TestImportCsvToSheet:
     async def test_reports_progress_per_chunk(self, tmp_path, monkeypatch):
         """#355: extends #316/#319's per-item ctx.report_progress pattern to
         import_csv_to_sheet's concurrent chunk writes."""
-        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 2)
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_CELLS", 2)
         rows = [["h"]] + [[str(i)] for i in range(5)]
         path = self._write_csv(tmp_path, rows)
         drive_svc = self._drive_service()
@@ -2227,7 +2228,7 @@ class TestImportCsvToSheet:
         """PR #351's review established this guard for download_folder/sync_folder:
         a broken notification channel must not turn an already-successful item into
         a failure. #355 extends the same pattern here."""
-        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 2)
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_CELLS", 2)
         rows = [["h"], ["1"], ["2"]]
         path = self._write_csv(tmp_path, rows)
         drive_svc = self._drive_service()
@@ -2251,7 +2252,7 @@ class TestImportCsvToSheet:
         exception — it must report exactly which row ranges failed vs. wrote
         successfully, since a concurrent partial failure can leave a hole mid-sheet
         rather than a clean truncated prefix (QA finding, #183)."""
-        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 2)
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_CELLS", 2)
         rows = [["h"]] + [[str(i)] for i in range(6)]
         path = self._write_csv(tmp_path, rows)
         drive_svc = self._drive_service()
@@ -2283,8 +2284,11 @@ class TestImportCsvToSheet:
         assert result["failed_ranges"] == [
             {"start_row": 3, "end_row": 4, "error": "simulated API failure"}
         ]
-        written_starts = {w["start_row"] for w in result["written_ranges"]}
-        assert written_starts == {1, 5, 7}
+        # Adjacent written ranges are joined: rows 5-6 and 7 read as 5-7.
+        assert result["written_ranges"] == [
+            {"start_row": 1, "end_row": 2},
+            {"start_row": 5, "end_row": 7},
+        ]
 
     async def test_storage_quota_error_returns_helpful_message(self, tmp_path):
         path = self._write_csv(tmp_path, [["a"], ["1"]])
@@ -2464,7 +2468,7 @@ class TestImportCsvFailureCleanup:
         sheets_svc.spreadsheets.return_value.values.return_value.update.side_effect = _update
 
     async def test_every_chunk_refused_deletes_the_spreadsheet(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 1)
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_CELLS", 1)
         ctx, drive_svc, sheets_svc, _ = self._ctx()
         refusal = _http_error(400)
         self._chunk_effects(sheets_svc, {"Sheet1!A1": refusal, "Sheet1!A2": _http_error(403)})
@@ -2477,7 +2481,7 @@ class TestImportCsvFailureCleanup:
 
     async def test_a_chunk_that_may_have_landed_keeps_the_spreadsheet(self, tmp_path, monkeypatch):
         """A 5xx may have been written, so the partial-failure result stands."""
-        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 1)
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_CELLS", 1)
         ctx, drive_svc, sheets_svc, _ = self._ctx()
         self._chunk_effects(
             sheets_svc, {"Sheet1!A1": _http_error(400), "Sheet1!A2": _http_error(500)}
@@ -2488,7 +2492,7 @@ class TestImportCsvFailureCleanup:
         drive_svc.files.return_value.delete.assert_not_called()
 
     async def test_some_rows_written_keeps_the_spreadsheet(self, tmp_path, monkeypatch):
-        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 1)
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_CELLS", 1)
         ctx, drive_svc, sheets_svc, _ = self._ctx()
         self._chunk_effects(sheets_svc, {"Sheet1!A1": _http_error(400)})
         result = await self._run(ctx, tmp_path)
@@ -2673,7 +2677,7 @@ class TestCsvImportWriteConcurrency:
         import threading
         import time as real_time
 
-        monkeypatch.setattr(drive_files_module, "_CSV_IMPORT_CHUNK_ROWS", 1)
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_CELLS", 1)
         monkeypatch.setattr(drive_files_module, "_CSV_WRITE_CONCURRENCY", 2)
         lock = threading.Lock()
         in_flight = [0]
@@ -2706,3 +2710,298 @@ class TestCsvImportWriteConcurrency:
         assert result["rows_written"] == 12
         assert update.return_value.execute.call_count == 12
         assert peak[0] == 2
+
+
+class TestCsvChunks:
+    """#1577: a chunk closes at a cell or byte budget, not a fixed row count."""
+
+    @staticmethod
+    def _covers(chunks, rows):
+        """Chunks are contiguous, in order, and hold every row exactly once."""
+        expected_start = 0
+        for start, chunk in chunks:
+            assert start == expected_start
+            assert chunk == rows[start : start + len(chunk)]
+            assert chunk
+            expected_start += len(chunk)
+        assert expected_start == len(rows)
+
+    def test_narrow_rows_share_one_chunk_past_the_old_row_count(self):
+        """The old fixed 5,000-row chunk made a 1-column file at the cell limit
+        4,000 writes; 10,000 short rows are now one."""
+        rows = [[str(i)] for i in range(10_000)]
+        chunks = drive_files_module._csv_chunks(rows)
+        assert len(chunks) == 1
+        self._covers(chunks, rows)
+
+    def test_closes_at_the_cell_budget(self, monkeypatch):
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_CELLS", 4)
+        rows = [["a", "b"]] * 5
+        chunks = drive_files_module._csv_chunks(rows)
+        assert [len(c) for _, c in chunks] == [2, 2, 1]
+        self._covers(chunks, rows)
+
+    def test_closes_at_the_byte_budget(self, monkeypatch):
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_BYTES", 250)
+        rows = [["x" * 100] for _ in range(5)]  # 106 bytes each, separator included
+        chunks = drive_files_module._csv_chunks(rows)
+        assert [len(c) for _, c in chunks] == [2, 2, 1]
+        self._covers(chunks, rows)
+
+    def test_no_chunk_of_several_rows_exceeds_either_budget(self, monkeypatch):
+        import json
+        import random
+
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_CELLS", 50)
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_BYTES", 2_000)
+        rng = random.Random(1577)
+        rows = [["y" * rng.randint(0, 300) for _ in range(3)] for _ in range(300)]
+        chunks = drive_files_module._csv_chunks(rows)
+        self._covers(chunks, rows)
+        assert len(chunks) > 1
+        for _, chunk in chunks:
+            if len(chunk) > 1:
+                assert len(chunk) * 3 <= 50
+                # The request's "values" array: the rows joined by ", " in brackets.
+                assert len(json.dumps(chunk)) <= 2_000
+
+    def test_a_row_over_the_byte_budget_goes_alone(self, monkeypatch):
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_BYTES", 100)
+        rows = [["a"], ["z" * 500], ["b"], ["c"]]
+        chunks = drive_files_module._csv_chunks(rows)
+        assert chunks == [(0, [["a"]]), (1, [["z" * 500]]), (2, [["b"], ["c"]])]
+
+    def test_a_row_over_the_cell_budget_goes_alone(self, monkeypatch):
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_CELLS", 2)
+        rows = [["a", "b", "c"], ["d", "e", "f"]]
+        chunks = drive_files_module._csv_chunks(rows)
+        assert chunks == [(0, [["a", "b", "c"]]), (1, [["d", "e", "f"]])]
+
+    def test_non_ascii_counts_as_the_escaped_bytes_sent(self, monkeypatch):
+        """googleapiclient sends ASCII-escaped JSON, so "é" is 6 bytes and an astral
+        emoji 12 (a surrogate pair), not their UTF-8 length."""
+        rows = [["é" * 10], ["😀" * 5]]
+        both = (2 + 2 + 60 + 2) * 2  # brackets, quotes, 60 escaped bytes, separator
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_BYTES", both)
+        assert len(drive_files_module._csv_chunks(rows)) == 1
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_BYTES", both - 1)
+        assert len(drive_files_module._csv_chunks(rows)) == 2
+
+    def test_blank_rows_count_as_one_cell(self, monkeypatch):
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_CELLS", 3)
+        rows = [[]] * 7
+        chunks = drive_files_module._csv_chunks(rows)
+        assert [len(c) for _, c in chunks] == [3, 3, 1]
+
+    @pytest.mark.parametrize(
+        "row",
+        [
+            [],
+            [""],
+            ["", ""],
+            ["plain"],
+            ["a", "b c", "1,234"],
+            ['say "hi"'],
+            ["back\\slash"],
+            ["tab\there", "line\nbreak", "cr\r", "nul\x00", "esc\x1b"],
+            ["del\x7f"],  # DEL is ASCII, but json.dumps escapes it
+            ["é", "ü"],
+            ["😀"],
+            ["\u2028", "\ufeff"],
+            ["mixed", 'q"', "é"],
+        ],
+    )
+    def test_row_bytes_match_the_encoded_row(self, row):
+        """PR #1615 QA round 1: counted without json.dumps when nothing escapes, so
+        the count must still equal what googleapiclient sends."""
+        import json
+
+        assert drive_files_module._row_json_bytes(row) == len(json.dumps(row)) + 2
+
+    async def test_a_large_file_announces_planning(self, tmp_path, monkeypatch):
+        """PR #1615 QA round 1: planning a near-limit file takes seconds, with no
+        other progress before it."""
+        monkeypatch.setattr(drive_files_module, "_CSV_PLAN_PROGRESS_ROWS", 2)
+        helper = TestImportCsvToSheet()
+        path = helper._write_csv(tmp_path, [["a"], ["b"]])
+        ctx = _make_ctx(
+            drive_service=helper._drive_service(),
+            sheets_service=helper._sheets_service(row_count=2, column_count=1),
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            cache=MagicMock(),
+            folder_id=None,
+        )
+        ctx.report_progress = AsyncMock()
+        await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert ctx.report_progress.await_args_list[0].args == (
+            0,
+            None,
+            "Planning row writes for 2 rows",
+        )
+
+    def test_row_bytes_match_every_ascii_character(self):
+        import json
+
+        for code in range(128):
+            row = [f"a{chr(code)}b", "c"]
+            assert drive_files_module._row_json_bytes(row) == len(json.dumps(row)) + 2, code
+
+    async def test_import_splits_wide_text_by_bytes(self, tmp_path, monkeypatch):
+        """End to end: a file of long cells goes in several requests, each starting
+        at its own row and each within the byte budget."""
+        import json
+
+        monkeypatch.setattr(drive_files_module, "_CSV_CHUNK_MAX_BYTES", 2_500)
+        helper = TestImportCsvToSheet()
+        rows = [[f"{i:04d}" + "w" * 996] for i in range(7)]  # 1,006 bytes a row
+        path = helper._write_csv(tmp_path, rows)
+        sheets_svc = helper._sheets_service(row_count=7, column_count=1)
+        ctx = _make_ctx(
+            drive_service=helper._drive_service(),
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            cache=MagicMock(),
+            folder_id=None,
+        )
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert result["rows_written"] == 7
+        update = sheets_svc.spreadsheets.return_value.values.return_value.update
+        sent = {c.kwargs["range"]: c.kwargs["body"]["values"] for c in update.call_args_list}
+        assert sorted(sent) == ["Sheet1!A1", "Sheet1!A3", "Sheet1!A5", "Sheet1!A7"]
+        for values in sent.values():
+            assert len(json.dumps(values)) <= 2_500
+        firsts = [sent[r][0][0][:4] for r in sorted(sent)]
+        assert firsts == ["0000", "0002", "0004", "0006"]
+
+
+class TestCsvRefusedChunkSplit:
+    """PR #1615 QA round 1: one cell over Sheets' 50,000-character limit refuses its
+    whole values.update. With 200k-cell chunks that refused a whole small file, so a
+    chunk refused with a 400 is split until the refused rows stand alone."""
+
+    BAD = "BAD"
+
+    async def _run(self, tmp_path, monkeypatch, rows, refuse, ctx_progress=None):
+        """Import `rows` as one chunk; an update whose values hold a row for which
+        refuse(row) is true raises that status. Returns (result, update, drive)."""
+        monkeypatch.setattr(drive_files_module, "_CSV_RATE_LIMIT_BASE_DELAY", 0.0)
+        monkeypatch.setattr(drive_files_module, "_CSV_RATE_LIMIT_MAX_DELAY", 0.0)
+        helper = TestImportCsvToSheet()
+        path = helper._write_csv(tmp_path, rows)
+        sheets_svc = helper._sheets_service(row_count=len(rows), column_count=1)
+        drive_svc = helper._drive_service()
+
+        def _update(**kwargs):
+            m = MagicMock()
+            status = next((refuse(r) for r in kwargs["body"]["values"] if refuse(r)), None)
+            if status:
+                m.execute.side_effect = _http_error(status)
+            else:
+                m.execute.return_value = {}
+            return m
+
+        update = sheets_svc.spreadsheets.return_value.values.return_value.update
+        update.side_effect = _update
+        ctx = _make_ctx(
+            drive_service=drive_svc,
+            sheets_service=sheets_svc,
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            cache=MagicMock(),
+            folder_id=None,
+        )
+        ctx.report_progress = ctx_progress or AsyncMock()
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        return result, update, drive_svc
+
+    def _rows(self, n, bad=()):
+        return [[self.BAD if i in bad else f"r{i}"] for i in range(n)]
+
+    async def test_one_refused_row_fails_alone_and_the_rest_lands(self, tmp_path, monkeypatch):
+        rows = self._rows(10, bad={7})
+        result, update, drive_svc = await self._run(
+            tmp_path, monkeypatch, rows, lambda r: 400 if r == [self.BAD] else None
+        )
+        assert [(f["start_row"], f["end_row"]) for f in result["failed_ranges"]] == [(8, 8)]
+        assert "HttpError 400" in result["failed_ranges"][0]["error"]
+        assert result["written_ranges"] == [
+            {"start_row": 1, "end_row": 7},
+            {"start_row": 9, "end_row": 10},
+        ]
+        assert result["spreadsheetId"] == "sheet123"
+        drive_svc.files.return_value.delete.assert_not_called()
+        # Every row but the refused one was sent in a write that landed, once.
+        landed = [
+            c.kwargs["body"]["values"]
+            for c in update.call_args_list
+            if [self.BAD] not in c.kwargs["body"]["values"]
+        ]
+        assert sorted(r[0] for v in landed for r in v) == sorted(
+            r[0] for r in rows if r != [self.BAD]
+        )
+
+    async def test_two_refused_rows_each_fail_alone(self, tmp_path, monkeypatch):
+        rows = self._rows(16, bad={2, 11})
+        result, _, _ = await self._run(
+            tmp_path, monkeypatch, rows, lambda r: 400 if r == [self.BAD] else None
+        )
+        assert [(f["start_row"], f["end_row"]) for f in result["failed_ranges"]] == [
+            (3, 3),
+            (12, 12),
+        ]
+        assert result["written_ranges"] == [
+            {"start_row": 1, "end_row": 2},
+            {"start_row": 4, "end_row": 11},
+            {"start_row": 13, "end_row": 16},
+        ]
+
+    async def test_every_row_refused_still_deletes_the_spreadsheet(self, tmp_path, monkeypatch):
+        rows = self._rows(4, bad={0, 1, 2, 3})
+        result, update, drive_svc = await self._run(
+            tmp_path, monkeypatch, rows, lambda r: 400 if r == [self.BAD] else None
+        )
+        assert result["error"].startswith("All 4 row writes were refused (")
+        assert "the new spreadsheet was deleted" in result["error"]
+        drive_svc.files.return_value.delete.assert_called_once()
+        assert update.call_count == 7  # 4 rows, 2 halves, 1 whole
+
+    async def test_split_writes_are_capped(self, tmp_path, monkeypatch):
+        """A 400 every row would get can't multiply the import's writes."""
+        monkeypatch.setattr(drive_files_module, "_CSV_SPLIT_MAX_WRITES", 4)
+        rows = self._rows(64, bad=set(range(64)))
+        result, update, _ = await self._run(
+            tmp_path, monkeypatch, rows, lambda r: 400 if r == [self.BAD] else None
+        )
+        assert update.call_count == 5  # the whole chunk, then two splits of two writes
+        assert "All 3 row writes were refused" in result["error"]
+
+    @pytest.mark.parametrize("status", [403, 404, 429, 500])
+    async def test_only_a_400_is_split(self, tmp_path, monkeypatch, status):
+        """A 403/404 refuses every row alike, a final 429 is the quota, and a 5xx may
+        have landed: none says one row is at fault."""
+        monkeypatch.setattr(drive_files_module, "_CSV_RATE_LIMIT_MAX_WAIT", 0.0)
+        rows = self._rows(8, bad={3})
+        result, update, _ = await self._run(
+            tmp_path, monkeypatch, rows, lambda r: status if r == [self.BAD] else None
+        )
+        assert update.call_count == 1
+        if status == 500:
+            assert result["failed_ranges"][0]["start_row"] == 1
+            assert result["failed_ranges"][0]["end_row"] == 8
+        else:
+            assert "The row write was refused" in result["error"]
+
+    async def test_progress_is_one_update_per_chunk(self, tmp_path, monkeypatch):
+        progress = AsyncMock()
+        rows = self._rows(10, bad={7})
+        await self._run(
+            tmp_path,
+            monkeypatch,
+            rows,
+            lambda r: 400 if r == [self.BAD] else None,
+            ctx_progress=progress,
+        )
+        messages = [c.args[2] for c in progress.await_args_list]
+        assert messages == ["rows 1-10: error"]
