@@ -667,6 +667,7 @@ Queued after _ankylosaurus_ (maintainer, 2026-10-24): the first parity release. 
 - [ ] Gmail: forward a message (`forward_message`) ([#1206](https://github.com/khuisman/mcp-gee-sweet/issues/1206))
 - [ ] Calendar: respond to an invitation (`respond_to_event`) ([#1207](https://github.com/khuisman/mcp-gee-sweet/issues/1207))
 - [ ] Calendar: conference data, auto-create a Google Meet link on events. Moved from Tier 3 (`v1.0`) 2026-10-24 ([#161](https://github.com/khuisman/mcp-gee-sweet/issues/161))
+- [ ] Remove the tools, aliases and parameters deprecated in ankylosaurus, under #1209's one-release policy. Added 2026-11-25 on the maintainer's go-ahead ([#1621](https://github.com/khuisman/mcp-gee-sweet/issues/1621))
 
 **Moved from ankylosaurus, 2026-11-01 (maintainer)**
 
