@@ -115,7 +115,7 @@
 | `update_permission` | Change the role on an existing permission for a file or folder. | `file_id`, `permission_id`, `role` | `drive` |
 | `remove_permission` | Revoke a permission on a file or folder. | `file_id`, `permission_id` | `drive` |
 | `transfer_ownership` | Transfer ownership of a file or folder to another user. | `file_id`, `new_owner_email`, `send_notification?` | `drive` |
-| `share_file` | Share any file or folder with one or more principals. | `file_id`, `permissions`, `send_notification?` | `drive`, `default` |
+| `share_file` | Share any file or folder with one or more principals. | `file_id`, `permissions`, `send_notification?` | `drive`, `sheets`, `default` |
 
 `share_file`'s `permissions` is a list of `{type, role, ...}` objects — `type` is `user`, `group`, `domain`, or `anyone`; `user`/`group` also need `email_address`, `domain` needs `domain`. Valid roles: `reader`, `commenter`, `writer`; a `role` left out means `reader`.
 

@@ -257,6 +257,9 @@ MEMBERSHIP_CLAIMS = (
     # "searching ... spreadsheets" in the `sheets` description: search_files absorbs
     # search_spreadsheets and list_spreadsheets (#1528).
     ("search_files", "sheets", True),
+    # "sharing spreadsheets" in the `sheets` description: share_file replaces
+    # share_spreadsheet (#665).
+    ("share_file", "sheets", True),
     *((name, "sheets", True) for name in SPREADSHEET_FILE_TOOLS),
     *((name, "drive", True) for name in SPREADSHEET_FILE_TOOLS),
 )

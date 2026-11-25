@@ -741,3 +741,36 @@ class TestShareFile:
         )
         assert len(result["successes"]) == 1
         assert result["successes"][0]["permissionId"] == "perm-abc"
+
+    async def test_progress_names_each_entry_by_address_or_domain(self):
+        """#665: share_file replaces share_spreadsheet, which named each recipient in
+        its progress message, so entries of one type stay distinguishable. An entry
+        with neither (`anyone`), and a malformed one, are named by their type."""
+        drive = self._drive_svc()
+        ctx = _make_ctx(drive_service=drive)
+        ctx.report_progress = AsyncMock()
+        await _sharing_tools["share_file"](
+            file_id="file-1",
+            permissions=[
+                {"type": "user", "email_address": "alice@example.com", "role": "writer"},
+                {"type": "user", "email_address": "bob@example.com", "role": "reader"},
+                {"type": "domain", "domain": "example.com", "role": "reader"},
+                {"type": "anyone", "role": "reader"},
+                "not-a-dict",
+            ],
+            ctx=ctx,
+        )
+        messages = sorted(c.args[2] for c in ctx.report_progress.await_args_list)
+        assert messages == [
+            "None: failure",
+            "alice@example.com: success",
+            "anyone: success",
+            "bob@example.com: success",
+            "example.com: success",
+        ]
+
+    def test_role_documented_as_optional_reader(self):
+        # The CHANGELOG's migration advice relies on a missing role meaning reader.
+        doc = " ".join(_sharing_tools["share_file"].__doc__.split())
+        assert "'role' is optional and defaults to 'reader'" in doc
+        assert "must have 'type' and 'role'" not in doc
