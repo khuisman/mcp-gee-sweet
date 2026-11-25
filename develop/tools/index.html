@@ -2057,7 +2057,7 @@
 <tbody>
 <tr>
 <td><code>share_spreadsheet</code></td>
-<td>Share a Google Spreadsheet with multiple users via email, assigning specific roles.</td>
+<td>Deprecated: use <code>share_file</code> with each recipient as <code>{'type': 'user', 'email_address': ..., 'role': ...}</code>, setting this tool's default <code>'role': 'writer'</code> explicitly instead. Removed in the next feature release.</td>
 <td><code>spreadsheet_id</code>, <code>recipients</code>, <code>send_notification?</code></td>
 <td><code>drive</code>, <code>sheets</code></td>
 </tr>
@@ -2089,12 +2089,12 @@
 <td><code>share_file</code></td>
 <td>Share any file or folder with one or more principals.</td>
 <td><code>file_id</code>, <code>permissions</code>, <code>send_notification?</code></td>
-<td><code>drive</code>, <code>default</code></td>
+<td><code>drive</code>, <code>sheets</code>, <code>default</code></td>
 </tr>
 </tbody>
 </table>
-<p><code>share_spreadsheet</code>'s <code>recipients</code> is a list of <code>{email_address, role}</code> objects. Valid roles: <code>reader</code>, <code>commenter</code>, <code>writer</code>, <code>owner</code>.</p>
-<p><code>share_file</code>'s <code>permissions</code> is a list of <code>{type, role, ...}</code> objects — <code>type</code> is <code>user</code>, <code>group</code>, <code>domain</code>, or <code>anyone</code>; <code>user</code>/<code>group</code> also need <code>email_address</code>, <code>domain</code> needs <code>domain</code>. Valid roles: <code>reader</code>, <code>commenter</code>, <code>writer</code>.</p>
+<p><code>share_file</code>'s <code>permissions</code> is a list of <code>{type, role, ...}</code> objects — <code>type</code> is <code>user</code>, <code>group</code>, <code>domain</code>, or <code>anyone</code>; <code>user</code>/<code>group</code> also need <code>email_address</code>, <code>domain</code> needs <code>domain</code>. Valid roles: <code>reader</code>, <code>commenter</code>, <code>writer</code>; a <code>role</code> left out means <code>reader</code>.</p>
+<p><code>share_spreadsheet</code> is deprecated: its <code>recipients</code> entry <code>{email_address, role}</code> is <code>share_file</code>'s <code>{type: 'user', email_address, role}</code>, except that a <code>role</code> left out means <code>writer</code>. Valid roles: <code>reader</code>, <code>commenter</code>, <code>writer</code>.</p>
 <h2 id="drive-activity">Drive — activity<a class="headerlink" href="#drive-activity" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
