@@ -667,11 +667,15 @@ class _AstParser(HTMLParser):
         # discarded, since a browser draws a line for it (PR #1356 QA round 3).
         # Per-segment, reset by _open_block.
         self._segment_had_line_break = False
-        # True while the segment about to be flushed is a list item whose text
-        # came through its own transparent `<p>` (#1111); makes
-        # _flush_pending_runs trim the HTML padding that follows that `</p>`.
-        # Per-segment state, so _open_block resets it along with the rest.
-        self._li_trailing_padding = False
+        # True while the segment about to be flushed ends at a boundary the parser
+        # drew inside it, so the source whitespace after that boundary is padding,
+        # not the block's content: a transparent `</p>` in a list item (#1111), or a
+        # hidden element's end — an HTML comment, `<script>`/`<style>` block, or an
+        # element with hidden/display:none — where a browser shows nothing for the
+        # element or the line break markdown-it writes after it (#1619). Makes
+        # _flush_pending_runs trim that padding, one shot. Per-segment state, so
+        # _open_block resets it along with the rest.
+        self._trailing_padding = False
         # True once some construct inside the current block's current segment
         # (since it was last freshly opened or resumed) was silently dropped
         # instead of contributing a run — an unsupported void element like
@@ -874,20 +878,19 @@ class _AstParser(HTMLParser):
     def _flush_pending_runs(self) -> list[Run | Image]:
         self._flush_run()
         runs, self._pending_runs = self._pending_runs, []
-        if self._li_trailing_padding:
-            # A list item whose text arrived through its own transparent `<p>`
-            # (#1111) is followed in the source by the padding between `</p>`
-            # and the next tag, which handle_data buffers as the item's own
-            # text. Tight items never see it, so trim it here rather than
-            # handing `['a', '\n']` to the emitter. _is_formatting_whitespace,
-            # not str.strip(): an authored "&nbsp;" is a deliberate spacer and
-            # stays (#402's fresh-`<p>` rule, which this item's text still
-            # arrives through).
+        if self._trailing_padding:
+            # The segment ends at a boundary the parser drew inside it (#1111's
+            # transparent `</p>`, #1619's hidden element), so the source padding
+            # that followed that boundary is not the block's content. Tight items
+            # never see it, so trim it here rather than handing `['a', '\n']` to
+            # the emitter. _is_formatting_whitespace, not str.strip(): an authored
+            # "&nbsp;" is a deliberate spacer and stays (#402's fresh-`<p>` rule,
+            # which this item's text may still have arrived through).
             while runs and isinstance(runs[-1], Run) and _is_formatting_whitespace(runs[-1].text):
                 runs.pop()
-            # One shot: it describes the padding right after that `</p>`, not
+            # One shot: it describes the padding right after that boundary, not
             # every flush for the rest of the document.
-            self._li_trailing_padding = False
+            self._trailing_padding = False
         return runs
 
     def _open_block(
@@ -920,7 +923,7 @@ class _AstParser(HTMLParser):
         self._segment_had_line_break = False
         self._block_had_unsupported_content = False
         self._block_named_style = named_style
-        self._li_trailing_padding = False
+        self._trailing_padding = False
         self._li_heading_level = None
         self._block_lists = (tuple(self._list_ordered), tuple(self._list_ids))
         # #1414: a fresh <li> that is the first item of an open <ul>. Computed from
@@ -1950,6 +1953,36 @@ class _AstParser(HTMLParser):
                 self._bare_link_url.append(href)
             self._anchor_pushes.append("bare" if href else None)
 
+    def handle_comment(self, data):
+        """An HTML comment arrives whole (script/style go through the element stack;
+        a comment never opens one). Nothing in it reaches the Doc, but inside an open
+        block it draws the boundary #1619's trim needs: the whitespace after it is
+        padding after a hidden element, not the block's content."""
+        if (
+            not self._hidden_depth
+            and self._block_tag is not None
+            and not self._in_pre
+            and self._table_depth == 0
+            and not self._capturing_caption()
+        ):
+            self._arm_trailing_padding()
+
+    def _arm_trailing_padding(self) -> None:
+        """A boundary just ended inside the open block — a transparent `</p>` in a
+        list item (#1111), or a hidden element: an HTML comment, `<script>`/`<style>`
+        block, or an element with hidden/display:none (#1619). Flush the text so far
+        into its own runs and arm the one-shot trim _flush_pending_runs does at the
+        block's next flush. A browser shows nothing for the hidden element or for the
+        line break markdown-it writes after it (`<li>c<!-- … -->\n</li>`), where the
+        item held `['c\n']` and an item's "\n" is a paragraph break — an extra empty
+        bullet in the Doc. The text so far is flushed first so the padding lands in
+        runs of its own, the only kind the trim drops; text that follows the padding
+        is real content, and a non-whitespace run disarms the trim by ending its
+        while loop. Not in <pre> (its content is code), a table cell (#1221) or a
+        caption, whose text is captured raw."""
+        self._flush_run()
+        self._trailing_padding = True
+
     def handle_endtag(self, tag):
         tag = _PRE_ALIASES.get(tag, tag)
         # An end tag closes the element it names and everything still open inside it,
@@ -1960,6 +1993,19 @@ class _AstParser(HTMLParser):
         popped = self._pop_elements(tag)
         if popped is None:
             return
+        # A hidden element closing inside an open block draws the same boundary a
+        # comment does in handle_comment (#1619): <script>, <style>, hidden or
+        # display:none elements, and the elements still open inside them, which
+        # close with the tag that names the hidden one.
+        if (
+            any(element.hidden for element in popped)
+            and not self._hidden_depth
+            and self._block_tag is not None
+            and not self._in_pre
+            and self._table_depth == 0
+            and not self._capturing_caption()
+        ):
+            self._arm_trailing_padding()
         for element in popped[:-1]:
             if not element.inert:
                 self._close_element(element.tag, element)
@@ -2212,8 +2258,7 @@ class _AstParser(HTMLParser):
         # and arming the trim makes the `</p>`-to-next-tag padding that
         # handle_data buffers next land outside the item's runs.
         if tag == "p" and self._block_tag == "li" and self._table_depth == 0:
-            self._flush_run()
-            self._li_trailing_padding = True
+            self._arm_trailing_padding()
             return
 
         # --- block elements ---

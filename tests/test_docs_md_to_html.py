@@ -833,6 +833,39 @@ class TestHtmlShapesFromMarkdownIt:
         ]
 
 
+class TestHiddenBlockAfterItemText:
+    """#1619: a raw HTML comment, <script> or <style> block after a list item's
+    text, and the line break markdown-it writes after it, draw no empty bullet."""
+
+    @pytest.mark.parametrize(
+        "md",
+        [
+            "- c\n  <!-- markdownlint-disable-line -->\n- d\n",
+            "- c\n  <!-- multi\n  line -->\n- d\n",
+            "- c\n  <script>x</script>\n- d\n",
+            "- c\n  <style>s</style>\n- d\n",
+        ],
+    )
+    def test_hidden_block_after_item_text_draws_no_empty_bullet(self, md):
+        # A browser shows nothing for the block or the break after it; the item
+        # held ["c\n"], and an item's "\n" is a paragraph break — the extra
+        # empty bullet. Under markdown-it-py 4.2.0 the same shapes reached the
+        # same runs.
+        assert _outline(md) == [("UL", 0, "c"), ("UL", 0, "d")]
+
+    def test_hidden_attribute_element_after_item_text(self):
+        # The same boundary for an element hidden by attribute, whose end tag
+        # arrives where a comment's never does.
+        nodes = html_to_ast("<ul><li>c<span hidden>x</span>\n</li><li>d</li></ul>")
+        assert [_text(n) for n in nodes] == ["c", "d"]
+
+    def test_text_after_a_hidden_block_keeps_its_paragraph(self):
+        # A blank line still ends the item's paragraph: the comment is a block
+        # boundary, and the text after it is the item's own second paragraph.
+        md = "- c\n  <!-- x -->\n\n  tail text\n- d\n"
+        assert _outline(md) == [("UL", 0, "c"), ("P", 0, "tail text"), ("UL", 0, "d")]
+
+
 class TestLooseListsAfter1164:
     """With #1164 in, CommonMark's loose lists (`<li><p>…</p></li>`) keep their bullets
     (#1111), and a block inside a numbered item leaves the parser's one `<ol>` intact."""
