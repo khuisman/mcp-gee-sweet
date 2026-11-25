@@ -650,6 +650,8 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 **Added 2026-11-23** _(maintainer's approval; a release-gate check, since this release ships the bump)_
 
 - [ ] Evaluate markdown-it-py 4.3.0's behavior changes (PR #1592) against the Markdown → Doc conversion: HTML blocks ending at a blank line in an item or quote (`_verbatim_lines`), image alt text (#1099 fallback), the whitespace set, task-list detection, code spans, the new `RuntimeError` on a non-advancing rule, and the import-time rule-cache warm-up. Joy ([#1596](https://github.com/khuisman/mcp-gee-sweet/issues/1596))
+- [ ] A Markdown list item followed by an HTML comment, `<script>` or `<style>` block gets an extra empty bullet. `wrong/narrow`, observed; found while evaluating #1596 ([#1619](https://github.com/khuisman/mcp-gee-sweet/issues/1619))
+- [ ] D2's table check trims with Python's whitespace set, so it disagrees with markdown-it-py 4.3.0 on a row ending in U+0085 or U+001C–U+001F. `wrong/narrow`, not observed; comes with #1596's 4.3.0 bump ([#1620](https://github.com/khuisman/mcp-gee-sweet/issues/1620))
 
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
