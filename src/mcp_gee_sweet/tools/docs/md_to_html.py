@@ -5,6 +5,7 @@ Design and the behavior changes from Python-Markdown: docs/design/markdown-parse
 """
 
 import bisect
+import functools
 import re
 from dataclasses import dataclass
 
@@ -661,10 +662,13 @@ def _autolink_span_windows(state) -> dict:
     autolink core rule — with a dropped `~` delimiter, fragments_join merges
     the run back into exactly that token — and `start_ok` mirrors that rule's
     boundary check, so a `~` a reader sees as part of a URL never strikes:
-    GitHub links the whole URL, and so did develop. Email matches can't
-    contain a `~`, so only URL spans are collected, trimmed to what actually
-    links. The spans are in order, so a delimiter's lookup bisects them
-    instead of scanning (#1436 review)."""
+    GitHub links the whole URL, and so did develop. The spans are what
+    `_gfm_autolink_matches` actually links — a URL that an overlapping email
+    match drops never suppresses a tilde, since the core rule renders no
+    link there (#1612) — so the suppression and the link the reader sees can't
+    disagree. The spans are in order, so a delimiter's lookup bisects them
+    instead of scanning (#1436 review). A window without a scheme or a `www.`
+    holds no URL span, so it skips the URL pass entirely (#1612)."""
     result: dict[int, tuple[list, int]] = {}
     tokens = state.tokens
     i = 0
@@ -685,54 +689,142 @@ def _autolink_span_windows(state) -> dict:
         window = "".join(pieces)
         prev = tokens[first - 1] if first > 0 else None
         start_ok = prev is None or prev.type in _AUTOLINK_BOUNDARY_TOKENS
-        spans = [(start, end) for start, end, _ in _gfm_url_matches(window, start_ok)]
+        spans = (
+            [(start, end) for start, end, _ in _gfm_autolink_matches(window, start_ok)]
+            if "://" in window or "www." in window
+            else []
+        )
         for token_index, offset in zip(range(first, i), offsets, strict=True):
             result[token_index] = (spans, offset)
     return result
 
 
-def _single_tilde_widths(state) -> None:
-    """Mark and cull single-tilde delimiters before ``balance_pairs`` runs.
+def _cull_tildes_inside_autolinks(state, delimiters, windows) -> None:
+    """Drop every tilde delimiter that sits inside a GFM autolink span, so the
+    URL text stays whole for the autolink core rule, as on develop.
 
-    The upstream ``strikethrough_single_tilde`` tokenizer accepts runs of one
-    or two tildes (three or more are consumed as plain text), but leaves both
-    widths on one marker, so ``balance_pairs`` pairs by position alone: a lone
-    ``~`` grabs a closing ``~~`` and the width check only rejects the pair
-    afterwards, by which point the real ``~~`` opener is already broken
-    (#1436). Give the surviving 1-tilde runs their own marker instead, and
-    ``balance_pairs``' same-marker pairing matches them by width — a pair
-    never crosses another pair's boundary and stays linear on long inputs
-    (#1436 review). A 1-tilde run inside a GFM autolink span is dropped
-    outright, keeping the URL text whole for the autolink core rule, as on
-    develop. ``~~`` runs keep the upstream marker, pairing and converting
-    exactly as they always have.
-    """
-    windows = _autolink_span_windows(state)
-
-    def mark_one(delimiters) -> None:
-        kept = []
-        for delimiter in delimiters:
-            if delimiter.marker != 0x7E:
-                kept.append(delimiter)
-                continue
-            if state.tokens[delimiter.token].content == "~":
-                spans, offset = windows[delimiter.token]
-                # The spans are in order, so the one that could cover the
-                # offset is the last that starts at or before it: one bisect,
-                # not a scan of every span, which was quadratic on a
-                # paragraph of many URLs and many tildes ("www.a.com ~ " *
-                # 20000, #1436 review).
-                idx = bisect.bisect_right(spans, offset, key=lambda span: span[0]) - 1
+    A `~` run counts when it starts inside a span; a `~~` run when it lies
+    entirely inside one, which keeps `see https://x.com/~~a~~/b` a single
+    link the way GitHub renders it (#1612). The spans are in order, so the one
+    that could cover a delimiter is the last that starts at or before it: one
+    bisect, not a scan of every span, which was quadratic on a paragraph of
+    many URLs and many tildes ("www.a.com ~ " * 20000, #1436 review)."""
+    kept = []
+    for delimiter in delimiters:
+        if delimiter.marker == 0x7E:
+            spans, offset = windows[delimiter.token]
+            idx = bisect.bisect_right(spans, offset, key=lambda span: span[0]) - 1
+            content = state.tokens[delimiter.token].content
+            if content == "~":
                 if idx >= 0 and spans[idx][1] > offset:
                     continue
-                delimiter.marker = _SINGLE_TILDE_MARKER
-            kept.append(delimiter)
-        delimiters[:] = kept
+            elif idx >= 0 and spans[idx][0] <= offset and spans[idx][1] >= offset + 2:
+                continue
+        kept.append(delimiter)
+    delimiters[:] = kept
 
-    mark_one(state.delimiters)
+
+def _mark_tilde_pairs(state, delimiters) -> None:
+    """Pair the tilde delimiters the way GitHub's own renderer does, and keep
+    only what pairs.
+
+    cmark-gfm's `process_emphasis` tries each tilde closer against the nearest
+    tilde opener under the emphasis flanking arithmetic: a candidate only
+    matches when the closer can't open and the opener can't close, or the two
+    runs' widths sum to something not divisible by 3. The attempt consumes
+    the opener, the closer and everything between them whether the widths
+    match or not, so a mixed-width row renders as literal text, as measured on
+    GitHub: `~a ~~b~ c~~` and `~~was ~5 ms~~` both stay text, while
+    `~a~~b~~` still strikes `b` (#1612). markdown-it instead pairs any two
+    tildes and checks the width only when converting, which lets a lone `~`
+    consume a `~~` closer it can't use (#1436), so the pairing is done here,
+    before `balance_pairs` runs. A failed closer sets the lower bound for
+    later closers of its width, which keeps the pass linear. Surviving pairs
+    of 1-tilde runs get their own marker, so `balance_pairs` pairs them by
+    width and `_single_tilde_pairs` converts them; `~~` pairs keep the
+    upstream marker and convert as they always have. Everything else —
+    consumed by a mismatched attempt, or never paired — is culled and stays
+    literal text."""
+    tildes = [d for d in delimiters if d.marker == 0x7E]
+    if not tildes:
+        return
+    widths = [1 if state.tokens[d.token].content == "~" else 2 for d in tildes]
+    consumed = [False] * len(tildes)
+    pairs: list[tuple[int, int]] = []
+    bottom = {1: 0, 2: 0}
+    for ci, closer in enumerate(tildes):
+        if not closer.close or consumed[ci]:
+            continue
+        oi = ci - 1
+        opener = -1
+        while oi >= bottom[widths[ci]]:
+            cand = tildes[oi]
+            if (
+                cand.open
+                and not consumed[oi]
+                and (
+                    not (closer.open or cand.close)
+                    or widths[ci] % 3 == 0
+                    or (widths[oi] + widths[ci]) % 3 != 0
+                )
+            ):
+                opener = oi
+                break
+            oi -= 1
+        if opener == -1:
+            bottom[widths[ci]] = ci
+            if not closer.open:
+                consumed[ci] = True
+            continue
+        for j in range(opener, ci + 1):
+            consumed[j] = True
+        if widths[opener] == widths[ci]:
+            pairs.append((opener, ci))
+    paired = set()
+    for oi, ci in pairs:
+        if widths[oi] == 1:
+            tildes[oi].marker = _SINGLE_TILDE_MARKER
+            tildes[ci].marker = _SINGLE_TILDE_MARKER
+        paired.add(id(tildes[oi]))
+        paired.add(id(tildes[ci]))
+    kept = []
+    for delimiter in delimiters:
+        if delimiter.marker != 0x7E or id(delimiter) in paired:
+            kept.append(delimiter)
+    delimiters[:] = kept
+
+
+def _single_tilde_widths(state, autolink_urls: bool) -> None:
+    """Pair, mark and cull the tilde delimiters before ``balance_pairs`` runs.
+
+    The upstream ``strikethrough_single_tilde`` tokenizer accepts runs of one
+    or two tildes (three or more are consumed as plain text). This rule runs
+    cmark-gfm's pairing over them first (#1612), so mixed-width rows render
+    like GitHub, and marks the surviving 1-tilde pairs with their own marker
+    so `balance_pairs`' same-marker pairing matches them by width — a pair
+    never crosses another pair's boundary, and the pass stays linear on long
+    inputs (#1436 review).
+
+    A tilde run inside a GFM autolink span is dropped outright first, keeping
+    the URL text whole for the autolink core rule, as on develop — but only
+    when this parser autolinks: with `autolink_urls=False` there is no link
+    to keep whole, so `www.a.com/~x~` strikes instead of rendering neither
+    linked nor struck (#1612). A paragraph with no tilde delimiter skips the
+    URL pass entirely (#1612).
+    """
+    segments = [state.delimiters]
     for meta in state.tokens_meta:
         if meta and "delimiters" in meta:
-            mark_one(meta["delimiters"])
+            segments.append(meta["delimiters"])
+    tilde_segments = [segment for segment in segments if any(d.marker == 0x7E for d in segment)]
+    if not tilde_segments:
+        return
+    if autolink_urls:
+        windows = _autolink_span_windows(state)
+        for segment in tilde_segments:
+            _cull_tildes_inside_autolinks(state, segment, windows)
+    for segment in tilde_segments:
+        _mark_tilde_pairs(state, segment)
 
 
 def _single_tilde_pairs(state) -> None:
@@ -771,10 +863,11 @@ def _build_markdown_parser(autolink_urls: bool) -> MarkdownIt:
     # strikethrough_single_tilde widens the strikethrough tokenizer to GFM's full
     # form: `~x~` strikes like `~~x~~`, and a run of three or more tildes stays
     # literal text (#1335). The upstream option only tokenizes the runs: pairing
-    # stays with balance_pairs once the 1-tilde runs carry their own marker
-    # (_single_tilde_widths), so a pair never crosses another pair's boundary,
-    # and a `~` inside a GFM autolink span keeps the URL text whole, as on
-    # develop (#1436 review). _single_tilde_pairs converts what paired.
+    # is cmark-gfm's algorithm, run by _single_tilde_widths before balance_pairs,
+    # so mixed-width rows render like GitHub, a pair never crosses another pair's
+    # boundary, and a tilde inside a GFM autolink span keeps the URL text whole,
+    # as on develop (#1436 review, #1612). _single_tilde_pairs converts the
+    # 1-tilde pairs.
     md = MarkdownIt(
         "commonmark",
         {
@@ -783,7 +876,13 @@ def _build_markdown_parser(autolink_urls: bool) -> MarkdownIt:
             "strikethrough_single_tilde": True,
         },
     ).enable(["table", "strikethrough"])
-    md.inline.ruler2.before("balance_pairs", "single_tilde_widths", _single_tilde_widths)
+    # The tilde pairing pass only protects URLs when this parser links them
+    # (#1612): with autolinks off there is no link to keep whole.
+    md.inline.ruler2.before(
+        "balance_pairs",
+        "single_tilde_widths",
+        functools.partial(_single_tilde_widths, autolink_urls=autolink_urls),
+    )
     md.inline.ruler2.after("strikethrough", "single_tilde_pairs", _single_tilde_pairs)
     # Keep link and image destinations as written. markdown-it percent-encodes them
     # by default, which breaks a local image path ("café.png" becomes "caf%C3%A9.png")

@@ -157,6 +157,22 @@ needs Markdown inside it as HTML instead.
 
 ---
 
+### Tildes inside words and CJK text strike through the text between them
+
+**What:** GFM puts no word-boundary rule on strikethrough delimiters, so tildes inside words and
+CJK text pair across them: `100~200 and 300~400` strikes `200 and 300`, and `間~テ~書` strikes
+`テ`. Rows that mix `~` and `~~` runs do the opposite — they render as literal text, as GitHub
+does (`~a ~~b~ c~~`, `~~was ~5 ms~~`).
+
+**Why:** GitHub's own renderer behaves exactly this way (measured live on both shapes, #1612): a
+tilde run between two non-space characters can open and close, so it takes part in the pairing,
+and a mixed-width attempt consumes the runs it tries without striking.
+
+**Workaround:** Escape the tilde (`100\~200`) or wrap the text in an inline code span
+(`` `100~200` ``) when the strike is not wanted.
+
+---
+
 ### A GitHub `#anchor` for an underlined heading with a soft break doesn't resolve
 
 **What:** A Markdown setext (`===`/`---`) heading split across a soft break — `Heading one` on
