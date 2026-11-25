@@ -5111,6 +5111,26 @@
 <p><strong>Result (2026-11-01, PR #1332 @ eb304470, Kit) ✅ PASS — 10/10 case×EP cells pass (<code>inline-scope.md</code> and TC-MD116's HT-01/02/07, each through EP-1 to EP-4 and EP-8), in both runs. Every check was read from the stored text styles (<code>strikethrough</code>, <code>baselineOffset</code>, <code>backgroundColor</code> 1/1/0) and the two runs' read-backs are identical. Seen on screen (Playwright): IS on EP-1 (Run 1) and EP-3 (Run 2), HT on EP-8 (Run 1). <code>get_doc_as_markdown</code> gives <code>~~x~~ and ~~y~~; ~~hij~~k.</code> and plain sub/sup/highlight text, as expected.</strong></p>
 <p><strong>Result (2026-11-01, PR #1332 round 2 @ 8fd9f042, after the <code>develop</code> merge bringing #1326, Kit) ✅ PASS — 10/10 cells, one run through EP-1 to EP-4 and EP-8. The stored-style read-back is identical to round 1's, so the round-1 on-screen checks still apply; no new screenshots.</strong></p>
 <p><strong>Result (2026-11-08) ✅ PASS — 10/10 case×EP cells pass; failures: none — ornithomimus release pass, shard M7</strong></p>
+<p><strong>Result (2026-11-23)</strong> pending — no browser in this session, so no on-screen check (Rule 1). Run in an isolated service-account sandbox on a Shared Drive, against <code>develop</code> with PR #1436 merged (<code>faab6cc</code>), <code>inline-scope.md</code> only, one run. Read from the stored text styles (raw <code>documents().get()</code>): IS-01's runs are identical through EP-1 to EP-4 and EP-8. <code>x</code>, <code>y</code>, <code>hij</code> and <code>v</code> are <code>strikethrough: true</code>; <code>and ~~~w~~~; ~q~~.</code> is plain, tildes kept. <code>get_doc_as_markdown</code> gives <code>~~x~~ and ~~y~~; ~~hij~~k. ~~v~~ and \~\~\~w\~\~\~; \~q\~\~.</code>. IS-02 to IS-04 weren't checked for this PR.</p>
+<h3 id="tc-md511-a-tilde-inside-a-bare-url-stays-part-of-the-link-a-single-tilde-pair-around-a-url-strikes-it-1335-1502-destructive">TC-MD511: A tilde inside a bare URL stays part of the link; a single-tilde pair around a URL strikes it (#1335, #1502) ⚠️ destructive<a class="headerlink" href="#tc-md511-a-tilde-inside-a-bare-url-stays-part-of-the-link-a-single-tilde-pair-around-a-url-strikes-it-1335-1502-destructive" title="Permanent link">&para;</a></h3>
+<p><strong>Prompt</strong>
+<strong>Playwright: required</strong></p>
+<blockquote>
+<p>Render each line below as its own paragraph through EP-1:
+<code>see https://cs.example.edu/~alice/paper~v2.pdf</code>
+<code>see https://example.com/a\_b/~site/doc~v2.pdf</code>
+<code>~https://x.com/a~</code>
+<code>~~x~~</code>
+<code>*a ~~b* c~~</code></p>
+</blockquote>
+<p><strong>Checks</strong>
+- Line 1: one link covering the whole URL, <code>https://cs.example.edu/~alice/paper~v2.pdf</code>; nothing struck.
+- Line 2: one link covering the whole URL, the escape resolved: <code>https://example.com/a_b/~site/doc~v2.pdf</code>; nothing struck.
+- Line 3: <code>https://x.com/a</code> linked and struck, no tildes left.
+- Line 4: <code>x</code> struck.
+- Line 5: <code>a ~~b</code> italic with the tildes literal, <code>c~~</code> plain.
+- Out of scope: the mixed-width cases where GitHub renders differently (<code>~a ~~b~ c~~</code>, <code>~~was ~5 ms~~</code>) and <code>~~</code> inside a bare URL (#1612).</p>
+<p><strong>Result (2026-11-23)</strong> pending — no browser in this session, so no on-screen check (Rule 1). Run in an isolated service-account sandbox on a Shared Drive, against <code>develop</code> with PR #1436 merged (<code>faab6cc</code>), EP-1, one run. Read from the stored text styles (raw <code>documents().get()</code>), every check holds. Line 1: one run linked to <code>https://cs.example.edu/~alice/paper~v2.pdf</code>, no strike. Line 2: one run linked to <code>https://example.com/a_b/~site/doc~v2.pdf</code>, no strike. Line 3: <code>https://x.com/a</code> with <code>strikethrough</code> and the link. Line 4: <code>x</code> struck. Line 5: <code>a ~~b</code> italic, <code>c~~</code> plain.</p>
 <hr />
 <h2 id="line-breaks">Line breaks<a class="headerlink" href="#line-breaks" title="Permanent link">&para;</a></h2>
 <p>How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a hard break or <code>&lt;br&gt;</code> (a line break inside the paragraph, <code>\v</code>) in the blocks that keep a paragraph style (#1230). TC-MD114's BR-01 to BR-03 and TC-MD116's HT-03 cover them in a plain paragraph.</p>
