@@ -1473,10 +1473,11 @@ needs Markdown inside it as HTML instead.</p>
 <h3 id="a-github-anchor-for-an-underlined-heading-with-a-soft-break-doesnt-resolve">A GitHub <code>#anchor</code> for an underlined heading with a soft break doesn't resolve<a class="headerlink" href="#a-github-anchor-for-an-underlined-heading-with-a-soft-break-doesnt-resolve" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> A Markdown setext (<code>===</code>/<code>---</code>) heading split across a soft break — <code>Heading one</code> on
 one line, <code>heading two</code> on the next, underline under it — written by <code>create_doc</code>,
-<code>write_doc_content</code>, <code>create_doc_from_file</code> or <code>update_doc_from_file</code> keeps the break's hyphen
+<code>write_doc_content</code>, <code>upload_file</code> (a <code>'markdown'</code> source with <code>convert_to_doc=True</code>),
+<code>create_doc_from_file</code> or <code>update_doc_from_file</code> keeps the break's hyphen
 in its slug: both schemes slug the heading <code>heading-one-heading-two</code>. GitHub's own anchor for
 the same heading is <code>#heading-oneheading-two</code> (github-slugger drops the <code>\n</code> with no separator,
-measured 2026-11-20), so a <code>#heading-oneheading-two</code> link copied from GitHub strips to plain
+measured 2026-11-20, UTC), so a <code>#heading-oneheading-two</code> link copied from GitHub strips to plain
 text instead of resolving. The GitLab spelling, <code>#heading-one-heading-two</code>, resolves.</p>
 <p><strong>Why:</strong> The write collapses the soft break to a space — the same thing a browser's rendering
 does with the <code>\n</code> GitHub leaves in its HTML — and the break's position can't be recovered at
@@ -1484,6 +1485,30 @@ resolve time; guessing which hyphen was the break could point a link at the wron
 residual edge of the #1357 anchor family, recorded here under its chain stop (#1553).</p>
 <p><strong>Workaround:</strong> Write the heading on one line, or spell the anchor with the hyphen the collapse
 produces.</p>
+<hr />
+<h3 id="percent-encoded-and-non-ascii-anchor-edges">Percent-encoded and non-ASCII <code>#anchor</code> edges<a class="headerlink" href="#percent-encoded-and-non-ascii-anchor-edges" title="Permanent link">&para;</a></h3>
+<p><strong>What:</strong> Three edges of the percent-decoding retry and its fuzzy fallback, none hit in use
+(#1579). An ASCII percent-encoded anchor that decodes to a space still doesn't resolve:
+<code>#Getting%20Started</code> for a "Getting Started" heading decodes to <code>getting started</code>, which
+matches no slug (every scheme hyphenates the space), and the literal form's fuzzy tokens are
+<code>getting</code>, <code>20</code>, <code>started</code> — the <code>%20</code> reads as the word "20" — so it strips. One whose
+percent-encoding ends in digits can mis-link the other way: <code>#Step%201</code> among headings
+"Step 1" and "Step 201" resolves to "Step 201", on the literal tokens <code>step</code>/<code>201</code>. No
+normalization spans the composed/decomposed divide: <code>#caf%C3%A9</code> resolves for a composed
+"Café", <code>#cafe%CC%81</code> only for a heading whose stored text is itself decomposed — neither
+matches the other's heading. And an unencoded non-ASCII stale anchor mis-links through the
+same ASCII-only token comparison: <code>#step-1-実行</code> resolves to the first "Step 1" heading, the
+CJK letters dropping out of the match.</p>
+<p><strong>Why:</strong> These are the cost of what the retry deliberately refuses (#1553 review): the
+decoded form never reaches the fuzzy match, because a decoded anchor's non-ASCII letters
+drop out of the token comparison and a stale anchor would resolve to whichever heading
+shares its ASCII words — a wrong-section link is worse than none. The same refusal keeps
+NFC/NFD normalization out: which spelling a heading's stored text uses is real content, and
+matching either would guess. The literal anchor keeps the fuzzy fallback, so an unencoded
+non-ASCII stale anchor still slips through on that side. A residual edge of the #1357
+anchor family, recorded under its chain stop.</p>
+<p><strong>Workaround:</strong> Paste the anchor decoded — the way the address bar shows it after the jump —
+or spell it exactly as the heading's own slug: <code>#getting-started</code>, not <code>#Getting%20Started</code>.</p>
 <hr />
 <h3 id="get_doc_as_markdown-exports-a-table-or-quote-that-ends-a-lists-last-item-outside-the-list"><code>get_doc_as_markdown</code> exports a table or quote that ends a list's last item outside the list<a class="headerlink" href="#get_doc_as_markdown-exports-a-table-or-quote-that-ends-a-lists-last-item-outside-the-list" title="Permanent link">&para;</a></h3>
 <p><strong>What:</strong> A table inside a list's last item (<code>1. a\n\n   | x |\n   |---|\n</code>) is written to the
