@@ -549,21 +549,38 @@ def register(tool):
         if not rows:
             return {"error": f"CSV file is empty: {local_path}"}
 
-        width = max(len(row) for row in rows)
-        # A file of blank lines has no columns, and a grid needs at least one.
-        grid_columns = max(width, 1)
-        # Before the padding, which a refused file shouldn't pay for.
-        if limit_error := _csv_grid_limit_error(local_path, len(rows), grid_columns):
+        # Off the loop, like the read (#1623): the scan and the padding below are
+        # O(rows), and under SSE their stall blocked every other connection's tool
+        # calls and keepalives. The grid-limit check runs inside it, ahead of the
+        # padding, which a refused file shouldn't pay for.
+        def _scan_width_and_check_grid_limits() -> tuple[int, int, str | None]:
+            width = max(len(row) for row in rows)
+            # A file of blank lines has no columns, and a grid needs at least one.
+            grid_columns = max(width, 1)
+            return width, grid_columns, _csv_grid_limit_error(local_path, len(rows), grid_columns)
+
+        width, grid_columns, limit_error = await asyncio.to_thread(
+            _scan_width_and_check_grid_limits
+        )
+        if limit_error:
             return {"error": limit_error}
-        rows = [row + [""] * (width - len(row)) for row in rows]
-        # Off the loop, since it sizes every row, and before the create, so a
+        # Off the loop too, since it sizes every row, and before the create, so a
         # cancellation while it runs leaves nothing behind. It takes about 1.5 s per
         # 2M rows, so a large file says so first (PR #1615 QA round 1).
         if len(rows) >= _CSV_PLAN_PROGRESS_ROWS:
             await report_progress_safe(
                 ctx, 0, None, f"Planning row writes for {len(rows):,} rows", "planning"
             )
-        chunks = await asyncio.to_thread(_csv_chunks, rows)
+
+        def _pad_rows_and_plan_chunks() -> tuple[
+            list[list[str]], list[tuple[int, list[list[str]]]]
+        ]:
+            # O(rows) like the scan (#1623), and shares its thread-shaped reason:
+            # the padding runs just before the chunk planning it feeds.
+            padded_rows = [row + [""] * (width - len(row)) for row in rows]
+            return padded_rows, _csv_chunks(padded_rows)
+
+        rows, chunks = await asyncio.to_thread(_pad_rows_and_plan_chunks)
 
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
