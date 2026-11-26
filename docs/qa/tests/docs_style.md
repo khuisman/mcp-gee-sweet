@@ -933,4 +933,7 @@ Cleanup: run folder QA-orn-D-2026-11-08 trashed (not permanent), along with ever
 
 **Cleanup:** `delete_file` the doc and the scratch PDF
 
+**Result (2026-11-26) ✅ PASS — Sky, PR #1631 round 1 @ 7e85ab8e**
+`mcp-gee-sweet-sky`, reconnected after the reset; doc created in the server's default Shared Drive folder. Step 2: `{END}` = 34; the paragraph after the table (34–35) and the empty one before it (17–18) both had `lineSpacing` 1 and `{"unit": "PT"}` above and below. Step 3: `{"docId", "insertions": 2, "trailingParagraphReset": true}`. Step 4: "After 🙂 one" (39–52) and "After two" (52–62) had an empty `paragraphStyle` spacing; 22–23 kept `lineSpacing` 1; "Lead Intro bold text" was the first paragraph. The PDF and the editor (Playwright, URL-verified, title "TC-DOC274") both show the two lines below the table on their own lines, with no overlap. Step 5: `{"insertions": 1}` with no `trailingParagraphReset`. Step 6: `{requests: 1}`; `lineSpacing` 150, `spaceAbove` 0pt, `spaceBelow` 12pt, "bold" still bold. Step 7: `HEADING_2`, `lineSpacing` 200, `spaceBelow` 3pt (step 6's `spaceAbove` was cleared, as the docstring says). Step 8: `HEADING_2` with no spacing of its own. Step 9: both refused with the exact messages. Extra probes, both failed and sent back: (a) two lines raw-inserted after the table (as Enter in the editor makes them), then `insert_doc_text` into the second, got no reset; the text kept `lineSpacing` 1. (b) `insert_doc_text` at the collapsed paragraph with `segment_id: ""` landed in the body with no reset and `lineSpacing` 1.
+
 ---
