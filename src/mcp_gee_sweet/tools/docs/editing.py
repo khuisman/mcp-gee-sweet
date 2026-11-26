@@ -5,6 +5,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
+from .emitter import collapsed_trailing_paragraph
 from .indices import utf16_len
 from .invalidation import doc_invalidating
 from .style import (
@@ -15,6 +16,53 @@ from .style import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Only what collapsed_trailing_paragraph reads: each body element's range, whether
+# it's a table, and the paragraph spacing.
+_TRAILING_PARAGRAPH_FIELDS = (
+    "body/content(startIndex,endIndex,table/rows,"
+    "paragraph/paragraphStyle(lineSpacing,spaceAbove,spaceBelow))"
+)
+
+
+async def _trailing_paragraph_reset(
+    docs_service, doc_id: str, sorted_ops: list[dict]
+) -> dict | None:
+    """The request that gives text inserted into the collapsed paragraph after a doc's
+    final table its line spacing back, or None when no insertion goes there (#1439).
+
+    The emitter collapses that paragraph (`_build_trailing_para_after_table_collapse`,
+    #1100), and inserted text takes its 1% line spacing and overprints the table. The
+    request clears lineSpacing, spaceAbove and spaceBelow by naming them with no value,
+    so the text takes its named style's (checked live), over every paragraph from the
+    collapsed one's start to the body's end once the insertions have landed. It goes
+    after every insertText, so its range counts all of them. Header and footer
+    insertions (segment_id) neither land there nor move the body.
+    """
+    body_ops = [op for op in sorted_ops if "segment_id" not in op]
+    if not body_ops:
+        return None
+    doc = await execute_in_thread(
+        docs_service.documents().get(documentId=doc_id, fields=_TRAILING_PARAGRAPH_FIELDS).execute,
+        docs_service,
+    )
+    found = collapsed_trailing_paragraph((doc.get("body") or {}).get("content") or [])
+    if found is None:
+        return None
+    start, end = found
+    # The final paragraph's own newline can't take text, so the last index into it is
+    # end - 1.
+    if not any(start <= op["index"] <= end - 1 for op in body_ops):
+        return None
+    shift = sum(utf16_len(op["text"]) for op in body_ops if op["index"] < start)
+    added = sum(utf16_len(op["text"]) for op in body_ops)
+    return {
+        "updateParagraphStyle": {
+            "range": {"startIndex": start + shift, "endIndex": end + added},
+            "paragraphStyle": {},
+            "fields": "lineSpacing,spaceAbove,spaceBelow",
+        }
+    }
 
 
 def register(tool):
@@ -47,7 +95,10 @@ def register(tool):
                     Omit to insert into the document body.
 
         Returns:
-            Confirmation with docId and count of insertions applied.
+            Confirmation with docId and count of insertions applied. When text goes
+            into the collapsed empty paragraph that create_doc and the other content
+            writers leave after a doc's final table, that text gets the doc's normal
+            line spacing back, and the result's trailingParagraphReset is true.
         """
         lc = ctx.request_context.lifespan_context
         if not insertions:
@@ -60,6 +111,9 @@ def register(tool):
                 if "segment_id" in op:
                     location["segmentId"] = op["segment_id"]
                 requests.append({"insertText": {"location": location, "text": op["text"]}})
+            reset = await _trailing_paragraph_reset(lc.docs_service, doc_id, sorted_ops)
+            if reset:
+                requests.append(reset)
             with doc_invalidating(lc.doc_cache, doc_id):
                 await execute_in_thread(
                     lc.docs_service.documents()
@@ -69,8 +123,11 @@ def register(tool):
                 )
         except Exception as e:
             return {"error": str(e)}
-        logger.debug("insert_doc_text: %d insertions in doc %s", len(requests), doc_id)
-        return {"docId": doc_id, "insertions": len(requests)}
+        logger.debug("insert_doc_text: %d insertions in doc %s", len(sorted_ops), doc_id)
+        result: dict[str, Any] = {"docId": doc_id, "insertions": len(sorted_ops)}
+        if reset:
+            result["trailingParagraphReset"] = True
+        return result
 
     @tool(
         annotations=ToolAnnotations(title="Delete Document Range", destructiveHint=True),

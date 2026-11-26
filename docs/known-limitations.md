@@ -55,11 +55,13 @@ Related: #190.
 ### Text typed after a document's final table overlaps it
 
 **What:** When content written by `create_doc`, `write_doc_content`, `create_doc_from_file`,
-`update_doc_from_file`, or `upload_file`'s Markdown Doc ends in a table, text added after that
-table later (typed in the Docs editor, or written by `insert_doc_text` at the document's end) is
-drawn over the table's last row. Each line added there overprints the one before it too: every
-paragraph started from that text, by Enter or a `"\n"`, takes the same spacing. This applies to
-every document that ends in a table, not only one whose table reaches the bottom margin.
+`update_doc_from_file`, or `upload_file`'s Markdown Doc ends in a table, text typed after that
+table later in the Docs editor is drawn over the table's last row. Each line typed there
+overprints the one before it too: every paragraph started from that text by Enter takes the same
+spacing. This applies to every document that ends in a table, not only one whose table reaches
+the bottom margin. Text written there by `insert_doc_text` doesn't overlap: the tool gives it the
+document's normal line spacing back (#1439), and reports `trailingParagraphReset: true` when it
+does.
 
 **Why:** A Docs body always ends in a paragraph, so a document ending in a table has an empty one
 after it. When the table reaches the bottom margin, that paragraph spills onto a blank last page
@@ -69,13 +71,10 @@ paragraph in every document ending in a table (`spaceAbove/spaceBelow = 0`, `lin
 text keeps the document's size.
 
 **Workaround:** In the Docs editor, select the added text and set its line spacing back
-(Format > Line & paragraph spacing > Single). From the tools,
-`apply_theme(theme={"NORMAL_TEXT": {"line_spacing": 100}}, overwrite=True)` sets single spacing
-on every `NORMAL_TEXT` paragraph, the collapsed ones included. That gives the paragraph after the
-table its height back, so the blank last page can return, and gives the collapsed blank
-paragraph before each table (see above) a 1pt line's height. Or write the added text
-as part of the content: `write_doc_content` or `update_doc_from_file` rewrites the document, and
-the paragraph after the table is collapsed again only if the new content still ends in a table.
+(Format > Line & paragraph spacing > Single). From the tools, `style_doc_range` over the added
+text's range with `line_spacing`, `space_above` and `space_below` all `null` gives it the
+document's normal spacing back, and touches no other paragraph. Use `get_doc_structure` for the
+range.
 
 ---
 

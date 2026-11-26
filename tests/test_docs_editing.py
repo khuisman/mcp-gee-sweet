@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from mcp_gee_sweet.tools import docs as docs_module
 
 
@@ -547,3 +549,130 @@ class TestInsertSoftbreakParagraphExplicitNormalText:
         style_req = reqs[1]["updateParagraphStyle"]
         assert style_req["paragraphStyle"]["namedStyleType"] == "NORMAL_TEXT"
         assert style_req["fields"] == "namedStyleType"
+
+
+# ---------------------------------------------------------------------------
+# insert_doc_text: the collapsed paragraph after a doc's final table (#1439)
+# ---------------------------------------------------------------------------
+
+_COLLAPSED = {
+    "lineSpacing": 1,
+    "spaceAbove": {"unit": "PT"},  # the API omits a zero magnitude (checked live)
+    "spaceBelow": {"unit": "PT"},
+}
+
+
+def _doc_ending_in_table(trailing_style=None, *, last_is_table_neighbor=True):
+    content = [
+        {"startIndex": 1, "endIndex": 17, "paragraph": {"paragraphStyle": {}}},
+        {"startIndex": 17, "endIndex": 18, "paragraph": {"paragraphStyle": dict(_COLLAPSED)}},
+        {"startIndex": 18, "endIndex": 34, "table": {"rows": 2}},
+        {
+            "startIndex": 34,
+            "endIndex": 35,
+            "paragraph": {
+                "paragraphStyle": _COLLAPSED if trailing_style is None else trailing_style
+            },
+        },
+    ]
+    if not last_is_table_neighbor:
+        content.insert(3, {"startIndex": 34, "endIndex": 35, "paragraph": {"paragraphStyle": {}}})
+        content[-1] = {**content[-1], "startIndex": 35, "endIndex": 36}
+    return {"body": {"content": content}}
+
+
+class TestInsertDocTextTrailingParagraphReset:
+    async def _call(self, insertions, doc=None):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = (
+            doc if doc is not None else _doc_ending_in_table()
+        )
+        ctx = _make_ctx(docs_service=docs_svc, doc_cache=MagicMock())
+        result = await _docs_tools["insert_doc_text"](doc_id="doc1", insertions=insertions, ctx=ctx)
+        call = docs_svc.documents.return_value.batchUpdate.call_args
+        return result, (call.kwargs["body"]["requests"] if call else None), docs_svc
+
+    async def test_insert_into_collapsed_paragraph_resets_its_spacing(self):
+        result, reqs, _ = await self._call([{"index": 34, "text": "After"}])
+        assert result == {"docId": "doc1", "insertions": 1, "trailingParagraphReset": True}
+        assert reqs == [
+            {"insertText": {"location": {"index": 34}, "text": "After"}},
+            {
+                "updateParagraphStyle": {
+                    "range": {"startIndex": 34, "endIndex": 40},
+                    "paragraphStyle": {},
+                    "fields": "lineSpacing,spaceAbove,spaceBelow",
+                }
+            },
+        ]
+
+    async def test_range_counts_earlier_inserts_and_utf16_length(self):
+        # An insert before the paragraph moves its start; every insert moves the end.
+        # "🙂" is two UTF-16 code units.
+        _, reqs, _ = await self._call(
+            [{"index": 1, "text": "Lead 🙂"}, {"index": 34, "text": "a\nb🙂"}]
+        )
+        assert [next(iter(r)) for r in reqs] == ["insertText", "insertText", "updateParagraphStyle"]
+        assert reqs[-1]["updateParagraphStyle"]["range"] == {
+            "startIndex": 34 + 7,
+            "endIndex": 35 + 7 + 5,
+        }
+
+    async def test_insert_elsewhere_sends_no_reset(self):
+        result, reqs, _ = await self._call([{"index": 5, "text": "x"}])
+        assert result == {"docId": "doc1", "insertions": 1}
+        assert len(reqs) == 1
+
+    async def test_header_insert_at_same_index_neither_reads_nor_resets(self):
+        result, reqs, docs_svc = await self._call(
+            [{"index": 34, "text": "x", "segment_id": "kix.h"}]
+        )
+        assert result == {"docId": "doc1", "insertions": 1}
+        assert len(reqs) == 1
+        docs_svc.documents.return_value.get.assert_not_called()
+
+    async def test_header_insert_does_not_shift_the_range(self):
+        _, reqs, _ = await self._call(
+            [{"index": 1, "text": "hdr", "segment_id": "kix.h"}, {"index": 34, "text": "ab"}]
+        )
+        assert reqs[-1]["updateParagraphStyle"]["range"] == {"startIndex": 34, "endIndex": 37}
+
+    @pytest.mark.parametrize(
+        "style",
+        [
+            {},
+            {"lineSpacing": 100, "spaceAbove": {"unit": "PT"}, "spaceBelow": {"unit": "PT"}},
+            {"lineSpacing": 1, "spaceAbove": {"magnitude": 6, "unit": "PT"}},
+            {"lineSpacing": 1, "spaceBelow": {"magnitude": 10, "unit": "PT"}},
+        ],
+    )
+    async def test_paragraph_without_the_full_signature_is_left_alone(self, style):
+        result, reqs, _ = await self._call(
+            [{"index": 34, "text": "x"}], _doc_ending_in_table(style)
+        )
+        assert "trailingParagraphReset" not in result
+        assert len(reqs) == 1
+
+    async def test_collapsed_paragraph_not_after_a_table_is_left_alone(self):
+        doc = _doc_ending_in_table(last_is_table_neighbor=False)
+        result, reqs, _ = await self._call([{"index": 35, "text": "x"}], doc)
+        assert "trailingParagraphReset" not in result
+        assert len(reqs) == 1
+
+    async def test_text_already_in_the_paragraph_is_reset_too(self):
+        # Text written there before #1439 still has the 1% spacing; inserting
+        # anywhere in that paragraph resets all of it.
+        doc = _doc_ending_in_table()
+        doc["body"]["content"][-1]["endIndex"] = 40
+        _, reqs, _ = await self._call([{"index": 38, "text": "z"}], doc)
+        assert reqs[-1]["updateParagraphStyle"]["range"] == {"startIndex": 34, "endIndex": 41}
+
+    async def test_read_failure_returns_error_without_writing(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.side_effect = Exception("boom")
+        ctx = _make_ctx(docs_service=docs_svc, doc_cache=MagicMock())
+        result = await _docs_tools["insert_doc_text"](
+            doc_id="doc1", insertions=[{"index": 34, "text": "x"}], ctx=ctx
+        )
+        assert result == {"error": "boom"}
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()

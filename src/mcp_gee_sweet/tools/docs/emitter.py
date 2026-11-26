@@ -3509,7 +3509,9 @@ def _build_trailing_para_after_table_collapse(live_doc: dict) -> list[dict]:
     its own: a blank last page. Spacing 0 and 1% line spacing take its height away
     (checked live by the PDF export's page count); a 1pt font alone doesn't, so the font
     is left alone, and text later typed there keeps the doc's size. That text still
-    takes the 1% line spacing and overlaps the table until it's reset, which
+    takes the 1% line spacing and overlaps the table until it's reset. insert_doc_text
+    resets it on the text it writes there (`collapsed_trailing_paragraph`, #1439), and
+    style_doc_range can set it; text typed in the Docs editor keeps it, which
     docs/known-limitations.md names. A rewrite clears it: _replace_doc_content resets
     the final paragraph mark's style before the clear.
     """
@@ -3525,6 +3527,30 @@ def _build_trailing_para_after_table_collapse(live_doc: dict) -> list[dict]:
     if text != "\n" or start is None or end is None:
         return []
     return _collapse_paragraph_requests({"startIndex": start, "endIndex": end}, font_size=False)
+
+
+def collapsed_trailing_paragraph(content: list[dict]) -> tuple[int, int] | None:
+    """The (startIndex, endIndex) of a body's final paragraph when it carries the
+    collapse `_build_trailing_para_after_table_collapse` writes, else None (#1439).
+
+    Recognized by its whole signature, not by the paragraph being empty, so text
+    written there before #1439 is found too: it follows a table, and its line spacing
+    is 1% with no space above or below (the API omits a zero magnitude, checked live).
+    A 1% line spacing is never a reader's own choice, since its lines overprint.
+    """
+    if len(content) < 2 or "table" not in content[-2]:
+        return None
+    last = content[-1]
+    style = (last.get("paragraph") or {}).get("paragraphStyle")
+    start, end = last.get("startIndex"), last.get("endIndex")
+    if style is None or start is None or end is None:
+        return None
+    if style.get("lineSpacing") != 1:
+        return None
+    for spacing in ("spaceAbove", "spaceBelow"):
+        if (style.get(spacing) or {}).get("magnitude", 0) != 0:
+            return None
+    return start, end
 
 
 def _table_start_index(doc_table: dict) -> int | None:

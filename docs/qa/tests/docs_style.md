@@ -899,3 +899,38 @@ Cleanup: run folder QA-orn-D-2026-11-08 trashed (not permanent), along with ever
 `mcp-gee-sweet-kit`, reconnected after the reset. Step 2: `{requests: 1}`. Step 3: the default call returned `{}` (the Markdown write sets no explicit body styles), and `source="both"` returned `{"body": {}, "named_styles": …}`; `source="named_styles"` and `get_doc_named_styles` returned identical dicts with `HEADING_1.font_family` `Georgia`. Step 4: refused with `Input should be 'body', 'named_styles' or 'both'` from the argument check (check corrected this round: it expected the tool's own `{"error"}`, which a `Literal` parameter never reaches). Step 5: `readOnlyHint=True` on `get_doc_theme`'s decorator; `get_doc_named_styles`' description starts `Deprecated: use \`get_doc_theme\` with \`source='named_styles'\``. Doc trashed.
 
 ---
+
+## Paragraph spacing after a doc's final table (#1439)
+
+### TC-DOC274: `insert_doc_text` after a final table doesn't overprint it, and `style_doc_range` sets and clears paragraph spacing ⚠️ destructive
+
+**Purpose:** a doc written from content that ends in a table has its last, empty paragraph collapsed to 1% line spacing (#1100). Text `insert_doc_text` writes there gets the doc's normal spacing back, so it no longer overprints the table, while the collapsed blank paragraph before the table stays collapsed. `style_doc_range` takes `line_spacing`, `space_above` and `space_below`, and `null` clears each one.
+
+`get_doc_structure` doesn't report paragraph spacing. Read each paragraph's `paragraphStyle` (`lineSpacing`, `spaceAbove`, `spaceBelow`) from a fresh-interpreter `documents().get()`, as `CLAUDE.md`'s "MCP restart" section describes. The API omits a zero `magnitude`, so `{"unit": "PT"}` is 0pt.
+
+**Playwright: required** (step 4: the inserted lines sit clear of the table's last row in the editor, as well as in the PDF)
+
+**Steps**
+1. `create_doc(title="TC-DOC274", folder_id={FOLDER_ID}, content_format="markdown", content="Intro **bold** text\n\n| a | b |\n|---|---|\n| 1 | 2 |\n")` → `{DOC}`
+2. `get_doc_structure(doc_id={DOC})`: note the last paragraph's `startIndex` as `{END}` (the empty paragraph after the table)
+3. `insert_doc_text(doc_id={DOC}, insertions=[{"index": {END}, "text": "After 🙂 one\nAfter two"}, {"index": 1, "text": "Lead "}])`
+4. Read the paragraph styles; `download_file(file_id={DOC}, local_path=<scratch dir>, export_format="pdf")` and open the PDF
+5. `insert_doc_text(doc_id={DOC}, insertions=[{"index": <last paragraph's endIndex − 1>, "text": " more"}])`
+6. `get_doc_structure`, then `style_doc_range(doc_id={DOC}, ranges=[{"start_index": <Intro paragraph's start>, "end_index": <its end − 1>, "line_spacing": 150, "space_above": 0, "space_below": 12}])`; read the paragraph styles and the Intro paragraph's text runs
+7. Same range: `style_doc_range(..., ranges=[{..., "named_style_type": "HEADING_2", "line_spacing": 200, "space_below": 3}])`; read the paragraph styles
+8. Same range: `style_doc_range(..., ranges=[{..., "line_spacing": null, "space_above": null, "space_below": null}])`; read the paragraph styles
+9. Same range: `style_doc_range(..., ranges=[{..., "line_spacing": 0}])`, then `style_doc_range(..., ranges=[{..., "space_above": -1}])`
+
+**Checks**
+- Step 2: the paragraph after the table, and the empty one before it, have `lineSpacing` 1 and 0pt above and below
+- Step 3: the result is `{"docId": {DOC}, "insertions": 2, "trailingParagraphReset": true}`
+- Step 4: "After 🙂 one" and "After two" are two paragraphs after the table with no `lineSpacing`, `spaceAbove` or `spaceBelow` of their own. The empty paragraph before the table still has `lineSpacing` 1. "Lead " starts the first paragraph. In the PDF, both lines sit below the table on their own lines, overlapping neither the table nor each other
+- Step 5: the result has no `trailingParagraphReset` key (that paragraph is no longer collapsed)
+- Step 6: the result is `{"requests": 1}`; the Intro paragraph has `lineSpacing` 150, 0pt above and `spaceBelow` 12, and "bold" is still bold
+- Step 7: the result is `{"requests": 1}`; the paragraph is `HEADING_2` with `lineSpacing` 200 and `spaceBelow` 3
+- Step 8: the paragraph has no `lineSpacing`, `spaceAbove` or `spaceBelow` of its own and is still `HEADING_2`
+- Step 9: both are refused with `{"error"}` before any write: `ranges[0]: line_spacing must be greater than zero, got 0` and `ranges[0]: space_above must be zero or more, got -1`
+
+**Cleanup:** `delete_file` the doc and the scratch PDF
+
+---

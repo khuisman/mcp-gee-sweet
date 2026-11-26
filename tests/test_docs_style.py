@@ -868,6 +868,98 @@ class TestStyleDocRangeTool:
         assert bold_updates[1]["range"] == {"startIndex": 1, "endIndex": 10}
 
 
+class TestStyleDocRangeParagraphSpacing:
+    """#1439: style_doc_range sets and clears line_spacing, space_above, space_below."""
+
+    async def _call(self, *ranges):
+        tool, tools = _make_tool_registry()
+        docs_module.register(tool)
+        mock_docs = MagicMock()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        mock_docs.documents().batchUpdate.reset_mock()
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        result = await tools["style_doc_range"](doc_id="doc1", ranges=list(ranges), ctx=ctx)
+        call = mock_docs.documents().batchUpdate.call_args
+        reqs = call[1]["body"]["requests"] if call else None
+        return result, reqs
+
+    async def test_sets_all_three_in_one_paragraph_request(self):
+        result, reqs = await self._call(
+            {
+                "start_index": 3,
+                "end_index": 9,
+                "line_spacing": 115,
+                "space_above": 0,
+                "space_below": 6.5,
+            }
+        )
+        assert result == {"docId": "doc1", "requests": 1}
+        assert reqs == [
+            {
+                "updateParagraphStyle": {
+                    "range": {"startIndex": 3, "endIndex": 9},
+                    "paragraphStyle": {
+                        "lineSpacing": 115,
+                        "spaceAbove": {"magnitude": 0, "unit": "PT"},
+                        "spaceBelow": {"magnitude": 6.5, "unit": "PT"},
+                    },
+                    "fields": "lineSpacing,spaceAbove,spaceBelow",
+                }
+            }
+        ]
+
+    async def test_null_clears_the_field(self):
+        _, reqs = await self._call(
+            {"start_index": 1, "end_index": 4, "line_spacing": None, "space_below": None}
+        )
+        update = reqs[0]["updateParagraphStyle"]
+        assert update["paragraphStyle"] == {}
+        assert update["fields"] == "lineSpacing,spaceBelow"
+
+    async def test_shares_the_request_with_named_style_type(self):
+        _, reqs = await self._call(
+            {"start_index": 1, "end_index": 4, "named_style_type": "HEADING_2", "line_spacing": 200}
+        )
+        assert reqs == [
+            {
+                "updateParagraphStyle": {
+                    "range": {"startIndex": 1, "endIndex": 4},
+                    "paragraphStyle": {"namedStyleType": "HEADING_2", "lineSpacing": 200},
+                    "fields": "namedStyleType,lineSpacing",
+                }
+            }
+        ]
+
+    async def test_paragraph_request_comes_before_text_request(self):
+        _, reqs = await self._call(
+            {"start_index": 1, "end_index": 4, "space_above": 4, "bold": True}
+        )
+        assert [next(iter(r)) for r in reqs] == ["updateParagraphStyle", "updateTextStyle"]
+
+    async def test_named_style_alone_is_unchanged(self):
+        _, reqs = await self._call({"start_index": 1, "end_index": 4, "named_style_type": "TITLE"})
+        assert reqs[0]["updateParagraphStyle"]["fields"] == "namedStyleType"
+        assert reqs[0]["updateParagraphStyle"]["paragraphStyle"] == {"namedStyleType": "TITLE"}
+
+    @pytest.mark.parametrize(
+        ("key", "value", "message"),
+        [
+            ("line_spacing", 0, "line_spacing must be greater than zero"),
+            ("line_spacing", -50, "line_spacing must be greater than zero"),
+            ("space_above", -1, "space_above must be zero or more"),
+            ("space_below", "12", "space_below must be a number or null"),
+            ("line_spacing", True, "line_spacing must be a number or null"),
+        ],
+    )
+    async def test_invalid_values_refused_before_any_call(self, key, value, message):
+        result, reqs = await self._call(
+            {"start_index": 1, "end_index": 4, "bold": True},
+            {"start_index": 5, "end_index": 8, key: value},
+        )
+        assert reqs is None
+        assert result["error"].startswith(f"ranges[1]: {message}")
+
+
 # ---------------------------------------------------------------------------
 # create_paragraph_bullets / delete_paragraph_bullets tools (#334)
 # ---------------------------------------------------------------------------
