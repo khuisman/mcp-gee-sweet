@@ -16,9 +16,11 @@ from typing import Any
 
 import pytest
 
+from mcp_gee_sweet import local_files
 from mcp_gee_sweet.server import mcp
 
-# Rule 1: no composition keyword at the schema root.
+# Rule 1: the schema root is a plain object: `"type": "object"`, with no
+# composition keyword beside it.
 # - Anthropic Messages API rejects the request with 400 "input_schema does not
 #   support oneOf, allOf, or anyOf at the top level" (Claude Code reports
 #   anthropics/claude-code#4886 and #27337 quote it; the "Define tools" page,
@@ -28,6 +30,9 @@ from mcp_gee_sweet.server import mcp
 #   be anyOf and must be an object"
 #   (https://developers.openai.com/api/docs/guides/structured-outputs,
 #   "Supported schemas").
+# - MCP spec (2025-11-25, schema.ts): `Tool.inputSchema` and `Tool.outputSchema`
+#   are both typed `{ type: "object"; ... }`.
+ROOT_TYPE = "object"
 ROOT_COMPOSITION_KEYWORDS = ("oneOf", "anyOf", "allOf")
 
 # Rule 2: no `$ref` anywhere (inline the definition instead).
@@ -90,7 +95,12 @@ def _find_refs(schema: Any, path: str = "") -> Iterator[str]:
 
 def schema_problems(tool_name: str, field: str, schema: dict[str, Any]) -> list[str]:
     """Every rule `schema` breaks, each naming the tool and the offending path."""
-    problems = [
+    problems = []
+    if schema.get("type") != ROOT_TYPE:
+        problems.append(
+            f"{tool_name}: {field}/type: root type is {schema.get('type')!r}, not {ROOT_TYPE!r}"
+        )
+    problems += [
         f"{tool_name}: {field}/{keyword}: `{keyword}` at the schema root"
         for keyword in ROOT_COMPOSITION_KEYWORDS
         if keyword in schema
@@ -115,7 +125,13 @@ async def _served_tools() -> list[dict[str, Any]]:
 
 
 class TestServedToolSchemas:
-    """The suite runs with ENABLED_TOOLS=all (conftest), so every tool and alias is checked."""
+    """The suite runs with ENABLED_TOOLS=all and LOCAL_FILE_ACCESS=full (conftest), so
+    every tool and alias is checked."""
+
+    def test_local_only_tools_are_registered(self):
+        # LOCAL_FILE_ACCESS=off drops the local-only tools after selection, and this
+        # lint would then pass without seeing them.
+        assert local_files.POLICY.mode is not local_files.LocalFileAccess.OFF
 
     async def test_input_and_output_schemas_are_client_compatible(self):
         problems: list[str] = []
@@ -140,9 +156,16 @@ class TestSchemaProblems:
 
     @pytest.mark.parametrize("keyword", ROOT_COMPOSITION_KEYWORDS)
     def test_root_composition_keyword(self, keyword):
-        schema = {keyword: [{"type": "object"}, {"type": "object"}]}
+        schema = {"type": "object", keyword: [{"type": "object"}, {"type": "object"}]}
         assert schema_problems("t", "inputSchema", schema) == [
             f"t: inputSchema/{keyword}: `{keyword}` at the schema root"
+        ]
+
+    @pytest.mark.parametrize("root_type", [None, "array", ["object", "null"]])
+    def test_root_type_must_be_object(self, root_type):
+        schema = {"properties": {}} if root_type is None else {"type": root_type}
+        assert schema_problems("t", "outputSchema", schema) == [
+            f"t: outputSchema/type: root type is {root_type!r}, not 'object'"
         ]
 
     def test_nested_composition_keyword_is_allowed(self):
