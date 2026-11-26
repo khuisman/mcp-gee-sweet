@@ -1,7 +1,9 @@
 import asyncio
 import csv
 import functools
+import json
 import logging
+import re
 import time
 from collections.abc import Awaitable, Callable
 from contextlib import aclosing
@@ -33,10 +35,39 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
-_CSV_IMPORT_CHUNK_ROWS = 5000
+# One row write's budget (#1577): a chunk closes before it would pass either, so no
+# request is too large to finish inside the default 60 s socket timeout, however
+# wide or long the cells are. Measured live with _CSV_WRITE_CONCURRENCY (4) writes in
+# flight into one spreadsheet, where a write's time grows faster than its size:
+# four 200k-cell writes took 9 s each and four 400k-cell writes 34 s; four 5 MB writes
+# took 12 s each and four 10 MB writes 38 s. A single 120 MB write of 3,000 rows timed
+# out with nothing written (#1529). The cell budget also sizes a narrow file's chunks
+# up: a 1-column file of short cells at the 20M-cell limit is about 100 writes, not the
+# 4,000 a fixed 5,000-row chunk made. Bytes are the request's "values" array as
+# googleapiclient encodes it. A row is never split, so a row over either budget is a
+# chunk of its own at whatever size it is.
+_CSV_CHUNK_MAX_CELLS = 200_000
+_CSV_CHUNK_MAX_BYTES = 5_000_000
+
+# A row write Sheets refuses with a 400 wrote nothing, and one bad cell (over 50,000
+# characters) refuses its whole chunk. So a refused chunk of several rows is split in
+# half and each half resent, until the refused rows stand alone (PR #1615 QA round 1).
+# One bad row in a 200k-row chunk costs about 36 extra writes; this caps the extra
+# writes per import, so a 400 that every row would get can't multiply the import's
+# writes. Past it, a refused chunk is reported whole in failed_ranges.
+_CSV_SPLIT_MAX_WRITES = 100
+
+# Rows from which planning the chunks (_csv_chunks, about 1.5 s per 2M rows) is first
+# announced with a progress update, so a client hears something before a silent step.
+_CSV_PLAN_PROGRESS_ROWS = 200_000
+
+# A character json.dumps escapes (ensure_ascii, its default and googleapiclient's):
+# anything outside printable ASCII (space to "~", so DEL too), a quote, or a backslash.
+# The same set as the json module's own ESCAPE_ASCII.
+_JSON_ESCAPED = re.compile(r'[^\x20-\x7e]|["\\]')
 
 # Sheets allows 60 write requests per minute per user, so an import of more than 60
-# chunks (300k rows) has writes refused with 429 (measured live: 93 of 160, #1573).
+# chunks has writes refused with 429 (measured live: 93 of 160, #1573).
 # A refusal pauses every write of the import; each pause after a refused retry
 # doubles, from the base to the cap, and no pause runs past the max wait, counted
 # from the import's first write, after which a refusal is final.
@@ -78,6 +109,48 @@ def _csv_grid_limit_error(local_path: str, rows: int, columns: int) -> str | Non
             "Nothing was created."
         )
     return None
+
+
+def _row_json_bytes(row: list[str]) -> int:
+    """len(json.dumps(row)) + 2, the row's share of the request's "values" array
+    with the ", " that separates it from the next row.
+
+    Counted without encoding when no cell has a character json.dumps escapes: then
+    each cell is its text plus two quotes, and cells are joined by ", " inside
+    brackets. A planning pass over 2M one-column rows took 4.9 s through json.dumps
+    and 0.6 s this way (PR #1615 QA round 1).
+    """
+    joined = "".join(row)
+    if _JSON_ESCAPED.search(joined):
+        return len(json.dumps(row)) + 2
+    return len(joined) + 4 * len(row) + 2 if row else 4
+
+
+def _csv_chunks(rows: list[list[str]]) -> list[tuple[int, list[list[str]]]]:
+    """Split rows into (start index, rows) chunks, one row write each (#1577).
+
+    A chunk closes before adding a row would take it past _CSV_CHUNK_MAX_CELLS cells
+    or _CSV_CHUNK_MAX_BYTES bytes of the "values" array. A row is never split, so a
+    chunk always holds at least one row, and a row over a budget on its own is a
+    chunk at whatever size it is. A row of no cells counts as one, the grid's minimum
+    width, so a file of blank lines still closes its chunks.
+    """
+    chunks: list[tuple[int, list[list[str]]]] = []
+    start = 0
+    cells = size = 0
+    for index, row in enumerate(rows):
+        row_cells = max(len(row), 1)
+        row_bytes = _row_json_bytes(row)
+        if index > start and (
+            cells + row_cells > _CSV_CHUNK_MAX_CELLS or size + row_bytes > _CSV_CHUNK_MAX_BYTES
+        ):
+            chunks.append((start, rows[start:index]))
+            start, cells, size = index, 0, 0
+        cells += row_cells
+        size += row_bytes
+    if start < len(rows):
+        chunks.append((start, rows[start:]))
+    return chunks
 
 
 def _is_rate_limited(e: BaseException) -> bool:
@@ -396,13 +469,21 @@ def register(tool):
         A CSV over Google Sheets' limits (20,000,000 cells, or 18,278 columns)
         returns an error before anything is created.
 
+        Rows are written in chunks of whole rows. A chunk closes before it would
+        pass 200,000 cells or 5 MB, so a file of long cells and a file of many short
+        ones both go in requests that finish well inside the request timeout; a
+        single row over either size is a chunk of its own, at its own size. A
+        1-column file of short cells at the 20,000,000-cell limit takes about 100
+        writes and a few minutes; longer cells take more writes. A chunk Sheets
+        refuses outright (a cell over its 50,000-character limit refuses the whole
+        request) is split and resent until the refused rows stand alone, so the
+        rest of the chunk still lands.
         Row chunks write concurrently rather than one at a time. If the
         caller supplied a progressToken, a `notifications/progress` update is sent
-        as each chunk finishes. Sheets allows 60 writes a minute, so a file of
-        more than 300,000 rows waits for its quota between writes and can take
-        several minutes, with a progress update each time it starts waiting.
-        Retrying stops 10 minutes after the import's first write; a chunk
-        refused after that is reported in failed_ranges.
+        as each chunk finishes. Sheets allows 60 writes a minute; an import that
+        reaches it waits for its quota between writes, with a progress update
+        each time it starts waiting. Retrying stops 10 minutes after the import's
+        first write; a chunk refused after that is reported in failed_ranges.
 
         Args:
             local_path: Absolute path to the local .csv file.
@@ -475,6 +556,14 @@ def register(tool):
         if limit_error := _csv_grid_limit_error(local_path, len(rows), grid_columns):
             return {"error": limit_error}
         rows = [row + [""] * (width - len(row)) for row in rows]
+        # Off the loop, since it sizes every row, and before the create, so a
+        # cancellation while it runs leaves nothing behind. It takes about 1.5 s per
+        # 2M rows, so a large file says so first (PR #1615 QA round 1).
+        if len(rows) >= _CSV_PLAN_PROGRESS_ROWS:
+            await report_progress_safe(
+                ctx, 0, None, f"Planning row writes for {len(rows):,} rows", "planning"
+            )
+        chunks = await asyncio.to_thread(_csv_chunks, rows)
 
         lc = ctx.request_context.lifespan_context
         drive_service = lc.drive_service
@@ -540,10 +629,6 @@ def register(tool):
         # HttpError included, removes the spreadsheet rather than leaving it empty.
         pause = _RateLimitPause()
         completed = [0]
-        chunks = [
-            (start, rows[start : start + _CSV_IMPORT_CHUNK_ROWS])
-            for start in range(0, len(rows), _CSV_IMPORT_CHUNK_ROWS)
-        ]
         total_chunks = len(chunks)
 
         async def _report_pause(seconds: float) -> None:
@@ -612,9 +697,13 @@ def register(tool):
         # are reported per-range rather than as a single opaque exception.
         quoted_sheet = _quote_sheet_name(sheet_name)
 
-        async def _write_chunk(item: tuple[int, list[list]]) -> dict[str, Any]:
-            start, chunk = item
-            row_range = {"start_row": start + 1, "end_row": start + len(chunk)}
+        split_writes_left = [_CSV_SPLIT_MAX_WRITES]
+
+        async def _write_rows(start: int, rows_part: list[list]) -> list[dict[str, Any]]:
+            """Write rows_part at row `start`; one result per row range written or
+            failed. A 400 on several rows wrote nothing, so they're split in half and
+            each half resent, first half first, while split_writes_left allows."""
+            row_range = {"start_row": start + 1, "end_row": start + len(rows_part)}
             try:
                 await pause.send(
                     lambda: execute_in_thread(
@@ -624,47 +713,70 @@ def register(tool):
                             spreadsheetId=spreadsheet_id,
                             range=f"{quoted_sheet}!A{start + 1}",
                             valueInputOption="USER_ENTERED",
-                            body={"values": chunk},
+                            body={"values": rows_part},
                         )
                         .execute,
                         sheets_service,
                     ),
                     _report_pause,
                 )
-                result = {**row_range, "ok": True}
+                return [{**row_range, "ok": True}]
             except Exception as e:
-                # rejected: a 4xx, so Sheets wrote none of this chunk's rows.
-                result = {**row_range, "ok": False, "error": str(e), "rejected": is_rejection(e)}
+                splittable = (
+                    len(rows_part) > 1
+                    and isinstance(e, HttpError)
+                    and int(e.resp.status) == 400
+                    and split_writes_left[0] >= 2
+                )
+                if not splittable:
+                    # rejected: a 4xx, so Sheets wrote none of these rows.
+                    return [
+                        {**row_range, "ok": False, "error": str(e), "rejected": is_rejection(e)}
+                    ]
+            split_writes_left[0] -= 2
+            middle = len(rows_part) // 2
+            first = await _write_rows(start, rows_part[:middle])
+            return first + await _write_rows(start + middle, rows_part[middle:])
+
+        async def _write_chunk(item: tuple[int, list[list]]) -> list[dict[str, Any]]:
+            start, chunk = item
+            results = await _write_rows(start, chunk)
 
             # Reported here, inside the per-item coroutine, so updates stream in as
             # each concurrent chunk write finishes rather than arriving in one burst
             # after asyncio.gather resolves — see #316/#319's original rationale,
             # extended to this tool by #355.
             completed[0] += 1
-            row_label = f"rows {row_range['start_row']}-{row_range['end_row']}"
+            row_label = f"rows {start + 1}-{start + len(chunk)}"
+            ok = all(r["ok"] for r in results)
             await report_progress_safe(
                 ctx,
                 completed[0],
                 total_chunks,
-                f"{row_label}: {'ok' if result['ok'] else 'error'}",
+                f"{row_label}: {'ok' if ok else 'error'}",
                 row_label,
             )
-            return result
+            return results
 
-        def _chunk_fallback(item: tuple[int, list[list]], exc: BaseException) -> dict[str, Any]:
+        def _chunk_fallback(
+            item: tuple[int, list[list]], exc: BaseException
+        ) -> list[dict[str, Any]]:
             start, chunk = item
-            return {
-                "start_row": start + 1,
-                "end_row": start + len(chunk),
-                "ok": False,
-                "error": str(exc),
-                "rejected": False,
-            }
+            return [
+                {
+                    "start_row": start + 1,
+                    "end_row": start + len(chunk),
+                    "ok": False,
+                    "error": str(exc),
+                    "rejected": False,
+                }
+            ]
 
         with invalidating(lambda: lc.sheet_data_cache.mark_dirty(spreadsheet_id)):
-            chunk_results: list[dict[str, Any]] = (
+            per_chunk: list[list[dict[str, Any]]] = (
                 await gather_with_fallback(chunks, _write_chunk, _chunk_fallback) if chunks else []
             )
+        chunk_results = [r for results in per_chunk for r in results]
 
         # Every chunk refused outright: no row landed, so nothing is worth keeping.
         # A chunk that failed any other way (a 5xx, a timeout) may have been written,
@@ -681,11 +793,16 @@ def register(tool):
             if not r["ok"]
         ]
         if failed_ranges:
-            written_ranges = [
-                {"start_row": r["start_row"], "end_row": r["end_row"]}
-                for r in chunk_results
-                if r["ok"]
-            ]
+            # Adjacent ranges joined, so a chunk split around one refused row reads as
+            # the rows on either side of it, not as the halves it was written in.
+            written_ranges: list[dict[str, int]] = []
+            for r in sorted(chunk_results, key=lambda r: r["start_row"]):
+                if not r["ok"]:
+                    continue
+                if written_ranges and written_ranges[-1]["end_row"] + 1 == r["start_row"]:
+                    written_ranges[-1]["end_row"] = r["end_row"]
+                else:
+                    written_ranges.append({"start_row": r["start_row"], "end_row": r["end_row"]})
             return {
                 "error": (
                     f"{len(failed_ranges)} of {len(chunk_results)} row-range write(s) failed. "
