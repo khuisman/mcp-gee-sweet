@@ -17,6 +17,13 @@ class TestResolveHeadingAnchor:
         headings = ["Appendix A - Approved Hashing Algorithms"]
         assert resolve_heading_anchor("#appendix-a---approved-hashing-algorithms", headings) == 0
 
+    def test_github_style_keeps_every_hyphen_of_a_spaced_dash(self):
+        # The slugify-level pin of the same shape: the resolver-level test
+        # above passes through the fuzzy fallback, which normalizes "- " and
+        # "-" alike, so it would still resolve if the scheme collapsed the
+        # hyphens (#1579).
+        assert _github_style_slugify("A - Approved") == "a---approved"
+
     def test_gitlab_style_collapsed_hyphens(self):
         headings = ["Appendix A - Approved Hashing Algorithms"]
         assert resolve_heading_anchor("#appendix-a-approved-hashing-algorithms", headings) == 0
@@ -140,10 +147,16 @@ class TestPercentEncodedAnchors:
         assert resolve_heading_anchor("#caf%C3%A9", headings) == 0
         assert resolve_heading_anchor("#caf%C3%A9-1", headings) == 1
 
-    def test_plain_anchor_is_tried_whole_before_decoding(self):
-        # The literal anchor goes first — decoding is a fallback, never a
-        # rewrite: a heading literally spelled the encoded form's plain
-        # reading still wins for the plain anchor.
+    def test_percent_decoding_never_rewrites_the_anchor(self):
+        # A percent-encoded anchor can never exact-match a slug as written
+        # (every scheme strips "%"), so the literal-vs-decoded ordering at
+        # the exact match is unobservable and this test can't pin it — the
+        # observable ordering claim, decoded-exact over literal-fuzzy, is
+        # pinned by test_decoded_exact_match_outranks_a_literal_fuzzy_match
+        # (#1579). What this pins instead: the retry is additive — a heading
+        # named by the decoded form resolves, and a plain anchor for a heading
+        # literally spelled the encoded form's plain reading still resolves
+        # too, so the resolver never swapped one for the other.
         headings = ["Café", "Cafe"]
         assert resolve_heading_anchor("#caf%C3%A9", headings) == 0
         assert resolve_heading_anchor("#cafe", headings) == 1
@@ -239,8 +252,9 @@ class TestGithubSchemeStripsOtherWhitespace:
 
     def test_space_runs_still_become_matching_hyphens(self):
         # The "A - Approved" -> "a---approved" shape is pinned at the
-        # resolver level above (test_github_style_non_collapsed_hyphens);
-        # only the space-run form needs a slugify-level test (#1553).
+        # slugify level too (test_github_style_keeps_every_hyphen_of_a_
+        # spaced_dash); only the space-run form needs its own test here
+        # (#1553).
         assert _github_style_slugify("a  b") == "a--b"
 
     def test_slash_still_strips_with_no_separator(self):

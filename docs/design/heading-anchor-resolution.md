@@ -62,7 +62,7 @@ resolves.
 A Markdown *soft* break in an underlined heading is the one place the two still disagree with
 their sites, confirmed live at both ends (#1553): GitHub drops the `\n` with no separator —
 `Heading one` / `heading two` under `===` anchors as `#heading-oneheading-two` (github-slugger
-master, measured 2026-11-20) — while this converter's HTML parsing collapses the soft break to
+master, measured 2026-11-20, UTC) — while this converter's HTML parsing collapses the soft break to
 a space, so the Doc's heading text reads "Heading one heading two" and both schemes slug it
 `heading-one-heading-two`. An anchor copied from GitHub for such a heading strips; the GitLab
 spelling resolves, because comrak's `collect_text_append` pushes a space for a `SoftBreak` and
