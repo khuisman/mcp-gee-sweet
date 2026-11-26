@@ -58,12 +58,16 @@ _BACKTICK_RUN = re.compile(r"`+")
 # plain Paragraph and to a list item's text, which starts the item's first
 # block, so "- # a" is a heading inside the item (#1302). Heading/NamedBlock
 # text follows its own "#" prefix, where it's never re-parsed as a new block.
-_LEADING_SIMPLE_MARKER = re.compile(r"^(#{1,6}|[>*+-])(?=[ \t]|$)")
+_LEADING_SIMPLE_MARKER = re.compile(r"^(#{1,6}|[*+-])(?=[ \t]|$)")
 _LEADING_ORDERED_MARKER = re.compile(r"^(\d{1,9})([.)])(?=[ \t]|$)")
 # A line of only "-" (spaces allowed) is a thematic break, or a setext
 # underline under a preceding line, and so is a line of only "=". "*" and "_"
 # rules can't occur: _escape has already escaped both (#993).
 _LEADING_RULE_LINE = re.compile(r"^(?:=+[ \t]*|-[- \t]*)$")
+# CommonMark's blockquote marker is the one simple marker that needs no
+# whitespace after it: ">word" opens a quote where "#word" and "-word" stay
+# paragraphs. So ">" gets its own check, which never looks past the marker.
+_LEADING_BLOCKQUOTE_MARKER = re.compile(r"^>")
 
 # A thematic break (#1096). Every block is separated by a blank line, so "---"
 # never sits under a paragraph line, where it would be a setext underline. As the
@@ -402,6 +406,8 @@ def _escape_leading_block_marker(text: str) -> str:
     indented code block (#993)."""
     text = text.lstrip(" \t")
     if _LEADING_RULE_LINE.match(text):
+        return "\\" + text
+    if _LEADING_BLOCKQUOTE_MARKER.match(text):
         return "\\" + text
     m = _LEADING_SIMPLE_MARKER.match(text)
     if m:
