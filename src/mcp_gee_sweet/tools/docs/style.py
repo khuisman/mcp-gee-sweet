@@ -1,4 +1,5 @@
 import logging
+import math
 from typing import Any, Literal
 
 from mcp.server.mcpserver import Context
@@ -356,8 +357,8 @@ def _paragraph_spacing_and_fields(style: dict) -> tuple[dict, list[str]] | str:
 
     A key given as null clears that field, so the paragraph takes its named style's
     value again: the Docs API resets a field named in `fields` but absent from the
-    style (checked live). Returns an error string for a value that isn't a number, a
-    negative one, or a line_spacing of 0.
+    style (checked live). Returns an error string for a value that isn't a finite
+    number, a negative one, or a line_spacing of 0.
     """
     paragraph_style: dict = {}
     fields: list[str] = []
@@ -368,7 +369,12 @@ def _paragraph_spacing_and_fields(style: dict) -> tuple[dict, list[str]] | str:
         fields.append(api_field)
         if value is None:
             continue
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
+        # NaN and infinity pass every comparison below and aren't valid JSON numbers.
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+        ):
             return f"{key} must be a number or null, got {value!r}"
         if value < 0 or (value == 0 and not zero_ok):
             limit = "zero or more" if zero_ok else "greater than zero"
@@ -605,6 +611,15 @@ def register(tool):
         if not ranges:
             return {"error": "ranges list is empty"}
 
+        # Validated before any read, so a bad value costs no API call and isn't hidden
+        # by a read's error (PR #1631 QA round 1).
+        spacing: list[tuple[dict, list[str]]] = []
+        for i, r in enumerate(ranges):
+            built = _paragraph_spacing_and_fields(r)
+            if isinstance(built, str):
+                return {"error": f"ranges[{i}]: {built}"}
+            spacing.append(built)
+
         # #1273: a font_family range that sends no bold in the same request
         # clears the range's direct bold, so the bold spans to restore are read
         # before the batchUpdate is built.
@@ -640,13 +655,6 @@ def register(tool):
                     if r["bold"]:
                         spans = _normalize_spans([*spans, {"startIndex": lo, "endIndex": hi}])
                 bold_spans[i] = spans
-
-        spacing: list[tuple[dict, list[str]]] = []
-        for i, r in enumerate(ranges):
-            built = _paragraph_spacing_and_fields(r)
-            if isinstance(built, str):
-                return {"error": f"ranges[{i}]: {built}"}
-            spacing.append(built)
 
         requests = []
         for i, r in enumerate(ranges):

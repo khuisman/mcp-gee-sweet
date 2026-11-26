@@ -3529,27 +3529,39 @@ def _build_trailing_para_after_table_collapse(live_doc: dict) -> list[dict]:
     return _collapse_paragraph_requests({"startIndex": start, "endIndex": end}, font_size=False)
 
 
-def collapsed_trailing_paragraph(content: list[dict]) -> tuple[int, int] | None:
-    """The (startIndex, endIndex) of a body's final paragraph when it carries the
-    collapse `_build_trailing_para_after_table_collapse` writes, else None (#1439).
+def _has_collapse_signature(element: dict) -> bool:
+    """True for a paragraph with 1% line spacing and no space above or below, the
+    style `_collapse_paragraph_requests` writes (the API omits a zero magnitude,
+    checked live). A 1% line spacing is never a reader's own choice, since its lines
+    overprint."""
+    style = (element.get("paragraph") or {}).get("paragraphStyle")
+    if style is None or style.get("lineSpacing") != 1:
+        return False
+    return all(
+        (style.get(spacing) or {}).get("magnitude", 0) == 0
+        for spacing in ("spaceAbove", "spaceBelow")
+    )
 
-    Recognized by its whole signature, not by the paragraph being empty, so text
-    written there before #1439 is found too: it follows a table, and its line spacing
-    is 1% with no space above or below (the API omits a zero magnitude, checked live).
-    A 1% line spacing is never a reader's own choice, since its lines overprint.
+
+def collapsed_trailing_paragraph(content: list[dict]) -> tuple[int, int] | None:
+    """The (startIndex, endIndex) spanning the paragraphs after a body's final table
+    that carry the collapse `_build_trailing_para_after_table_collapse` writes, else
+    None (#1439).
+
+    Every paragraph from the table to the body's end must carry the signature
+    (`_has_collapse_signature`). That is one paragraph as the emitter leaves it, and
+    several once text with a "\\n" (or Enter in the editor) was added there before
+    #1439: each paragraph started from it takes the same spacing. Recognized by the
+    signature, not by the paragraphs being empty, so text written there is found too.
     """
-    if len(content) < 2 or "table" not in content[-2]:
+    first = len(content)
+    while first > 0 and _has_collapse_signature(content[first - 1]):
+        first -= 1
+    if first == len(content) or first == 0 or "table" not in content[first - 1]:
         return None
-    last = content[-1]
-    style = (last.get("paragraph") or {}).get("paragraphStyle")
-    start, end = last.get("startIndex"), last.get("endIndex")
-    if style is None or start is None or end is None:
+    start, end = content[first].get("startIndex"), content[-1].get("endIndex")
+    if start is None or end is None:
         return None
-    if style.get("lineSpacing") != 1:
-        return None
-    for spacing in ("spaceAbove", "spaceBelow"):
-        if (style.get(spacing) or {}).get("magnitude", 0) != 0:
-            return None
     return start, end
 
 

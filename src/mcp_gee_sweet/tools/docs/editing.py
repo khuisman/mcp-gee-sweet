@@ -18,28 +18,40 @@ from .style import (
 logger = logging.getLogger(__name__)
 
 # Only what collapsed_trailing_paragraph reads: each body element's range, whether
-# it's a table, and the paragraph spacing.
+# it's a table, and the paragraph spacing; plus the revision the read saw.
 _TRAILING_PARAGRAPH_FIELDS = (
-    "body/content(startIndex,endIndex,table/rows,"
+    "revisionId,body/content(startIndex,endIndex,table/rows,"
     "paragraph/paragraphStyle(lineSpacing,spaceAbove,spaceBelow))"
 )
 
 
+def _in_body(op: dict) -> bool:
+    """An insertion goes to the body unless it names a header or footer: the Docs API
+    reads an empty or null segmentId as the body."""
+    return not op.get("segment_id")
+
+
 async def _trailing_paragraph_reset(
     docs_service, doc_id: str, sorted_ops: list[dict]
-) -> dict | None:
-    """The request that gives text inserted into the collapsed paragraph after a doc's
-    final table its line spacing back, or None when no insertion goes there (#1439).
+) -> tuple[dict, str | None] | None:
+    """The request that gives text inserted into the collapsed paragraphs after a
+    doc's final table their line spacing back, with the revision ID it was computed
+    against, or None when no insertion goes there (#1439).
 
-    The emitter collapses that paragraph (`_build_trailing_para_after_table_collapse`,
-    #1100), and inserted text takes its 1% line spacing and overprints the table. The
-    request clears lineSpacing, spaceAbove and spaceBelow by naming them with no value,
-    so the text takes its named style's (checked live), over every paragraph from the
-    collapsed one's start to the body's end once the insertions have landed. It goes
-    after every insertText, so its range counts all of them. Header and footer
-    insertions (segment_id) neither land there nor move the body.
+    The emitter collapses the paragraph after a final table
+    (`_build_trailing_para_after_table_collapse`, #1100), and inserted text takes its
+    1% line spacing and overprints the table. The request clears lineSpacing,
+    spaceAbove and spaceBelow by naming them with no value, so the text takes its
+    named style's (checked live), from the first collapsed paragraph's start to the
+    body's end once the insertions have landed. It goes after every insertText, so
+    its range counts all of them. Header and footer insertions neither land there nor
+    move the body.
+
+    The range comes from this read, so the caller sends the batch with the read's
+    revision as `targetRevisionId`: an edit made since is then transformed against
+    the batch instead of leaving the range stale (PR #1631 QA round 1).
     """
-    body_ops = [op for op in sorted_ops if "segment_id" not in op]
+    body_ops = [op for op in sorted_ops if _in_body(op)]
     if not body_ops:
         return None
     doc = await execute_in_thread(
@@ -50,19 +62,20 @@ async def _trailing_paragraph_reset(
     if found is None:
         return None
     start, end = found
-    # The final paragraph's own newline can't take text, so the last index into it is
-    # end - 1.
+    # The final paragraph's own newline can't take text, so the last index into the
+    # collapsed run is end - 1.
     if not any(start <= op["index"] <= end - 1 for op in body_ops):
         return None
     shift = sum(utf16_len(op["text"]) for op in body_ops if op["index"] < start)
     added = sum(utf16_len(op["text"]) for op in body_ops)
-    return {
+    request = {
         "updateParagraphStyle": {
             "range": {"startIndex": start + shift, "endIndex": end + added},
             "paragraphStyle": {},
             "fields": "lineSpacing,spaceAbove,spaceBelow",
         }
     }
+    return request, doc.get("revisionId")
 
 
 def register(tool):
@@ -108,17 +121,19 @@ def register(tool):
             requests = []
             for op in sorted_ops:
                 location: dict[str, Any] = {"index": op["index"]}
-                if "segment_id" in op:
+                if not _in_body(op):
                     location["segmentId"] = op["segment_id"]
                 requests.append({"insertText": {"location": location, "text": op["text"]}})
             reset = await _trailing_paragraph_reset(lc.docs_service, doc_id, sorted_ops)
+            body: dict[str, Any] = {"requests": requests}
             if reset:
-                requests.append(reset)
+                reset_request, revision_id = reset
+                requests.append(reset_request)
+                if revision_id:
+                    body["writeControl"] = {"targetRevisionId": revision_id}
             with doc_invalidating(lc.doc_cache, doc_id):
                 await execute_in_thread(
-                    lc.docs_service.documents()
-                    .batchUpdate(documentId=doc_id, body={"requests": requests})
-                    .execute,
+                    lc.docs_service.documents().batchUpdate(documentId=doc_id, body=body).execute,
                     lc.docs_service,
                 )
         except Exception as e:

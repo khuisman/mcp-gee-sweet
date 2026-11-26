@@ -949,6 +949,10 @@ class TestStyleDocRangeParagraphSpacing:
             ("space_above", -1, "space_above must be zero or more"),
             ("space_below", "12", "space_below must be a number or null"),
             ("line_spacing", True, "line_spacing must be a number or null"),
+            # PR #1631 QA round 1: NaN passes `< 0` and `== 0`, and none is valid JSON.
+            ("line_spacing", float("nan"), "line_spacing must be a number or null"),
+            ("space_above", float("inf"), "space_above must be a number or null"),
+            ("space_below", float("-inf"), "space_below must be a number or null"),
         ],
     )
     async def test_invalid_values_refused_before_any_call(self, key, value, message):
@@ -958,6 +962,27 @@ class TestStyleDocRangeParagraphSpacing:
         )
         assert reqs is None
         assert result["error"].startswith(f"ranges[1]: {message}")
+
+    async def test_invalid_value_refused_before_the_font_family_read(self):
+        # PR #1631 QA round 1: a font_family range makes style_doc_range read the doc
+        # for #1273's bold restore; a bad spacing value must not cost that read, nor
+        # be hidden by its error.
+        tool, tools = _make_tool_registry()
+        docs_module.register(tool)
+        mock_docs = MagicMock()
+        mock_docs.documents.return_value.get.return_value.execute.side_effect = Exception("429")
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        result = await tools["style_doc_range"](
+            doc_id="doc1",
+            ranges=[
+                {"start_index": 1, "end_index": 4, "font_family": "Georgia"},
+                {"start_index": 5, "end_index": 8, "space_below": -2},
+            ],
+            ctx=ctx,
+        )
+        assert result == {"error": "ranges[1]: space_below must be zero or more, got -2"}
+        mock_docs.documents.return_value.get.assert_not_called()
+        mock_docs.documents.return_value.batchUpdate.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

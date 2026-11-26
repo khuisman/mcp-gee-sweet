@@ -578,7 +578,7 @@ def _doc_ending_in_table(trailing_style=None, *, last_is_table_neighbor=True):
     if not last_is_table_neighbor:
         content.insert(3, {"startIndex": 34, "endIndex": 35, "paragraph": {"paragraphStyle": {}}})
         content[-1] = {**content[-1], "startIndex": 35, "endIndex": 36}
-    return {"body": {"content": content}}
+    return {"revisionId": "rev-1", "body": {"content": content}}
 
 
 class TestInsertDocTextTrailingParagraphReset:
@@ -590,7 +590,58 @@ class TestInsertDocTextTrailingParagraphReset:
         ctx = _make_ctx(docs_service=docs_svc, doc_cache=MagicMock())
         result = await _docs_tools["insert_doc_text"](doc_id="doc1", insertions=insertions, ctx=ctx)
         call = docs_svc.documents.return_value.batchUpdate.call_args
-        return result, (call.kwargs["body"]["requests"] if call else None), docs_svc
+        self.body = call.kwargs["body"] if call else None
+        return result, (self.body["requests"] if call else None), docs_svc
+
+    async def test_reset_batch_targets_the_revision_it_was_read_at(self):
+        # PR #1631 QA round 1: an edit between the read and the write would leave the
+        # range stale; targetRevisionId has Docs transform the batch against it.
+        await self._call([{"index": 34, "text": "x"}])
+        assert self.body["writeControl"] == {"targetRevisionId": "rev-1"}
+
+    async def test_batch_without_reset_has_no_write_control(self):
+        await self._call([{"index": 5, "text": "x"}])
+        assert "writeControl" not in self.body
+
+    async def test_read_asks_for_the_revision(self):
+        _, _, docs_svc = await self._call([{"index": 34, "text": "x"}])
+        fields = docs_svc.documents.return_value.get.call_args.kwargs["fields"]
+        assert fields.startswith("revisionId,")
+
+    @pytest.mark.parametrize("segment_id", ["", None])
+    async def test_empty_segment_id_is_the_body(self, segment_id):
+        # PR #1631 QA round 1: Docs reads an empty or null segmentId as the body.
+        result, reqs, _ = await self._call(
+            [{"index": 34, "text": "tail", "segment_id": segment_id}, {"index": 1, "text": "ab"}]
+        )
+        assert result["trailingParagraphReset"] is True
+        assert reqs[0]["insertText"]["location"] == {"index": 34}
+        assert reqs[-1]["updateParagraphStyle"]["range"] == {"startIndex": 36, "endIndex": 41}
+
+    async def test_several_collapsed_paragraphs_after_the_table_are_reset_from_the_first(self):
+        # PR #1631 QA round 1: text with a "\n" added there before #1439 left several
+        # paragraphs, each with the collapse; an insert into any of them resets all.
+        doc = _doc_ending_in_table()
+        content = doc["body"]["content"]
+        content[-1]["endIndex"] = 38
+        content.append(
+            {"startIndex": 38, "endIndex": 42, "paragraph": {"paragraphStyle": dict(_COLLAPSED)}}
+        )
+        result, reqs, _ = await self._call([{"index": 40, "text": "z"}], doc)
+        assert result["trailingParagraphReset"] is True
+        assert reqs[-1]["updateParagraphStyle"]["range"] == {"startIndex": 34, "endIndex": 43}
+
+    async def test_uncollapsed_paragraph_between_breaks_the_run(self):
+        # Only the paragraphs from the table to the end count: one without the
+        # collapse in between means the last ones don't follow the table.
+        doc = _doc_ending_in_table()
+        doc["body"]["content"][-1]["paragraph"]["paragraphStyle"] = {}
+        doc["body"]["content"].append(
+            {"startIndex": 35, "endIndex": 36, "paragraph": {"paragraphStyle": dict(_COLLAPSED)}}
+        )
+        result, reqs, _ = await self._call([{"index": 35, "text": "z"}], doc)
+        assert "trailingParagraphReset" not in result
+        assert len(reqs) == 1
 
     async def test_insert_into_collapsed_paragraph_resets_its_spacing(self):
         result, reqs, _ = await self._call([{"index": 34, "text": "After"}])
