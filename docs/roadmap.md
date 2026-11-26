@@ -654,6 +654,10 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] A Markdown list item followed by an HTML comment, `<script>` or `<style>` block gets an extra empty bullet. `wrong/narrow`, observed; found while evaluating #1596 ([#1619](https://github.com/khuisman/mcp-gee-sweet/issues/1619))
 - [ ] D2's table check trims with Python's whitespace set, so it disagrees with markdown-it-py 4.3.0 on a row ending in U+0085 or U+001C–U+001F. `wrong/narrow`, not observed; comes with #1596's 4.3.0 bump ([#1620](https://github.com/khuisman/mcp-gee-sweet/issues/1620))
 
+**Triaged 2026-11-26** _(community-filed; no version in flight, so the next version by its cell)_
+
+- [ ] `get_doc_as_markdown` exports a paragraph starting `>word` (no space after `>`) unescaped, so it re-imports as a blockquote; a list item's `- >word` gains a nested quote. `wrong/narrow`, observed (reproduced on develop 5ce627d); community PR #1628 claims it ([#1627](https://github.com/khuisman/mcp-gee-sweet/issues/1627))
+
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
 - [ ] **Bundle:** `font_family` / `style_doc_range` text-style builder: one PR closing #1038, #1300, #1289 and #1037. #1300 and #1289 are #1273's two follow-ups, so the chain stop rule applies ([#1338](https://github.com/khuisman/mcp-gee-sweet/issues/1338))
