@@ -959,4 +959,7 @@ Read paragraph styles as in TC-DOC274.
 
 **Cleanup:** `delete_file` both docs
 
+**Result (2026-11-26) ✅ PASS — Sky, PR #1631 round 2 @ 6701d30f**
+`mcp-gee-sweet-sky`, reconnected after the reset. Step 1: `{END}` = 29. Step 2: "old one" (29–37) and "old two" (37–45) both `lineSpacing` 1 with 0pt above and below. Step 3: `{"insertions": 1, "trailingParagraphReset": true}`; "old one" and "old two more" have no spacing of their own, and the empty paragraph before the table (12–13) kept `lineSpacing` 1. Editor (Playwright, URL-verified, title "TC-DOC275"): both lines sit below the table on their own lines, no overlap. Step 4: `{"insertions": 1, "trailingParagraphReset": true}`; "tail" (29–34) in the body with no spacing of its own. Step 5: run from a fresh interpreter calling the registered `style_doc_range` with a docs service that raises on any attribute access: NaN gave `{"error": "ranges[1]: line_spacing must be a number or null, got nan"}` and inf `... got inf`, with no API touched, so the check now runs before the `font_family` bold-restore read. Also re-ran TC-DOC274 step 3 on a fresh doc against the `targetRevisionId` change: same result as round 1 (`trailingParagraphReset: true`, both lines with no spacing of their own, "Lead " in the first paragraph).
+
 ---
