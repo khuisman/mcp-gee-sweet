@@ -3509,7 +3509,9 @@ def _build_trailing_para_after_table_collapse(live_doc: dict) -> list[dict]:
     its own: a blank last page. Spacing 0 and 1% line spacing take its height away
     (checked live by the PDF export's page count); a 1pt font alone doesn't, so the font
     is left alone, and text later typed there keeps the doc's size. That text still
-    takes the 1% line spacing and overlaps the table until it's reset, which
+    takes the 1% line spacing and overlaps the table until it's reset. insert_doc_text
+    resets it on the text it writes there (`collapsed_trailing_paragraph`, #1439), and
+    style_doc_range can set it; text typed in the Docs editor keeps it, which
     docs/known-limitations.md names. A rewrite clears it: _replace_doc_content resets
     the final paragraph mark's style before the clear.
     """
@@ -3525,6 +3527,42 @@ def _build_trailing_para_after_table_collapse(live_doc: dict) -> list[dict]:
     if text != "\n" or start is None or end is None:
         return []
     return _collapse_paragraph_requests({"startIndex": start, "endIndex": end}, font_size=False)
+
+
+def _has_collapse_signature(element: dict) -> bool:
+    """True for a paragraph with 1% line spacing and no space above or below, the
+    style `_collapse_paragraph_requests` writes (the API omits a zero magnitude,
+    checked live). A 1% line spacing is never a reader's own choice, since its lines
+    overprint."""
+    style = (element.get("paragraph") or {}).get("paragraphStyle")
+    if style is None or style.get("lineSpacing") != 1:
+        return False
+    return all(
+        (style.get(spacing) or {}).get("magnitude", 0) == 0
+        for spacing in ("spaceAbove", "spaceBelow")
+    )
+
+
+def collapsed_trailing_paragraph(content: list[dict]) -> tuple[int, int] | None:
+    """The (startIndex, endIndex) spanning the paragraphs after a body's final table
+    that carry the collapse `_build_trailing_para_after_table_collapse` writes, else
+    None (#1439).
+
+    Every paragraph from the table to the body's end must carry the signature
+    (`_has_collapse_signature`). That is one paragraph as the emitter leaves it, and
+    several once text with a "\\n" (or Enter in the editor) was added there before
+    #1439: each paragraph started from it takes the same spacing. Recognized by the
+    signature, not by the paragraphs being empty, so text written there is found too.
+    """
+    first = len(content)
+    while first > 0 and _has_collapse_signature(content[first - 1]):
+        first -= 1
+    if first == len(content) or first == 0 or "table" not in content[first - 1]:
+        return None
+    start, end = content[first].get("startIndex"), content[-1].get("endIndex")
+    if start is None or end is None:
+        return None
+    return start, end
 
 
 def _table_start_index(doc_table: dict) -> int | None:

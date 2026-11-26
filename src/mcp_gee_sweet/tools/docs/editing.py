@@ -5,6 +5,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
+from .emitter import collapsed_trailing_paragraph
 from .indices import utf16_len
 from .invalidation import doc_invalidating
 from .style import (
@@ -15,6 +16,66 @@ from .style import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Only what collapsed_trailing_paragraph reads: each body element's range, whether
+# it's a table, and the paragraph spacing; plus the revision the read saw.
+_TRAILING_PARAGRAPH_FIELDS = (
+    "revisionId,body/content(startIndex,endIndex,table/rows,"
+    "paragraph/paragraphStyle(lineSpacing,spaceAbove,spaceBelow))"
+)
+
+
+def _in_body(op: dict) -> bool:
+    """An insertion goes to the body unless it names a header or footer: the Docs API
+    reads an empty or null segmentId as the body."""
+    return not op.get("segment_id")
+
+
+async def _trailing_paragraph_reset(
+    docs_service, doc_id: str, sorted_ops: list[dict]
+) -> tuple[dict, str | None] | None:
+    """The request that gives text inserted into the collapsed paragraphs after a
+    doc's final table their line spacing back, with the revision ID it was computed
+    against, or None when no insertion goes there (#1439).
+
+    The emitter collapses the paragraph after a final table
+    (`_build_trailing_para_after_table_collapse`, #1100), and inserted text takes its
+    1% line spacing and overprints the table. The request clears lineSpacing,
+    spaceAbove and spaceBelow by naming them with no value, so the text takes its
+    named style's (checked live), from the first collapsed paragraph's start to the
+    body's end once the insertions have landed. It goes after every insertText, so
+    its range counts all of them. Header and footer insertions neither land there nor
+    move the body.
+
+    The range comes from this read, so the caller sends the batch with the read's
+    revision as `targetRevisionId`: an edit made since is then transformed against
+    the batch instead of leaving the range stale (PR #1631 QA round 1).
+    """
+    body_ops = [op for op in sorted_ops if _in_body(op)]
+    if not body_ops:
+        return None
+    doc = await execute_in_thread(
+        docs_service.documents().get(documentId=doc_id, fields=_TRAILING_PARAGRAPH_FIELDS).execute,
+        docs_service,
+    )
+    found = collapsed_trailing_paragraph((doc.get("body") or {}).get("content") or [])
+    if found is None:
+        return None
+    start, end = found
+    # The final paragraph's own newline can't take text, so the last index into the
+    # collapsed run is end - 1.
+    if not any(start <= op["index"] <= end - 1 for op in body_ops):
+        return None
+    shift = sum(utf16_len(op["text"]) for op in body_ops if op["index"] < start)
+    added = sum(utf16_len(op["text"]) for op in body_ops)
+    request = {
+        "updateParagraphStyle": {
+            "range": {"startIndex": start + shift, "endIndex": end + added},
+            "paragraphStyle": {},
+            "fields": "lineSpacing,spaceAbove,spaceBelow",
+        }
+    }
+    return request, doc.get("revisionId")
 
 
 def register(tool):
@@ -47,7 +108,10 @@ def register(tool):
                     Omit to insert into the document body.
 
         Returns:
-            Confirmation with docId and count of insertions applied.
+            Confirmation with docId and count of insertions applied. When text goes
+            into the collapsed empty paragraph that create_doc and the other content
+            writers leave after a doc's final table, that text gets the doc's normal
+            line spacing back, and the result's trailingParagraphReset is true.
         """
         lc = ctx.request_context.lifespan_context
         if not insertions:
@@ -57,20 +121,28 @@ def register(tool):
             requests = []
             for op in sorted_ops:
                 location: dict[str, Any] = {"index": op["index"]}
-                if "segment_id" in op:
+                if not _in_body(op):
                     location["segmentId"] = op["segment_id"]
                 requests.append({"insertText": {"location": location, "text": op["text"]}})
+            reset = await _trailing_paragraph_reset(lc.docs_service, doc_id, sorted_ops)
+            body: dict[str, Any] = {"requests": requests}
+            if reset:
+                reset_request, revision_id = reset
+                requests.append(reset_request)
+                if revision_id:
+                    body["writeControl"] = {"targetRevisionId": revision_id}
             with doc_invalidating(lc.doc_cache, doc_id):
                 await execute_in_thread(
-                    lc.docs_service.documents()
-                    .batchUpdate(documentId=doc_id, body={"requests": requests})
-                    .execute,
+                    lc.docs_service.documents().batchUpdate(documentId=doc_id, body=body).execute,
                     lc.docs_service,
                 )
         except Exception as e:
             return {"error": str(e)}
-        logger.debug("insert_doc_text: %d insertions in doc %s", len(requests), doc_id)
-        return {"docId": doc_id, "insertions": len(requests)}
+        logger.debug("insert_doc_text: %d insertions in doc %s", len(sorted_ops), doc_id)
+        result: dict[str, Any] = {"docId": doc_id, "insertions": len(sorted_ops)}
+        if reset:
+            result["trailingParagraphReset"] = True
+        return result
 
     @tool(
         annotations=ToolAnnotations(title="Delete Document Range", destructiveHint=True),
@@ -210,10 +282,10 @@ def register(tool):
 
         Either way, set the styles you want on the line dicts rather than
         relying on the paragraph's previous formatting: inserted lines inherit
-        the inline style of the character before index (bold, italic,
-        strikethrough, link included) — except at a paragraph's first index,
-        where the style comes from the character at index, the paragraph's own
-        first character — and a line can set a field to false to
+        the inline style of their neighbour (bold, italic, strikethrough, link
+        included) — the character before index, or at a paragraph's first
+        index the character at index, the paragraph's own first character —
+        and a line can set a field to false to
         clear an inherited style. A font_family line that sends no bold of its
         own keeps the bold the insert inherited: the weightedFontFamily request
         would clear it, so it is restored after, as style_doc_range does. Not
@@ -262,8 +334,8 @@ def register(tool):
         end_index = index + utf16_len(joined_text)
 
         # #1499 item 4: a font_family line that sends no bold of its own would
-        # clear the direct bold the insert inherits from the character before
-        # index — the same weightedFontFamily behaviour style_doc_range restores
+        # clear the direct bold the insert inherits from its neighbour — the
+        # same weightedFontFamily behaviour style_doc_range restores
         # after (#1273) — so read the neighbour's own bold once,
         # before the insert. Bold a run carries via its paragraph's named style
         # is not the run's and not affected by the font request, exactly as
