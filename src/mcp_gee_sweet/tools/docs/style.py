@@ -430,20 +430,26 @@ def _is_paragraph_start(doc: dict, index: int) -> bool:
     #1584: Docs styles text inserted at such an index from the character
     after index (the paragraph's own first character), not from the newline
     before it, so a style-inheritance read must probe there instead. Walks
-    table cells like _bold_runs_in_range does; a missing startIndex only
-    happens on a document's very first element, which implicitly starts at 1."""
+    table cells like _bold_runs_in_range does; a missing startIndex is
+    carried forward from the previous item's endIndex (starting at 1), as
+    _bold_runs_in_range and indices._collect_doc_paragraphs carry theirs,
+    rather than defaulting every list position back to 1 — a missing field
+    only happens on a document's very first element (#1606)."""
 
-    def _walk(items: list) -> bool:
+    def _walk(items: list, start: int) -> bool:
+        offset = start
         for item in items or []:
-            if item.get("paragraph") and item.get("startIndex", 1) == index:
+            item_start = item.get("startIndex", offset)
+            if item.get("paragraph") and item_start == index:
                 return True
+            offset = item.get("endIndex", item_start)
             for row in (item.get("table") or {}).get("tableRows") or []:
                 for cell in row.get("tableCells") or []:
-                    if _walk(cell.get("content") or []):
+                    if _walk(cell.get("content") or [], item_start):
                         return True
         return False
 
-    return _walk((doc.get("body") or {}).get("content"))
+    return _walk((doc.get("body") or {}).get("content"), 1)
 
 
 def _bold_runs_in_range(doc: dict, start_index: int, end_index: int) -> list[dict[str, int]]:

@@ -66,10 +66,11 @@ All notable changes to this project are documented in this file.
 - A heading holding a character Python's `\w` and github-slugger treat differently slugged wrong: a superscript or fraction digit ("²" in "Area in m²", "½") stayed in the slug where GitHub's own anchor is separator-free (`#area-in-m`), and a combining mark (`cafe\u0301`) was dropped where GitHub keeps it. The GitHub scheme now strips by character category, built from github-slugger's own generation rule, instead of by `\w`. Repeated headings whose suffixed slug collides with a literally-titled one ("Pricelist" twice over plus a real "Pricelist-1") produced two `#pricelist-1` anchors; the suffix now keeps incrementing until the slug is free, as github-slugger does. A `#pricelist` anchor naming headings that differ only by a separator GitHub strips (`Price\xa0List` and `Pricelist`) takes the GitHub reading — a genuine ambiguity between the sites, now documented in docs/design/heading-anchor-resolution.md — #1482
 - `insert_softbreak_paragraph`'s bold restore read the wrong neighbour when the insert landed at a paragraph's first index: Docs styles text inserted there from the character after `index` — the paragraph's own first character — not from the previous paragraph's newline. After a bold paragraph, a font-only line at a plain paragraph's start was re-bolded by a restore that had read the bold newline; after a plain paragraph, the same line at a bold paragraph's start lost the bold the insert inherited and nothing restored it — the original #1499 symptom, live-measured in the issue. The neighbour read now probes the character at `index` at a paragraph's first index, and the character before it everywhere else — #1584
 - `insert_softbreak_paragraph`: a `font_family` line that sends no bold of its own keeps
-  the bold the insert inherited from the character before `index`, where the
+  the bold the insert inherited from its neighbour — the character before `index`, or
+  at a paragraph's first index the paragraph's own first character (#1584) — where the
   `weightedFontFamily` request used to clear it — the same restore `style_doc_range`
   already does after its font requests (#1273) is now shared, in the same batchUpdate,
-  only when a directly bold character precedes the insert and only for lines without
+  only when the neighbour is directly bold and only for lines without
   bold of their own. When a `named_style_type` is passed nothing is read and nothing
   restored: the paragraph-style request clears the inherited bold first, so a restore
   would re-bold the font-only lines alone. The docstring now says the replace-recipe passes `named_style_type`

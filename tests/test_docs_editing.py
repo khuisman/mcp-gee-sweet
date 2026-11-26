@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock
 
 from mcp_gee_sweet.tools import docs as docs_module
+from mcp_gee_sweet.tools.docs.style import _is_paragraph_start
 
 
 def _make_tool_registry():
@@ -249,7 +250,7 @@ class TestInsertSoftbreakParagraph:
 
 class TestInsertSoftbreakParagraphBoldRestore:
     """#1499 item 4: a font_family line that sends no bold of its own keeps the
-    bold the insert inherits from the character before index — the same
+    bold the insert inherits from its neighbour — the same
     weightedFontFamily request would otherwise clear it (#1273), so it is
     restored in the same batchUpdate, after the font request, as
     style_doc_range does."""
@@ -524,6 +525,177 @@ class TestBoldRestoreAtParagraphStart:
         reqs = docs_svc.documents().batchUpdate.call_args.kwargs["body"]["requests"]
         assert [next(iter(r)) for r in reqs] == ["insertText", "updateTextStyle"]
         assert reqs[1]["updateTextStyle"]["fields"] == "weightedFontFamily"
+
+    async def test_paragraph_start_inside_a_table_cell_probes_the_cell_text(self):
+        # The paragraph-start walk recurses into table cells (#1606): an
+        # insert at a cell paragraph's first index inherits from that cell's
+        # own first character — a probe that missed the cell's start would
+        # read the table structure before it and find nothing bold.
+        doc = {
+            "documentId": "doc1",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 6,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "startIndex": 1,
+                                    "endIndex": 6,
+                                    "textRun": {"content": "Head\n", "textStyle": {}},
+                                }
+                            ]
+                        },
+                    },
+                    {
+                        "startIndex": 6,
+                        "endIndex": 15,
+                        "table": {
+                            "tableRows": [
+                                {
+                                    "tableCells": [
+                                        {
+                                            "content": [
+                                                {
+                                                    "startIndex": 8,
+                                                    "endIndex": 13,
+                                                    "paragraph": {
+                                                        "elements": [
+                                                            {
+                                                                "startIndex": 8,
+                                                                "endIndex": 13,
+                                                                "textRun": {
+                                                                    "content": "Bold\n",
+                                                                    "textStyle": {"bold": True},
+                                                                },
+                                                            }
+                                                        ]
+                                                    },
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                    },
+                ]
+            },
+        }
+        docs_svc = MagicMock()
+        docs_svc.documents().get().execute.return_value = doc
+        ctx = self._ctx(docs_svc)
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=8,
+            lines=[{"text": "code", "font_family": "Courier New"}],
+            ctx=ctx,
+        )
+        reqs = docs_svc.documents().batchUpdate.call_args.kwargs["body"]["requests"]
+        assert [next(iter(r)) for r in reqs] == [
+            "insertText",
+            "updateTextStyle",
+            "updateTextStyle",
+        ]
+        bold_restore = reqs[2]["updateTextStyle"]
+        assert bold_restore["range"] == {"startIndex": 8, "endIndex": 12}
+        assert bold_restore["textStyle"] == {"bold": True}
+
+    async def test_document_first_paragraph_without_start_index_starts_at_one(self):
+        # A document's very first element can carry no startIndex; the walk
+        # starts its offset at 1 (#1606), so index 1 still reads as that
+        # paragraph's start and the probe reads the paragraph's own first
+        # character — not the character before the document's beginning.
+        doc = {
+            "documentId": "doc1",
+            "body": {
+                "content": [
+                    {
+                        "endIndex": 6,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "endIndex": 6,
+                                    "textRun": {"content": "Bold\n", "textStyle": {"bold": True}},
+                                }
+                            ]
+                        },
+                    }
+                ]
+            },
+        }
+        docs_svc = MagicMock()
+        docs_svc.documents().get().execute.return_value = doc
+        ctx = self._ctx(docs_svc)
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=1,
+            lines=[{"text": "code", "font_family": "Courier New"}],
+            ctx=ctx,
+        )
+        reqs = docs_svc.documents().batchUpdate.call_args.kwargs["body"]["requests"]
+        assert [next(iter(r)) for r in reqs] == [
+            "insertText",
+            "updateTextStyle",
+            "updateTextStyle",
+        ]
+        bold_restore = reqs[2]["updateTextStyle"]
+        assert bold_restore["range"] == {"startIndex": 1, "endIndex": 5}
+        assert bold_restore["textStyle"] == {"bold": True}
+
+
+class TestIsParagraphStart:
+    """#1606: the walk carries a missing startIndex forward from the previous
+    item's endIndex, instead of defaulting every list position back to 1."""
+
+    @staticmethod
+    def _doc(second_has_start_index: bool) -> dict:
+        second = {
+            "endIndex": 11,
+            "paragraph": {
+                "elements": [
+                    {
+                        "endIndex": 11,
+                        "textRun": {"content": "Tail\n", "textStyle": {}},
+                    }
+                ]
+            },
+        }
+        if second_has_start_index:
+            second["startIndex"] = 6
+        return {
+            "documentId": "doc1",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 6,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "startIndex": 1,
+                                    "endIndex": 6,
+                                    "textRun": {"content": "Head\n", "textStyle": {}},
+                                }
+                            ]
+                        },
+                    },
+                    second,
+                ]
+            },
+        }
+
+    def test_a_later_paragraph_without_start_index_carries_forward(self):
+        # A missing startIndex is seen on a document's first element; when it
+        # isn't, the offset carries forward from the previous item's endIndex
+        # (#1606), so the second paragraph still starts where the first ends.
+        assert _is_paragraph_start(self._doc(second_has_start_index=False), 6)
+        assert not _is_paragraph_start(self._doc(second_has_start_index=False), 7)
+
+    def test_an_indexed_later_paragraph_is_read_from_its_own_start(self):
+        assert _is_paragraph_start(self._doc(second_has_start_index=True), 6)
+        assert not _is_paragraph_start(self._doc(second_has_start_index=True), 7)
 
 
 class TestInsertSoftbreakParagraphExplicitNormalText:

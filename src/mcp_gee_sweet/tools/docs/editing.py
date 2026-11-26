@@ -210,10 +210,10 @@ def register(tool):
 
         Either way, set the styles you want on the line dicts rather than
         relying on the paragraph's previous formatting: inserted lines inherit
-        the inline style of the character before index (bold, italic,
-        strikethrough, link included) — except at a paragraph's first index,
-        where the style comes from the character at index, the paragraph's own
-        first character — and a line can set a field to false to
+        the inline style of their neighbour (bold, italic, strikethrough, link
+        included) — the character before index, or at a paragraph's first
+        index the character at index, the paragraph's own first character —
+        and a line can set a field to false to
         clear an inherited style. A font_family line that sends no bold of its
         own keeps the bold the insert inherited: the weightedFontFamily request
         would clear it, so it is restored after, as style_doc_range does. Not
@@ -262,8 +262,8 @@ def register(tool):
         end_index = index + utf16_len(joined_text)
 
         # #1499 item 4: a font_family line that sends no bold of its own would
-        # clear the direct bold the insert inherits from the character before
-        # index — the same weightedFontFamily behaviour style_doc_range restores
+        # clear the direct bold the insert inherits from its neighbour — the
+        # same weightedFontFamily behaviour style_doc_range restores
         # after (#1273) — so read the neighbour's own bold once,
         # before the insert. Bold a run carries via its paragraph's named style
         # is not the run's and not affected by the font request, exactly as
