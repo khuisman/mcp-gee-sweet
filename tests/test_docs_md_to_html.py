@@ -224,6 +224,70 @@ class TestStrikethrough:
         assert "<s>" not in html and html.count("<a ") == 20000
         assert time.perf_counter() - start < 5.0
 
+    def test_tilde_pairing_is_linear_on_nested_tilde_pairs(self):
+        # Nested pairs: each closer pairs with the opener next to it, but the
+        # naive search walked back over the tildes an earlier pair consumed,
+        # one at a time, and `bottom` only moved when a closer failed — about
+        # 64M search steps for this 48 KB paragraph. Each consumed tilde is
+        # now unlinked from the search's previous-pointer chain (cmark's
+        # remove_delimiter), so a closer finds its opener without visiting a
+        # consumed one (#1617 review).
+        md = "~a " * 8000 + "b~ " * 8000
+        start = time.perf_counter()
+        html = _md_to_html(md)
+        assert html.count("<s>") == 8000
+        assert time.perf_counter() - start < 2.0
+
+    def test_tilde_pairing_is_linear_when_closers_step_back_over_consumed_pairs(
+        self,
+    ):
+        # The other quadratic shape: each `x~~` closer's search stepped back
+        # over all the `~a~` pairs consumed before it, and the span it then
+        # consumed was walked again to be marked. Both now skip consumed
+        # tildes outright, and the strike still nests the way cmark-gfm
+        # renders it (#1617 review).
+        md = "~~x " * 4000 + "~a~ " * 4000 + "x~~ " * 4000
+        start = time.perf_counter()
+        html = _md_to_html(md)
+        assert html.count("<s>") == 8000
+        assert time.perf_counter() - start < 2.0
+
+    def test_a_strike_wraps_an_emphasis_span(self):
+        # cmark pairs the `*` closer first, which consumes `~b`, so `c~`
+        # pairs with `~x` and the strike wraps the emphasis: exactly what
+        # develop and GitHub render (#1617 review). The tilde pass used to
+        # pair `~b` with `c~` before the emphasis had paired, and cull `~x`,
+        # so nothing struck.
+        (para,) = _ast("~x *a ~b* c~")
+        assert [(r.text, r.italic, r.strikethrough) for r in para.runs] == [
+            ("x ", None, True),
+            ("a ~b", True, True),
+            (" c", None, True),
+        ]
+        # The same shape with a `~~` strike.
+        (para,) = _ast("~~x *a ~b* c~~")
+        assert [(r.text, r.italic, r.strikethrough) for r in para.runs] == [
+            ("x ", None, True),
+            ("a ~b", True, True),
+            (" c", None, True),
+        ]
+        # The consumption cuts both ways: the tilde pair consumes the
+        # unmatched `*a` inside it, so the later `*` finds no opener and the
+        # strike stands alone, as on GitHub.
+        (para,) = _ast("~x *a b~ c*")
+        assert [(r.text, r.italic, r.strikethrough) for r in para.runs] == [
+            ("x *a b", None, True),
+            (" c*", None, None),
+        ]
+        # A tilde closer inside the span pairs before the `*` closer reaches
+        # it, so the strike nests in the emphasis, as on GitHub.
+        (para,) = _ast("*a ~b c~ d*")
+        assert [(r.text, r.italic, r.strikethrough) for r in para.runs] == [
+            ("a ", True, None),
+            ("b c", True, True),
+            (" d", True, None),
+        ]
+
     def test_single_tilde_pair_inside_a_bare_url_stays_text(self):
         # A `~` inside a GFM extended autolink is part of the URL, so the whole
         # URL links and nothing strikes, as on develop and GitHub (#1436 review).

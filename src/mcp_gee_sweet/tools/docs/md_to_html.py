@@ -724,93 +724,240 @@ def _cull_tildes_inside_autolinks(state, delimiters, windows) -> None:
     delimiters[:] = kept
 
 
-def _mark_tilde_pairs(state, delimiters) -> None:
-    """Pair the tilde delimiters the way GitHub's own renderer does, and keep
-    only what pairs.
+def _balance_pairs(state) -> None:
+    """Pair the emphasis and tilde delimiters of one inline run together, the
+    way cmark's ``process_emphasis`` does: every closer in document order,
+    over all delimiter kinds at once."""
+    _process_delimiters(state, state.delimiters)
+    for meta in state.tokens_meta:
+        if meta and "delimiters" in meta:
+            _process_delimiters(state, meta["delimiters"])
 
-    cmark-gfm's `process_emphasis` tries each tilde closer against the nearest
-    tilde opener under the emphasis flanking arithmetic: a candidate only
-    matches when the closer can't open and the opener can't close, or the two
-    runs' widths sum to something not divisible by 3. The attempt consumes
-    the opener, the closer and everything between them whether the widths
-    match or not, so a mixed-width row renders as literal text, as measured on
-    GitHub: `~a ~~b~ c~~` and `~~was ~5 ms~~` both stay text, while
-    `~a~~b~~` still strikes `b` (#1612). markdown-it instead pairs any two
-    tildes and checks the width only when converting, which lets a lone `~`
-    consume a `~~` closer it can't use (#1436), so the pairing is done here,
-    before `balance_pairs` runs. A failed closer sets the lower bound for
-    later closers of its width, which keeps the pass linear. Surviving pairs
-    of 1-tilde runs get their own marker, so `balance_pairs` pairs them by
-    width and `_single_tilde_pairs` converts them; `~~` pairs keep the
-    upstream marker and convert as they always have. Everything else —
-    consumed by a mismatched attempt, or never paired — is culled and stays
-    literal text."""
-    tildes = [d for d in delimiters if d.marker == 0x7E]
-    if not tildes:
+
+def _process_delimiters(state, delimiters) -> None:
+    """markdown-it's ``balance_pairs`` walk, with cmark-gfm's tilde pairing
+    folded in where the two disagree.
+
+    Upstream already walks every delimiter kind in one closer-order pass, and
+    its ``jumps`` stand in for cmark's ``remove_delimiter``; but it pairs any
+    two tilde runs whatever their widths, which is not what cmark-gfm does
+    (#1612, #1436). Here a tilde closer runs cmark-gfm's pairing instead: the
+    nearest live tilde opener wins under the emphasis arithmetic whatever its
+    width, and the attempt consumes the opener, the closer and everything
+    between them whether the widths match or not, so a mixed-width row renders
+    as the literal text GitHub renders (#1612). Emphasis pairing is upstream's
+    own, untouched.
+
+    Folding the pairing into the walk is what lets a strike wrap an emphasis
+    span (#1617 review): in ``~x *a ~b* c~`` the ``*`` closer pairs first and
+    its match consumes ``~b``, so ``c~`` reaches back to ``~x`` and strikes
+    ``x <em>a ~b</em> c``, as on develop and GitHub. A tilde pass that ran
+    before the emphasis had paired saw ``~b`` still live, paired it with
+    ``c~`` and culled ``~x``, so nothing struck. The consumption cuts both
+    ways: a matched tilde pair consumes the unmatched emphasis delimiters
+    inside it, so ``~x *a b~ c*`` strikes with no emphasis, and a tilde
+    closer that can't open and finds no opener is consumed itself, as on
+    cmark.
+
+    Everything consumed is unlinked from a previous-pointer chain over the
+    delimiters of its kind (``find`` below — cmark's ``remove_delimiter`` with
+    path compression), so an opener search or a consumption walk only hops
+    over live delimiters and each is consumed at most once. Without it every
+    closer rescanned the tildes an earlier pair consumed: ``"~a " * 8000 +
+    "b~ " * 8000`` walked back over them one at a time, about 64M search
+    steps for 48 KB of input (#1617 review). A closer that finds no opener
+    still sets the lower bound for later closers of its width, which keeps
+    the failed searches linear too (#1502, #1612).
+
+    Surviving 1-tilde pairs are recorded the way upstream records its own —
+    ``end``, the same jump bookkeeping, and the pair's own marker — so nothing
+    pairs or converts them as a ``~~`` run and ``_single_tilde_pairs``
+    converts them; ``~~`` pairs keep the upstream marker and convert as they
+    always have. Everything else — consumed by a mismatched attempt, or never
+    paired — keeps ``end == -1`` and stays literal text.
+    """
+    maximum = len(delimiters)
+    if not maximum:
         return
-    widths = [1 if state.tokens[d.token].content == "~" else 2 for d in tildes]
-    consumed = [False] * len(tildes)
-    pairs: list[tuple[int, int]] = []
-    bottom = {1: 0, 2: 0}
-    for ci, closer in enumerate(tildes):
-        if not closer.close or consumed[ci]:
+
+    tildes = [i for i, d in enumerate(delimiters) if d.marker == 0x7E]
+    tilde_index = {segment_index: k for k, segment_index in enumerate(tildes)}
+    widths = [1 if state.tokens[delimiters[i].token].content == "~" else 2 for i in tildes]
+    others = [i for i, d in enumerate(delimiters) if d.marker != 0x7E]
+    # cmark's remove_delimiter, as a previous-pointer chain per kind: find()
+    # returns the nearest chain position at or before k that is still live,
+    # compressing the pointers it walked so the hop is paid once. Consuming a
+    # delimiter only marks it dead in place (#1617 review).
+    tilde_prev = list(range(-1, len(tildes)))
+    tilde_dead = [False] * len(tildes)
+    other_prev = list(range(-1, len(others)))
+    other_dead = [False] * len(others)
+
+    def find(prev: list[int], dead: list[bool], k: int) -> int:
+        root = k
+        while root >= 0 and dead[root]:
+            root = prev[root]
+        while k >= 0 and dead[k] and prev[k] != root:
+            prev[k], k = root, prev[k]
+        return root
+
+    def consume_tildes_between(opener_idx: int, closer_idx: int) -> None:
+        # Everything strictly between a matched emphasis pair is consumed with
+        # it, so the tilde runs inside can no longer pair (#1617 review).
+        k = find(tilde_prev, tilde_dead, bisect.bisect_left(tildes, closer_idx) - 1)
+        while k >= 0 and tildes[k] > opener_idx:
+            tilde_dead[k] = True
+            k = find(tilde_prev, tilde_dead, k)
+
+    def consume_others_between(opener_idx: int, closer_idx: int) -> None:
+        # The emphasis delimiters a tilde attempt steps over are consumed with
+        # it, as cmark's remove_delimiter would. A pair another closer already
+        # matched is gone from cmark's stack by itself — its conversion reads
+        # only `end`, so its flags can stay.
+        k = find(other_prev, other_dead, bisect.bisect_left(others, closer_idx) - 1)
+        while k >= 0 and others[k] > opener_idx:
+            other = delimiters[others[k]]
+            if other.end == -1:
+                other.open = other.close = False
+            other_dead[k] = True
+            k = find(other_prev, other_dead, k)
+
+    openers_bottom: dict[int, list[int]] = {}
+    tilde_bottom = {1: 0, 2: 0}
+    header_idx = 0
+    last_token_idx = -2
+    jumps: list[int] = []
+    closer_idx = 0
+    while closer_idx < maximum:
+        closer = delimiters[closer_idx]
+        jumps.append(0)
+
+        if (
+            delimiters[header_idx].marker != closer.marker
+            or last_token_idx != closer.token - 1
+        ):
+            header_idx = closer_idx
+        last_token_idx = closer.token
+
+        closer.length = closer.length or 0
+
+        if closer.marker == 0x7E:
+            # cmark-gfm's tilde pairing, at this closer's turn in the shared
+            # walk (#1612, #1617 review).
+            k = tilde_index[closer_idx]
+            if closer.close and not tilde_dead[k]:
+                width = widths[k]
+                cand = find(tilde_prev, tilde_dead, k - 1)
+                opener_pos = -1
+                while cand >= tilde_bottom[width]:
+                    candidate = delimiters[tildes[cand]]
+                    if candidate.open and (
+                        not (closer.open or candidate.close)
+                        or width % 3 == 0
+                        or (widths[cand] + width) % 3 != 0
+                    ):
+                        opener_pos = cand
+                        break
+                    cand = find(tilde_prev, tilde_dead, cand - 1)
+                if opener_pos == -1:
+                    tilde_bottom[width] = k
+                    if not closer.open:
+                        tilde_dead[k] = True
+                else:
+                    opener_idx = tildes[opener_pos]
+                    tilde_dead[opener_pos] = True
+                    j = find(tilde_prev, tilde_dead, k - 1)
+                    while j > opener_pos:
+                        tilde_dead[j] = True
+                        j = find(tilde_prev, tilde_dead, j)
+                    tilde_dead[k] = True
+                    consume_others_between(opener_idx, closer_idx)
+                    if widths[opener_pos] == width:
+                        opener = delimiters[opener_idx]
+                        if opener_idx > 0 and not delimiters[opener_idx - 1].open:
+                            last_jump = jumps[opener_idx - 1] + 1
+                        else:
+                            last_jump = 0
+                        jumps[closer_idx] = closer_idx - opener_idx + last_jump
+                        jumps[opener_idx] = last_jump
+                        closer.open = False
+                        opener.end = closer_idx
+                        opener.close = False
+                        last_token_idx = -2
+                        if width == 1:
+                            opener.marker = _SINGLE_TILDE_MARKER
+                            closer.marker = _SINGLE_TILDE_MARKER
+            closer_idx += 1
             continue
-        oi = ci - 1
-        opener = -1
-        while oi >= bottom[widths[ci]]:
-            cand = tildes[oi]
-            if (
-                cand.open
-                and not consumed[oi]
-                and (
-                    not (closer.open or cand.close)
-                    or widths[ci] % 3 == 0
-                    or (widths[oi] + widths[ci]) % 3 != 0
+
+        if not closer.close:
+            closer_idx += 1
+            continue
+
+        # From here on this is markdown-it's own balance_pairs, verbatim.
+        if closer.marker not in openers_bottom:
+            openers_bottom[closer.marker] = [-1, -1, -1, -1, -1, -1]
+
+        min_opener_idx = openers_bottom[closer.marker][(3 if closer.open else 0) + (closer.length % 3)]
+
+        opener_idx = header_idx - jumps[header_idx] - 1
+
+        new_min_opener_idx = opener_idx
+
+        while opener_idx > min_opener_idx:
+            opener = delimiters[opener_idx]
+
+            if opener.marker != closer.marker:
+                opener_idx -= jumps[opener_idx] + 1
+                continue
+
+            if opener.open and opener.end < 0:
+                is_odd_match = (
+                    (opener.close or closer.open)
+                    and (opener.length + closer.length) % 3 == 0
+                    and (opener.length % 3 != 0 or closer.length % 3 != 0)
                 )
-            ):
-                opener = oi
-                break
-            oi -= 1
-        if opener == -1:
-            bottom[widths[ci]] = ci
-            if not closer.open:
-                consumed[ci] = True
-            continue
-        for j in range(opener, ci + 1):
-            consumed[j] = True
-        if widths[opener] == widths[ci]:
-            pairs.append((opener, ci))
-    paired = set()
-    for oi, ci in pairs:
-        if widths[oi] == 1:
-            tildes[oi].marker = _SINGLE_TILDE_MARKER
-            tildes[ci].marker = _SINGLE_TILDE_MARKER
-        paired.add(id(tildes[oi]))
-        paired.add(id(tildes[ci]))
-    kept = []
-    for delimiter in delimiters:
-        if delimiter.marker != 0x7E or id(delimiter) in paired:
-            kept.append(delimiter)
-    delimiters[:] = kept
+
+                if not is_odd_match:
+                    if opener_idx > 0 and not delimiters[opener_idx - 1].open:
+                        last_jump = jumps[opener_idx - 1] + 1
+                    else:
+                        last_jump = 0
+
+                    jumps[closer_idx] = closer_idx - opener_idx + last_jump
+                    jumps[opener_idx] = last_jump
+
+                    closer.open = False
+                    opener.end = closer_idx
+                    opener.close = False
+                    new_min_opener_idx = -1
+                    last_token_idx = -2
+                    consume_tildes_between(opener_idx, closer_idx)
+                    break
+
+            opener_idx -= jumps[opener_idx] + 1
+
+        if new_min_opener_idx != -1:
+            openers_bottom[closer.marker][(3 if closer.open else 0) + (closer.length % 3)] = (
+                new_min_opener_idx
+            )
+
+        closer_idx += 1
 
 
-def _single_tilde_widths(state, autolink_urls: bool) -> None:
-    """Pair, mark and cull the tilde delimiters before ``balance_pairs`` runs.
+def _tilde_autolink_cull(state, autolink_urls: bool) -> None:
+    """Drop every tilde delimiter that sits inside a GFM autolink span, before
+    ``balance_pairs`` runs.
 
     The upstream ``strikethrough_single_tilde`` tokenizer accepts runs of one
-    or two tildes (three or more are consumed as plain text). This rule runs
-    cmark-gfm's pairing over them first (#1612), so mixed-width rows render
-    like GitHub, and marks the surviving 1-tilde pairs with their own marker
-    so `balance_pairs`' same-marker pairing matches them by width — a pair
-    never crosses another pair's boundary, and the pass stays linear on long
-    inputs (#1436 review).
-
-    A tilde run inside a GFM autolink span is dropped outright first, keeping
-    the URL text whole for the autolink core rule, as on develop — but only
-    when this parser autolinks: with `autolink_urls=False` there is no link
-    to keep whole, so `www.a.com/~x~` strikes instead of rendering neither
-    linked nor struck (#1612). A paragraph with no tilde delimiter skips the
-    URL pass entirely (#1612).
+    or two tildes (three or more are consumed as plain text). This rule drops
+    the runs a GFM extended autolink swallows first (#1612), keeping the URL
+    text whole for the autolink core rule, as on develop — but only when this
+    parser autolinks: with ``autolink_urls=False`` there is no link to keep
+    whole, so ``www.a.com/~x~`` strikes instead of rendering neither linked
+    nor struck (#1612). A paragraph with no tilde delimiter skips the URL
+    pass entirely (#1612). Pairing itself is ``_balance_pairs``'s, where the
+    emphasis delimiters and the surviving tildes meet in closer order.
     """
     segments = [state.delimiters]
     for meta in state.tokens_meta:
@@ -823,8 +970,6 @@ def _single_tilde_widths(state, autolink_urls: bool) -> None:
         windows = _autolink_span_windows(state)
         for segment in tilde_segments:
             _cull_tildes_inside_autolinks(state, segment, windows)
-    for segment in tilde_segments:
-        _mark_tilde_pairs(state, segment)
 
 
 def _single_tilde_pairs(state) -> None:
@@ -863,11 +1008,12 @@ def _build_markdown_parser(autolink_urls: bool) -> MarkdownIt:
     # strikethrough_single_tilde widens the strikethrough tokenizer to GFM's full
     # form: `~x~` strikes like `~~x~~`, and a run of three or more tildes stays
     # literal text (#1335). The upstream option only tokenizes the runs: pairing
-    # is cmark-gfm's algorithm, run by _single_tilde_widths before balance_pairs,
-    # so mixed-width rows render like GitHub, a pair never crosses another pair's
-    # boundary, and a tilde inside a GFM autolink span keeps the URL text whole,
-    # as on develop (#1436 review, #1612). _single_tilde_pairs converts the
-    # 1-tilde pairs.
+    # is cmark-gfm's algorithm, folded into balance_pairs itself, which walks
+    # every delimiter kind in closer order the way cmark's process_emphasis
+    # does — so a mixed-width row renders like GitHub (#1612), a strike that
+    # wraps an emphasis span strikes around it (#1617 review), and the pass
+    # stays linear on the tildes an earlier pair consumed (#1617 review).
+    # _single_tilde_pairs converts the 1-tilde pairs.
     md = MarkdownIt(
         "commonmark",
         {
@@ -876,13 +1022,14 @@ def _build_markdown_parser(autolink_urls: bool) -> MarkdownIt:
             "strikethrough_single_tilde": True,
         },
     ).enable(["table", "strikethrough"])
-    # The tilde pairing pass only protects URLs when this parser links them
+    # The autolink cull only protects URLs when this parser links them
     # (#1612): with autolinks off there is no link to keep whole.
     md.inline.ruler2.before(
         "balance_pairs",
-        "single_tilde_widths",
-        functools.partial(_single_tilde_widths, autolink_urls=autolink_urls),
+        "tilde_autolink_cull",
+        functools.partial(_tilde_autolink_cull, autolink_urls=autolink_urls),
     )
+    md.inline.ruler2.at("balance_pairs", _balance_pairs)
     md.inline.ruler2.after("strikethrough", "single_tilde_pairs", _single_tilde_pairs)
     # Keep link and image destinations as written. markdown-it percent-encodes them
     # by default, which breaks a local image path ("café.png" becomes "caf%C3%A9.png")
