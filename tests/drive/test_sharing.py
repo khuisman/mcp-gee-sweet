@@ -222,6 +222,68 @@ class TestShareSpreadsheet:
         assert result["successes"][0]["permissionId"] == "perm-xyz"
 
 
+class TestShareSpreadsheetDeprecation:
+    """#665: share_spreadsheet stays callable for one release, its description
+    opening with the share_file call that replaces it."""
+
+    def test_deprecated_with_share_file_as_replacement(self):
+        from mcp_gee_sweet.deprecation import tool_deprecation
+
+        func = _sharing_tools["share_spreadsheet"]
+        deprecation = tool_deprecation(func)
+        assert deprecation is not None
+        assert deprecation.removed_in == "the next feature release"
+        assert func.__doc__.startswith("Deprecated: use `share_file`")
+
+    def test_note_names_the_role_default_that_differs(self):
+        # share_file defaults a missing `role` to reader, so following the note for
+        # a recipient that omits it must not quietly share read-only what this tool
+        # would have shared as writer.
+        note = _sharing_tools["share_spreadsheet"].__doc__.split("\n\n", 1)[0]
+        assert "'type': 'user'" in note
+        assert "`'role': 'writer'` explicitly" in note
+
+    @pytest.mark.parametrize("tool_name", ["share_file", "list_permissions"])
+    def test_survivors_not_deprecated(self, tool_name):
+        from mcp_gee_sweet.deprecation import tool_deprecation
+
+        assert tool_deprecation(_sharing_tools[tool_name]) is None
+
+    @pytest.mark.parametrize("send_notification", [True, False])
+    async def test_share_file_as_the_note_says_sends_the_same_request(self, send_notification):
+        """The note's share_file call creates the same permission, with the same
+        notification setting, as the share_spreadsheet call it replaces."""
+        calls = {}
+        for tool_name, kwargs in (
+            (
+                "share_spreadsheet",
+                {
+                    "spreadsheet_id": "ss1",
+                    "recipients": [{"email_address": "a@example.com", "role": "commenter"}],
+                },
+            ),
+            (
+                "share_file",
+                {
+                    "file_id": "ss1",
+                    "permissions": [
+                        {"type": "user", "email_address": "a@example.com", "role": "commenter"}
+                    ],
+                },
+            ),
+        ):
+            drive = MagicMock()
+            drive.permissions.return_value.create.return_value.execute.return_value = {"id": "p1"}
+            ctx = _make_ctx(drive_service=drive)
+            ctx.report_progress = AsyncMock()
+            result = await _sharing_tools[tool_name](
+                **kwargs, send_notification=send_notification, ctx=ctx
+            )
+            assert result["failures"] == []
+            calls[tool_name] = drive.permissions.return_value.create.call_args.kwargs
+        assert calls["share_file"] == calls["share_spreadsheet"]
+
+
 class TestListPermissions:
     """list_permissions maps Drive API camelCase field names to snake_case output."""
 
@@ -679,3 +741,36 @@ class TestShareFile:
         )
         assert len(result["successes"]) == 1
         assert result["successes"][0]["permissionId"] == "perm-abc"
+
+    async def test_progress_names_each_entry_by_address_or_domain(self):
+        """#665: share_file replaces share_spreadsheet, which named each recipient in
+        its progress message, so entries of one type stay distinguishable. An entry
+        with neither (`anyone`), and a malformed one, are named by their type."""
+        drive = self._drive_svc()
+        ctx = _make_ctx(drive_service=drive)
+        ctx.report_progress = AsyncMock()
+        await _sharing_tools["share_file"](
+            file_id="file-1",
+            permissions=[
+                {"type": "user", "email_address": "alice@example.com", "role": "writer"},
+                {"type": "user", "email_address": "bob@example.com", "role": "reader"},
+                {"type": "domain", "domain": "example.com", "role": "reader"},
+                {"type": "anyone", "role": "reader"},
+                "not-a-dict",
+            ],
+            ctx=ctx,
+        )
+        messages = sorted(c.args[2] for c in ctx.report_progress.await_args_list)
+        assert messages == [
+            "None: failure",
+            "alice@example.com: success",
+            "anyone: success",
+            "bob@example.com: success",
+            "example.com: success",
+        ]
+
+    def test_role_documented_as_optional_reader(self):
+        # The CHANGELOG's migration advice relies on a missing role meaning reader.
+        doc = " ".join(_sharing_tools["share_file"].__doc__.split())
+        assert "'role' is optional and defaults to 'reader'" in doc
+        assert "must have 'type' and 'role'" not in doc

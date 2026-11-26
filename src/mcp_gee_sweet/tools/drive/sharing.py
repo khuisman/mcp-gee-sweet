@@ -8,6 +8,7 @@ from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
+from ...deprecation import deprecated_tool
 from ..concurrency import report_progress_safe
 from ..http_errors import http_error_has_reason
 from . import _user_fields
@@ -15,10 +16,30 @@ from . import _user_fields
 logger = logging.getLogger(__name__)
 
 
+def _entry_principal(perm: Any, perm_type: str | None) -> str:
+    """What `share_file`'s progress message names an entry by: its address or
+    domain when it has one, else its type. A malformed entry (not a dict) is named
+    by its type, which is then None."""
+    if isinstance(perm, dict):
+        for key in ("email_address", "domain"):
+            value = perm.get(key)
+            if value:
+                return str(value)
+    return str(perm_type)
+
+
 def register(tool):
     @tool(
         annotations=ToolAnnotations(title="Share Spreadsheet", destructiveHint=True),
         groups=("sheets",),
+    )
+    @deprecated_tool(
+        use=(
+            "`share_file` with each recipient as "
+            "`{'type': 'user', 'email_address': ..., 'role': ...}`, setting this tool's "
+            "default `'role': 'writer'` explicitly"
+        ),
+        removed_in="the next feature release",
     )
     async def share_spreadsheet(
         spreadsheet_id: str,
@@ -351,7 +372,13 @@ def register(tool):
             "permissionId": result.get("id"),
         }
 
-    @tool(annotations=ToolAnnotations(title="Share File", destructiveHint=True), default=True)
+    @tool(
+        annotations=ToolAnnotations(title="Share File", destructiveHint=True),
+        default=True,
+        # share_spreadsheet's replacement (#665), so `sheets` keeps a sharing tool
+        # once it's removed.
+        groups=("sheets",),
+    )
     async def share_file(
         file_id: str,
         permissions: list[dict[str, str]],
@@ -367,7 +394,8 @@ def register(tool):
 
         Args:
             file_id: The Google Drive file or folder ID.
-            permissions: List of permission entries. Each must have 'type' and 'role'.
+            permissions: List of permission entries. Each must have 'type'; 'role'
+                         is optional and defaults to 'reader'.
                          Additional fields depend on type:
                            type='user' or 'group' — requires 'email_address'
                            type='domain'          — requires 'domain'
@@ -487,12 +515,17 @@ def register(tool):
             # asyncio.gather resolves — see #316/#319's original rationale, extended
             # to this tool by #355.
             completed[0] += 1
+            # Named by its address or domain where it has one, as share_spreadsheet
+            # names each recipient, so entries of one type can be told apart.
+            principal = _entry_principal(perm, perm_type)
             await report_progress_safe(
-                ctx, completed[0], total, f"{perm_type}: {item_result['_kind']}", str(perm_type)
+                ctx, completed[0], total, f"{principal}: {item_result['_kind']}", principal
             )
             return item_result
 
-        # Same return_exceptions=True + tagged-result pattern as share_spreadsheet.
+        # return_exceptions=True: _share_one already catches its own errors, but this
+        # also lets every in-flight share finish before surfacing an unexpected
+        # exception, instead of orphaning in-flight tasks.
         raw = await asyncio.gather(*(_share_one(p) for p in permissions), return_exceptions=True)
         successes = []
         failures = []
