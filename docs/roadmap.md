@@ -656,7 +656,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 **Triaged 2026-11-26** _(community-filed; no version in flight, so the next version by its cell)_
 
-- [ ] `get_doc_as_markdown` exports a paragraph starting `>word` (no space after `>`) unescaped, so it re-imports as a blockquote; a list item's `- >word` gains a nested quote. `wrong/narrow`, observed (reproduced on develop 5ce627d); community PR #1628 claims it ([#1627](https://github.com/khuisman/mcp-gee-sweet/issues/1627))
+- [x] `get_doc_as_markdown` exports a paragraph starting `>word` (no space after `>`) unescaped, so it re-imports as a blockquote; a list item's `- >word` gains a nested quote. `wrong/narrow`, observed (reproduced on develop 5ce627d); community PR #1628 claims it ([#1627](https://github.com/khuisman/mcp-gee-sweet/issues/1627)) (PR #1628)
 
 **Bundled 2026-11-01** _(maintainer's ankylosaurus scoping)_
 
