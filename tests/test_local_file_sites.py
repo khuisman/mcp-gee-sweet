@@ -22,6 +22,9 @@ from .drive.test_transfer import _drive_file, _drive_folder, _FakeDriveFS, _tran
 from .fakes import use_local_file_policy
 
 _OFF = "local file access is disabled on this server (LOCAL_FILE_ACCESS=off)"
+# The policy the process resolved at import (conftest pins LOCAL_FILE_ACCESS=full),
+# which every test's own policy must give back.
+_PROCESS_POLICY = local_files.POLICY
 
 
 @pytest.fixture(autouse=True)
@@ -474,9 +477,8 @@ class TestOtherReaders:
 
 
 def test_policy_fixture_is_scoped_to_the_test():
-    # The process default (stdio, unset) is back after the fixtures above.
-    assert local_files.POLICY.mode is local_files.LocalFileAccess.FULL
-    assert local_files.POLICY.explicit is False
+    # The process's own policy is back after the fixtures above.
+    assert local_files.POLICY is _PROCESS_POLICY
 
 
 def _all_tools():
