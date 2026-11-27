@@ -1549,7 +1549,7 @@ How our converter (EP-1 to EP-4 and EP-8) renders inline styling tags.
 > Render `docs/qa/fixtures/md/state/inline-scope.md` through EP-1 to EP-4 and EP-8 (#1231). Also run TC-MD116's HT-01, HT-02 and HT-07 through EP-1 to EP-4 and EP-8: #1077's and #1119's done-when. Two runs, with an on-screen check.
 
 **Checks**
-- IS-01: "x" (`~~`) and "y" (`<del>`) struck, " and " plain; "h", "i" and "j" struck (`<del>` inside `<s>`), "k." not.
+- IS-01: "x" (`~~`) and "y" (`<del>`) struck, " and " plain; "h", "i" and "j" struck (`<del>` inside `<s>`), "k." not. "v" (`~`) struck like "x" — GFM takes one or two tildes; "~~~w~~~" and "~q~~" not struck — a run of three or more tildes stays literal, and mismatched widths don't strike (#1335).
 - IS-02: the "2" in "H2O" subscript, the "2" in "mc2" superscript, the rest of that text normal; in "abcd", "a" and "c" superscript, "b" subscript, "d" normal.
 - IS-03: "hi" highlighted yellow and bold, the text around it plain.
 - IS-04: in the body row, "x" superscript, "y" struck, "z" highlighted, the spaces between them plain; the second cell's "w" highlighted; the last row's cells plain.
@@ -1561,6 +1561,28 @@ How our converter (EP-1 to EP-4 and EP-8) renders inline styling tags.
 **Result (2026-11-01, PR #1332 round 2 @ 8fd9f042, after the `develop` merge bringing #1326, Kit) ✅ PASS — 10/10 cells, one run through EP-1 to EP-4 and EP-8. The stored-style read-back is identical to round 1's, so the round-1 on-screen checks still apply; no new screenshots.**
 
 **Result (2026-11-08) ✅ PASS — 10/10 case×EP cells pass; failures: none — ornithomimus release pass, shard M7**
+
+**Result (2026-11-23)** pending — no browser in this session, so no on-screen check (Rule 1). Run in an isolated service-account sandbox on a Shared Drive, against `develop` with PR #1436 merged (`faab6cc`), `inline-scope.md` only, one run. Read from the stored text styles (raw `documents().get()`): IS-01's runs are identical through EP-1 to EP-4 and EP-8. `x`, `y`, `hij` and `v` are `strikethrough: true`; ` and ~~~w~~~; ~q~~.` is plain, tildes kept. `get_doc_as_markdown` gives `~~x~~ and ~~y~~; ~~hij~~k. ~~v~~ and \~\~\~w\~\~\~; \~q\~\~.`. IS-02 to IS-04 weren't checked for this PR.
+
+### TC-MD511: A tilde inside a bare URL stays part of the link; a single-tilde pair around a URL strikes it (#1335, #1502) ⚠️ destructive
+**Prompt**
+**Playwright: required**
+> Render each line below as its own paragraph through EP-1:
+> `see https://cs.example.edu/~alice/paper~v2.pdf`
+> `see https://example.com/a\_b/~site/doc~v2.pdf`
+> `~https://x.com/a~`
+> `~~x~~`
+> `*a ~~b* c~~`
+
+**Checks**
+- Line 1: one link covering the whole URL, `https://cs.example.edu/~alice/paper~v2.pdf`; nothing struck.
+- Line 2: one link covering the whole URL, the escape resolved: `https://example.com/a_b/~site/doc~v2.pdf`; nothing struck.
+- Line 3: `https://x.com/a` linked and struck, no tildes left.
+- Line 4: `x` struck.
+- Line 5: `a ~~b` italic with the tildes literal, ` c~~` plain.
+- Out of scope: the mixed-width cases where GitHub renders differently (`~a ~~b~ c~~`, `~~was ~5 ms~~`) and `~~` inside a bare URL (#1612).
+
+**Result (2026-11-23)** pending — no browser in this session, so no on-screen check (Rule 1). Run in an isolated service-account sandbox on a Shared Drive, against `develop` with PR #1436 merged (`faab6cc`), EP-1, one run. Read from the stored text styles (raw `documents().get()`), every check holds. Line 1: one run linked to `https://cs.example.edu/~alice/paper~v2.pdf`, no strike. Line 2: one run linked to `https://example.com/a_b/~site/doc~v2.pdf`, no strike. Line 3: `https://x.com/a` with `strikethrough` and the link. Line 4: `x` struck. Line 5: `a ~~b` italic, ` c~~` plain.
 
 ---
 
@@ -1754,6 +1776,43 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 **Result (2026-11-14, PR #1476 QA round 1 @ c6e3445d, Kit) ✅ PASS — one run, before #1436 merged.** Step 2: two runs "a" and "b", both struck. Step 3: `x ~~ab~~ y`. Step 4: the text is `x ab y`, with "ab" as one struck run and no `~`; the second export is `x ~~ab~~ y`. Step 5: the old reading: "a ~b~ c" struck, then " and ~a ", "b" struck, " c~"; it exports as `~~a \~b\~ c~~ and \~a ~~b~~ c\~`. QA fixed the step 2 check: it named a `get_doc_structure` call the step never made and a color that tool doesn't report.
 
 **Result (2026-11-14, PR #1476 QA round 2 @ 4cfa8d2e, Kit) ✅ PASS — steps 1–7, one run, before #1436 merged.** Steps 1–5 are unchanged from round 1. Step 6: three struck runs ("AT&", "amp", ";T\n"); the export is `~~AT\&amp;T~~`; after the update the text is `AT&amp;T`, one struck run. Step 7: two bold struck runs; the export is `x **~~ab~~** y`; after the update "ab" is one bold struck run, with no `*` or `~`. QA added steps 6 and 7 for round 1's send-backs.
+
+---
+
+### TC-MD511: Content markdown-it-py 4.2.0 lost: raw HTML with a blank line in an item, image alt text ⚠️ destructive
+**Prompt**
+> #1596's two fixes, live. Under markdown-it-py 4.2.0 a comment holding a blank line inside a list item hid the rest of the Doc, and an image's fallback text lost its escapes, entities, code and line breaks. Run on a server whose environment has markdown-it-py 4.3.0 or later.
+> 1. `create_doc(title="TC-MD511 html", content=<the Markdown below>, content_format="markdown")`, then `get_doc_structure(doc_id)`:
+>    ```
+>    - a
+>      <!-- hidden comment
+>
+>      - hidden x
+>      -->
+>      - b visible
+>    - after
+>
+>    Last paragraph.
+>    ```
+> 2. `create_doc(title="TC-MD511 alt", content=<the Markdown below>, content_format="markdown")`. Each image path names no file, so each image is written as its fallback text:
+>    ```
+>    ![a \* b](missing-tc-md511-1.png)
+>
+>    ![a &amp; b &copy;](missing-tc-md511-2.png)
+>
+>    ![see `code` here](missing-tc-md511-3.png)
+>
+>    ![line\
+>    break](missing-tc-md511-4.png)
+>    ```
+
+**Checks**
+- Step 1: the Doc's text is "a", "b visible", "after", "Last paragraph.", in that order. "a" and "after" are bullets at nesting level 0 and "b visible" at level 1. Nothing from the comment ("hidden comment", "hidden x", `-->`) appears.
+- Step 2: the response's `images` has four entries, each with an `error` and a `fallback_text` of `a * b`, `a & b ©`, `see code here` and `line break`. The Doc's four paragraphs read the same.
+
+**Cleanup:** trash both Docs.
+
+**Result (2026-11-25, PR #1622 QA round 1 @ 7652bfeb, Rio) ✅ PASS — steps 1–2, one run, server on markdown-it-py 4.3.0.** Step 1: four paragraphs "a" (level 0), "b visible" (level 1), "after" (level 0), one list, then the unbulleted "Last paragraph."; nothing from the comment appears. Step 2: `images` has four entries, each with an `error` (`No file found at …`) and `fallback_text` `a * b`, `a & b ©`, `see code here`, `line break`; the Doc's four paragraphs read the same. Both Docs trashed.
 
 ---
 
