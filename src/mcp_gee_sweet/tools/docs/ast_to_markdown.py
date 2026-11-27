@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import re
 import string
+import unicodedata
 from dataclasses import replace
 
 from .ast import BulletItem, Cell, DocNode, Heading, Image, NamedBlock, Paragraph, Run, Table
@@ -450,9 +451,10 @@ def _render_inline_parts(items: list, in_table: bool, cell: bool = False) -> lis
     A group never forms across a line break at an image's boundary, the same
     edge `_coalesce_plain_runs keeps apart for runs, so a break never lands
     inside markers it didn't before. A group whose markers would flank an
-    image edge beside a letter, a digit, or a neighboring styled run's own
-    emphasis marker never forms either: the markers wouldn't read as
-    emphasis there, so the members fall back to the split rendering, the
+    image edge beside a character that is neither whitespace nor punctuation
+    — a letter, a digit, an emoji or symbol included (#1583) — or beside a
+    neighboring styled run's own emphasis marker never forms either: the
+    markers wouldn't read as emphasis there, so the members fall back to the split rendering, the
     image bare. Code runs never join a group: their
     backticks aren't emphasis markers."""
     parts: list[str] = []
@@ -497,44 +499,78 @@ def _render_inline_parts(items: list, in_table: bool, cell: bool = False) -> lis
             parts.append(_render_span(group, style, in_table))
         else:
             # No image, nothing a marker could span, or markers that would
-            # flank an image edge beside a letter, a digit, or a styled
-            # neighbor's own marker: one item at a time, the image bare.
+            # flank an image edge beside a non-whitespace, non-punctuation
+            # character, or a styled neighbor's own marker: one item at a
+            # time, the image bare.
             parts.extend(_render_ungrouped(group, in_table))
     return parts
+
+
+def _breaks_flanking(ch: str) -> bool:
+    """Whether a character beside an emphasis marker stops CommonMark reading
+    the marker as flanking: a letter, a digit, or anything else that is
+    neither whitespace nor punctuation — an emoji or a symbol included,
+    which GitHub's cmark-gfm also breaks on where an isalnum() test saw no
+    break (#1583). Whitespace and Unicode punctuation leave the flanking
+    rule satisfied, so a marker beside them still reads as emphasis."""
+    if not ch or ch.isspace():
+        return False
+    if ch.isascii():
+        # Every ASCII character that is neither whitespace nor alphanumeric
+        # is ASCII punctuation to CommonMark.
+        return ch.isalnum()
+    return not unicodedata.category(ch).startswith("P")
 
 
 def _markers_flank_image_edge(
     group: list, parts: list[str], items: list, next_i: int, style: tuple
 ) -> bool:
-    """True when the span's markers would sit beside a letter or digit with
-    an image edge between them, where CommonMark cannot read them as emphasis
-    (#1509 review): `see**![logo](u)**` keeps its literal asterisks (an
+    """True when the span's markers would sit beside a character that breaks
+    CommonMark's flanking rule, with an image edge between them (#1509
+    review): `see**![logo](u)**` keeps its literal asterisks (an
     opening `**` after an alphanumeric is not left-flanking when `!`
     follows), and `**a ![logo](u)**b` loses its bold (a closing `**` before an
-    alphanumeric is not right-flanking when `)` precedes). A neighboring
-    styled run's own marker is just as bad (#1530 review): its `*` merges
-    with an asterisk marker into a single `***` run the parser reads as
-    neither span, so a previous rendered part ending in `*` and a next run
-    carrying bold or italic and starting with no whitespace fall back too —
-    `*it***![logo](u) bold**` would lose its bold, and
-    `**bold ![logo](u)***it*` its markers. Only an image at the span's edge
-    puts a marker there — a run's edge whitespace already renders outside
-    the markers — and only a letter, a digit, or the neighbor's `*` outside
-    breaks the flanking; whitespace or punctuation there leaves the rule
-    satisfied. The caller falls back to the split rendering, the image
-    bare, as before."""
+    alphanumeric is not right-flanking when `)` precedes). The breaking
+    character is anything that is neither whitespace nor punctuation — the
+    `_breaks_flanking` character-class test, not isalnum, since an emoji or
+    a symbol beside the image edge breaks the span the same way on GitHub's
+    cmark-gfm (#1583). A neighboring styled run's own marker is just as bad
+    (#1530 review): its `*` merges with an asterisk marker into a single
+    `***` run the parser reads as neither span, so a previous rendered part
+    ending in a live `*` — a styled neighbor's own marker, where a literal
+    one is escaped, and an escaped backslash before the marker leaves it
+    live too (#1583) — and a next run carrying bold or italic and starting
+    with no whitespace fall back as well — `*it***![logo](u) bold**` would
+    lose its bold, and `**bold ![logo](u)***it*` its markers. Only an image
+    at the span's edge puts a marker there — a run's edge whitespace already
+    renders outside the markers.
+
+    A span that takes its own link wrap — `style[3]` set with a run in the
+    group, so `_render_span` writes `[**…**](url)` — puts its markers inside
+    the brackets: neither the character outside nor a styled neighbour's
+    own marker can touch them, so both neighbour checks are skipped (#1610
+    review). The caller falls back to the split rendering, the image bare,
+    as before."""
+    if style[3] and any(isinstance(m, Run) for m in group):
+        # The span's own link wrap puts its markers inside the brackets —
+        # `[…](url)` — so the character outside never touches them, and a
+        # styled neighbour's own marker cannot merge with one either.
+        return False
     if isinstance(group[0], Image) and parts:
         prev = parts[-1]
-        # A `*` the previous part ended in is a styled neighbor's own
-        # marker (a literal one is escaped); beside an opening asterisk
-        # marker the two merge into one `***` run.
-        if prev[-1:].isalnum() or (
-            (style[0] or style[1]) and prev.endswith("*") and not prev.endswith("\\*")
+        # A `*` the previous part ends in is a styled neighbor's own marker
+        # when it's live — backslash parity decides (_ends_with_unescaped), so
+        # an escaped backslash followed by a real marker counts too: an
+        # italic run "a\\" renders `*a\\*`, where endswith("\\*") misread
+        # the marker as escaped. Beside an opening asterisk marker the two
+        # merge into one `***` run.
+        if _breaks_flanking(prev[-1:]) or (
+            (style[0] or style[1]) and _ends_with_unescaped(prev, "*")
         ):
             return True
     nxt = items[next_i] if next_i < len(items) else None
     if isinstance(group[-1], Image) and isinstance(nxt, Run):
-        if nxt.text[:1].isalnum():
+        if _breaks_flanking(nxt.text[:1]):
             return True
         # A next run carrying bold or italic writes its own marker directly
         # after the span's closing one when it starts with no whitespace,
@@ -615,8 +651,11 @@ def _render_span(group: list[Run | Image], style: tuple, in_table: bool) -> str:
         body = f"**{body}**"
     body = f"{_render_breaks(lead, in_table)}{body}{_render_breaks(trail, in_table)}"
     if link_url and has_run:
+        # The destination isn't table-safed here: the whole span is, once,
+        # at return, and a pre-escaped "\\|" would come out "\\\\|" — an
+        # escaped backslash and a live pipe that splits the row (#1583).
         dest = _md_link_dest(link_url)
-        body = f"[{body}]({_table_safe(dest) if in_table else dest})"
+        body = f"[{body}]({dest})"
     body = f"{_render_breaks(lead_breaks, in_table)}{body}{_render_breaks(trail_breaks, in_table)}"
     return _table_safe(body) if in_table else body
 
@@ -717,12 +756,6 @@ def _markdown_style(item: Run | Image) -> tuple:
     # the same fields (#1475), so the same test tells whether it sits in the
     # same span as a run (#1509).
     return (bool(item.bold), bool(item.italic), bool(item.strikethrough), item.link_url)
-
-
-# A style no Markdown marker can express: no emphasis, no link. Items with it
-# render one at a time exactly as before — grouping them would change nothing
-# semantically, but would hand _join_inline different part boundaries.
-_NO_MARKERS = (False, False, False, None)
 
 
 def _coalesce_plain_runs(items: list) -> list:
