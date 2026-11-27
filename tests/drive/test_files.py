@@ -2840,6 +2840,73 @@ class TestCsvChunks:
             "Planning row writes for 2 rows",
         )
 
+    async def test_the_width_scan_and_padding_run_off_the_event_loop(self, tmp_path, monkeypatch):
+        """#1623: the O(rows) width scan and padding ran on the loop, stalling every
+        other SSE connection while a large file planned. The grid-limit check sits
+        inside the scan's thread call; the padding runs with the chunk planning."""
+        import threading
+
+        limit_error = drive_files_module._csv_grid_limit_error
+        seen_threads = []
+
+        def _record_scan_thread(local_path, rows, columns):
+            seen_threads.append(("scan", threading.get_ident()))
+            return limit_error(local_path, rows, columns)
+
+        monkeypatch.setattr(drive_files_module, "_csv_grid_limit_error", _record_scan_thread)
+        chunks = drive_files_module._csv_chunks
+
+        def _record_planning_thread(rows):
+            seen_threads.append(("chunks", threading.get_ident()))
+            return chunks(rows)
+
+        monkeypatch.setattr(drive_files_module, "_csv_chunks", _record_planning_thread)
+        pad_rows = drive_files_module._pad_rows
+
+        def _record_padding_thread(rows, width):
+            seen_threads.append(("padding", threading.get_ident()))
+            return pad_rows(rows, width)
+
+        monkeypatch.setattr(drive_files_module, "_pad_rows", _record_padding_thread)
+        helper = TestImportCsvToSheet()
+        path = helper._write_csv(tmp_path, [["a", "b"], ["c"]])
+        ctx = _make_ctx(
+            drive_service=helper._drive_service(),
+            sheets_service=helper._sheets_service(row_count=2, column_count=2),
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            cache=MagicMock(),
+            folder_id=None,
+        )
+        await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        # The event loop runs on this test's own thread, which asyncio.to_thread leaves.
+        loop_thread = threading.get_ident()
+        # The padding is a module-level helper of its own (#1638), so the test
+        # records its thread separately from the chunk planning it feeds —
+        # moving the padding back before the to_thread call fails here.
+        assert [step for step, _ in seen_threads] == ["scan", "padding", "chunks"]
+        assert all(ident != loop_thread for _, ident in seen_threads), seen_threads
+
+    async def test_a_refused_file_hears_no_planning_progress(self, tmp_path, monkeypatch):
+        """#1623: the planning progress message stays behind the grid-limit refusal,
+        so a file the import is about to refuse never hears it first."""
+        monkeypatch.setattr(drive_files_module, "_SHEETS_CELL_LIMIT", 5)
+        monkeypatch.setattr(drive_files_module, "_CSV_PLAN_PROGRESS_ROWS", 1)
+        helper = TestImportCsvToSheet()
+        path = helper._write_csv(tmp_path, [["a", "b"], ["1", "2"], ["3", "4"]])
+        ctx = _make_ctx(
+            drive_service=helper._drive_service(),
+            sheets_service=helper._sheets_service(),
+            drive_folder_cache=MagicMock(),
+            sheet_data_cache=MagicMock(),
+            cache=MagicMock(),
+            folder_id=None,
+        )
+        ctx.report_progress = AsyncMock()
+        result = await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
+        assert "error" in result
+        ctx.report_progress.assert_not_awaited()
+
     def test_row_bytes_match_every_ascii_character(self):
         import json
 
