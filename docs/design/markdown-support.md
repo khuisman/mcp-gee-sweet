@@ -176,6 +176,7 @@ another registered tool), passing `content_format` through to `_to_doc_requests`
 | `**bold**` | `<strong>` | `Run(bold=True)` | bold text run |
 | `*italic*` | `<em>` | `Run(italic=True)` | italic text run |
 | `~~strikethrough~~` | `<s>` (GFM strikethrough) | `Run(strikethrough=True)` | struck-through text run (#1077) |
+| `~strikethrough~` | `<s>` (GFM single-tilde strikethrough; opening and closing runs must match, and a run of three or more tildes stays literal. As in GFM, a tilde pair may sit inside a word: `100~200 and 300~400` strikes `200 and 300`.) | `Run(strikethrough=True)` | struck-through text run (#1335) |
 | `<s>`, `<strike>`, `<del>` (inline HTML) | passed through | `Run(strikethrough=True)` | struck-through text run (#1077) |
 | `<sub>`, `<sup>` (inline HTML) | passed through | `Run(baseline_offset="SUBSCRIPT"/"SUPERSCRIPT")`; the innermost open tag wins | subscript / superscript text run (#1119) |
 | `<mark>` (inline HTML) | passed through | `Run(background_color=` yellow `)` | yellow-highlighted text run (#1119) |

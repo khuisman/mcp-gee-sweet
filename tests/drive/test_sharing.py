@@ -1,8 +1,11 @@
 """Tests for tools/drive/sharing.py (share_spreadsheet, share_file, list_permissions, etc.)."""
 
+import inspect
 import json
+from typing import Literal, get_args
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from googleapiclient.errors import HttpError
 
 from mcp_gee_sweet.tools.drive import sharing as sharing_module
@@ -219,6 +222,68 @@ class TestShareSpreadsheet:
         assert result["successes"][0]["permissionId"] == "perm-xyz"
 
 
+class TestShareSpreadsheetDeprecation:
+    """#665: share_spreadsheet stays callable for one release, its description
+    opening with the share_file call that replaces it."""
+
+    def test_deprecated_with_share_file_as_replacement(self):
+        from mcp_gee_sweet.deprecation import tool_deprecation
+
+        func = _sharing_tools["share_spreadsheet"]
+        deprecation = tool_deprecation(func)
+        assert deprecation is not None
+        assert deprecation.removed_in == "the next feature release"
+        assert func.__doc__.startswith("Deprecated: use `share_file`")
+
+    def test_note_names_the_role_default_that_differs(self):
+        # share_file defaults a missing `role` to reader, so following the note for
+        # a recipient that omits it must not quietly share read-only what this tool
+        # would have shared as writer.
+        note = _sharing_tools["share_spreadsheet"].__doc__.split("\n\n", 1)[0]
+        assert "'type': 'user'" in note
+        assert "`'role': 'writer'` explicitly" in note
+
+    @pytest.mark.parametrize("tool_name", ["share_file", "list_permissions"])
+    def test_survivors_not_deprecated(self, tool_name):
+        from mcp_gee_sweet.deprecation import tool_deprecation
+
+        assert tool_deprecation(_sharing_tools[tool_name]) is None
+
+    @pytest.mark.parametrize("send_notification", [True, False])
+    async def test_share_file_as_the_note_says_sends_the_same_request(self, send_notification):
+        """The note's share_file call creates the same permission, with the same
+        notification setting, as the share_spreadsheet call it replaces."""
+        calls = {}
+        for tool_name, kwargs in (
+            (
+                "share_spreadsheet",
+                {
+                    "spreadsheet_id": "ss1",
+                    "recipients": [{"email_address": "a@example.com", "role": "commenter"}],
+                },
+            ),
+            (
+                "share_file",
+                {
+                    "file_id": "ss1",
+                    "permissions": [
+                        {"type": "user", "email_address": "a@example.com", "role": "commenter"}
+                    ],
+                },
+            ),
+        ):
+            drive = MagicMock()
+            drive.permissions.return_value.create.return_value.execute.return_value = {"id": "p1"}
+            ctx = _make_ctx(drive_service=drive)
+            ctx.report_progress = AsyncMock()
+            result = await _sharing_tools[tool_name](
+                **kwargs, send_notification=send_notification, ctx=ctx
+            )
+            assert result["failures"] == []
+            calls[tool_name] = drive.permissions.return_value.create.call_args.kwargs
+        assert calls["share_file"] == calls["share_spreadsheet"]
+
+
 class TestListPermissions:
     """list_permissions maps Drive API camelCase field names to snake_case output."""
 
@@ -390,6 +455,148 @@ class TestTransferOwnership:
         _, kwargs = drive.permissions.return_value.create.call_args
         assert kwargs["sendNotificationEmail"] is True
 
+    async def test_guard_refuses_truthy_non_true_value(self):
+        """#1181: the guard tests `is not True`, so a truthy value that isn't True
+        (a caller that skipped schema validation) is refused, never forwarded.
+        test_default_still_notifies covers the request's literal kwarg."""
+        drive = MagicMock()
+        ctx = _make_ctx(drive_service=drive)
+        result = await _sharing_tools["transfer_ownership"](
+            file_id="file-1",
+            new_owner_email="new-owner@example.com",
+            send_notification=1,
+            ctx=ctx,
+        )
+        assert "error" in result
+        drive.permissions.return_value.create.assert_not_called()
+
+    async def test_refusal_names_what_drive_requires(self):
+        """#1181: Drive requires that the notification not be disabled; the
+        message says so rather than naming the API parameter as required."""
+        ctx = _make_ctx(drive_service=MagicMock())
+        result = await _sharing_tools["transfer_ownership"](
+            file_id="file-1",
+            new_owner_email="new-owner@example.com",
+            send_notification=False,
+            ctx=ctx,
+        )
+        assert "notification email is disabled" in result["error"]
+        assert "requires sendNotificationEmail" not in result["error"]
+
+    def test_schema_allows_only_true(self):
+        """#1181: the parameter's schema admits only True, so an agent can't pick
+        False from the tool listing, and True or an omitted value still validates."""
+        param = inspect.signature(_sharing_tools["transfer_ownership"]).parameters[
+            "send_notification"
+        ]
+        assert param.annotation == Literal[True]
+        assert get_args(param.annotation) == (True,)
+        assert param.default is True
+
+    async def test_shared_drive_item_returns_clear_error(self):
+        """#1181: Drive 403s an owner transfer on a shared drive item with
+        ownerOnTeamDriveItemNotSupported ("Owner role is invalid for shared drive
+        items.", TC-D233/TC-D234). The tool says why and what to do instead."""
+        drive = MagicMock()
+        resp = MagicMock()
+        resp.status = 403
+        content = json.dumps(
+            {
+                "error": {
+                    "code": 403,
+                    "message": "Owner role is invalid for shared drive items.",
+                    "errors": [
+                        {
+                            "reason": "ownerOnTeamDriveItemNotSupported",
+                            "message": "Owner role is invalid for shared drive items.",
+                        }
+                    ],
+                }
+            }
+        ).encode()
+        drive.permissions.return_value.create.return_value.execute.side_effect = HttpError(
+            resp=resp, content=content
+        )
+        ctx = _make_ctx(drive_service=drive)
+        result = await _sharing_tools["transfer_ownership"](
+            file_id="file-1", new_owner_email="new-owner@example.com", ctx=ctx
+        )
+        assert set(result) == {"error"}
+        assert "file-1" in result["error"]
+        assert "shared drive" in result["error"]
+        assert "Nothing was changed" in result["error"]
+        assert "My Drive" in result["error"]
+
+    async def test_consumer_accounts_return_clear_error(self):
+        """#1181: between two gmail.com accounts Drive 403s with
+        consentRequiredForOwnershipTransfer (checked live). The tool says the new
+        owner has to accept and where the request is sent from."""
+        drive = MagicMock()
+        resp = MagicMock()
+        resp.status = 403
+        content = json.dumps(
+            {
+                "error": {
+                    "code": 403,
+                    "message": "Consent is required to transfer ownership of a file to another user.",
+                    "errors": [{"reason": "consentRequiredForOwnershipTransfer"}],
+                }
+            }
+        ).encode()
+        drive.permissions.return_value.create.return_value.execute.side_effect = HttpError(
+            resp=resp, content=content
+        )
+        ctx = _make_ctx(drive_service=drive)
+        result = await _sharing_tools["transfer_ownership"](
+            file_id="file-1", new_owner_email="new-owner@gmail.com", ctx=ctx
+        )
+        assert set(result) == {"error"}
+        assert "file-1" in result["error"]
+        assert "new-owner@gmail.com" in result["error"]
+        assert "Nothing was changed" in result["error"]
+        assert "Share dialog" in result["error"]
+        assert "doesn't send" in result["error"]
+        # Worded from the reason alone: only gmail.com -> gmail.com was seen live,
+        # and the rewrite applies to every account pair Drive sends it for.
+        assert "personal" not in result["error"]
+
+    async def test_other_http_errors_still_raise(self):
+        """Only the shared drive and consumer-consent reasons are rewritten; any
+        other Drive error (a 404, a different 403, the cross-organization 400,
+        whose own message is already clear) propagates unchanged, as before.
+        The cross-organization 400 has been seen live with two reasons (#1181):
+        ownershipChangeAcrossDomainNotPermitted (gmail.com owner to a Workspace
+        account) and invalidSharingRequest (Workspace owner to an address with no
+        Google account, PR #1600 QA round 1)."""
+
+        def cross_org(reason: str) -> HttpError:
+            resp = MagicMock()
+            resp.status = 400
+            message = (
+                "Sorry, ownership can only be transferred to another user in the "
+                "same organization as the current owner."
+            )
+            return HttpError(
+                resp=resp,
+                content=json.dumps(
+                    {"error": {"message": message, "errors": [{"reason": reason}]}}
+                ).encode(),
+            )
+
+        for err in (
+            _http_error(404, "File not found: file-1."),
+            _http_error(403, "Forbidden"),
+            cross_org("ownershipChangeAcrossDomainNotPermitted"),
+            cross_org("invalidSharingRequest"),
+        ):
+            drive = MagicMock()
+            drive.permissions.return_value.create.return_value.execute.side_effect = err
+            ctx = _make_ctx(drive_service=drive)
+            with pytest.raises(HttpError):
+                await _sharing_tools["transfer_ownership"](
+                    file_id="file-1", new_owner_email="new-owner@example.com", ctx=ctx
+                )
+
 
 class TestShareFile:
     """share_file handles the richer type/domain/anyone permission model."""
@@ -534,3 +741,36 @@ class TestShareFile:
         )
         assert len(result["successes"]) == 1
         assert result["successes"][0]["permissionId"] == "perm-abc"
+
+    async def test_progress_names_each_entry_by_address_or_domain(self):
+        """#665: share_file replaces share_spreadsheet, which named each recipient in
+        its progress message, so entries of one type stay distinguishable. An entry
+        with neither (`anyone`), and a malformed one, are named by their type."""
+        drive = self._drive_svc()
+        ctx = _make_ctx(drive_service=drive)
+        ctx.report_progress = AsyncMock()
+        await _sharing_tools["share_file"](
+            file_id="file-1",
+            permissions=[
+                {"type": "user", "email_address": "alice@example.com", "role": "writer"},
+                {"type": "user", "email_address": "bob@example.com", "role": "reader"},
+                {"type": "domain", "domain": "example.com", "role": "reader"},
+                {"type": "anyone", "role": "reader"},
+                "not-a-dict",
+            ],
+            ctx=ctx,
+        )
+        messages = sorted(c.args[2] for c in ctx.report_progress.await_args_list)
+        assert messages == [
+            "None: failure",
+            "alice@example.com: success",
+            "anyone: success",
+            "bob@example.com: success",
+            "example.com: success",
+        ]
+
+    def test_role_documented_as_optional_reader(self):
+        # The CHANGELOG's migration advice relies on a missing role meaning reader.
+        doc = " ".join(_sharing_tools["share_file"].__doc__.split())
+        assert "'role' is optional and defaults to 'reader'" in doc
+        assert "must have 'type' and 'role'" not in doc

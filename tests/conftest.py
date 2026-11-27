@@ -6,6 +6,11 @@ import os
 # developer's .env, which the real env var beats. Tests of the selection itself
 # use a fresh interpreter or tool_groups directly.
 os.environ["ENABLED_TOOLS"] = "all"
+# Same reason: LOCAL_FILE_ACCESS=off in a developer's .env would leave the
+# local-only tools unregistered, and the suite-wide checks would pass without
+# seeing them. Tests of the policy itself build their own (fakes.use_local_file_policy,
+# or a subprocess env with LOCAL_FILE_ACCESS stripped).
+os.environ["LOCAL_FILE_ACCESS"] = "full"
 
 import pytest
 

@@ -36,7 +36,7 @@ _WORD_CHARS = re.compile(r"[a-z0-9]+")
 # github-slugger's regex is frozen at Unicode 13.0.0: characters assigned
 # since — the combining marks U+1AC1-U+1ACE and U+0898-U+089F — are kept
 # here, by their current categories, where the frozen regex strips them as
-# Unassigned (measured against github-slugger master, 2026-11-20: its slug
+# Unassigned (measured against github-slugger master on 2026-11-20, UTC: its slug
 # of "a\u1ac1b" is "ab", this one keeps the mark). The rule targets
 # GitHub.com's current behaviour, not the npm package's output on code
 # points assigned after 13.0.
@@ -107,9 +107,11 @@ def _github_style_slugify(text: str) -> str:
 
 def _gitlab_style_slugify(text: str) -> str:
     """The GitLab/Kramdown-style hyphen-collapsing convention, delegated to
-    python-markdown's own `toc` extension slugify (already a dependency of
-    this project — see _md_to_html above) rather than hand-rolled: confirmed
-    live it collapses "A - Approved" -> "a-approved", matching that
+    python-markdown's own `toc` extension slugify (a direct dependency of
+    this project, and its only import site in `src/` — `md_to_html.py`
+    renders through markdown-it-py, not python-markdown) rather than
+    hand-rolled: confirmed live it collapses "A - Approved" ->
+    "a-approved", matching that
     convention. Named as a real function rather than an inline lambda so a
     test can select this scheme by name instead of by _SLUGIFY_FUNCS
     position (#1553)."""
@@ -266,13 +268,22 @@ def resolve_heading_anchor(
     (#1553): a browser's address bar percent-encodes the fragment, so an
     anchor copied from GitHub arrives as "#caf%C3%A9" for a "Café" heading
     (or "#cafe%CC%81" for a decomposed "cafe\u0301"), and that encoded form
-    is what gets pasted into markdown. The literal anchor is always tried
-    whole first — decoding is a fallback, never a rewrite. Both forms get
-    the exact scheme match before the fuzzy fallback runs, and only for the
-    literal form: a decoded non-ASCII anchor's letters drop out of the
-    token comparison (see _normalize_tokens), so letting the decoded form
-    fuzzy-match would resolve a stale anchor to whichever heading shares
-    its ASCII words — worse than not resolving it.
+    is what gets pasted into markdown. The literal anchor is never
+    rewritten — the decoded form is retried beside it, and both forms get
+    the exact scheme match before any fuzzy fallback runs. Which of the two
+    exact matches lands first is unobservable (every scheme strips "%", so
+    a percent-encoded anchor can never exactly match a slug as written);
+    what the retry pins is that neither form's exact match can lose to the
+    other's token match (see test_decoded_exact_match_outranks_a_literal_
+    fuzzy_match). The fuzzy fallback runs for the literal form only: a
+    decoded non-ASCII anchor's letters drop out of the token comparison (see
+    _normalize_tokens), so letting the decoded form fuzzy-match would
+    resolve a stale anchor to whichever heading shares its ASCII words —
+    worse than not resolving it. The residual edges of that design — an
+    ASCII percent-encoded anchor that decodes to a space, NFC/NFD
+    normalization, an unencoded non-ASCII stale anchor reaching the
+    ASCII-only fuzzy match — are documented in
+    docs/known-limitations.md (#1579).
     """
     anchor = anchor.lstrip("#")
     if not anchor or not heading_texts:

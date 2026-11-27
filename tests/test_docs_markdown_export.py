@@ -1869,6 +1869,19 @@ class TestAstToMarkdownBlocks:
         nodes = [Paragraph(runs=[Run(text="> not a quote")])]
         assert ast_to_markdown(nodes) == "\\> not a quote\n"
 
+    def test_paragraph_starting_with_blockquote_marker_without_space_is_escaped(self):
+        # CommonMark's blockquote marker needs no whitespace after it, so
+        # ">word" opens a quote under any CommonMark renderer (GitHub
+        # included) while "#word" and "-word" stay paragraphs. The marker
+        # escape must never look past the ">" (#1627).
+        nodes = [Paragraph(runs=[Run(text=">not a quote")])]
+        assert ast_to_markdown(nodes) == "\\>not a quote\n"
+
+    def test_list_item_starting_with_blockquote_marker_without_space_is_escaped(self):
+        # "- >word" would read back as an item holding a nested blockquote.
+        nodes = [BulletItem(runs=[Run(text=">word")], depth=0)]
+        assert ast_to_markdown(nodes) == "- \\>word\n"
+
     def test_paragraph_starting_with_bullet_marker_is_escaped(self):
         nodes = [Paragraph(runs=[Run(text="- not a bullet")])]
         assert ast_to_markdown(nodes) == "\\- not a bullet\n"
@@ -1884,6 +1897,9 @@ class TestAstToMarkdownBlocks:
             "###### h",
             "  ### h",
             "   > q",
+            "  >q",
+            ">q",
+            ">>q",
             " 1. x",
             "---",
             "- - -",
