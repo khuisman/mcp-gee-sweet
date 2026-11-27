@@ -3770,10 +3770,12 @@ Create a scratch Drive folder `{FOLDER_ID}` on the Shared Drive (a service accou
 4. Run calls 1 to 3 twice more, each time into a fresh `{FOLDER_ID}`.
 
 **Checks**
-- Call 1: all 24 names in `uploaded`; `failed` and `skipped_unverified` are empty. It takes a few seconds longer than before #1415 (each conversion now waits about a second), not 15 seconds per file.
+- Call 1: all 24 names in `uploaded`; `failed` and `skipped_unverified` are empty. `upload_local_folder` uploads one file at a time, about 6 s per converted file under OAuth, so the call takes two to three minutes and the MCP client may move it to the background. The wait for each import adds up to about a second per file on top of that (about 0.2 s on average, measured in PR #1648 QA round 1), never 15 seconds per file.
 - Call 2: 24 Google Sheets, each named without `.csv`, and every one's `modified_time` is the local mtime in UTC (`2023-01-01T08:00:00.000Z` on a machine in Pacific time). None is today's date. Before the fix, some of them were.
 - Call 3: 24 `actions`, every one `skip` with reason "in sync". None is `download` ("drive newer by …") or `conflict`.
 - All three runs pass: 72 Sheets, none drifted.
 
 **Teardown**
 Trash each `{FOLDER_ID}` with its contents, then `rm -rf /tmp/qa-304`.
+
+**Result (2026-11-27) ✅ PASS — PR #1648 QA round 1, head `e4b43b88`, via `mcp-gee-sweet-sky` (OAuth) in `TEST_FOLDER_ID` on the Shared Drive.** All three runs: call 1 uploaded all 24 with `failed` and `skipped_unverified` empty, taking 120–154 s (moved to the background by the client after 120 s). Call 2: 24 Sheets named without `.csv`, every `modified_time` `2023-01-01T08:00:00.000Z`. Call 3: 24 `skip` "in sync". 72 Sheets, none drifted. Not part of this case: a fresh interpreter running this head's `_upload_local_file` under the service account (`service_account.json`), 24 files 8 at a time, uploaded 24 and none had drifted at +60 s; and timing 6 sequential OAuth uploads with and without `_await_import_write` gave 6.23 s and 6.00 s per file, so the wait added about 0.2 s on average. A `sync_folder(convert_markdown=True, direction="upload")` of two `.md` files also kept `2023-01-01T08:00:00.000Z` and planned both "in sync".
