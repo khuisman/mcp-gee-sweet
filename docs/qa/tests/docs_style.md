@@ -985,4 +985,7 @@ Read paragraph styles as in TC-DOC274.
 
 **Cleanup:** `delete_file` the doc
 
+**Result (2026-11-27) ✅ PASS — Kit, PR #1647 round 1 @ 73fad873**
+`mcp-gee-sweet-kit`, reconnected after the reset. Step 1: `{END}` = 24; the empty paragraph before the table (7–8) is collapsed (`lineSpacing` 1, 0pt above and below). Step 2: "added later" (24–36) has `lineSpacing` 1 with 0pt above and below. Step 3: `{}`, no `NORMAL_TEXT` and no `line_spacing` anywhere. Step 4: `{"NORMAL_TEXT": {"font_family": "Georgia"}}`. Extra probe, not part of the case: `apply_theme(theme={"NORMAL_TEXT": {"line_spacing": 115, "space_below": 6}}, overwrite=True)` then gave the collapsed empty paragraph before the table `lineSpacing` 115 and 6pt below (send-back on the PR).
+
 ---
