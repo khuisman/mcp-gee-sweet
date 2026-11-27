@@ -55,11 +55,13 @@ Related: #190.
 ### Text typed after a document's final table overlaps it
 
 **What:** When content written by `create_doc`, `write_doc_content`, `create_doc_from_file`,
-`update_doc_from_file`, or `upload_file`'s Markdown Doc ends in a table, text added after that
-table later (typed in the Docs editor, or written by `insert_doc_text` at the document's end) is
-drawn over the table's last row. Each line added there overprints the one before it too: every
-paragraph started from that text, by Enter or a `"\n"`, takes the same spacing. This applies to
-every document that ends in a table, not only one whose table reaches the bottom margin.
+`update_doc_from_file`, or `upload_file`'s Markdown Doc ends in a table, text typed after that
+table later in the Docs editor is drawn over the table's last row. Each line typed there
+overprints the one before it too: every paragraph started from that text by Enter takes the same
+spacing. This applies to every document that ends in a table, not only one whose table reaches
+the bottom margin. Text written there by `insert_doc_text` doesn't overlap: the tool gives it the
+document's normal line spacing back (#1439), and reports `trailingParagraphReset: true` when it
+does.
 
 **Why:** A Docs body always ends in a paragraph, so a document ending in a table has an empty one
 after it. When the table reaches the bottom margin, that paragraph spills onto a blank last page
@@ -69,13 +71,10 @@ paragraph in every document ending in a table (`spaceAbove/spaceBelow = 0`, `lin
 text keeps the document's size.
 
 **Workaround:** In the Docs editor, select the added text and set its line spacing back
-(Format > Line & paragraph spacing > Single). From the tools,
-`apply_theme(theme={"NORMAL_TEXT": {"line_spacing": 100}}, overwrite=True)` sets single spacing
-on every `NORMAL_TEXT` paragraph, the collapsed ones included. That gives the paragraph after the
-table its height back, so the blank last page can return, and gives the collapsed blank
-paragraph before each table (see above) a 1pt line's height. Or write the added text
-as part of the content: `write_doc_content` or `update_doc_from_file` rewrites the document, and
-the paragraph after the table is collapsed again only if the new content still ends in a table.
+(Format > Line & paragraph spacing > Single). From the tools, `style_doc_range` over the added
+text's range with `line_spacing`, `space_above` and `space_below` all `null` gives it the
+document's normal spacing back, and touches no other paragraph. Use `get_doc_structure` for the
+range.
 
 ---
 
@@ -161,10 +160,11 @@ needs Markdown inside it as HTML instead.
 
 **What:** A Markdown setext (`===`/`---`) heading split across a soft break — `Heading one` on
 one line, `heading two` on the next, underline under it — written by `create_doc`,
-`write_doc_content`, `create_doc_from_file` or `update_doc_from_file` keeps the break's hyphen
+`write_doc_content`, `upload_file` (a `'markdown'` source with `convert_to_doc=True`),
+`create_doc_from_file` or `update_doc_from_file` keeps the break's hyphen
 in its slug: both schemes slug the heading `heading-one-heading-two`. GitHub's own anchor for
 the same heading is `#heading-oneheading-two` (github-slugger drops the `\n` with no separator,
-measured 2026-11-20), so a `#heading-oneheading-two` link copied from GitHub strips to plain
+measured 2026-11-20, UTC), so a `#heading-oneheading-two` link copied from GitHub strips to plain
 text instead of resolving. The GitLab spelling, `#heading-one-heading-two`, resolves.
 
 **Why:** The write collapses the soft break to a space — the same thing a browser's rendering
@@ -174,6 +174,35 @@ residual edge of the #1357 anchor family, recorded here under its chain stop (#1
 
 **Workaround:** Write the heading on one line, or spell the anchor with the hyphen the collapse
 produces.
+
+---
+
+### Percent-encoded and non-ASCII `#anchor` edges
+
+**What:** Three edges of the percent-decoding retry and its fuzzy fallback, none hit in use
+(#1579). An ASCII percent-encoded anchor that decodes to a space still doesn't resolve:
+`#Getting%20Started` for a "Getting Started" heading decodes to `getting started`, which
+matches no slug (every scheme hyphenates the space), and the literal form's fuzzy tokens are
+`getting`, `20`, `started` — the `%20` reads as the word "20" — so it strips. One whose
+percent-encoding ends in digits can mis-link the other way: `#Step%201` among headings
+"Step 1" and "Step 201" resolves to "Step 201", on the literal tokens `step`/`201`. No
+normalization spans the composed/decomposed divide: `#caf%C3%A9` resolves for a composed
+"Café", `#cafe%CC%81` only for a heading whose stored text is itself decomposed — neither
+matches the other's heading. And an unencoded non-ASCII stale anchor mis-links through the
+same ASCII-only token comparison: `#step-1-実行` resolves to the first "Step 1" heading, the
+CJK letters dropping out of the match.
+
+**Why:** These are the cost of what the retry deliberately refuses (#1553 review): the
+decoded form never reaches the fuzzy match, because a decoded anchor's non-ASCII letters
+drop out of the token comparison and a stale anchor would resolve to whichever heading
+shares its ASCII words — a wrong-section link is worse than none. The same refusal keeps
+NFC/NFD normalization out: which spelling a heading's stored text uses is real content, and
+matching either would guess. The literal anchor keeps the fuzzy fallback, so an unencoded
+non-ASCII stale anchor still slips through on that side. A residual edge of the #1357
+anchor family, recorded under its chain stop.
+
+**Workaround:** Paste the anchor decoded — the way the address bar shows it after the jump —
+or spell it exactly as the heading's own slug: `#getting-started`, not `#Getting%20Started`.
 
 ---
 
@@ -628,6 +657,24 @@ A rename means the destination only ever holds the old content or the complete n
 
 **Workaround:** Re-apply ACLs, tags, or ownership after downloading, if they matter. Delete a
 leftover `.gee-sweet-partial-*` file once no download into that folder is running.
+
+### `import_csv_to_sheet` — a CSV of very large rows can time out
+
+**What:** `import_csv_to_sheet` writes rows in chunks of at most 200,000 cells or 5 MB, so each
+request finishes well inside the 60 s request timeout. A single row is never split across
+requests, though, so a row over 5 MB on its own goes as one request at its full size, and up to
+four such requests are in flight at once. A row that large comes from its total size, not one
+cell: 100 cells of 50,000 characters, 2,000 columns of 2,500 characters, or 10,000 columns of
+500 all reach 5 MB. A file made of such rows can have chunks time out, and they come back in
+`failed_ranges`.
+
+**Why:** Splitting a row would mean writing it in column ranges and reporting failures by
+column as well as by row. Rows this large are rare in a CSV.
+
+**Workaround:** Raise `HTTP_TIMEOUT_SECONDS`, or import the file with
+`upload_local_file(convert=True)`, Drive's own conversion, which took an 80 MB file of
+40,000-character cells in one upload (#1529). It guesses the delimiter, though, and names the
+sheet after the file.
 
 ## Local file access
 
