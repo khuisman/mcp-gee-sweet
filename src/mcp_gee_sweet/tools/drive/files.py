@@ -126,6 +126,14 @@ def _row_json_bytes(row: list[str]) -> int:
     return len(joined) + 4 * len(row) + 2 if row else 4
 
 
+def _pad_rows(rows: list[list[str]], width: int) -> list[list[str]]:
+    """Pad every row to the grid's width with empty cells, the shape a Sheets
+    grid needs: csv.reader keeps each row only as long as its own last value.
+    Module-level, not a closure, so a test can wrap it and record the thread
+    it runs on (#1638)."""
+    return [row + [""] * (width - len(row)) for row in rows]
+
+
 def _csv_chunks(rows: list[list[str]]) -> list[tuple[int, list[list[str]]]]:
     """Split rows into (start index, rows) chunks, one row write each (#1577).
 
@@ -552,7 +560,10 @@ def register(tool):
         # Off the loop, like the read (#1623): the scan and the padding below are
         # O(rows), and under SSE their stall blocked every other connection's tool
         # calls and keepalives. The grid-limit check runs inside it, ahead of the
-        # padding, which a refused file shouldn't pay for.
+        # padding, which a refused file shouldn't pay for. The work is pure Python
+        # and holds the GIL, so other connections are slowed rather than stopped
+        # (Python's thread-switch interval), but the loop is no longer blocked
+        # outright (#1638).
         def _scan_width_and_check_grid_limits() -> tuple[int, int, str | None]:
             width = max(len(row) for row in rows)
             # A file of blank lines has no columns, and a grid needs at least one.
@@ -565,8 +576,10 @@ def register(tool):
         if limit_error:
             return {"error": limit_error}
         # Off the loop too, since it sizes every row, and before the create, so a
-        # cancellation while it runs leaves nothing behind. It takes about 1.5 s per
-        # 2M rows, so a large file says so first (PR #1615 QA round 1).
+        # cancellation while it runs leaves nothing behind. The step it announces
+        # covers the padding and the planning together: the padding measured
+        # 1.36 s per 2M rows beside the scan (#1623), the planning about 1.5 s
+        # (#1615 QA round 1) — the old figure undercounted it (#1638).
         if len(rows) >= _CSV_PLAN_PROGRESS_ROWS:
             await report_progress_safe(
                 ctx, 0, None, f"Planning row writes for {len(rows):,} rows", "planning"
@@ -576,8 +589,11 @@ def register(tool):
             list[list[str]], list[tuple[int, list[list[str]]]]
         ]:
             # O(rows) like the scan (#1623), and shares its thread-shaped reason:
-            # the padding runs just before the chunk planning it feeds.
-            padded_rows = [row + [""] * (width - len(row)) for row in rows]
+            # the padding runs just before the chunk planning it feeds. A
+            # cancelled caller doesn't stop this thread — it runs to completion,
+            # briefly holding the padded copy beside the rows it read, as the
+            # read's and the chunk planning's always have (#1638).
+            padded_rows = _pad_rows(rows, width)
             return padded_rows, _csv_chunks(padded_rows)
 
         rows, chunks = await asyncio.to_thread(_pad_rows_and_plan_chunks)
