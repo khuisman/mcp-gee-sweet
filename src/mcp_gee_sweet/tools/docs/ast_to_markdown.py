@@ -53,12 +53,17 @@ _BACKTICK_RUN = re.compile(r"`+")
 
 # A paragraph whose rendered text starts with one of these (unescaped) would be
 # misread by any CommonMark parser as a different block type entirely — an ATX
-# heading, a blockquote, a bullet item, or an ordered-list item — rather than
-# the plain paragraph text it actually is (#591 QA round 1, live-confirmed for
+# heading, a bullet item, or an ordered-list item — rather than the plain
+# paragraph text it actually is (#591 QA round 1, live-confirmed for
 # "1. Not actually a list item" and "# Not a heading either"). Applied to a
 # plain Paragraph and to a list item's text, which starts the item's first
 # block, so "- # a" is a heading inside the item (#1302). Heading/NamedBlock
 # text follows its own "#" prefix, where it's never re-parsed as a new block.
+# The blockquote marker is deliberately not in this regex: ">" is the one
+# marker CommonMark reads with no whitespace after it, so it has its own
+# check, _LEADING_BLOCKQUOTE_MARKER below (#1627, #1634) — adding it back
+# here would need the lookahead that requires trailing whitespace, which
+# would leave ">word" unescaped and bring #1627 back with it.
 _LEADING_SIMPLE_MARKER = re.compile(r"^(#{1,6}|[*+-])(?=[ \t]|$)")
 _LEADING_ORDERED_MARKER = re.compile(r"^(\d{1,9})([.)])(?=[ \t]|$)")
 # A line of only "-" (spaces allowed) is a thematic break, or a setext
