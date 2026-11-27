@@ -1555,14 +1555,20 @@
 <tr>
 <td><a href="decision-html-error-recovery/">HTML Error Recovery</a></td>
 <td>2026-11-01</td>
-<td>proposed</td>
-<td><code>html_to_ast</code> hand-builds the HTML Standard's tree-construction recovery on a tokenizer; PR #1316 spent six QA rounds rebuilding it piece by piece. Options: an HTML5 parser library (lean: selectolax), a planned hand-written model, or content-loss fixes only. #1231 ships as the tag mapping alone, bar "behaves like <code>&lt;s&gt;</code> on <code>develop</code>"</td>
+<td>decided</td>
+<td><code>html_to_ast</code> hand-builds the HTML Standard's tree-construction recovery on a tokenizer; PR #1316 spent six QA rounds rebuilding it piece by piece. Decided: an HTML5 parser library walked to the AST (2026-11-01), and the library is justhtml (2026-11-27): selectolax is quadratic in depth and attribute count and its PyPI release lacks two lexbor out-of-bounds-write fixes. #1231 ships as the tag mapping alone, bar "behaves like <code>&lt;s&gt;</code> on <code>develop</code>"</td>
 </tr>
 <tr>
 <td><a href="decision-tool-surface/">Tool Surface: Approaches Rejected</a></td>
 <td>2026-11-14</td>
 <td>record</td>
 <td>Gathers what was ruled out while sizing the tool list (#1514): dynamic disclosure (meta-tool, <code>list_changed</code>), one executor tool, a separate groups setting, composites the client can chain; aliases narrowed to explicit listing (#1209); VS Code's 128-tool error no longer reproduces (#1214). Proposal that follows: <code>design/tool-reduction.md</code></td>
+</tr>
+<tr>
+<td><a href="decision-type-checking/">Type Checking in CI</a></td>
+<td>2026-11-27</td>
+<td>decided</td>
+<td>Nothing checked types; <code>src/</code> is 83% annotated and pyright reports 680 errors, 600 from three patterns (untyped lifespan context, <code>ctx: Context = None</code>, camelCase <code>ToolAnnotations</code> hints) that a prototype clears. Decided: pyright basic on <code>src/</code> as a CI gate, not Ruff <code>ANN</code> or strict checking; <code>tests/</code> stays out. #379</td>
 </tr>
 <tr>
 <td><a href="decision-transfer-ownership-refusals/"><code>transfer_ownership</code> Refusals</a></td>
