@@ -808,6 +808,12 @@ class _AstParser(HTMLParser):
         # Open <pre> tags inside a table cell, whose whitespace is never trimmed
         # and whose runs are code-styled (#1417), like a body <pre>'s.
         self._cell_pre_depth = 0
+        # True between a <pre> that opened inside the caption being captured and
+        # the caption path's first data chunk inside it: a browser's parser
+        # ignores the one line break right after <pre>, so the caption's code
+        # block starts without an empty first line (PR #1586 review). Cleared by
+        # the first data, by </pre> and by the caption capture itself.
+        self._caption_pre_fresh = False
         # #1418: the cell's next text sits right after a nested table's </table>, so
         # its leading source spacing collapses at the start of the line that follows,
         # as a browser draws it (see handle_data). Cleared at a cell's start and end.
@@ -1953,6 +1959,13 @@ class _AstParser(HTMLParser):
                 # is open keeps its line breaks as the code's (see handle_data),
                 # not as soft breaks a browser shows as one space.
                 self._cell_pre_depth += 1
+                # The caption's <pre> drops the newline a browser's parser
+                # ignores right after its start tag, and the final one before
+                # its </pre> — the same edges the body <pre> trims at its close
+                # (PR #1586 review): fenced code arrives as
+                # "<pre><code>x\n</code></pre>", whose trailing "\n" read as
+                # an empty line, and "<pre>\nx" kept an empty first one.
+                self._caption_pre_fresh = self._capturing_caption()
             elif tag == "br":
                 in_pre = self._in_pre or self._cell_pre_depth > 0
                 # Inside a <pre> in a caption the break is still "\v": the
@@ -2056,6 +2069,7 @@ class _AstParser(HTMLParser):
             # A cell left open has no </td> to drop what it held.
             self._cell_held_runs = []
             appended_to_cell = False
+            caption_break_pending = False
             if self._table_stack:
                 tb = self._table_stack.pop()
                 # The <pre> count of the cell (or caption) this table opened in,
@@ -2102,6 +2116,7 @@ class _AstParser(HTMLParser):
                             # table with rows is a block of its own and needs
                             # none.
                             target.append_caption_runs([], break_after=True)
+                            caption_break_pending = True
                 if node is not None:
                     if fields is not None:
                         for name, value in fields.items():
@@ -2114,11 +2129,19 @@ class _AstParser(HTMLParser):
             # #1418: back inside an open cell, the text that follows starts on the
             # line after the block that just closed, so its leading spacing
             # collapses (see handle_data) — but only when a table node was really
-            # appended to that cell. An empty <table></table> builds no node, so
-            # the text on either side keeps the spacing the source put there, as on
-            # develop ("Before After", not "BeforeAfter"). Outside a cell there is
-            # nothing to trim.
-            self._cell_after_table = appended_to_cell and self._table_stack[-1].in_cell
+            # appended to that cell, or a no-rows table left a caption's break
+            # pending there (#1586 review): that pending break keeps the text
+            # off the caption's line, and the spacing between </table> and the
+            # text is the start of the new line it draws. An empty
+            # <table></table> builds no node and leaves no caption, so the text
+            # on either side keeps the spacing the source put there, as on
+            # develop ("Before After", not "BeforeAfter"). Outside a cell there
+            # is nothing to trim.
+            self._cell_after_table = (
+                (appended_to_cell or caption_break_pending)
+                and bool(self._table_stack)
+                and self._table_stack[-1].in_cell
+            )
             if self._table_depth == 0:
                 self._resume_interrupted_block("table")
             return
@@ -2326,7 +2349,11 @@ class _AstParser(HTMLParser):
             elif tag in _INLINE_CODE and not self._in_pre:
                 self._code_depth = max(0, self._code_depth - 1)
             elif tag == "pre":
+                was_caption_pre = self._cell_pre_depth > 0 and self._capturing_caption()
                 self._cell_pre_depth = max(0, self._cell_pre_depth - 1)
+                self._caption_pre_fresh = False
+                if was_caption_pre:
+                    self._strip_caption_pre_final_break()
         elif tag == "a":
             self._close_anchor()
 
@@ -2346,6 +2373,25 @@ class _AstParser(HTMLParser):
         held = self._pending_runs.pop()
         assert isinstance(held, Run)  # _flush_run just made it from non-empty text
         self._cell_held_runs.append(held)
+
+    def _strip_caption_pre_final_break(self):
+        """Drop the final line break of a <pre> that just closed inside the
+        caption being captured — the same newline the body </pre> strips
+        ("markdown adds it inside <pre> content"), which the caption path had
+        already written "\v", so the caption's own edge trim, which strips
+        ASCII formatting whitespace, never reached it: a fenced code block
+        `<pre><code>x\n</code></pre>` read as `x` plus an empty line (PR #1586
+        review). Runs here, not the raw buffer, because a </code> before
+        </pre> already flushed them."""
+        while self._pending_runs and isinstance(self._pending_runs[-1], Run):
+            text = self._pending_runs[-1].text
+            stripped = text.rstrip("\v")
+            if stripped == text:
+                break
+            if stripped:
+                self._pending_runs[-1].text = stripped
+                break
+            self._pending_runs.pop()
 
     def _close_anchor(self):
         """Pop whatever href the matching <a> start tag pushed, and nothing
@@ -2440,6 +2486,12 @@ class _AstParser(HTMLParser):
             if not all(c in _ASCII_FORMATTING_WHITESPACE for c in data):
                 self._ends_with_line_break = False
             if self._cell_pre_depth > 0:
+                if self._caption_pre_fresh:
+                    # A browser's parser ignores the one line break right after
+                    # <pre>, so the caption's code block starts without an
+                    # empty first line (PR #1586 review).
+                    self._caption_pre_fresh = False
+                    data = data[1:] if data.startswith("\n") else data
                 # Inside a <pre> of this caption: the code's own line breaks are
                 # hard breaks, written "\v" now so the soft-break collapsing at
                 # the caption's close leaves them — only the text inside the
@@ -2638,7 +2690,11 @@ class _TableBuilder:
 
     def append_runs(self, runs: list[Run | Image]):
         """Add flushed text runs to this still-open cell's ordered content."""
-        if runs:
+        # Only runs a reader sees draw a pending caption break (#1586 review):
+        # whitespace-only runs — a lone space after </table> — kept the break
+        # armed for the content that follows instead of drawing a line that
+        # held nothing but that space.
+        if _has_content(runs):
             self._flush_pending_cell_break()
         self._current_children.extend(runs)
 
@@ -2687,7 +2743,10 @@ class _TableBuilder:
     def end_cell(self, runs: list[Run | Image]):
         if self._current_cell is None:
             return
-        if runs:
+        # The same visible-content gate as append_runs (#1586 review): a
+        # no-rows caption's pending break is never drawn by whitespace alone,
+        # so a trailing space can't turn it into a blank line at the cell's end.
+        if _has_content(runs):
             self._flush_pending_cell_break()
         meta = self._current_cell
         # Record td width for col_widths (first row only)

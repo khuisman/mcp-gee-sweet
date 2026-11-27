@@ -723,6 +723,55 @@ class TestTableCaption:
             "inner",
         ]
 
+    async def test_a_fenced_code_block_in_a_caption_reads_without_an_empty_line(self):
+        # PR #1586 review: the <pre>'s own final "\n" — the one markdown-it
+        # writes before </pre> — had become "\v", which the caption's edge
+        # trim doesn't strip, so the usual fenced-code caption read `x` plus
+        # an empty line under it. The </pre> now drops it, as the body </pre>
+        # does.
+        nodes = html_to_ast(
+            "<table><caption><pre><code>x\n</code></pre></caption><tr><td>c</td></tr></table>"
+        )
+        assert [r.text for r in nodes[0].runs] == ["x"]
+
+    async def test_a_caption_pre_drops_the_newline_after_its_start_tag(self):
+        # The leading mirror: a browser's parser ignores one line break right
+        # after <pre>, where the caption read an empty line above the code
+        # (PR #1586 review).
+        nodes = html_to_ast("<table><caption><pre>\nx</pre></caption><tr><td>c</td></tr></table>")
+        assert [r.text for r in nodes[0].runs] == ["x"]
+
+    async def test_whitespace_after_a_no_rows_nested_caption_draws_no_break(self):
+        # PR #1586 review: a lone space after </table> drew the caption's
+        # pending break and ended the cell on a line holding that space.
+        # The break now waits for runs a reader sees, and the spacing after a
+        # no-rows table collapses as #1418's does after one with rows — as
+        # develop reads it: a / inner.
+        nodes = html_to_ast(
+            "<table><tr><td>a<table><caption>inner</caption></table> </td></tr></table>"
+        )
+        outer = nodes[0].rows[0].cells[0]
+        assert [ch.text if hasattr(ch, "text") else type(ch).__name__ for ch in outer.children] == [
+            "a",
+            "\v",
+            "inner",
+        ]
+
+    async def test_text_after_a_no_rows_nested_caption_starts_its_line_clean(self):
+        # The same spacing collapse on the path with text: `</table> b` starts
+        # its new line with no leading space (PR #1586 review).
+        nodes = html_to_ast(
+            "<table><tr><td>a<table><caption>inner</caption></table> b</td></tr></table>"
+        )
+        outer = nodes[0].rows[0].cells[0]
+        assert [ch.text if hasattr(ch, "text") else type(ch).__name__ for ch in outer.children] == [
+            "a",
+            "\v",
+            "inner",
+            "\v",
+            "b",
+        ]
+
     async def test_a_pending_caption_break_draws_before_a_nested_table_after_it(self):
         # PR #1586 review: the same pending break draws before a later nested
         # table too, keeping the table's block off the caption's line.
