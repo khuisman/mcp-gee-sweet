@@ -899,3 +899,67 @@ Cleanup: run folder QA-orn-D-2026-11-08 trashed (not permanent), along with ever
 `mcp-gee-sweet-kit`, reconnected after the reset. Step 2: `{requests: 1}`. Step 3: the default call returned `{}` (the Markdown write sets no explicit body styles), and `source="both"` returned `{"body": {}, "named_styles": …}`; `source="named_styles"` and `get_doc_named_styles` returned identical dicts with `HEADING_1.font_family` `Georgia`. Step 4: refused with `Input should be 'body', 'named_styles' or 'both'` from the argument check (check corrected this round: it expected the tool's own `{"error"}`, which a `Literal` parameter never reaches). Step 5: `readOnlyHint=True` on `get_doc_theme`'s decorator; `get_doc_named_styles`' description starts `Deprecated: use \`get_doc_theme\` with \`source='named_styles'\``. Doc trashed.
 
 ---
+
+## Paragraph spacing after a doc's final table (#1439)
+
+### TC-DOC274: `insert_doc_text` after a final table doesn't overprint it, and `style_doc_range` sets and clears paragraph spacing ⚠️ destructive
+
+**Purpose:** a doc written from content that ends in a table has its last, empty paragraph collapsed to 1% line spacing (#1100). Text `insert_doc_text` writes there gets the doc's normal spacing back, so it no longer overprints the table, while the collapsed blank paragraph before the table stays collapsed. `style_doc_range` takes `line_spacing`, `space_above` and `space_below`, and `null` clears each one.
+
+`get_doc_structure` doesn't report paragraph spacing. Read each paragraph's `paragraphStyle` (`lineSpacing`, `spaceAbove`, `spaceBelow`) from a fresh-interpreter `documents().get()`, as `CLAUDE.md`'s "MCP restart" section describes. The API omits a zero `magnitude`, so `{"unit": "PT"}` is 0pt.
+
+**Playwright: required** (step 4: the inserted lines sit clear of the table's last row in the editor, as well as in the PDF)
+
+**Steps**
+1. `create_doc(title="TC-DOC274", folder_id={FOLDER_ID}, content_format="markdown", content="Intro **bold** text\n\n| a | b |\n|---|---|\n| 1 | 2 |\n")` → `{DOC}`
+2. `get_doc_structure(doc_id={DOC})`: note the last paragraph's `startIndex` as `{END}` (the empty paragraph after the table)
+3. `insert_doc_text(doc_id={DOC}, insertions=[{"index": {END}, "text": "After 🙂 one\nAfter two"}, {"index": 1, "text": "Lead "}])`
+4. Read the paragraph styles; `download_file(file_id={DOC}, local_path=<scratch dir>, export_format="pdf")` and open the PDF
+5. `insert_doc_text(doc_id={DOC}, insertions=[{"index": <last paragraph's endIndex − 1>, "text": " more"}])`
+6. `get_doc_structure`, then `style_doc_range(doc_id={DOC}, ranges=[{"start_index": <Intro paragraph's start>, "end_index": <its end − 1>, "line_spacing": 150, "space_above": 0, "space_below": 12}])`; read the paragraph styles and the Intro paragraph's text runs
+7. Same range: `style_doc_range(..., ranges=[{..., "named_style_type": "HEADING_2", "line_spacing": 200, "space_below": 3}])`; read the paragraph styles
+8. Same range: `style_doc_range(..., ranges=[{..., "line_spacing": null, "space_above": null, "space_below": null}])`; read the paragraph styles
+9. Same range: `style_doc_range(..., ranges=[{..., "line_spacing": 0}])`, then `style_doc_range(..., ranges=[{..., "space_above": -1}])`
+
+**Checks**
+- Step 2: the paragraph after the table, and the empty one before it, have `lineSpacing` 1 and 0pt above and below
+- Step 3: the result is `{"docId": {DOC}, "insertions": 2, "trailingParagraphReset": true}`
+- Step 4: "After 🙂 one" and "After two" are two paragraphs after the table with no `lineSpacing`, `spaceAbove` or `spaceBelow` of their own. The empty paragraph before the table still has `lineSpacing` 1. "Lead " starts the first paragraph. In the PDF, both lines sit below the table on their own lines, overlapping neither the table nor each other
+- Step 5: the result has no `trailingParagraphReset` key (that paragraph is no longer collapsed)
+- Step 6: the result is `{"requests": 1}`; the Intro paragraph has `lineSpacing` 150, 0pt above and `spaceBelow` 12, and "bold" is still bold
+- Step 7: the result is `{"requests": 1}`; the paragraph is `HEADING_2` with `lineSpacing` 200 and `spaceBelow` 3
+- Step 8: the paragraph has no `lineSpacing`, `spaceAbove` or `spaceBelow` of its own and is still `HEADING_2`
+- Step 9: both are refused with `{"error"}` before any write: `ranges[0]: line_spacing must be greater than zero, got 0` and `ranges[0]: space_above must be zero or more, got -1`
+
+**Cleanup:** `delete_file` the doc and the scratch PDF
+
+**Result (2026-11-26) ✅ PASS — Sky, PR #1631 round 1 @ 7e85ab8e**
+`mcp-gee-sweet-sky`, reconnected after the reset; doc created in the server's default Shared Drive folder. Step 2: `{END}` = 34; the paragraph after the table (34–35) and the empty one before it (17–18) both had `lineSpacing` 1 and `{"unit": "PT"}` above and below. Step 3: `{"docId", "insertions": 2, "trailingParagraphReset": true}`. Step 4: "After 🙂 one" (39–52) and "After two" (52–62) had an empty `paragraphStyle` spacing; 22–23 kept `lineSpacing` 1; "Lead Intro bold text" was the first paragraph. The PDF and the editor (Playwright, URL-verified, title "TC-DOC274") both show the two lines below the table on their own lines, with no overlap. Step 5: `{"insertions": 1}` with no `trailingParagraphReset`. Step 6: `{requests: 1}`; `lineSpacing` 150, `spaceAbove` 0pt, `spaceBelow` 12pt, "bold" still bold. Step 7: `HEADING_2`, `lineSpacing` 200, `spaceBelow` 3pt (step 6's `spaceAbove` was cleared, as the docstring says). Step 8: `HEADING_2` with no spacing of its own. Step 9: both refused with the exact messages. Extra probes, both failed and sent back: (a) two lines raw-inserted after the table (as Enter in the editor makes them), then `insert_doc_text` into the second, got no reset; the text kept `lineSpacing` 1. (b) `insert_doc_text` at the collapsed paragraph with `segment_id: ""` landed in the body with no reset and `lineSpacing` 1.
+
+### TC-DOC275: The reset covers several collapsed paragraphs after the table, an empty `segment_id`, and refuses NaN (PR #1631 QA round 1) ⚠️ destructive
+
+**Purpose:** text added after a final table with a `"\n"` before #1439 (or by Enter in the editor) leaves several paragraphs, each with the collapse, and an insert into any of them resets them all. An empty or null `segment_id` is the body, as Docs reads it. A non-finite spacing value gets the tool's own error, not Google's 400.
+
+Read paragraph styles as in TC-DOC274.
+
+**Steps**
+1. `create_doc(title="TC-DOC275", folder_id={FOLDER_ID}, content_format="markdown", content="Intro text\n\n| a | b |\n|---|---|\n| 1 | 2 |\n")` → `{DOC}`; `get_doc_structure`: the last paragraph's `startIndex` is `{END}`
+2. From a fresh interpreter, one raw `batchUpdate` with `insertText` of `"old one\nold two"` at `{END}` (this reproduces a pre-#1439 insert); read the paragraph styles
+3. `get_doc_structure`; `insert_doc_text(doc_id={DOC}, insertions=[{"index": <"old two" paragraph's endIndex − 1>, "text": " more"}])`; read the paragraph styles
+4. `create_doc` a second doc `{DOC2}` from the same content; `insert_doc_text(doc_id={DOC2}, insertions=[{"index": <its {END}>, "text": "tail", "segment_id": ""}])`; read the paragraph styles
+5. `style_doc_range(doc_id={DOC}, ranges=[{"start_index": 1, "end_index": 3, "font_family": "Georgia"}, {"start_index": 1, "end_index": 3, "line_spacing": NaN}])`, sending NaN as the JSON token if the client allows it, else as `float("nan")` from a fresh interpreter calling the tool function
+
+**Checks**
+- Step 2: "old one" and "old two" both have `lineSpacing` 1
+- Step 3: the result has `trailingParagraphReset: true`; "old one" and "old two more" have no `lineSpacing`, `spaceAbove` or `spaceBelow` of their own; the empty paragraph before the table still has `lineSpacing` 1. In the editor neither line overlaps the table or the other
+- Step 4: the result has `trailingParagraphReset: true`; "tail" is in the body after the table with no `lineSpacing` of its own
+- Step 5: `{"error": "ranges[1]: line_spacing must be a number or null, got nan"}`, and no write landed
+
+**Playwright: required** (step 3: the lines sit clear of the table and of each other)
+
+**Cleanup:** `delete_file` both docs
+
+**Result (2026-11-26) ✅ PASS — Sky, PR #1631 round 2 @ 6701d30f**
+`mcp-gee-sweet-sky`, reconnected after the reset. Step 1: `{END}` = 29. Step 2: "old one" (29–37) and "old two" (37–45) both `lineSpacing` 1 with 0pt above and below. Step 3: `{"insertions": 1, "trailingParagraphReset": true}`; "old one" and "old two more" have no spacing of their own, and the empty paragraph before the table (12–13) kept `lineSpacing` 1. Editor (Playwright, URL-verified, title "TC-DOC275"): both lines sit below the table on their own lines, no overlap. Step 4: `{"insertions": 1, "trailingParagraphReset": true}`; "tail" (29–34) in the body with no spacing of its own. Step 5: run from a fresh interpreter calling the registered `style_doc_range` with a docs service that raises on any attribute access: NaN gave `{"error": "ranges[1]: line_spacing must be a number or null, got nan"}` and inf `... got inf`, with no API touched, so the check now runs before the `font_family` bold-restore read. Also re-ran TC-DOC274 step 3 on a fresh doc against the `targetRevisionId` change: same result as round 1 (`trailingParagraphReset: true`, both lines with no spacing of their own, "Lead " in the first paragraph).
+
+---

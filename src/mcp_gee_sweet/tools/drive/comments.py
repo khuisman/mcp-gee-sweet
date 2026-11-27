@@ -3,20 +3,23 @@
 The resource takes any `fileId` Drive supports comments on (Docs, Sheets, Slides,
 and other files), so nothing here is Docs-specific. The shape follows
 `docs/design/tool-reduction.md`, "Comments: a smaller shape": resolving and
-reopening are replies with an action, so they go through `reply_to_comment`.
+reopening are replies with an action, so they go through `reply_to_comment`, and
+editing or deleting a reply is `update_comment`/`delete_comment` with `reply_id` (#664).
 """
 
 import html
 import logging
 from typing import Any, Literal
 
+from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from ...deprecation import deprecated_tool, renamed_params
 from ..params import OptionalText
-from ..response_limits import enforce_response_size_cap, pagination_hint
+from ..response_limits import clamp_max_results, enforce_response_size_cap, finish_list_page
+from . import _user_fields
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +35,11 @@ _COMMENT_FIELDS = (
     "action,deleted)"
 )
 _REPLY_FIELDS = "id,action,content,createdTime"
+# get_file_comment reads a comment without its replies, then the replies through
+# replies.list, with the same reply fields _map_reply reads.
+_COMMENT_ONLY_FIELDS, _REPLY_LIST_FIELDS = _COMMENT_FIELDS.removesuffix(")").split(",replies(")
+_REPLIES_PAGE_SIZE = 100  # replies.list's maximum
+_EDIT_FIELDS = "id,content,modifiedTime"
 
 # Every optional text parameter here is `OptionalText = ""`, never `str | None`
 # (which mcp pre-parses as JSON) or a bare `str` (which refuses an explicit null);
@@ -39,12 +47,7 @@ _REPLY_FIELDS = "id,action,content,createdTime"
 
 
 def _map_author(author: dict[str, Any] | None) -> dict[str, Any] | None:
-    if not author:
-        return None
-    return {
-        "display_name": author.get("displayName"),
-        "email_address": author.get("emailAddress"),
-    }
+    return _user_fields(author) if author else None
 
 
 def _map_reply(reply: dict[str, Any]) -> dict[str, Any]:
@@ -84,10 +87,25 @@ def _map_comment(comment: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _trim(text: str) -> str:
+    """`text` with its ends trimmed at least as far as Drive trims a comment's or
+    reply's: every character up to U+0020, control characters included, as Java's
+    `String.trim()` does (PR #1578 QA round 1), plus anything `str.strip()` takes.
+    The set covers Drive's, so trimming Drive's stored text and the text sent
+    gives the same result whenever the edit landed."""
+    start, end = 0, len(text)
+    while start < end and (text[start] <= " " or text[start].isspace()):
+        start += 1
+    while end > start and (text[end - 1] <= " " or text[end - 1].isspace()):
+        end -= 1
+    return text[start:end]
+
+
 def _has_text(content: str | None) -> bool:
-    """Whether `content` holds anything but whitespace. Drive stores a reply of
-    only whitespace as `content: ""`, a blank reply on the thread (PR #1563)."""
-    return bool(content and content.strip())
+    """Whether `content` holds anything Drive would keep. Drive stores a comment or
+    reply of only whitespace or control characters as `content: ""`, a blank entry
+    on the thread (PR #1563, PR #1578)."""
+    return bool(content and _trim(content))
 
 
 async def _create_reply(
@@ -106,6 +124,73 @@ async def _create_reply(
         .execute,
         drive_service,
     )
+
+
+async def _list_all_replies(
+    drive_service, file_id: str, comment_id: str, include_deleted: bool
+) -> list[dict[str, Any]]:
+    """Every reply on a comment, oldest first, through every page of
+    `replies.list`. `comments.get` returned 150 replies inline in a live check,
+    but Drive documents no limit on how many it returns, so the replies come
+    from the paged resource instead (#664). An error on a later page propagates:
+    a partial thread would read as the whole one."""
+    replies: list[dict[str, Any]] = []
+    page_token: str | None = None
+    while True:
+        page = await execute_in_thread(
+            drive_service.replies()
+            .list(
+                fileId=file_id,
+                commentId=comment_id,
+                pageSize=_REPLIES_PAGE_SIZE,
+                pageToken=page_token,
+                includeDeleted=include_deleted,
+                fields=f"replies({_REPLY_LIST_FIELDS}),nextPageToken",
+            )
+            .execute,
+            drive_service,
+        )
+        replies.extend(page.get("replies", []))
+        page_token = page.get("nextPageToken")
+        if not page_token:
+            return replies
+
+
+async def _deleted_edit_target(
+    drive_service, file_id: str, comment_id: str, reply_id: str
+) -> str | None:
+    """After a failed edit, name the comment or reply it targeted if that one is
+    deleted, else None. Drive answers an edit of a deleted comment with a bare 500
+    and of a deleted reply with a 400 "Invalid Value" (both checked live, #664), and
+    neither says why. Any error reading it back is None, so the caller raises
+    Drive's own error."""
+    try:
+        if reply_id:
+            target = await execute_in_thread(
+                drive_service.replies()
+                .get(
+                    fileId=file_id,
+                    commentId=comment_id,
+                    replyId=reply_id,
+                    includeDeleted=True,
+                    fields="deleted",
+                )
+                .execute,
+                drive_service,
+            )
+        else:
+            target = await execute_in_thread(
+                drive_service.comments()
+                .get(fileId=file_id, commentId=comment_id, includeDeleted=True, fields="deleted")
+                .execute,
+                drive_service,
+            )
+    except Exception:  # Drive's error from the edit is the one to report.
+        logger.debug("Couldn't read back the failed edit's target", exc_info=True)
+        return None
+    if not target.get("deleted"):
+        return None
+    return f"reply {reply_id}" if reply_id else f"comment {comment_id}"
 
 
 def register(tool):
@@ -153,7 +238,7 @@ def register(tool):
             drive_service.comments()
             .list(
                 fileId=file_id,
-                pageSize=max(1, min(page_size, 100)),
+                pageSize=clamp_max_results(page_size, 100),
                 pageToken=page_token or None,
                 includeDeleted=include_deleted,
                 fields=f"comments({_COMMENT_FIELDS}),nextPageToken",
@@ -166,17 +251,9 @@ def register(tool):
             "file_id": file_id,
             "comments": [_map_comment(c) for c in response.get("comments", [])],
         }
-        if npt := response.get("nextPageToken"):
-            result["next_page_token"] = npt
-
-        enforce_response_size_cap(
-            result,
-            tool_name="list_file_comments",
-            hint=pagination_hint("page_size"),
-            local_path_available=False,
+        return finish_list_page(
+            result, response, tool_name="list_file_comments", page_param="page_size"
         )
-
-        return result
 
     @tool(
         annotations=ToolAnnotations(title="Add File Comment", destructiveHint=True),
@@ -266,7 +343,8 @@ def register(tool):
             file_id: The file's ID.
             comment_id: The comment's ID (from list_file_comments).
             content: The reply text. Required for a plain reply; optional with an
-                     action. Text that is only whitespace counts as none.
+                     action. Text that is only whitespace or control characters counts
+                     as none.
             action: "resolve" to mark the comment resolved, "reopen" to reopen a
                     resolved one, or omit for a plain reply. A plain reply to a
                     resolved comment reopens it: Drive does that itself, as its
@@ -299,6 +377,209 @@ def register(tool):
         }
 
     @tool(
+        annotations=ToolAnnotations(title="Get File Comment", readOnlyHint=True),
+        groups=("comments",),
+    )
+    async def get_file_comment(
+        file_id: str,
+        comment_id: str,
+        include_deleted: bool = False,
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Get one comment on a Drive file, with every reply on it.
+
+        Args:
+            file_id: The file's ID.
+            comment_id: The comment's ID (from list_file_comments).
+            include_deleted: Whether to return a deleted comment, and the deleted
+                             replies on a comment (default False). A deleted
+                             comment or reply comes back with deleted True and no
+                             content. Without it, getting a deleted comment fails
+                             as not found.
+
+        Returns:
+            Dictionary with file_id and comment: the comment's id, content, author
+            (display_name, email_address), created_time, modified_time, resolved,
+            deleted, quoted_text (the anchored text, if any), and replies, oldest
+            first: every reply on the comment, however many, each with id,
+            content, author, created_time, modified_time, deleted, and action
+            ("resolve" or "reopen", or None for an ordinary reply).
+            Raises ValueError if the response exceeds a safety cap (see
+            MAX_TOOL_RESPONSE_CHARS in docs/configuration.md for the configured
+            default).
+        """
+        drive_service = ctx.request_context.lifespan_context.drive_service
+
+        comment = await execute_in_thread(
+            drive_service.comments()
+            .get(
+                fileId=file_id,
+                commentId=comment_id,
+                includeDeleted=include_deleted,
+                fields=_COMMENT_ONLY_FIELDS,
+            )
+            .execute,
+            drive_service,
+        )
+        comment["replies"] = await _list_all_replies(
+            drive_service, file_id, comment_id, include_deleted
+        )
+
+        result = {"file_id": file_id, "comment": _map_comment(comment)}
+        enforce_response_size_cap(result, tool_name="get_file_comment", local_path_available=False)
+        return result
+
+    @tool(
+        annotations=ToolAnnotations(title="Update Comment", destructiveHint=True),
+        groups=("comments",),
+    )
+    async def update_comment(
+        file_id: str,
+        comment_id: str,
+        content: str,
+        reply_id: OptionalText = "",
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Replace the text of a comment on a Drive file, or of one reply to it.
+
+        Args:
+            file_id: The file's ID.
+            comment_id: The comment's ID (from list_file_comments).
+            content: The new text, replacing the old. Drive trims whitespace and
+                     control characters from its start and end. Text that is
+                     only whitespace or control characters isn't sent:
+                     Drive would store it as an empty comment.
+            reply_id: A reply's ID (from list_file_comments or get_file_comment)
+                      to edit that reply instead of the comment. A reply that
+                      resolved or reopened the comment keeps its action.
+
+        Returns:
+            Dictionary with file_id, comment_id, reply_id (None when the comment
+            itself was edited), content, and modified_time. Returns {"error": ...}
+            without changing anything when content is empty or only whitespace
+            or control characters,
+            or when the comment or reply is deleted. Only the author of a comment
+            or reply can edit it: Drive ignores anyone else's edit, so that
+            returns {"error": ..., "content": <the text left in place>}.
+            Resolving or reopening is reply_to_comment's action, not an edit.
+        """
+        if not _has_text(content):
+            return {
+                "error": "Pass the new text as content; text that is empty or only "
+                "whitespace or control characters would leave the comment blank. "
+                "To remove it, use "
+                "delete_comment."
+            }
+        drive_service = ctx.request_context.lifespan_context.drive_service
+
+        body = {"content": content}
+        if reply_id:
+            request = drive_service.replies().update(
+                fileId=file_id,
+                commentId=comment_id,
+                replyId=reply_id,
+                body=body,
+                fields=_EDIT_FIELDS,
+            )
+        else:
+            request = drive_service.comments().update(
+                fileId=file_id, commentId=comment_id, body=body, fields=_EDIT_FIELDS
+            )
+        try:
+            result = await execute_in_thread(request.execute, drive_service)
+        except HttpError as e:
+            if e.resp.status != 400 and e.resp.status < 500:
+                raise
+            deleted = await _deleted_edit_target(drive_service, file_id, comment_id, reply_id)
+            if deleted is None:
+                raise
+            return {
+                "error": f"The {deleted} is deleted, so it can't be edited. Post a new "
+                "reply with reply_to_comment, or a new comment with add_file_comment."
+            }
+
+        # Drive ignores an edit by anyone but the author and still answers 200,
+        # returning the old text (checked live both ways between a user and a
+        # service account, #664). It also trims the text's ends, so compare both
+        # trimmed through _trim, whose set covers Drive's.
+        stored = result.get("content") or ""
+        if _trim(stored) != _trim(content):
+            target = f"reply {reply_id}" if reply_id else f"comment {comment_id}"
+            return {
+                "error": f"Drive left the {target} unchanged: only its author can edit "
+                "it, and Drive ignores an edit from anyone else without an error.",
+                "content": stored,
+            }
+
+        logger.debug(
+            "Updated %s on comment %s, file %s",
+            f"reply {reply_id}" if reply_id else "the comment",
+            comment_id,
+            file_id,
+        )
+        return {
+            "file_id": file_id,
+            "comment_id": comment_id,
+            "reply_id": reply_id or None,
+            "content": result.get("content"),
+            "modified_time": result.get("modifiedTime"),
+        }
+
+    @tool(
+        annotations=ToolAnnotations(title="Delete Comment", destructiveHint=True),
+        groups=("comments",),
+    )
+    async def delete_comment(
+        file_id: str,
+        comment_id: str,
+        reply_id: OptionalText = "",
+        ctx: Context = None,
+    ) -> dict[str, Any]:
+        """
+        Delete a comment on a Drive file, with its replies, or one reply to it.
+
+        Args:
+            file_id: The file's ID.
+            comment_id: The comment's ID (from list_file_comments).
+            reply_id: A reply's ID (from list_file_comments or get_file_comment)
+                      to delete only that reply, leaving the comment and its
+                      other replies.
+
+        Returns:
+            Dictionary with file_id, comment_id, reply_id (None when the comment
+            was deleted), and deleted (True). A deleted comment or reply is left
+            out of list_file_comments and get_file_comment unless they're called
+            with include_deleted=True, which shows it with deleted True and no
+            content. Once a comment is deleted, deleting it or any of its replies
+            again fails as not found. Drive can refuse to delete another
+            author's comment or reply (HttpError 403).
+        """
+        drive_service = ctx.request_context.lifespan_context.drive_service
+
+        if reply_id:
+            request = drive_service.replies().delete(
+                fileId=file_id, commentId=comment_id, replyId=reply_id
+            )
+        else:
+            request = drive_service.comments().delete(fileId=file_id, commentId=comment_id)
+        await execute_in_thread(request.execute, drive_service)
+
+        logger.debug(
+            "Deleted %s on comment %s, file %s",
+            f"reply {reply_id}" if reply_id else "the comment",
+            comment_id,
+            file_id,
+        )
+        return {
+            "file_id": file_id,
+            "comment_id": comment_id,
+            "reply_id": reply_id or None,
+            "deleted": True,
+        }
+
+    @tool(
         annotations=ToolAnnotations(title="Resolve Document Comment", destructiveHint=True),
         groups=("comments",),
     )
@@ -319,7 +600,7 @@ def register(tool):
             doc_id: The Google Doc file ID.
             comment_id: The ID of the comment to resolve (from list_file_comments).
             reply_content: Optional text to attach to the resolving reply (text
-                           that is only whitespace isn't sent).
+                           that is only whitespace or control characters isn't sent).
 
         Returns:
             Dictionary with doc_id, comment_id, reply id, and action ("resolve").

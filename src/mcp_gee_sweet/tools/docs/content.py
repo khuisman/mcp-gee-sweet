@@ -1,4 +1,5 @@
 import asyncio
+import codecs
 import logging
 import re
 from dataclasses import dataclass, field
@@ -128,7 +129,16 @@ def _convert_doc_content(
     copy, or clear a Doc, so a conversion that raises or is cancelled leaves the
     Doc as it was (#1240)."""
     html_content = (
-        _md_to_html(content, autolink_urls=autolink_urls)
+        _md_to_html(
+            # One leading U+FEFF — a byte-order mark pasted into a string, or a file
+            # read somewhere other than _read_doc_source_file — hides the first
+            # heading and the front matter's opening "---" (#1607). The reader
+            # already drops one for files (utf-8-sig); stripping here gives every
+            # entry point the same start. One only: authored ZWNBSPs inside the
+            # text are content, and a second mark is one of those.
+            content.removeprefix("\ufeff") if content_format == "markdown" else content,
+            autolink_urls=autolink_urls,
+        )
         if content_format == "markdown"
         else content
     )
@@ -421,7 +431,11 @@ def _read_doc_source_file(
     """Shared file reading for create_doc_from_file / update_doc_from_file (#567):
     returns (content, content_format), or {"error": ...} for a missing file, a path
     that isn't a regular file, an unreadable or non-UTF-8 file, or an extension with
-    no inferable format. content_format=None infers it from the extension.
+    no inferable format. A leading byte-order mark is dropped (utf-8-sig),
+    where a plain utf-8 read would keep it and break the first Markdown
+    heading (#1581). A file that isn't UTF-8 gets its byte positions counted from
+    the file's true start, mark included, and a UTF-16 file is told to be re-saved
+    as UTF-8 (#1607). content_format=None infers it from the extension.
     format_overridable says whether the calling tool takes a content_format
     parameter, so the error only suggests one when it exists.
 
@@ -443,9 +457,34 @@ def _read_doc_source_file(
             return {"error": f"Unsupported file extension '{ext}'. Use .md or .html/.htm{hint}"}
         content_format = inferred
     try:
-        content = path.read_text(encoding="utf-8")
+        # utf-8-sig drops a leading byte-order mark (some editors write one),
+        # which would otherwise break the first Markdown heading or ride along
+        # at the start of an HTML source (#1581) — the same fix
+        # import_csv_to_sheet took in #1575.
+        content = path.read_text(encoding="utf-8-sig")
     except UnicodeDecodeError as e:
-        return {"error": f"File is not valid UTF-8: {local_path} ({e.reason} at byte {e.start})"}
+        # utf-8-sig's error positions count from after a byte-order mark, so a
+        # file that starts with one reports a byte 3 too low; the file-position
+        # wording needs the mark added back (#1607). A UTF-16 file's mark (FF FE /
+        # FE FF) makes the first byte itself invalid, which reads as "invalid
+        # start byte at byte 0" — name the encoding instead, and suggest the
+        # re-save that makes the file readable.
+        try:
+            with path.open("rb") as f:
+                head = f.read(4)
+        except OSError:
+            head = b""
+        if head[:2] in (codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE):
+            return {
+                "error": (
+                    f"File is not valid UTF-8: {local_path} (its first bytes are a UTF-16 "
+                    "byte-order mark; re-save the file as UTF-8)"
+                )
+            }
+        offset = len(codecs.BOM_UTF8) if head.startswith(codecs.BOM_UTF8) else 0
+        return {
+            "error": f"File is not valid UTF-8: {local_path} ({e.reason} at byte {e.start + offset})"
+        }
     except OSError as e:
         return {"error": f"Could not read file {local_path}: {e.strerror or e}"}
     return content, content_format

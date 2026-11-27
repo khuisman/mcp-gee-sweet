@@ -2,7 +2,10 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from mcp_gee_sweet.tools import docs as docs_module
+from mcp_gee_sweet.tools.docs.style import _is_paragraph_start
 
 
 def _make_tool_registry():
@@ -249,7 +252,7 @@ class TestInsertSoftbreakParagraph:
 
 class TestInsertSoftbreakParagraphBoldRestore:
     """#1499 item 4: a font_family line that sends no bold of its own keeps the
-    bold the insert inherits from the character before index — the same
+    bold the insert inherits from its neighbour — the same
     weightedFontFamily request would otherwise clear it (#1273), so it is
     restored in the same batchUpdate, after the font request, as
     style_doc_range does."""
@@ -433,6 +436,270 @@ class TestInsertSoftbreakParagraphBoldRestore:
         docs_svc.documents().get.assert_not_called()
 
 
+class TestBoldRestoreAtParagraphStart:
+    """#1584: at a paragraph's first index, Docs styles the inserted text from
+    the character after index — the paragraph's own first character — not from
+    the previous paragraph's newline, so the bold restore must probe there,
+    in both directions (live-verified in the issue via raw documents().get())."""
+
+    def _ctx(self, docs_svc=None):
+        return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
+
+    @staticmethod
+    def _two_paragraph_doc(first: dict, second: dict) -> dict:
+        # Two one-run paragraphs: <p>{first}</p><p>{second}</p>, the trailing
+        # newline inside each paragraph's run (the Docs API shape).
+        content = []
+        start = 1
+        for text, style in (first, second):
+            end = start + len(text) + 1  # +1 for the paragraph's newline
+            element = {
+                "startIndex": start,
+                "endIndex": end,
+                "textRun": {"content": text + "\n", "textStyle": style},
+            }
+            content.append(
+                {"startIndex": start, "endIndex": end, "paragraph": {"elements": [element]}}
+            )
+            start = end
+        return {"documentId": "doc1", "body": {"content": content}}
+
+    async def test_plain_paragraph_start_after_bold_sends_no_restore(self):
+        # <p><b>Header</b></p><p>tail</p>, insert at the start of `tail`
+        # (index 8): Docs renders the insert plain — it follows `tail` — so a
+        # restore reading the previous paragraph's bold newline would bold a
+        # line that should stay plain.
+        docs_svc = MagicMock()
+        docs_svc.documents().get().execute.return_value = self._two_paragraph_doc(
+            ("Header", {"bold": True}), ("tail", {})
+        )
+        ctx = self._ctx(docs_svc)
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=8,
+            lines=[{"text": "code", "font_family": "Courier New"}],
+            ctx=ctx,
+        )
+        reqs = docs_svc.documents().batchUpdate.call_args.kwargs["body"]["requests"]
+        assert [next(iter(r)) for r in reqs] == ["insertText", "updateTextStyle"]
+        assert reqs[1]["updateTextStyle"]["fields"] == "weightedFontFamily"
+
+    async def test_bold_paragraph_start_after_plain_restores_bold(self):
+        # <p>plain</p><p><b>Bold</b></p>, insert at the start of `Bold`
+        # (index 7): Docs renders the insert bold — it follows `Bold` — so the
+        # font request clears the inherited bold and the restore must bring it
+        # back (the original #1499 symptom).
+        docs_svc = MagicMock()
+        docs_svc.documents().get().execute.return_value = self._two_paragraph_doc(
+            ("plain", {}), ("Bold", {"bold": True})
+        )
+        ctx = self._ctx(docs_svc)
+        result = await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=7,
+            lines=[{"text": "code", "font_family": "Courier New"}],
+            ctx=ctx,
+        )
+        assert result["line_ranges"][0] == {"start_index": 7, "end_index": 11}
+        reqs = docs_svc.documents().batchUpdate.call_args.kwargs["body"]["requests"]
+        assert [next(iter(r)) for r in reqs] == ["insertText", "updateTextStyle", "updateTextStyle"]
+        bold_restore = reqs[2]["updateTextStyle"]
+        assert bold_restore["range"] == {"startIndex": 7, "endIndex": 11}
+        assert bold_restore["textStyle"] == {"bold": True}
+        assert bold_restore["fields"] == "bold"
+
+    async def test_empty_paragraph_read_pins_its_lone_newline(self):
+        # <p><b>Header</b></p><p></p>, insert at the empty paragraph's start
+        # (index 8, its lone newline): the neighbour read is the character at
+        # index — the empty paragraph's own plain newline — not the previous
+        # paragraph's bold one, so nothing restores.
+        docs_svc = MagicMock()
+        docs_svc.documents().get().execute.return_value = self._two_paragraph_doc(
+            ("Header", {"bold": True}), ("", {})
+        )
+        ctx = self._ctx(docs_svc)
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=8,
+            lines=[{"text": "code", "font_family": "Courier New"}],
+            ctx=ctx,
+        )
+        reqs = docs_svc.documents().batchUpdate.call_args.kwargs["body"]["requests"]
+        assert [next(iter(r)) for r in reqs] == ["insertText", "updateTextStyle"]
+        assert reqs[1]["updateTextStyle"]["fields"] == "weightedFontFamily"
+
+    async def test_paragraph_start_inside_a_table_cell_probes_the_cell_text(self):
+        # The paragraph-start walk recurses into table cells (#1606): an
+        # insert at a cell paragraph's first index inherits from that cell's
+        # own first character — a probe that missed the cell's start would
+        # read the table structure before it and find nothing bold.
+        doc = {
+            "documentId": "doc1",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 6,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "startIndex": 1,
+                                    "endIndex": 6,
+                                    "textRun": {"content": "Head\n", "textStyle": {}},
+                                }
+                            ]
+                        },
+                    },
+                    {
+                        "startIndex": 6,
+                        "endIndex": 15,
+                        "table": {
+                            "tableRows": [
+                                {
+                                    "tableCells": [
+                                        {
+                                            "content": [
+                                                {
+                                                    "startIndex": 8,
+                                                    "endIndex": 13,
+                                                    "paragraph": {
+                                                        "elements": [
+                                                            {
+                                                                "startIndex": 8,
+                                                                "endIndex": 13,
+                                                                "textRun": {
+                                                                    "content": "Bold\n",
+                                                                    "textStyle": {"bold": True},
+                                                                },
+                                                            }
+                                                        ]
+                                                    },
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                    },
+                ]
+            },
+        }
+        docs_svc = MagicMock()
+        docs_svc.documents().get().execute.return_value = doc
+        ctx = self._ctx(docs_svc)
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=8,
+            lines=[{"text": "code", "font_family": "Courier New"}],
+            ctx=ctx,
+        )
+        reqs = docs_svc.documents().batchUpdate.call_args.kwargs["body"]["requests"]
+        assert [next(iter(r)) for r in reqs] == [
+            "insertText",
+            "updateTextStyle",
+            "updateTextStyle",
+        ]
+        bold_restore = reqs[2]["updateTextStyle"]
+        assert bold_restore["range"] == {"startIndex": 8, "endIndex": 12}
+        assert bold_restore["textStyle"] == {"bold": True}
+
+    async def test_document_first_paragraph_without_start_index_starts_at_one(self):
+        # A document's very first element can carry no startIndex; the walk
+        # starts its offset at 1 (#1606), so index 1 still reads as that
+        # paragraph's start and the probe reads the paragraph's own first
+        # character — not the character before the document's beginning.
+        doc = {
+            "documentId": "doc1",
+            "body": {
+                "content": [
+                    {
+                        "endIndex": 6,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "endIndex": 6,
+                                    "textRun": {"content": "Bold\n", "textStyle": {"bold": True}},
+                                }
+                            ]
+                        },
+                    }
+                ]
+            },
+        }
+        docs_svc = MagicMock()
+        docs_svc.documents().get().execute.return_value = doc
+        ctx = self._ctx(docs_svc)
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=1,
+            lines=[{"text": "code", "font_family": "Courier New"}],
+            ctx=ctx,
+        )
+        reqs = docs_svc.documents().batchUpdate.call_args.kwargs["body"]["requests"]
+        assert [next(iter(r)) for r in reqs] == [
+            "insertText",
+            "updateTextStyle",
+            "updateTextStyle",
+        ]
+        bold_restore = reqs[2]["updateTextStyle"]
+        assert bold_restore["range"] == {"startIndex": 1, "endIndex": 5}
+        assert bold_restore["textStyle"] == {"bold": True}
+
+
+class TestIsParagraphStart:
+    """#1606: the walk carries a missing startIndex forward from the previous
+    item's endIndex, instead of defaulting every list position back to 1."""
+
+    @staticmethod
+    def _doc(second_has_start_index: bool) -> dict:
+        second = {
+            "endIndex": 11,
+            "paragraph": {
+                "elements": [
+                    {
+                        "endIndex": 11,
+                        "textRun": {"content": "Tail\n", "textStyle": {}},
+                    }
+                ]
+            },
+        }
+        if second_has_start_index:
+            second["startIndex"] = 6
+        return {
+            "documentId": "doc1",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 6,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "startIndex": 1,
+                                    "endIndex": 6,
+                                    "textRun": {"content": "Head\n", "textStyle": {}},
+                                }
+                            ]
+                        },
+                    },
+                    second,
+                ]
+            },
+        }
+
+    def test_a_later_paragraph_without_start_index_carries_forward(self):
+        # A missing startIndex is seen on a document's first element; when it
+        # isn't, the offset carries forward from the previous item's endIndex
+        # (#1606), so the second paragraph still starts where the first ends.
+        assert _is_paragraph_start(self._doc(second_has_start_index=False), 6)
+        assert not _is_paragraph_start(self._doc(second_has_start_index=False), 7)
+
+    def test_an_indexed_later_paragraph_is_read_from_its_own_start(self):
+        assert _is_paragraph_start(self._doc(second_has_start_index=True), 6)
+        assert not _is_paragraph_start(self._doc(second_has_start_index=True), 7)
+
+
 class TestInsertSoftbreakParagraphExplicitNormalText:
     """#1499 item 5: the fix depends on telling None apart from an explicit
     NORMAL_TEXT — pin that the explicit one still sends updateParagraphStyle."""
@@ -454,3 +721,181 @@ class TestInsertSoftbreakParagraphExplicitNormalText:
         style_req = reqs[1]["updateParagraphStyle"]
         assert style_req["paragraphStyle"]["namedStyleType"] == "NORMAL_TEXT"
         assert style_req["fields"] == "namedStyleType"
+
+
+# ---------------------------------------------------------------------------
+# insert_doc_text: the collapsed paragraph after a doc's final table (#1439)
+# ---------------------------------------------------------------------------
+
+_COLLAPSED = {
+    "lineSpacing": 1,
+    "spaceAbove": {"unit": "PT"},  # the API omits a zero magnitude (checked live)
+    "spaceBelow": {"unit": "PT"},
+}
+
+
+def _doc_ending_in_table(trailing_style=None, *, last_is_table_neighbor=True):
+    content = [
+        {"startIndex": 1, "endIndex": 17, "paragraph": {"paragraphStyle": {}}},
+        {"startIndex": 17, "endIndex": 18, "paragraph": {"paragraphStyle": dict(_COLLAPSED)}},
+        {"startIndex": 18, "endIndex": 34, "table": {"rows": 2}},
+        {
+            "startIndex": 34,
+            "endIndex": 35,
+            "paragraph": {
+                "paragraphStyle": _COLLAPSED if trailing_style is None else trailing_style
+            },
+        },
+    ]
+    if not last_is_table_neighbor:
+        content.insert(3, {"startIndex": 34, "endIndex": 35, "paragraph": {"paragraphStyle": {}}})
+        content[-1] = {**content[-1], "startIndex": 35, "endIndex": 36}
+    return {"revisionId": "rev-1", "body": {"content": content}}
+
+
+class TestInsertDocTextTrailingParagraphReset:
+    async def _call(self, insertions, doc=None):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.return_value = (
+            doc if doc is not None else _doc_ending_in_table()
+        )
+        ctx = _make_ctx(docs_service=docs_svc, doc_cache=MagicMock())
+        result = await _docs_tools["insert_doc_text"](doc_id="doc1", insertions=insertions, ctx=ctx)
+        call = docs_svc.documents.return_value.batchUpdate.call_args
+        self.body = call.kwargs["body"] if call else None
+        return result, (self.body["requests"] if call else None), docs_svc
+
+    async def test_reset_batch_targets_the_revision_it_was_read_at(self):
+        # PR #1631 QA round 1: an edit between the read and the write would leave the
+        # range stale; targetRevisionId has Docs transform the batch against it.
+        await self._call([{"index": 34, "text": "x"}])
+        assert self.body["writeControl"] == {"targetRevisionId": "rev-1"}
+
+    async def test_batch_without_reset_has_no_write_control(self):
+        await self._call([{"index": 5, "text": "x"}])
+        assert "writeControl" not in self.body
+
+    async def test_read_asks_for_the_revision(self):
+        _, _, docs_svc = await self._call([{"index": 34, "text": "x"}])
+        fields = docs_svc.documents.return_value.get.call_args.kwargs["fields"]
+        assert fields.startswith("revisionId,")
+
+    @pytest.mark.parametrize("segment_id", ["", None])
+    async def test_empty_segment_id_is_the_body(self, segment_id):
+        # PR #1631 QA round 1: Docs reads an empty or null segmentId as the body.
+        result, reqs, _ = await self._call(
+            [{"index": 34, "text": "tail", "segment_id": segment_id}, {"index": 1, "text": "ab"}]
+        )
+        assert result["trailingParagraphReset"] is True
+        assert reqs[0]["insertText"]["location"] == {"index": 34}
+        assert reqs[-1]["updateParagraphStyle"]["range"] == {"startIndex": 36, "endIndex": 41}
+
+    async def test_several_collapsed_paragraphs_after_the_table_are_reset_from_the_first(self):
+        # PR #1631 QA round 1: text with a "\n" added there before #1439 left several
+        # paragraphs, each with the collapse; an insert into any of them resets all.
+        doc = _doc_ending_in_table()
+        content = doc["body"]["content"]
+        content[-1]["endIndex"] = 38
+        content.append(
+            {"startIndex": 38, "endIndex": 42, "paragraph": {"paragraphStyle": dict(_COLLAPSED)}}
+        )
+        result, reqs, _ = await self._call([{"index": 40, "text": "z"}], doc)
+        assert result["trailingParagraphReset"] is True
+        assert reqs[-1]["updateParagraphStyle"]["range"] == {"startIndex": 34, "endIndex": 43}
+
+    async def test_uncollapsed_paragraph_between_breaks_the_run(self):
+        # Only the paragraphs from the table to the end count: one without the
+        # collapse in between means the last ones don't follow the table.
+        doc = _doc_ending_in_table()
+        doc["body"]["content"][-1]["paragraph"]["paragraphStyle"] = {}
+        doc["body"]["content"].append(
+            {"startIndex": 35, "endIndex": 36, "paragraph": {"paragraphStyle": dict(_COLLAPSED)}}
+        )
+        result, reqs, _ = await self._call([{"index": 35, "text": "z"}], doc)
+        assert "trailingParagraphReset" not in result
+        assert len(reqs) == 1
+
+    async def test_insert_into_collapsed_paragraph_resets_its_spacing(self):
+        result, reqs, _ = await self._call([{"index": 34, "text": "After"}])
+        assert result == {"docId": "doc1", "insertions": 1, "trailingParagraphReset": True}
+        assert reqs == [
+            {"insertText": {"location": {"index": 34}, "text": "After"}},
+            {
+                "updateParagraphStyle": {
+                    "range": {"startIndex": 34, "endIndex": 40},
+                    "paragraphStyle": {},
+                    "fields": "lineSpacing,spaceAbove,spaceBelow",
+                }
+            },
+        ]
+
+    async def test_range_counts_earlier_inserts_and_utf16_length(self):
+        # An insert before the paragraph moves its start; every insert moves the end.
+        # "🙂" is two UTF-16 code units.
+        _, reqs, _ = await self._call(
+            [{"index": 1, "text": "Lead 🙂"}, {"index": 34, "text": "a\nb🙂"}]
+        )
+        assert [next(iter(r)) for r in reqs] == ["insertText", "insertText", "updateParagraphStyle"]
+        assert reqs[-1]["updateParagraphStyle"]["range"] == {
+            "startIndex": 34 + 7,
+            "endIndex": 35 + 7 + 5,
+        }
+
+    async def test_insert_elsewhere_sends_no_reset(self):
+        result, reqs, _ = await self._call([{"index": 5, "text": "x"}])
+        assert result == {"docId": "doc1", "insertions": 1}
+        assert len(reqs) == 1
+
+    async def test_header_insert_at_same_index_neither_reads_nor_resets(self):
+        result, reqs, docs_svc = await self._call(
+            [{"index": 34, "text": "x", "segment_id": "kix.h"}]
+        )
+        assert result == {"docId": "doc1", "insertions": 1}
+        assert len(reqs) == 1
+        docs_svc.documents.return_value.get.assert_not_called()
+
+    async def test_header_insert_does_not_shift_the_range(self):
+        _, reqs, _ = await self._call(
+            [{"index": 1, "text": "hdr", "segment_id": "kix.h"}, {"index": 34, "text": "ab"}]
+        )
+        assert reqs[-1]["updateParagraphStyle"]["range"] == {"startIndex": 34, "endIndex": 37}
+
+    @pytest.mark.parametrize(
+        "style",
+        [
+            {},
+            {"lineSpacing": 100, "spaceAbove": {"unit": "PT"}, "spaceBelow": {"unit": "PT"}},
+            {"lineSpacing": 1, "spaceAbove": {"magnitude": 6, "unit": "PT"}},
+            {"lineSpacing": 1, "spaceBelow": {"magnitude": 10, "unit": "PT"}},
+        ],
+    )
+    async def test_paragraph_without_the_full_signature_is_left_alone(self, style):
+        result, reqs, _ = await self._call(
+            [{"index": 34, "text": "x"}], _doc_ending_in_table(style)
+        )
+        assert "trailingParagraphReset" not in result
+        assert len(reqs) == 1
+
+    async def test_collapsed_paragraph_not_after_a_table_is_left_alone(self):
+        doc = _doc_ending_in_table(last_is_table_neighbor=False)
+        result, reqs, _ = await self._call([{"index": 35, "text": "x"}], doc)
+        assert "trailingParagraphReset" not in result
+        assert len(reqs) == 1
+
+    async def test_text_already_in_the_paragraph_is_reset_too(self):
+        # Text written there before #1439 still has the 1% spacing; inserting
+        # anywhere in that paragraph resets all of it.
+        doc = _doc_ending_in_table()
+        doc["body"]["content"][-1]["endIndex"] = 40
+        _, reqs, _ = await self._call([{"index": 38, "text": "z"}], doc)
+        assert reqs[-1]["updateParagraphStyle"]["range"] == {"startIndex": 34, "endIndex": 41}
+
+    async def test_read_failure_returns_error_without_writing(self):
+        docs_svc = MagicMock()
+        docs_svc.documents.return_value.get.return_value.execute.side_effect = Exception("boom")
+        ctx = _make_ctx(docs_service=docs_svc, doc_cache=MagicMock())
+        result = await _docs_tools["insert_doc_text"](
+            doc_id="doc1", insertions=[{"index": 34, "text": "x"}], ctx=ctx
+        )
+        assert result == {"error": "boom"}
+        docs_svc.documents.return_value.batchUpdate.assert_not_called()

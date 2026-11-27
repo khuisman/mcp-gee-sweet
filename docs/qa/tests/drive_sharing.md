@@ -245,6 +245,31 @@ Both entries in successes; progress notifications aren't visible in this client.
 
 ---
 
+### TC-D330: `share_spreadsheet` is deprecated, still works, and its note's `share_file` call grants the same permission (#665)
+
+**Background:** `share_spreadsheet` is kept for one release under the deprecation policy (`docs/design.md`, "Renaming or Removing a Tool"). Its description opens with the `share_file` call that replaces it. `share_file` defaults a missing `role` to `reader` where `share_spreadsheet` defaults it to `writer`, so the note tells the caller to set `'role': 'writer'` explicitly.
+
+**Approval:** shares to `@example.com` test addresses, named in the user's approval (see the note at the top of this file). Leave `send_notification` at its default.
+
+**Steps**
+1. Read `share_spreadsheet`'s description from the tool list (`tools/list`, or the deferred-tool schema).
+2. `share_spreadsheet(spreadsheet_id="{SPREADSHEET_ID}", recipients=[{"email_address": "qa-665-a@example.com"}])`, with no `role`.
+3. `share_file(file_id="{SPREADSHEET_ID}", permissions=[{"type": "user", "email_address": "qa-665-b@example.com", "role": "writer"}])`, the call the note describes for the same recipient shape.
+4. `list_permissions(file_id="{SPREADSHEET_ID}")`.
+
+**Checks**
+- The description starts with "Deprecated: use `share_file`", names `'type': 'user'` and `'role': 'writer'`, and says `Removed in the next feature release.`
+- Step 2 returns `qa-665-a@example.com` in `successes` with `role: "writer"` and a `permissionId`, `failures: []`: the deprecated tool still works, with its old default.
+- Step 3 returns `qa-665-b@example.com` in `successes` with `role: "writer"`, `type: "user"` and a `permissionId`, `failures: []`.
+- In step 4, both addresses appear as `type: "user"`, `role: "writer"`.
+
+**Teardown**
+`remove_permission` for both permission IDs.
+
+**Result (2026-11-25) ✅ PASS — PR #1614 QA round 2 (Kit) @ 01a1cc0d, on `mcp-gee-sweet-kit`** — run on a throwaway spreadsheet created in the Shared Drive default folder, not `{SPREADSHEET_ID}`. Step 1: the description opens "Deprecated: use `share_file` with each recipient as `{'type': 'user', 'email_address': ..., 'role': ...}`, setting this tool's default `'role': 'writer'` explicitly instead. Removed in the next feature release." Step 2: `qa-665-a@example.com` in `successes`, `role: "writer"`, a `permissionId`, `failures: []`. Step 3: `qa-665-b@example.com` in `successes`, `type: "user"`, `role: "writer"`, a `permissionId`, `failures: []`. Step 4: both listed as `type: "user"`, `role: "writer"`. Both permissions removed and the spreadsheet trashed.
+
+---
+
 ## `list_permissions`
 
 ### TC-D124: List permissions on a file — top-level entry present
@@ -448,7 +473,7 @@ A real ownership transfer; Shared Drive items can't transfer (403 ownerOnTeamDri
 > "Transfer ownership of {SPREADSHEET_ID} to {TEST_PERMISSION_EMAIL}"
 
 **Checks**
-- Call fails with a Drive API permission/consent error — not a silent success or unhandled crash
+- Call fails — not a silent success or unhandled crash. On the SA fixture every file is in {SHARED_DRIVE_ID}, so since #1181 the result is TC-D327's `{"error": ...}` (shared drive item, nothing changed), not a raised Drive 403
 - 🔍 **Known limitation:** service accounts have no personal Drive identity to own files; this documents the failure mode the tool's docstring OAuth requirement refers to
 
 **Result (2026-07-27) ⏭️ SKIP — environmental**
@@ -461,6 +486,8 @@ out of shard scope — requires the mcp-gee-sweet-sa server; this shard is restr
 SA → 403 ownerOnTeamDriveItemNotSupported: a clean Drive error, not a silent success.
 
 **Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — shard assignment defers every transfer_ownership call to Aziz, although this case targets the SA server; deferred to Aziz.
+
+**Result (2026-11-23) ⏭️ SKIP — PR #1600 round 1 (Kit)** — needs `mcp-gee-sweet-sa`, which isn't this slot's server. The Checks were updated for #1181's `{"error"}` result; the same code path ran under OAuth in TC-D327.
 
 ---
 
@@ -482,6 +509,81 @@ transfer_ownership("fakefileid999", ...) -> HttpError 404 "File not found: fakef
 Run 2 (oauth) and Aziz follow-ups after the user's sharing approvals; throwaway files only, every grant removed.
 
 **Result (2026-11-08) ⏭️ SKIP — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — transfer_ownership deferred to Aziz per shard assignment.
+
+**Result (2026-11-23) ✅ PASS — PR #1600 round 1 (Kit)**
+`transfer_ownership("fakefileid999", "qa-nonexistent-placeholder@example.com")` with `send_notification` omitted → HttpError 404 "File not found: fakefileid999." propagates; the request URL shows `sendNotificationEmail=true`.
+
+**Result (2026-11-23) ✅ PASS — PR #1600 round 2 (Kit) @ 8ad37992**
+Same call → Drive's 404 "File not found: fakefileid999." propagates, with `sendNotificationEmail=true` in the request.
+
+---
+
+### TC-D327: Shared drive item returns a clear error, nothing changed (#1181)
+
+Non-destructive: Drive refuses every owner transfer on a shared drive item, so nothing is transferred. Runs on either auth method.
+
+**Setup:** `create_spreadsheet(title="QA-TC-D327")`, which lands in `{SHARED_DRIVE_ID}`.
+
+**Prompt**
+> `transfer_ownership(file_id=<that spreadsheet's ID>, new_owner_email="qa-recipient@example.com")`
+
+**Checks**
+- Result is exactly `{"error": ...}` (a successful tool result, not a raised tool error)
+- The message names the file ID, says the item is in a shared drive whose organization owns it, says nothing was changed, and says an organizer can move the item into their own My Drive to own it
+- It doesn't contain Drive's bare "Owner role is invalid for shared drive items."
+- `list_permissions` on the file shows no `qa-recipient@example.com` permission and no `owner` role
+
+**Cleanup:** `delete_file` the spreadsheet.
+
+**Result (2026-11-23) ✅ PASS — PR #1600 round 1 (Kit, OAuth)**
+Result was exactly `{"error"}`: names the file ID, the shared drive, the organization owning it, "Nothing was changed", and that an organizer can move the item into their own My Drive; no Drive "Owner role is invalid" text. `list_permissions` afterward: only the SA (`fileOrganizer`) and the user (`organizer`), with no recipient permission and no `owner`. Spreadsheet trashed.
+
+**Result (2026-11-23) ✅ PASS — PR #1600 round 2 (Kit, OAuth) @ 8ad37992**
+The same `{"error"}` text as round 1. `list_permissions` afterward showed only the SA (`fileOrganizer`) and the user (`organizer`). Spreadsheet trashed. Extra probe, the same round: a My Drive spreadsheet sent to `qa-recipient@example.com` raised Drive's 400 (`invalidSharingRequest`, "ownership can only be transferred to another user in the same organization") unrewritten, the owner unchanged. Trashed.
+
+---
+
+### TC-D328: `send_notification` schema admits only `true` (#1181)
+
+**Prompt**
+> List the server's tools and read `transfer_ownership`'s input schema; then call `transfer_ownership(file_id="fakefileid999", new_owner_email="qa-nonexistent-placeholder@example.com", send_notification=false)`.
+
+**Checks**
+- `send_notification` in the schema is `{"const": true, "default": true, "type": "boolean", ...}`
+- The call with `false` fails input validation (a tool error naming `send_notification`) and makes no Drive request: the error isn't Drive's 404 "File not found: fakefileid999."
+- The same call without `send_notification` reaches Drive and returns its 404 (as TC-D235)
+
+**Cleanup:** none.
+
+**Result (2026-11-23) ✅ PASS — PR #1600 round 1 (Kit)**
+Listed schema: `send_notification` = `{"const": true, "default": true, "title": "Send Notification", "type": "boolean"}`. With `send_notification=false`: pydantic validation error `Input should be True [type=literal_error]` naming `send_notification`, with no Drive 404, so no request was made. Without it: Drive's 404 "File not found: fakefileid999." (TC-D235).
+
+**Result (2026-11-23) ✅ PASS — PR #1600 round 2 (Kit) @ 8ad37992**
+The schema is unchanged (`const: true`). `send_notification=false` → `literal_error` naming `send_notification`, with no Drive request; omitted → Drive's 404.
+
+---
+
+### TC-D329: Transfer between two personal accounts returns a clear error (#1181) ⚠️ requires-oauth
+
+**Fixture requirement:** a server signed in to a personal (gmail.com) account, and a second gmail.com account the tester owns. Drive refuses this transfer (403 `consentRequiredForOwnershipTransfer`, checked live 2026-11-23), so nothing changes owner. Skip as environmental when no such server or second account is available.
+
+**Setup:** `create_doc(title="QA-TC-D329")` in the personal account's My Drive (not a shared drive).
+
+**Prompt**
+> `transfer_ownership(file_id=<that Doc's ID>, new_owner_email=<second gmail.com address>)`
+
+**Checks**
+- Result is exactly `{"error": ...}`, naming the file ID and the second address
+- The message says Drive transfers ownership between personal accounts only once the new owner accepts, that this tool can't send that request, that nothing was changed, and that the owner sends it from the file's Share dialog
+- `list_permissions` on the Doc still shows the personal account as `owner`
+
+**Cleanup:** `delete_file` the Doc.
+
+**Result (2026-11-23) ⏭️ SKIP — environmental, PR #1600 round 1 (Kit)**
+`mcp-gee-sweet-kit` is signed in to a Workspace account (`is_service_account_identity: false`, a Workspace-org domain), not a personal gmail.com account, and this slot has no second consumer account. Not run.
+
+**Result (2026-11-23) ⏭️ SKIP — environmental, PR #1600 round 2 (Kit)**
+Same as round 1: no consumer-account fixture on this slot. The message's new wording is covered by `test_consumer_accounts_return_clear_error`.
 
 ---
 
@@ -688,7 +790,7 @@ list_permissions cross-check: every principal had exactly its requested role.
 
 ### TC-D259: `share_file` emits `notifications/progress` updates as each permission entry completes (issue #355)
 
-**Background:** #355 extends #316/#319's per-item `ctx.report_progress()` pattern (originally added to `download_folder`/`sync_folder` — see TC-D199) to `share_file`'s concurrent per-permission shares (the same concurrent loop TC-D177 exercises for cross-attribution): `ctx.report_progress(completed, total, f"{perm_type}: {outcome}")` fires from inside each entry's own coroutine as its share finishes, wrapped in try/except so a broken notification channel can't demote an already-successful share. Unit-tested against a mocked `ctx` in `tests/drive/test_sharing.py::TestShareFile::test_reports_progress_per_permission`/`test_report_progress_failure_does_not_demote_a_successful_share`.
+**Background:** #355 extends #316/#319's per-item `ctx.report_progress()` pattern (originally added to `download_folder`/`sync_folder` — see TC-D199) to `share_file`'s concurrent per-permission shares (the same concurrent loop TC-D177 exercises for cross-attribution): `ctx.report_progress(completed, total, f"{principal}: {outcome}")` fires (`principal` is the entry's `email_address` or `domain`, else its `type`, since #665) from inside each entry's own coroutine as its share finishes, wrapped in try/except so a broken notification channel can't demote an already-successful share. Unit-tested against a mocked `ctx` in `tests/drive/test_sharing.py::TestShareFile::test_reports_progress_per_permission`/`test_report_progress_failure_does_not_demote_a_successful_share`.
 
 **Note:** Same protocol-level caveat as TC-D199 — visibility depends on whether this QA client sets a `progressToken`.
 

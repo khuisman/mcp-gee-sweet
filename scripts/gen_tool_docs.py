@@ -135,12 +135,14 @@ SECTIONS = [
     (
         "Drive — sharing",
         lambda f: f.__module__ == "mcp_gee_sweet.tools.drive.sharing",
-        "`share_spreadsheet`'s `recipients` is a list of `{email_address, role}` "
-        "objects. Valid roles: `reader`, `commenter`, `writer`, `owner`.\n\n"
         "`share_file`'s `permissions` is a list of `{type, role, ...}` objects — "
         "`type` is `user`, `group`, `domain`, or `anyone`; `user`/`group` also "
         "need `email_address`, `domain` needs `domain`. Valid roles: `reader`, "
-        "`commenter`, `writer`.",
+        "`commenter`, `writer`; a `role` left out means `reader`.\n\n"
+        "`share_spreadsheet` is deprecated: its `recipients` entry "
+        "`{email_address, role}` is `share_file`'s "
+        "`{type: 'user', email_address, role}`, except that a `role` left out "
+        "means `writer`. Valid roles: `reader`, `commenter`, `writer`.",
     ),
     (
         "Drive — activity",
@@ -255,6 +257,9 @@ MEMBERSHIP_CLAIMS = (
     # "searching ... spreadsheets" in the `sheets` description: search_files absorbs
     # search_spreadsheets and list_spreadsheets (#1528).
     ("search_files", "sheets", True),
+    # "sharing spreadsheets" in the `sheets` description: share_file replaces
+    # share_spreadsheet (#665).
+    ("share_file", "sheets", True),
     *((name, "sheets", True) for name in SPREADSHEET_FILE_TOOLS),
     *((name, "drive", True) for name in SPREADSHEET_FILE_TOOLS),
 )

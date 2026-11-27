@@ -1533,7 +1533,7 @@ Needs OAuth token manipulation, a degraded start, SSE, or the auth consent flow.
 
 **Action**
 1. As TC-I48 step 1: get the consent link from `list_files`
-2. Open the link in the browser and approve every requested scope. The callback page reads `The authentication flow has completed. You may close this window.`
+2. Open the link in the browser and approve every requested scope. The callback page reads `Authorization received` — "You may close this window and go back to your MCP client."
 3. Call `list_files` again, then `list_sheets`
 
 **Checks**
@@ -2286,7 +2286,7 @@ All six steps met their checks, with `DEBUG_LEVEL` and `LOG_FILE` set empty as i
 - 2: `<total>` + `<aliases>` tools, `list_doc_comments` and `add_doc_comment` among them. `instructions` is `Tools: every tool is loaded (<total>, plus <aliases> deprecated aliases), because ENABLED_TOOLS includes all.` The startup line ends `plus <aliases> deprecated aliases from ENABLED_TOOLS=all.` Repeated with `LOCAL_FILE_ACCESS=off`: `<total>` − 9 + `<aliases>` tools (the nine local-only tools left out), and `instructions` is `Tools: this server loads <total − 9> of <total> tools, plus <aliases> deprecated aliases. ENABLED_TOOLS includes all, and the local-file policy (LOCAL_FILE_ACCESS) leaves out the rest.` (Before #663 `all` registered no alias, so the results below have no `plus` clause.)
 - 3: `docs`'s count in the group table plus 1 (every Docs tool plus `list_events`), `list_messages` and `add_file_comment` not listed: the comment tools are in `drive` since #663 (the results below, from before it, have 35 tools with `add_doc_comment` listed). `tool_selection.entries` is `["docs", "list_events"]`. No `ENABLED_TOOLS: ignoring` line
 - 4: 0 tools, and stderr has `ENABLED_TOOLS: ignoring ALL, which names no tool or tool group. Names are case-sensitive; see docs/tools.md for tool names.` The server still starts
-- 5: 4 tools (`list_file_comments`, `add_file_comment`, `reply_to_comment`, `resolve_doc_comment`), no deprecated alias, and the `ignoring` line names `get_sheet_dta` only (3 tools before #663)
+- 5: 7 tools (`list_file_comments`, `add_file_comment`, `reply_to_comment`, `get_file_comment`, `update_comment`, `delete_comment`, `resolve_doc_comment`), no deprecated alias, and the `ignoring` line names `get_sheet_dta` only (3 tools before #663, 4 before #664)
 - 6: 1 tool (`get_sheet_data`), and stderr has `not registering local-only tools named in ENABLED_TOOLS:` followed by all nine local-only tools. `instructions` starts `Tools: this server loads 1 of <total> tools (1 individually named tool).` and doesn't claim the `local-files` group, which registered nothing (PR #1501 QA round 1)
 - 7: `drive`'s count in the group table minus its six local-only tools (32 before #663 moved the comment tools into `drive`), and no `not registering local-only tools` line
 - 8: with `docs,list_events`, the `Scopes :` line has no `gmail.modify`. Unset, it has `gmail.modify`, since `default` includes Gmail tools

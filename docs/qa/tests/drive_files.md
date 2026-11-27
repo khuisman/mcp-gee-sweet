@@ -2181,6 +2181,220 @@ import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 
 ---
 
+### TC-D322: A UTF-8 byte-order mark doesn't reach cell A1 (#1575) ⚠️ requires-oauth ⚠️ local-filesystem
+**Background:** Excel's "CSV UTF-8" export starts the file with the bytes `EF BB BF`. Read as plain UTF-8, they became a U+FEFF character at the start of A1, so the header read `"\ufeffcase"`, the call still succeeded, and nothing in the sheet showed it.
+
+**Setup:** in a scratch directory, write `qa-import-bom.csv` with its bytes exactly `EF BB BF` followed by `case,value\nx,1\n`, e.g. `printf '\xef\xbb\xbfcase,value\nx,1\n' > <scratch>/qa-import-bom.csv`. Confirm with `xxd <scratch>/qa-import-bom.csv | head -1` that it starts `efbb bf63`.
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-import-bom.csv", title="QA TC-D322 BOM", folder_id={FOLDER_ID})`
+2. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="A1:B2")`
+3. `update_cells(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="C1:D1", data=[["=LEN(A1)", "=A1=\"case\""]])`
+4. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="C1:D1")`
+
+**Checks**
+- Step 1 returns `rows_written: 2` and no `error`
+- Step 2's `valueRanges[0].values` is `[["case","value"],["x","1"]]`. U+FEFF is invisible, so this alone doesn't rule it out; step 4 does
+- Step 4's `valueRanges[0].values` is `[["4","TRUE"]]`. Before the fix it was `[["5","FALSE"]]`: A1 held the BOM as a fifth character
+
+**Cleanup:** `delete_file(file_id=<step 1's spreadsheetId>, permanent=True)`; remove the local file.
+
+**Result (2026-11-21) ✅ PASS — PR #1580 round 1 on `mcp-gee-sweet-sky`** — fixture bytes confirmed `efbb bf63`. Step 1: `rows_written: 2`, no `error`, created in the Shared Drive root. Step 2: `valueRanges[0].values` `[["case","value"],["x","1"]]`. Step 4: `[["4","TRUE"]]`, so A1 is exactly `case`. Cleanup done (deleted permanently, local file removed). Checks reworded this round: `get_sheet_data` returns `{spreadsheetId, valueRanges:[{range, values}]}`, not a bare list.
+
+**Result (2026-11-21) ✅ PASS — PR #1580 round 2 on `mcp-gee-sweet-sky`** — re-run after the read-error handling fix (ac41c5d5). `rows_written: 2`; `A1:D2` values `[["case","value","4","TRUE"],["x","1"]]`. Cleanup done.
+
+---
+
+### TC-D323: A non-UTF-8 CSV or a directory named `.csv` returns an error, creating nothing (PR #1580) ⚠️ local-filesystem
+**Background:** a CSV saved in Excel's plain "CSV" format is cp1252, not UTF-8. Reading one raised `UnicodeDecodeError` out of the tool (`Error executing tool import_csv_to_sheet: 'utf-8' codec can't decode byte 0xe9 ...`), and a directory named `x.csv` passed the existence and suffix checks and raised `IsADirectoryError`, instead of returning `{"error": ...}`.
+
+**Setup:** in a scratch directory, write `qa-import-cp1252.csv` with its bytes exactly `caf` `E9` `,1\n`, e.g. `printf 'caf\xe9,1\n' > <scratch>/qa-import-cp1252.csv`, and confirm with `xxd` that byte 3 is `e9`. Create a directory `<scratch>/qa-dir.csv` (`mkdir`).
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-import-cp1252.csv", title="QA TC-D323 cp1252", folder_id={FOLDER_ID})`
+2. `import_csv_to_sheet(local_path="<scratch>/qa-dir.csv", title="QA TC-D323 dir", folder_id={FOLDER_ID})`
+3. `search_files(query="QA TC-D323", folder_id={FOLDER_ID})`
+
+**Checks**
+- Step 1 returns a result whose only key is `error`, starting `File is not valid UTF-8: <scratch>/qa-import-cp1252.csv` and naming `"CSV UTF-8"`. It is a tool result, not a protocol error (`Error executing tool ...`)
+- Step 2 returns only `error`: `Not a regular file: <scratch>/qa-dir.csv`
+- Step 3 finds no file: neither call created a spreadsheet
+
+**Cleanup:** remove the local file and directory.
+
+**Result (2026-11-21) ✅ PASS — PR #1580 round 2 on `mcp-gee-sweet-sky`** — fixture bytes `6361 66e9 2c31 0a`. Step 1: `{"error": "File is not valid UTF-8: <scratch>/qa-import-cp1252.csv (invalid continuation byte). Save it as UTF-8 (in Excel, \"CSV UTF-8\") and import again."}`, a tool result, not `Error executing tool`. Step 2: `{"error": "Not a regular file: <scratch>/qa-dir.csv"}`. Step 3: `{"files": [], "exhaustive": true}`. Local fixtures removed.
+
+---
+
+### TC-D324: The grid is sized to exactly the data, not padded to 1000x26 (#1573) ⚠️ requires-oauth ⚠️ local-filesystem
+**Background:** the grid was `max(rows, 1000)` × `max(columns, 26)`. The padding counts against the workbook's 20M-cell limit, so a 1-column file over ~769k rows was refused as 26 cells a row. The grid now matches the data on both axes.
+
+**Setup:** in a scratch directory write `qa-grid-short.csv` as `a,b\n1,2\n`, and `qa-grid-narrow.csv` as a header plus 1500 rows of one column: `(echo h; seq 1 1500) > <scratch>/qa-grid-narrow.csv`.
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-grid-short.csv", title="QA TC-D324 short", folder_id={FOLDER_ID})`
+2. Read the resource `spreadsheet://<step 1's spreadsheetId>/info`
+3. `import_csv_to_sheet(local_path="<scratch>/qa-grid-narrow.csv", title="QA TC-D324 narrow", folder_id={FOLDER_ID})`
+4. Read the resource `spreadsheet://<step 3's spreadsheetId>/info`
+5. `get_sheet_data(spreadsheet_id=<step 3's spreadsheetId>, sheet="Sheet1", range="A1499:A1501")`
+
+**Checks**
+- Step 1 returns `rows_written: 2`, no `error`
+- Step 2's `sheets[0].gridProperties` has `rowCount: 2` and `columnCount: 2`. Before the fix it was 1000 and 26
+- Step 3 returns `rows_written: 1501`, no `error`
+- Step 4's `sheets[0].gridProperties` has `rowCount: 1501` and `columnCount: 1`. Before the fix: 1501 and 26
+- Step 5's `valueRanges[0].values` is `[["1498"],["1499"],["1500"]]`
+
+**Cleanup:** `delete_file(file_id=<step 1's spreadsheetId>, permanent=True)` and the same for step 3's; remove the local files.
+
+**Result (2026-11-22) ✅ PASS — PR #1589 QA round 1 (Sky) @ e5112546**
+Ran from the `sky` checkout on `mcp-gee-sweet-sky` (OAuth), into the Shared Drive fixture folder. Step 1: `rows_written: 2`. Step 2: `rowCount: 2`, `columnCount: 2`. Step 3: `rows_written: 1501`. Step 4: `rowCount: 1501`, `columnCount: 1`. Step 5: `[["1498"],["1499"],["1500"]]`. Extra probe: a 3x1 CSV whose last cell is `=SPLIT("x y z"," ")` returned `x, y, z` in row 3, and the grid grew to 13 columns by itself. Sheets expands an exact-size grid to fit a spilled result, so sizing the grid to the data doesn't break array formulas.
+
+**Result (2026-11-23) ✅ PASS — PR #1589 QA round 2 (Sky) @ 44875ab5**
+Re-ran on `mcp-gee-sweet-sky` after a reconnect, with the fix that routes the rename-and-resize `batchUpdate` through the same rate-limit pause. Step 1: `rows_written: 2`, grid 2 x 2. Step 3: `rows_written: 1501`, grid 1501 x 1. Step 5: `[["1498"],["1499"],["1500"]]`.
+
+---
+
+### TC-D325: A CSV wider than Sheets' 18,278 columns returns an error, creating nothing (#1573) ⚠️ local-filesystem
+**Background:** a file over Sheets' limits (18,278 columns, or 20,000,000 cells) is refused before the spreadsheet is created. The 20M-cell check needs a file of about 40 MB, so the cell limit is covered by unit tests (`test_grid_limit_error_allows_exactly_the_limits`, `test_csv_over_cell_limit_errors_before_create`) and this case covers the column limit, which a one-line file reaches.
+
+**Setup:** write a one-row CSV of 18,279 columns: `python3 -c "print(','.join(['x'] * 18279))" > <scratch>/qa-wide.csv`.
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-wide.csv", title="QA TC-D325 wide", folder_id={FOLDER_ID})`
+2. `search_files(query="QA TC-D325", folder_id={FOLDER_ID})`
+
+**Checks**
+- Step 1 returns a result whose only key is `error`: `CSV <scratch>/qa-wide.csv has 18,279 columns; a Google Sheet holds at most 18,278. Nothing was created.`
+- Step 2 finds no file
+
+**Cleanup:** remove the local file.
+
+**Result (2026-11-22) ✅ PASS — PR #1589 QA round 1 (Sky) @ e5112546**
+Step 1 returned only `error`: `CSV <scratch>/qa-wide.csv has 18,279 columns; a Google Sheet holds at most 18,278. Nothing was created.` Step 2: `{"files": [], "exhaustive": true}`.
+
+**Result (2026-11-23) ✅ PASS — PR #1589 QA round 2 (Sky) @ 44875ab5**
+Same error text as round 1, and step 2 found no file. The limit check now runs before the rows are padded, and the result is unchanged.
+
+---
+
+### TC-D326: An 800,000-row import waits out Sheets' write quota and lands every row (#1573) ⚠️ requires-oauth ⚠️ local-filesystem
+**Background:** the ticket's own failing file. Its grid was refused outright before the fix; with the grid fixed, 93 of its 160 chunk writes were refused with `429 RATE_LIMIT_EXCEEDED`, since Sheets allows 60 writes a minute per user and every chunk went at once. A 429 now pauses every chunk of the import and resends it. Since #1577 a chunk closes at 200,000 cells, so this file is 4 writes, not 160, and no longer reaches the quota; the case now checks that a large narrow file lands whole across chunk boundaries, and unit tests (`TestRateLimitPause`, `TestCsvImportWriteConcurrency`) cover the pause.
+
+**Setup:** `seq -f "row-%.0f" 1 800000 > <scratch>/qa-800k.csv` (800,000 lines, one column, about 8 MB). Don't run this case alongside another Sheets-writing case on the same account: they share the quota.
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-800k.csv", title="QA TC-D326 800k", folder_id={FOLDER_ID})`. Expect it to take a few minutes
+2. Read the resource `spreadsheet://<step 1's spreadsheetId>/info`
+3. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="A799999:A800000")`
+4. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="A200000:A200001")`
+
+**Checks**
+- Step 1 returns `rows_written: 800000` and no `error`, `failed_ranges`, or `written_ranges`
+- Step 2's `sheets[0].gridProperties` has `rowCount: 800000` and `columnCount: 1`
+- Step 3's values are `[["row-799999"],["row-800000"]]`
+- Step 4's values are `[["row-200000"],["row-200001"]]`, across a chunk boundary (200,000 cells a chunk since #1577; the two results below predate it and read `A335000:A335001`, the boundary of 5,000-row chunks)
+
+**Cleanup:** `delete_file(file_id=<step 1's spreadsheetId>, permanent=True)`; remove the local file.
+
+**Result (2026-11-22) ✅ PASS — PR #1589 QA round 1 (Sky) @ e5112546**
+The import took about 3 to 4 minutes (the client moved it to the background after 120 s) and returned `rows_written: 800000` with no `error`, `failed_ranges`, or `written_ranges`. Step 2: `rowCount: 800000`, `columnCount: 1`. Step 3: `[["row-799999"],["row-800000"]]`. Step 4: `[["row-335000"],["row-335001"]]`. Landing every row doesn't show that the shared pause holds back chunks already queued for a worker thread. Round 1's review found it doesn't, and that finding was sent back.
+
+**Result (2026-11-23) ✅ PASS — PR #1589 QA round 2 (Sky) @ 44875ab5**
+With writes capped at 4 in flight (`_CSV_WRITE_CONCURRENCY`), the import ran past the client's 120 s foreground limit and returned `rows_written: 800000` with no `error`, `failed_ranges`, or `written_ranges`. Step 2: `rowCount: 800000`, `columnCount: 1`. Step 3: `[["row-799999"],["row-800000"]]`. Step 4: `[["row-335000"],["row-335001"]]`. Unit tests cover the pause's ordering (`TestCsvImportWriteConcurrency`, `test_a_success_sent_before_the_pause_keeps_the_delay`, `test_no_pause_runs_past_the_deadline`). This case shows only that the capped import still lands every row.
+
+**Result (2026-11-25) ✅ PASS — PR #1615 QA round 1 (Sky) @ e74c274f**
+OAuth (`mcp-gee-sweet-sky`), same folder, 200,000-cell chunks (4 writes). Returned in the foreground, under 120 s: `rows_written: 800000`, no `error`, `failed_ranges`, or `written_ranges`. Step 2: `rowCount: 800000`, `columnCount: 1`. Step 3: `[["row-799999"],["row-800000"]]`. Step 4 (`A200000:A200001`): `[["row-200000"],["row-200001"]]`. Deleted after.
+
+**Result (2026-11-25) ✅ PASS — PR #1615 QA round 2 (Sky) @ 71689fe2**
+OAuth (`mcp-gee-sweet-sky`), same folder, after reconnecting to this head. 800,000 rows is past `_CSV_PLAN_PROGRESS_ROWS`, so the planning progress update ran; this client doesn't show progress notifications. Returned in the foreground: `rows_written: 800000`, no `error`, `failed_ranges`, or `written_ranges`. Step 2: `rowCount: 800000`, `columnCount: 1`. Step 3: `[["row-799999"],["row-800000"]]`. Step 4: `[["row-200000"],["row-200001"]]`. Deleted after.
+
+---
+
+### TC-D327: An import that fails before any row lands leaves no spreadsheet behind (#1574) ⚠️ requires-oauth ⚠️ local-filesystem
+**Background:** the spreadsheet is created first, then its sheet is renamed and resized, then the rows are written. A failure in the rename or resize raised a raw `HttpError` out of the tool (`Error executing tool ...`) and left an empty spreadsheet in the folder, with no ID to find it by. A file whose every row write Sheets refused returned `failed_ranges` and also left the empty spreadsheet. Now both remove it: deleted, or moved to the trash when the identity can't delete it (a service account that is a Content manager on a Shared Drive). A chunk that may have landed (a 5xx, a timeout) still keeps the spreadsheet and returns `failed_ranges`, which unit tests cover.
+
+**Setup:** in a scratch directory write `qa-1574-ok.csv` as `a,b\n1,2\n`, and `qa-1574-cell.csv` as a single row of one cell of 50,001 characters, over Sheets' 50,000-character cell limit: `python3 -c "print('x' * 50001)" > <scratch>/qa-1574-cell.csv`. One row only: since PR #1615 a refused chunk of several rows is split and resent, so a header row would land on its own and the import would keep the spreadsheet (TC-D329 covers that).
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-1574-ok.csv", title="QA TC-D327 setup", folder_id={FOLDER_ID}, sheet_name="<101 characters, e.g. 's' repeated 101 times>")`
+2. `import_csv_to_sheet(local_path="<scratch>/qa-1574-cell.csv", title="QA TC-D327 cell", folder_id={FOLDER_ID})`
+3. `search_files(query="QA TC-D327", folder_id={FOLDER_ID})`
+
+**Checks**
+- Step 1 returns a tool result, not a protocol error, whose only key is `error`. It starts `Setting up the sheet failed (`, names Sheets' `The sheet name cannot be greater than 100 characters.` inside the parentheses, and ends `No rows were written, and the new spreadsheet was deleted.`
+- Step 2 returns only `error`: it starts `The row write was refused (`, names `more than the maximum of 50000 characters in a single cell` inside the parentheses, and ends with the same sentence as step 1. No `failed_ranges`
+- Neither error has a period straight after the quoted API error (`">.`): the cause closes with `">).`
+- Step 3 finds no file in the folder. `search_files` doesn't list trashed files, so this check alone doesn't tell deleted from trashed. Each error's request URL names the spreadsheet's ID (`/spreadsheets/<id>/`). Under OAuth, `get_file_metadata` on each ID returns a 404 (`File not found`), which shows both were deleted outright, not trashed. The trash path (`canDelete` false) isn't reachable under this case's identity, and unit tests cover it.
+
+**Cleanup:** remove the local files.
+
+**Result (2026-11-23) ✅ PASS — PR #1599 QA round 1 (Sky) @ dbdaf1bf**
+OAuth (`mcp-gee-sweet-sky`), {FOLDER_ID} = the Shared Drive test folder. Step 1 returned only `error`: `Setting up the sheet failed: <HttpError 400 … "Invalid requests[0].updateSheetProperties: The sheet name cannot be greater than 100 characters." …>. No rows were written, and the new spreadsheet was deleted.` Step 2 returned only `error`: `The row write was refused: <HttpError 400 … "Your input contains more than the maximum of 50000 characters in a single cell." …>. No rows were written, and the new spreadsheet was deleted.`, with no `failed_ranges`. Step 3: `{"files": [], "exhaustive": true}`. `get_file_metadata` on both IDs taken from the error URLs returned 404 `File not found`, so both were deleted, not trashed. A happy-path import of `qa-1574-ok.csv` (default sheet name) returned `rows_written: 2` with the new create `fields`; it was then deleted. Both messages end `">.`, which round 1 sent back as a formatting finding. The trash path wasn't exercised live.
+
+**Result (2026-11-23) ✅ PASS — PR #1599 QA round 2 (Sky) @ cc047fe2**
+OAuth (`mcp-gee-sweet-sky`), same folder. Step 1 returned only `error`: `Setting up the sheet failed (<HttpError 400 … "Invalid requests[0].updateSheetProperties: The sheet name cannot be greater than 100 characters." …>). No rows were written, and the new spreadsheet was deleted.` Step 2 returned only `error`: `The row write was refused (<HttpError 400 … "Your input contains more than the maximum of 50000 characters in a single cell." …>). No rows were written, and the new spreadsheet was deleted.`, with no `failed_ranges`. Neither has `">.`; both close `">).`. Step 3: `{"files": [], "exhaustive": true}`. `get_file_metadata` on both IDs from the error URLs returned 404 `File not found`. The cleanup retry path (a 5xx on the delete) can't be produced live; unit tests cover it.
+
+**Result (2026-11-23) ✅ PASS — PR #1599 QA round 3 (Sky) @ 057cc034**
+OAuth (`mcp-gee-sweet-sky`), same folder, after reconnecting to this head. Step 1 and step 2 returned the same `error`-only results as round 2, closing `">). No rows were written, and the new spreadsheet was deleted.`, with no `failed_ranges` on step 2. Step 3: `{"files": [], "exhaustive": true}`. `get_file_metadata` on both IDs from the error URLs returned 404 `File not found`. This round's fix (the folder is invalidated when a retried delete gets a 404) can't be produced live; `test_404_after_a_retried_delete_counts_as_deleted` covers it.
+
+**Result (2026-11-25) ✅ PASS — PR #1615 QA round 1 (Sky) @ e74c274f**
+OAuth (`mcp-gee-sweet-sky`), same folder, a regression check with chunks now sized by cells and bytes. Step 1 and step 2 returned the same `error`-only results as round 3 of PR #1599, closing `">). No rows were written, and the new spreadsheet was deleted.`, with no `failed_ranges` on step 2. Step 3: `{"files": [], "exhaustive": true}`. `get_file_metadata` on both IDs from the error URLs returned 404 `File not found`.
+
+**Result (2026-11-25) ✅ PASS — PR #1615 QA round 2 (Sky) @ 71689fe2**
+OAuth (`mcp-gee-sweet-sky`), same folder. **First run, with the old Setup's header-plus-bad-cell file:** step 2 returned `failed_ranges` (row 2) and `written_ranges` (row 1) and kept the spreadsheet: this head splits a refused chunk, so the header landed on its own. That is the fix working, not a defect; the Setup now writes the bad cell as the only row, and the run was repeated with it (the kept spreadsheet was deleted). **With the one-row file:** step 1 returned only `error`, `Setting up the sheet failed (` … `The sheet name cannot be greater than 100 characters.` … `). No rows were written, and the new spreadsheet was deleted.` Step 2 returned only `error`, `The row write was refused (` … `more than the maximum of 50000 characters in a single cell` … `). No rows were written, and the new spreadsheet was deleted.`, no `failed_ranges`. Step 3: `{"files": [], "exhaustive": true}`. `get_file_metadata` on both IDs from the error URLs returned 404 `File not found`.
+
+---
+
+### TC-D328: A CSV of long cells goes in requests small enough to finish, and lands every row (#1577) ⚠️ requires-oauth ⚠️ local-filesystem
+**Background:** chunks were a fixed 5,000 rows whatever their size, so 3,000 rows of 40,000-character cells (120 MB) went as one request, which timed out at 60 s with nothing written (#1529). A chunk now closes at 5 MB of its `values` array or 200,000 cells, whichever comes first, so this file goes in about 25 requests of about 124 rows each.
+
+**Setup:** `python3 -c "[print(f'{i:010d}' + 'w' * 39990) for i in range(3000)]" > <scratch>/qa-1577-wide.csv` (3,000 lines, one column, 120 MB). Don't run this case alongside another Sheets-writing case on the same account: they share the quota.
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-1577-wide.csv", title="QA TC-D328 wide", folder_id={FOLDER_ID})`. Expect it to take about 3 minutes
+2. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="A3000")`
+3. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="A1")`
+
+**Checks**
+- Step 1 returns `rows_written: 3000` and no `error`, `failed_ranges`, or `written_ranges`
+- Step 2's one cell starts `0000002999` and is 40,000 characters long: the last row landed whole
+- Step 3's one cell starts `0000000000`. (Read single cells only: a wider range of 40,000-character cells is quickly over the response cap.)
+
+**Cleanup:** `delete_file(file_id=<step 1's spreadsheetId>, permanent=True)`; remove the local file.
+
+**Result (2026-11-25) ✅ PASS — PR #1615 QA round 1 (Sky) @ e74c274f**
+OAuth (`mcp-gee-sweet-sky`), same folder. Step 1 ran past the client's 120 s foreground limit, finished in the background in about 3 minutes, and returned `rows_written: 3000` with no `error`, `failed_ranges`, or `written_ranges`. Steps 2 and 3, read to a scratch file through `local_path`: A3000 is one cell, 40,000 characters long, starting `0000002999`; A1 is one cell, 40,000 characters long, starting `0000000000`. Deleted after.
+
+**Result (2026-11-25) ✅ PASS — PR #1615 QA round 2 (Sky) @ 71689fe2**
+OAuth (`mcp-gee-sweet-sky`), same folder, after reconnecting to this head (bytes now counted by `_row_json_bytes`'s arithmetic path, since this file has no escaped character). Step 1 finished in the background in about 3 minutes and returned `rows_written: 3000` with no `error`, `failed_ranges`, or `written_ranges`. Steps 2 and 3, read through `local_path`: A3000 is one 40,000-character cell starting `0000002999`; A1 is one 40,000-character cell starting `0000000000`. Deleted after.
+
+---
+
+### TC-D329: One cell over Sheets' 50,000-character limit fails only its own row (PR #1615) ⚠️ requires-oauth ⚠️ local-filesystem
+**Background:** Sheets refuses a whole `values.update` with a 400, writing nothing, when any one cell is over 50,000 characters. With chunks of up to 200,000 cells, a 10,000-row one-column file is a single chunk, so one such cell refused every row, and the import deleted the spreadsheet as if nothing could be written (PR #1615 QA round 1). A refused chunk is now split and resent until the refused row stands alone.
+
+**Setup:** `python3 -c "[print('x' * 50001 if r == 9000 else f'row-{r}') for r in range(1, 10001)]" > <scratch>/qa-1577-badcell.csv` (10,000 lines, one column; row 9,000 is 50,001 characters).
+
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-1577-badcell.csv", title="QA TC-D329 bad cell", folder_id={FOLDER_ID})`
+2. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="A8999:A9001")`
+3. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="A10000")`
+
+**Checks**
+- Step 1 returns `error`, `spreadsheetId`, `failed_ranges` and `written_ranges`; the spreadsheet is kept
+- `failed_ranges` is exactly one entry, `start_row: 9000`, `end_row: 9000`, whose `error` names Sheets' `more than the maximum of 50000 characters in a single cell`
+- `written_ranges` is exactly `[{"start_row": 1, "end_row": 8999}, {"start_row": 9001, "end_row": 10000}]`
+- Step 2's values are `row-8999`, an empty row 9,000, then `row-9001` (the empty row may come back as `[]`)
+- Step 3's value is `row-10000`
+
+**Cleanup:** `delete_file(file_id=<step 1's spreadsheetId>, permanent=True)`; remove the local file.
+
+**Result (2026-11-25) ✅ PASS — PR #1615 QA round 2 (Sky) @ 71689fe2**
+OAuth (`mcp-gee-sweet-sky`), same folder. Step 1 returned `error` (`1 of 14 row-range write(s) failed. ...`), `spreadsheetId`, `rows_attempted: 10000`, `failed_ranges` of exactly one entry, `start_row: 9000`, `end_row: 9000`, whose error names `Your input contains more than the maximum of 50000 characters in a single cell.`, and `written_ranges` exactly `[{"start_row": 1, "end_row": 8999}, {"start_row": 9001, "end_row": 10000}]`. The spreadsheet was kept. Step 2: `[["row-8999"],[],["row-9001"]]`. Step 3: `[["row-10000"]]`. Deleted after. The 14 in the error counts the split writes, not the file's one chunk.
+
+---
+
 ### TC-D173: Non-existent local path (unit test)
 
 **Checks (unit test)**
@@ -2245,15 +2459,19 @@ Environmental: needs the SA identity plus a personal-Drive folder / a Content-ma
 **Background:** #183 parallelized `import_csv_to_sheet`'s chunked row-writing loop via `asyncio.gather()` — each chunk writes a disjoint row range of the same sheet concurrently instead of sequentially. Mocked unit tests confirm the request shapes are correct but can't catch a genuine race against the real Sheets API (e.g. a chunk's write landing at the wrong row offset, or two chunks' writes overlapping). This forces at least 3 concurrent chunks with distinctly identifiable content per chunk.
 
 **Setup**
-Generate a local CSV with a header row plus 12,000 data rows, where each row's first cell is its own row number (e.g. row 1's cell reads `"row-1"`, row 5000's reads `"row-5000"`). With the default `_CSV_IMPORT_CHUNK_ROWS=5000`, this produces 3 chunks (5000 + 5000 + 2000 rows).
+Generate a local CSV with a header row plus 12,000 data rows of 50 columns each, where each data row's first cell is its own row number (row 1's cell reads `"row-1"`) and its other 49 cells read `x`: `python3 -c "print(','.join(['h'] * 50)); [print(','.join([f'row-{i}'] + ['x'] * 49)) for i in range(1, 12001)]" > <scratch>/qa-import-183.csv`. A chunk closes at 200,000 cells (#1577), 4,000 rows of 50 columns, so this produces 4 chunks: sheet rows 1-4000, 4001-8000, 8001-12000, and 12001. (Before #1577 a chunk was a fixed 5,000 rows, and this case used one column; 12,000 one-column rows are now a single chunk.)
 
-**Prompt**
-> "Import `/tmp/qa-import-183.csv` into a new spreadsheet called 'QA-CSV-Concurrent-183'"
+**Steps**
+1. `import_csv_to_sheet(local_path="<scratch>/qa-import-183.csv", title="QA-CSV-Concurrent-183", folder_id={FOLDER_ID})`
+2. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="A3999:A4002")`
+3. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="A7999:A8002")`
+4. `get_sheet_data(spreadsheet_id=<step 1's spreadsheetId>, sheet="Sheet1", range="A11999:AX12001")`
 
 **Checks**
-- `rows_written` equals 12,001 (header + 12,000 data rows)
-- Spot-check the boundary rows of each chunk (e.g. rows 1, 4999, 5000, 5001, 9999, 10000, 10001, 12000) via `get_sheet_data` — each cell's value matches its expected row-number marker, confirming no chunk landed at the wrong offset and no two chunks overlapped or clobbered each other
-- No gaps: every row from 1 to 12,000 is present exactly once
+- Step 1 returns `rows_written: 12001` (header + 12,000 data rows) and no `error`
+- Step 2's values are `[["row-3998"],["row-3999"],["row-4000"],["row-4001"]]`, across the first chunk boundary (sheet row 4000 is `row-3999`, since the header is sheet row 1)
+- Step 3's values are `[["row-7998"],["row-7999"],["row-8000"],["row-8001"]]`
+- Step 4's three rows start `row-11998`, `row-11999`, `row-12000`, and each has 50 cells, the last one `x`: the last chunk is the single row 12001
 
 **Teardown**
 Delete the `QA-CSV-Concurrent-183` spreadsheet.
@@ -2265,6 +2483,12 @@ import_csv_to_sheet(12001-row CSV → 'QA-CSV-Concurrent-183') → rows_written=
 import_csv_to_sheet; 12k-row import verified at every chunk boundary.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard H on `mcp-gee-sweet-ash`** — 12,000-row CSV → rows_written=12001, no error. Boundary reads (rows 1-2, 4998-5002, 9998-10002, 11998-12000) all match. Full read of A1:B12010 to a scratch file: 12,001 rows, data rows equal exactly `row-1..row-12000` in order (no gaps, overlap or duplicates).
+
+**Result (2026-11-25) ✅ PASS — PR #1615 QA round 1 (Sky) @ e74c274f**
+OAuth (`mcp-gee-sweet-sky`), the Shared Drive test folder, with the 50-column file the case's new Setup writes. Step 1 returned `rows_written: 12001` and no `error`. Step 2: `[["row-3998"],["row-3999"],["row-4000"],["row-4001"]]`. Step 3: `[["row-7998"],["row-7999"],["row-8000"],["row-8001"]]`. Step 4: three rows starting `row-11998`, `row-11999`, `row-12000`, 50 cells each, the last `x`. Deleted after.
+
+**Result (2026-11-25) ✅ PASS — PR #1615 QA round 2 (Sky) @ 71689fe2**
+OAuth (`mcp-gee-sweet-sky`), same folder, after reconnecting to this head. Step 1 returned `rows_written: 12001` and no `error`. Step 2: `[["row-3998"],["row-3999"],["row-4000"],["row-4001"]]`. Step 3: `[["row-7998"],["row-7999"],["row-8000"],["row-8001"]]`. Step 4 (read to a scratch file): three rows starting `row-11998`, `row-11999`, `row-12000`, 50 cells each, the last `x`. Deleted after.
 
 ---
 

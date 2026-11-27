@@ -1,7 +1,9 @@
 """Tests for GitHub/GitLab-style heading-anchor slug resolution (issue #409)."""
 
 from mcp_gee_sweet.tools.docs.anchors import (
+    _SLUGIFY_FUNCS,
     _github_style_slugify,
+    _gitlab_style_slugify,
     _slugs_with_dedup,
     compute_scheme_slugs,
     resolve_heading_anchor,
@@ -14,6 +16,13 @@ class TestResolveHeadingAnchor:
         # three literal hyphens in the anchor, not one.
         headings = ["Appendix A - Approved Hashing Algorithms"]
         assert resolve_heading_anchor("#appendix-a---approved-hashing-algorithms", headings) == 0
+
+    def test_github_style_keeps_every_hyphen_of_a_spaced_dash(self):
+        # The slugify-level pin of the same shape: the resolver-level test
+        # above passes through the fuzzy fallback, which normalizes "- " and
+        # "-" alike, so it would still resolve if the scheme collapsed the
+        # hyphens (#1579).
+        assert _github_style_slugify("A - Approved") == "a---approved"
 
     def test_gitlab_style_collapsed_hyphens(self):
         headings = ["Appendix A - Approved Hashing Algorithms"]
@@ -35,7 +44,8 @@ class TestResolveHeadingAnchor:
         # hyphen form is tolerance, not reproduction — see
         # docs/design/heading-anchor-resolution.md.
         headings = ["Heading one\vheading two"]
-        assert compute_scheme_slugs(headings)[1] == ["heading-one-heading-two"]
+        gitlab = compute_scheme_slugs(headings)[_SLUGIFY_FUNCS.index(_gitlab_style_slugify)]
+        assert gitlab == ["heading-one-heading-two"]
 
     def test_hard_break_heading_still_matches_right_heading_among_several(self):
         headings = ["Introduction", "Heading one\vheading two", "Appendix"]
@@ -118,6 +128,64 @@ class TestResolveHeadingAnchor:
         assert resolve_heading_anchor("#notes-extra-3", headings) is None
 
 
+class TestPercentEncodedAnchors:
+    r"""#1553: a browser's address bar percent-encodes the URL fragment, so
+    an anchor copied from GitHub arrives as "#caf%C3%A9" for a "Café"
+    heading (or "#cafe%CC%81" — the UTF-8 percent-encoding of the
+    decomposed "cafe\u0301"). The literal string matches no slug; the
+    resolver retries urllib.parse.unquote(anchor) once the literal anchor
+    has failed."""
+
+    def test_percent_encoded_nfc_heading_resolves(self):
+        assert resolve_heading_anchor("#caf%C3%A9", ["Café"]) == 0
+
+    def test_percent_encoded_nfd_heading_resolves(self):
+        assert resolve_heading_anchor("#cafe%CC%81", ["Cafe\u0301"]) == 0
+
+    def test_percent_encoded_anchor_with_dedup_suffix_resolves(self):
+        headings = ["Café", "Café"]
+        assert resolve_heading_anchor("#caf%C3%A9", headings) == 0
+        assert resolve_heading_anchor("#caf%C3%A9-1", headings) == 1
+
+    def test_percent_decoding_never_rewrites_the_anchor(self):
+        # A percent-encoded anchor can never exact-match a slug as written
+        # (every scheme strips "%"), so the literal-vs-decoded ordering at
+        # the exact match is unobservable and this test can't pin it — the
+        # observable ordering claim, decoded-exact over literal-fuzzy, is
+        # pinned by test_decoded_exact_match_outranks_a_literal_fuzzy_match
+        # (#1579). What this pins instead: the retry is additive — a heading
+        # named by the decoded form resolves, and a plain anchor for a heading
+        # literally spelled the encoded form's plain reading still resolves
+        # too, so the resolver never swapped one for the other.
+        headings = ["Café", "Cafe"]
+        assert resolve_heading_anchor("#caf%C3%A9", headings) == 0
+        assert resolve_heading_anchor("#cafe", headings) == 1
+
+    def test_percent_decoding_still_requires_a_real_match(self):
+        assert resolve_heading_anchor("#%3F%21", ["Overview"]) is None
+
+    def test_decoded_anchor_does_not_reach_the_fuzzy_match(self):
+        # _normalize_tokens keeps only [a-z0-9], so a decoded anchor's
+        # non-ASCII letters drop out of the token comparison and only its
+        # ASCII words are compared. A stale "#step-1-実行" must not
+        # fuzzy-resolve to the first "Step 1" heading: a wrong-section link
+        # is worse than none (#1553 review). The exact scheme match still
+        # applies to the decoded form — the encoded CJK letters just don't
+        # name either heading.
+        headings = ["Step 1: 準備", "Step 1: 設定"]
+        assert resolve_heading_anchor("#step-1-%E5%AE%9F%E8%A1%8C", headings) is None
+
+    def test_decoded_exact_match_outranks_a_literal_fuzzy_match(self):
+        # Both forms get the exact scheme match before the literal fuzzy
+        # fallback runs: "#caf%C3%A9" must resolve to the heading its
+        # decoded form names exactly ("Café"), not the heading the encoded
+        # reading token-matches ("Caf C3 A9") — the order changes the
+        # result here, where test_plain_anchor_is_tried_whole_before_decoding
+        # passes in either order (#1553 review).
+        headings = ["Café", "Caf C3 A9"]
+        assert resolve_heading_anchor("#caf%C3%A9", headings) == 0
+
+
 class TestComputeSchemeSlugs:
     def test_precomputed_scheme_slugs_match_default_internal_computation(self):
         # A caller resolving several anchors against the same heading list
@@ -182,11 +250,11 @@ class TestGithubSchemeStripsOtherWhitespace:
     def test_issue_repro_resolves_the_nbsp_heading(self):
         assert resolve_heading_anchor("#pricelist", ["Price\xa0List"]) == 0
 
-    def test_hard_break_heading_slug_is_separator_free(self):
-        assert _github_style_slugify("Heading one\vheading two") == "heading-oneheading-two"
-
     def test_space_runs_still_become_matching_hyphens(self):
-        assert _github_style_slugify("A - Approved") == "a---approved"
+        # The "A - Approved" -> "a---approved" shape is pinned at the
+        # slugify level too (test_github_style_keeps_every_hyphen_of_a_
+        # spaced_dash); only the space-run form needs its own test here
+        # (#1553).
         assert _github_style_slugify("a  b") == "a--b"
 
     def test_slash_still_strips_with_no_separator(self):

@@ -14,6 +14,7 @@ from mcp_gee_sweet import auth, cache, local_files
 from mcp_gee_sweet.local_files import LocalFileAccessError
 from mcp_gee_sweet.tools import gmail, response_limits
 from mcp_gee_sweet.tools.docs import content, images
+from mcp_gee_sweet.tools.docs.md_to_html import _md_to_html
 from mcp_gee_sweet.tools.drive import files as files_module
 from mcp_gee_sweet.tools.drive.transfer import _upload_local_file
 
@@ -21,6 +22,9 @@ from .drive.test_transfer import _drive_file, _drive_folder, _FakeDriveFS, _tran
 from .fakes import use_local_file_policy
 
 _OFF = "local file access is disabled on this server (LOCAL_FILE_ACCESS=off)"
+# The policy the process resolved at import (conftest pins LOCAL_FILE_ACCESS=full),
+# which every test's own policy must give back.
+_PROCESS_POLICY = local_files.POLICY
 
 
 @pytest.fixture(autouse=True)
@@ -421,6 +425,82 @@ class TestOtherReaders:
             str(root / "notes.md"), None, format_overridable=False
         ) == ("# hi", "markdown")
 
+    def test_doc_source_file_drops_a_leading_byte_order_mark(self, root):
+        # #1581: a BOM at the start of the file would keep its U+FEFF in the
+        # text, so the parser missed the first Markdown heading (`_md_to_html`
+        # rendered it a plain paragraph reading "# Title") and an HTML source
+        # carried the stray character at its start. utf-8-sig drops it, as
+        # import_csv_to_sheet's reader did in #1575. Written as bytes, not a
+        # literal BOM character.
+        (root / "bom.md").write_bytes(b"\xef\xbb\xbf# Title\n\nbody\n")
+        text, fmt = content._read_doc_source_file(
+            str(root / "bom.md"), None, format_overridable=False
+        )
+        assert (text, fmt) == ("# Title\n\nbody\n", "markdown")
+        html = _md_to_html(text, autolink_urls=False)
+        assert "<h1>Title</h1>" in html and "\ufeff" not in html
+        (root / "bom.html").write_bytes(b"\xef\xbb\xbf<h1>Title</h1>\n")
+        assert content._read_doc_source_file(
+            str(root / "bom.html"), None, format_overridable=False
+        ) == ("<h1>Title</h1>\n", "html")
+
+    def test_doc_source_file_without_a_byte_order_mark_is_unchanged(self, root):
+        (root / "plain.md").write_text("no mark\n")
+        assert content._read_doc_source_file(
+            str(root / "plain.md"), None, format_overridable=False
+        ) == ("no mark\n", "markdown")
+
+    def test_doc_source_file_with_bom_and_front_matter_reads_and_converts(self, root):
+        # #1607's missing test: a file whose mark sits in front of the front
+        # matter, through the reader and the conversion — an <h1> comes out, and
+        # neither the mark nor the front matter does.
+        (root / "bomfm.md").write_bytes(b"\xef\xbb\xbf---\ntitle: T\n---\n\n# Title\n\nbody\n")
+        text, fmt = content._read_doc_source_file(
+            str(root / "bomfm.md"), None, format_overridable=False
+        )
+        assert (text, fmt) == ("---\ntitle: T\n---\n\n# Title\n\nbody\n", "markdown")
+        converted = content._convert_doc_content(text, "markdown", autolink_urls=False)
+        named = [
+            r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"]
+            for r in converted.requests
+            if "updateParagraphStyle" in r
+        ]
+        inserted = "".join(r["insertText"]["text"] for r in converted.requests if "insertText" in r)
+        assert "HEADING_1" in named
+        assert "Title" in inserted and "title: T" not in inserted and "\ufeff" not in inserted
+        # The same mark pasted into a string (create_doc, write_doc_content,
+        # upload_file's Markdown Doc) is stripped by the conversion itself, so
+        # every entry point agrees on the same start (#1607).
+        converted = content._convert_doc_content(
+            "\ufeff---\ntitle: T\n---\n\n# Title\n\nbody\n", "markdown", autolink_urls=False
+        )
+        named = [
+            r["updateParagraphStyle"]["paragraphStyle"]["namedStyleType"]
+            for r in converted.requests
+            if "updateParagraphStyle" in r
+        ]
+        inserted = "".join(r["insertText"]["text"] for r in converted.requests if "insertText" in r)
+        assert "HEADING_1" in named
+        assert "Title" in inserted and "title: T" not in inserted and "\ufeff" not in inserted
+
+    def test_doc_source_file_error_counts_the_byte_order_mark(self, root):
+        # utf-8-sig's UnicodeDecodeError.start counts from after the mark, so
+        # "EF BB BF 'ab' FF" reported byte 2, not byte 5 (#1607).
+        (root / "bad.md").write_bytes(b"\xef\xbb\xbfab\xff")
+        result = content._read_doc_source_file(
+            str(root / "bad.md"), "markdown", format_overridable=False
+        )
+        assert result["error"].endswith("invalid start byte at byte 5)")
+
+    def test_doc_source_file_utf16_error_names_the_encoding(self, root):
+        # A UTF-16 file's own first byte is what "invalid start byte at byte 0"
+        # named; say what the file is and suggest the re-save that reads (#1607).
+        (root / "u16.md").write_bytes(b"\xff\xfeh\x00i\x00")
+        result = content._read_doc_source_file(
+            str(root / "u16.md"), "markdown", format_overridable=False
+        )
+        assert "UTF-16" in result["error"] and "re-save the file as UTF-8" in result["error"]
+
     def test_gmail_attachment_refused(self, off, tmp_path):
         (tmp_path / "a.pdf").write_bytes(b"x")
         with pytest.raises(LocalFileAccessError, match="LOCAL_FILE_ACCESS=off"):
@@ -448,9 +528,8 @@ class TestOtherReaders:
 
 
 def test_policy_fixture_is_scoped_to_the_test():
-    # The process default (stdio, unset) is back after the fixtures above.
-    assert local_files.POLICY.mode is local_files.LocalFileAccess.FULL
-    assert local_files.POLICY.explicit is False
+    # The process's own policy is back after the fixtures above.
+    assert local_files.POLICY is _PROCESS_POLICY
 
 
 def _all_tools():

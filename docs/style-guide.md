@@ -2,7 +2,7 @@
 
 Code-level convention: how source and tests are organized, and what tooling enforces automatically. For product/architecture policy (what belongs in this server, when to build a composite tool), see [Design Principles](design.md). For the reasoning behind a specific past decision, see the [Decision Log](decisions/index.md).
 
-This is a v0, written after months of fast iteration with no retroactive documentation of the conventions that emerged. It codifies what the codebase already does in practice, plus a couple of low-churn additions — it isn't a wishlist of everything a style guide could cover. Sections not yet here (docstring conventions beyond the tool-docstring check below, error-handling patterns, naming, type-hint policy) are gaps to assess later, not omissions decided against.
+This is a v0, written after months of fast iteration with no retroactive documentation of the conventions that emerged. It codifies what the codebase already does in practice, plus a couple of low-churn additions — it isn't a wishlist of everything a style guide could cover. Sections not yet here (docstring conventions beyond the tool-docstring check below, error handling outside the modules [Error handling](#error-handling) covers, naming, type-hint policy) are gaps to assess later, not omissions decided against.
 
 ---
 
@@ -52,6 +52,23 @@ Expanding the rule set further is tracked, not decided here:
 ## Formatting
 
 `ruff format` runs via pre-commit (`.pre-commit-config.yaml`) alongside `ruff check --fix`, both as `uv run --frozen` hooks on the locked Ruff version. Nothing further to configure here — formatting is already automatic and enforced at commit time.
+
+---
+
+## Error handling
+
+A tool reports a Google API failure in one of two ways, and the client sees the error text either way:
+
+- **Raise it.** `server._timed` turns an exception it recognizes (`_CLIENT_VISIBLE_ERRORS`: an `HttpError`, an auth error, a transport error, `ValueError`, `OSError`) into a `ToolError` carrying the exception's text, and logs the original with its traceback first. Nothing about a raised `HttpError` is lost or hidden from the client.
+- **Return `{"error": "..."}`.** The tool catches at its own boundary and returns a result dict. The call succeeds as far as MCP is concerned, and the dict can carry more than the message.
+
+Which to use (#329):
+
+- **`tools/docs/*.py` returns `{"error": ...}`.** Every tool there catches the document read or edit it's built around and returns the error dict, often with what it knows about the doc (`docId`, the work that landed before the failure). Write a new Docs tool the same way. Two calls still raise: the deprecated `get_doc_content`, which keeps its behavior until it's removed, and `get_doc_as_markdown`'s optional comments read (`include_comments`).
+- **`tools/drive/comments.py` raises.** Its tools let Drive's error through. `update_comment` returns `{"error": ...}` where Drive's answer would mislead: it answers an edit of a deleted comment or reply with a bare 500 or 400, so the tool reads the target back and returns a clear message when it's deleted (otherwise re-raising Drive's own error), and it answers an edit by anyone but the author with a 200 and the old text. A new comments tool raises too, unless Drive's answer misleads like that.
+- **Anywhere, catch when the tool has something to add**: an ID of something it created before the failure (`_restamp_failure_result`'s `fileId`), partial results, or a message clearer than Google's. A bare `except Exception: return {"error": str(e)}` adds nothing that raising wouldn't.
+- **A tool whose return type isn't a dict raises.** A `list[...]`-typed tool can't return `{"error": ...}`: the dict fails its output schema.
+- **Don't change an existing tool from one form to the other in passing.** Callers can depend on either shape, so a switch is a behavior change and gets its own ticket.
 
 ---
 

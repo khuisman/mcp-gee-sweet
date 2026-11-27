@@ -59,6 +59,19 @@ GitLab's `<br>` slug, but extra tolerance for an anchor spelled with the separat
 while the GitHub scheme produces the separator-free form, so an anchor spelled either way
 resolves.
 
+A Markdown *soft* break in an underlined heading is the one place the two still disagree with
+their sites, confirmed live at both ends (#1553): GitHub drops the `\n` with no separator —
+`Heading one` / `heading two` under `===` anchors as `#heading-oneheading-two` (github-slugger
+master, measured 2026-11-20, UTC) — while this converter's HTML parsing collapses the soft break to
+a space, so the Doc's heading text reads "Heading one heading two" and both schemes slug it
+`heading-one-heading-two`. An anchor copied from GitHub for such a heading strips; the GitLab
+spelling resolves, because comrak's `collect_text_append` pushes a space for a `SoftBreak` and
+`anchorize` maps it to the hyphen. The break's position isn't recoverable at resolve time — the
+write-side collapse is exactly what a browser's rendering does with the `\n` GitHub leaves in
+its HTML, so the Doc is displayed correctly — and a resolve-side fix would have to guess which
+hyphen in the slug was the break, so this is documented in known limitations under the #1357
+family's chain stop rather than fixed.
+
 A normalized word-token comparison is the last-resort fallback for a slug that doesn't exactly
 match either scheme but clearly names the same heading — e.g. the heading was reworded slightly
 after the source anchors were generated. It tries the anchor's tokens literally first (a

@@ -7635,3 +7635,120 @@ Steps 1 and 3 returned no `dropped_links`. Step 2: the raw text is `Price\xa0Lis
 
 **Result (2026-11-20) ✅ PASS (steps 1–3 and 5) — Rio's re-run for PR #1556's review, on `mcp-gee-sweet-rio` (OAuth, Shared Drive default folder) at `342f0ec0` (`develop` `0762485`, which changes no docs code since `d10215a`)**
 Steps 1 and 3: no `error`, no `dropped_links`. Step 2: `a` → the first heading's `headingId`, `b` → the second's. Step 3: `a` and `b` → the break heading (`Heading one\vheading two`), `c` → `A - Approved`, `d`/`e` → the first and second `Intro`. Step 5: an `export_revision` before the relink returned the same-document URLs unchanged, as TC-DOC252 records. After relinking by `headingId` through a scratch script, `export_revision` returned exactly `Links: [a](#pricelist) and [b](#price-list).` and `Links: [a](#heading-oneheading-two) and [b](#heading-oneheading-two), [c](#a---approved), [d](#intro), [e](#intro-1).`, with `## Heading one<br>heading two` intact. Step 4 wasn't re-run; it rests on the 2026-11-18 run. Docs trashed.
+
+---
+
+## Live coverage for merged PRs #1530 and #1531
+
+Run on 2026-11-21 in an isolated service-account sandbox on a Shared Drive, against `develop` with both PRs merged (`ef402e5`). Raw reads are a `documents().get()` from a read-only script, since `get_doc_structure` reports neither a run's font nor an inline image's style. This session had no browser. Neither case has an on-screen check.
+
+### TC-DOC270: A `font_family` line keeps the bold its insert inherits, from the neighbour Docs actually styles it from (#1499) ⚠️ destructive
+
+**Purpose:** a `weightedFontFamily` request clears bold, so an inserted `font_family` line that sends no `bold` of its own lost the bold the insert inherited (#1273's behaviour, in `insert_softbreak_paragraph`). The bold is now restored after the font request. Without `named_style_type` nothing else changes. With one, the paragraph-style request has already cleared the inherited bold, so nothing is restored.
+
+**Steps** (one doc per step; `{P}` = `<p>aaa <b>bold</b> bbb</p>`, where `bold` is 5–9)
+1. `create_doc(title="TC-DOC270 a", folder_id={FOLDER_ID}, content={P})`, then `insert_softbreak_paragraph(index=9, lines=[{"text": "code", "font_family": "Courier New"}])`
+2. As step 1 at `index=5` (after the plain `aaa `)
+3. As step 1 with `{"text": "code", "font_family": "Courier New", "bold": false}`
+4. As step 1 with `named_style_type="NORMAL_TEXT"`
+5. `content="<p><b>Header</b></p><p>tail</p>"`: insert the step 1 line at the start of `tail` (8). A control doc gets `[{"text": "code"}]` (no font, so no restore) at the same index
+6. `content="<p>plain</p><p><b>Bold</b></p>"`: insert the step 1 line at the start of `Bold` (7), with the same control
+7. Regression (#1489): `content="<p><s>struck</s> mid <i>it</i></p>"`, then `insert_softbreak_paragraph(index=12, lines=[{"text": "new"}])`
+
+**Checks** (raw `documents().get()`)
+- Step 1: `code` bold and Courier New
+- Step 2: `code` Courier New, not bold
+- Step 3: `code` Courier New, not bold
+- Step 4: `code` not bold
+- Steps 5 and 6: the control shows which neighbour Docs styles a paragraph-start insert from. `code` is bold exactly when that neighbour is
+- Step 7: `struck` still struck and `it` still italic
+
+**Cleanup:** `delete_file` every doc
+
+**Result (2026-11-21) ❌ FAIL — steps 5 and 6: a paragraph-start insert takes its style from the text after `index`, but the restore reads the character before it (#1584)**
+Step 1: `code` `{bold, Courier New}`. Step 2: `code` Courier New only. Step 3: `code` Courier New only. Step 4: `code` Courier New only (the `NORMAL_TEXT` request also cleared `bold`'s own bold, as the docstring says). Step 7: `struck` struck, ` mid new` plain, `it` italic. Step 5: the control's `code` is plain, so Docs follows `tail`, but the font line's `code` is bold: the restore read `Header`'s bold newline. Step 6: the control's `code` is bold, following `Bold`, but the font line's `code` is plain: the font request cleared the inherited bold and nothing restored it. Docs trashed.
+
+**Result (2026-11-21) ❌ FAIL (steps 5 and 6) — Rio's re-run for PR #1585's review, on `mcp-gee-sweet-rio` (OAuth, Shared Drive default folder) at `32d7e98b` (on `develop` `ef402e5`)**
+Raw reads from a read-only `documents().get()` script. Step 5: the control's `code` is plain and the font line's `code` is bold + Courier New. Step 6: the control's `code` is bold (one run with `Bold`) and the font line's `code` is Courier New, not bold. The same failure as above (#1584). Steps 1–4 and 7 weren't re-run; they rest on the run above. Docs trashed.
+
+**Result (2026-11-23) ✅ PASS — re-run after PR #1594 (#1584), in an isolated service-account sandbox on a Shared Drive, against `develop` with it merged (`faab6cc`)**
+Raw reads from a read-only `documents().get()` script. Step 1: `code` `{bold, Courier New}`. Step 2: `code` Courier New only. Step 3: `code` Courier New only. Step 4: `code` Courier New only. Step 5: the control's `code` is plain and the font line's `code` is Courier New, not bold. Step 6: the control's `code` is bold and the font line's `code` is bold + Courier New. Step 7: `struck` struck, ` mid new` plain, `it` italic. Docs trashed.
+
+### TC-DOC271: `get_doc_as_markdown` keeps one emphasis span across an inline image that shares it (#1509) ⚠️ requires-network ⚠️ destructive
+
+**Purpose:** an inline image inside a styled span exported bare, splitting the span in two (`**bold** ![](…) **image**`). The export now reads the image's own character style and renders one span across a run–image–run sequence that shares it, and a span around a lone styled image. It falls back to the split rendering, the image bare, when a marker would sit next to a letter, a digit or a neighbouring run's own `*` at the image's edge.
+
+**Steps** (each a `.md` or `.html` file beside a local `logo.png`, through `create_doc_from_file(folder_id={FOLDER_ID})`, then `get_doc_as_markdown`)
+1. `**bold ![logo](logo.png) image**`; then `update_doc_from_file` the same doc from step 1's export
+2. `**![logo](logo.png)**`
+3. `*a ![logo](logo.png) b*` and `~~a ![logo](logo.png) b~~`
+4. `[**a ![logo](logo.png) b**](https://example.com)`
+5. HTML `<p><b>bold <img src="logo.png" alt="logo"></b><i>(it)</i></p>` and `<p><i>it</i><b><img src="logo.png" alt="logo"> bold</b></p>`
+6. A one-column table whose body cell is `**a ![logo](logo.png) b**`
+7. `plain ![logo](logo.png) text`
+
+**Checks**
+- Step 1: `**bold ![](…) image**`. After the update, a raw read has the image bold
+- Step 2: `**![](…)**`
+- Step 3: `*a ![](…) b*` and `~~a ![](…) b~~`
+- Step 4: `[**a ![](…) b**](https://example.com)`, one link, the image not wrapped twice
+- Step 5: the image bare between the two runs, both still styled, with no `***`
+- Step 6: the cell reads `**a ![](…) b**`
+- Step 7: `plain ![](…) text`
+
+**Cleanup:** `delete_file` every doc and uploaded image
+
+**Result (2026-11-21) ✅ PASS**
+Step 1: `**bold ![](…) image**`. Raw read after `update_doc_from_file` from that export: `bold `, the image and ` image` all `bold: true`. Step 2: `**![](…)**`. Step 3: `*a ![](…) b*` and `~~a ![](…) b~~`. Step 4: `[**a ![](…) b**](https://example.com)`. Raw read: the image carries the link, bold and the link colour. Step 5: `**bold** ![](…)*(it)*` and `*it*![](…) **bold**`. Raw read: each image is `bold: true`, so the fallback, not a missing style, left it bare. Step 6: `| **a ![](…) b** |`. Step 7: `plain ![](…) text`. Every export drops the alt `logo` (`![]`), as earlier image cases record. Docs and images trashed.
+
+## Live coverage for merged PRs #1594 and #1595
+
+Run on 2026-11-23 in an isolated service-account sandbox on a Shared Drive, against `develop` with both PRs merged (`faab6cc`). Raw reads are a `documents().get()` from a read-only script, since `get_doc_structure` reports neither a run's font nor an inline image's style. This session had no browser. Neither case has an on-screen check.
+
+### TC-DOC272: A `font_family` line at a paragraph start matches what Docs inherits there: empty paragraph, table cell, non-text first element (#1584) ⚠️ destructive
+
+**Purpose:** #1594 made `insert_softbreak_paragraph`'s bold restore read the character at `index` when `index` is a paragraph's first index. These are the paragraph-start shapes TC-DOC270 doesn't reach, plus the same non-text neighbour mid-paragraph. Each step gets a control doc with the same insert as `[{"text": "code"}]` (no font, so no restore): the control shows what Docs itself inherits, and the font line must match its bold.
+
+**Steps** (one doc per step, plus its control; the font line is `[{"text": "code", "font_family": "Courier New"}]`)
+1. Empty paragraph: `content="<p><b>Header</b></p>"` (the doc's trailing empty paragraph is at 8). Insert at 8
+2. Table cell: `content="<table><tr><td><b>Bold</b></td><td>plain</td></tr></table>"`. Insert at the second cell's paragraph start (11)
+3. As step 2 with the bold reversed: `<td>plain</td><td><b>Bold</b></td>`, insert at 12
+4. Bold image first: `content="<p>Header</p><p>tail</p>"`, `insert_inline_image(index=8, uri=<a public PNG>)`, `style_doc_range` bold on [8, 9). Insert at 8
+5. Bold image mid-paragraph: `content="<p>aaa bbb</p>"`, the image at 5, bold on [5, 6). Insert at 6
+6. A paragraph led by a directly bold person chip, followed by plain text. Insert at its start
+
+**Checks** (raw `documents().get()`)
+- Each step: `code` is Courier New, and bold exactly when the control's `code` is
+
+**Cleanup:** `delete_file` every doc
+
+**Result (2026-11-23) ❌ FAIL — steps 4 and 5: Docs inherits bold from a bold inline image, but the restore reads text runs only (#1606 item 1)**
+Step 1: the control's `code` is plain (it follows the empty paragraph's own newline, not `Header`); the font line's `code` is Courier New, not bold. Step 2: control plain; font line Courier New, not bold. Step 3: control bold (one run with `Bold`); font line bold + Courier New. Step 4: control `code` bold, ahead of the bold image; font line Courier New, not bold. Step 5: control `code` bold, after the bold image; font line Courier New, not bold. Step 6 pending: no tool inserts a person chip. Docs trashed.
+
+**Result (2026-11-25) ❌ FAIL (step 4) — Rio's re-run for PR #1613's review, on `mcp-gee-sweet-rio` (OAuth, Shared Drive default folder) at `35c98df9` (on `develop` `7f87481`)**
+Steps 1 and 4 only, raw reads from a read-only `documents().get()` script. Step 1: control `code` plain; font line `code` Courier New, not bold. Step 4: the image is `bold: true`; control `code` bold; font line `code` Courier New, not bold. The same failure as above (#1606 item 1). Steps 2, 3 and 5 weren't re-run; they rest on the run above. Docs trashed.
+
+### TC-DOC273: A leading UTF-8 byte-order mark in a doc source file is dropped (#1581) ⚠️ destructive ⚠️ local-filesystem
+
+**Purpose:** `create_doc_from_file` and `update_doc_from_file` read the source file as `utf-8-sig`, so a leading byte-order mark (`EF BB BF`) no longer reaches the parser.
+
+**Steps** (each file starts with the bytes `EF BB BF`)
+1. `bom.md` = `# Title\n\nbody\n`: `create_doc_from_file(local_path=<bom.md>, folder_id={FOLDER_ID})`
+2. `update_doc_from_file` on an existing doc (`<p>old content</p>`) with `bom.md`
+3. `bom.html` = `<h1>Title</h1>\n`: `create_doc_from_file`
+4. `bomfm.md` = `---\ntitle: x\n---\n# H\n`: `create_doc_from_file`
+5. Comparison, Drive's own import: `upload_local_file(local_path=<bom.md>, parent_folder_id={FOLDER_ID}, convert=True, skip_if_exists=False)`
+
+**Checks** (raw `documents().get()`)
+- Steps 1, 2 and 5: the first paragraph is `HEADING_1` reading `Title`, then `body`
+- Step 3: the first paragraph is `HEADING_1` reading `Title`
+- Step 4: the first paragraph is `HEADING_1` reading `H`; no front matter in the doc
+- No U+FEFF anywhere in any doc's text
+
+**Cleanup:** `delete_file` every doc
+
+**Result (2026-11-23) ✅ PASS**
+Steps 1 and 2: `HEADING_1` `Title` at index 1, then `NORMAL_TEXT` `body`. Step 3: `HEADING_1` `Title`. Step 4: `HEADING_1` `H`, then only the trailing empty paragraph. Step 5: Drive's import also gives `HEADING_1` `Title`, then `body`, so that path needs no change. No U+FEFF in any doc. Docs trashed.
+
+**Result (2026-11-25) ✅ PASS — Rio's re-run for PR #1613's review, on `mcp-gee-sweet-rio` (OAuth, Shared Drive default folder) at `35c98df9` (on `develop` `7f87481`)**
+Steps 1–4, read with `get_doc_structure`. Steps 1 and 2: `HEADING_1` `Title` spanning [1, 7), then `NORMAL_TEXT` `body`. Step 3: `HEADING_1` `Title` [1, 7). Step 4: `HEADING_1` `H` [1, 3), then only the trailing empty paragraph. Every span is exactly its text's length, so no U+FEFF survived. Step 5 (Drive's import, no code path this fix changes) wasn't re-run; it rests on the run above. Docs trashed.

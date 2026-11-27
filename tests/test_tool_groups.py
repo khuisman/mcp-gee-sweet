@@ -128,6 +128,9 @@ class TestGroupGuards:
             "add_file_comment",
             "reply_to_comment",
             "resolve_doc_comment",
+            "get_file_comment",
+            "update_comment",
+            "delete_comment",
         }
 
     def test_local_files_is_exactly_the_local_only_tools(self):
@@ -558,7 +561,7 @@ class TestAuthStatusToolSelection:
             "configured": False,
             "registered_tools": len(server._registered_tools),
             # The suite registers every tool, deprecated ones and aliases included
-            # (#663, #1525, #1526, #1527, #1528).
+            # (#663, #665, #1525, #1526, #1527, #1528).
             "deprecated_aliases": sorted(tool_groups.RENAMED_TOOLS),
             "deprecated_tools": [
                 "add_columns",
@@ -586,6 +589,7 @@ class TestAuthStatusToolSelection:
                 "resize_rows",
                 "resolve_doc_comment",
                 "search_spreadsheets",
+                "share_spreadsheet",
                 "unhide_columns",
                 "unhide_rows",
                 "unstar_file",

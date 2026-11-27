@@ -73,6 +73,8 @@ Run 1 (kai-oauth); D166 ran live and returned an error dict, not a raise.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard G on `mcp-gee-sweet-sa`** — `page_size=1` → 2 activities and a `next_page_token`.
 
+**Result (2026-11-22) ✅ PASS — PR #1588 round 1 (Kit), `mcp-gee-sweet-kit` at `e56d11b`, OAuth (regression, #329's shared `finish_list_page`)** — `list_file_activity({DOC_ID}, page_size=1)` → 2 activities (API grouping) and a `next_page_token`.
+
 ---
 
 ### TC-D166: Invalid file ID returns error (unit test)

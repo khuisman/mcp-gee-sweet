@@ -87,6 +87,8 @@ Run 1 (oauth) and run 2 (oauth); fixtures 19/19 intact, all test mail trashed.
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard E on `kit`** — `list_messages` and `list_threads` both paged 3/3/1 with `next_page_token` on the first two pages only; 7 distinct IDs; thread items carry id, snippet, history_id. `max_results: 0` returned exactly 1 message, no error; `9999` returned all 7 with no token.
 
+**Result (2026-11-22) ✅ PASS — PR #1588 round 1 (Kit), `mcp-gee-sweet-kit` at `e56d11b`, OAuth (regression, #329's shared `finish_list_page` behind `_list_page`)** — steps 1-5: `list_messages` and `list_threads` both paged 3/3/1, `next_page_token` on the first two pages only, the 7 IDs distinct and the same set for both; `max_results: 0` returned 1 message and a token. Step 6 not run (clamp unchanged by this PR). `list_drafts(max_results=1)` beside it: `{drafts: [], result_size_estimate: 0}`, no token.
+
 ---
 
 ### TC-GM35: Spam and trash are excluded unless asked for
