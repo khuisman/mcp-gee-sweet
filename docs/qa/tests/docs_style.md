@@ -1011,4 +1011,7 @@ Read paragraph and text styles as in TC-DOC274.
 
 **Cleanup:** `delete_file` the doc
 
+**Result (2026-11-27) ✅ PASS — Kit, PR #1647 round 2 @ 78611d13**
+`mcp-gee-sweet-kit`, reconnected after the reset. Step 1: `{BEFORE}` = 7 (`lineSpacing` 1, 0pt above and below, 1pt font), `{END}` = 24 (`lineSpacing` 1, 0pt above and below, no font size). Step 2: `requests: 5`; "Intro" `lineSpacing` 115, 6pt below; 7–8 unchanged with its 1pt font; 24–25 unchanged. Step 3: "added" (24–30) and "Real" (30–35) both `lineSpacing` 1, 0pt above and below. Step 4: both `HEADING_2`; "added" kept `lineSpacing` 1 and 0pt below, `spaceAbove` dropped (reads as 0); "Real" no `lineSpacing`, 18pt above. Step 5: `{"NORMAL_TEXT": {"line_spacing": 115, "space_below": 6}, "HEADING_2": {"space_above": 18}}`. Extra probe, not part of the case: on a second doc of the same content, a raw `insertInlineImage` at `{END}` left a paragraph holding only the image at `lineSpacing` 1, 0pt above and below; the same `apply_theme(overwrite=True)` left it there (`_is_kept_collapse` reads a paragraph with no text runs as empty), and the PDF export shows the image overlapping the table's bottom border (send-back on the PR).
+
 ---
