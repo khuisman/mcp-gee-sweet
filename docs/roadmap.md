@@ -575,7 +575,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 **Triaged in 2026-11-10** _(v0.9.6 release-pass findings, placed here by the maintainer 2026-11-08; #1439 and #1440 by the maintainer 2026-11-10)_
 
 - [x] HTML: an `<li>` holding only a styled block gets an empty bullet before it — regression since v0.9.5 (PR #1322), kept out of v0.9.6 by the maintainer ([#1414](https://github.com/khuisman/mcp-gee-sweet/issues/1414)) (PR #1447)
-- [ ] Converted CSV uploads: the Sheet sometimes keeps its upload time instead of the local mtime, so a later sync plans to overwrite the local file — observed, service account on a Shared Drive ([#1415](https://github.com/khuisman/mcp-gee-sweet/issues/1415))
+- [x] Converted CSV uploads: the Sheet sometimes keeps its upload time instead of the local mtime, so a later sync plans to overwrite the local file — observed, service account on a Shared Drive ([#1415](https://github.com/khuisman/mcp-gee-sweet/issues/1415)) (PR #1648)
 - [x] HTML input: `<pre>` inside a table cell isn't styled as code ([#1417](https://github.com/khuisman/mcp-gee-sweet/issues/1417)) (PR #1458)
 - [x] HTML input: the space after a nested table in a cell is kept, indenting the next line ([#1418](https://github.com/khuisman/mcp-gee-sweet/issues/1418)) (PR #1448)
 - [x] `get_sheet_data` cap error: "or Pass local_path" reads as two broken sentences ([#1430](https://github.com/khuisman/mcp-gee-sweet/issues/1430)) (PR #1442)
