@@ -580,7 +580,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [x] HTML input: the space after a nested table in a cell is kept, indenting the next line ([#1418](https://github.com/khuisman/mcp-gee-sweet/issues/1418)) (PR #1448)
 - [x] `get_sheet_data` cap error: "or Pass local_path" reads as two broken sentences ([#1430](https://github.com/khuisman/mcp-gee-sweet/issues/1430)) (PR #1442)
 - [x] Text written after a doc's final table overlaps it, and no tool can fix its line spacing — `wrong/narrow`, regression since v0.9.5 (PR #1438); documented in known-limitations with the `apply_theme` workaround. Lane A ([#1439](https://github.com/khuisman/mcp-gee-sweet/issues/1439)) (PR #1631)
-- [ ] `get_doc_theme` reads text added after a collapsed final table as the doc's body style — `wrong/narrow`, regression since v0.9.5 (PR #1438) ([#1440](https://github.com/khuisman/mcp-gee-sweet/issues/1440))
+- [x] `get_doc_theme` reads text added after a collapsed final table as the doc's body style — `wrong/narrow`, regression since v0.9.5 (PR #1438) ([#1440](https://github.com/khuisman/mcp-gee-sweet/issues/1440)) (PR #1647)
 
 **Triaged in 2026-11-14** _(review follow-ups and live-QA tickets from PRs #1141, #1148, #1360, #1435, #1436, #1442, #1447, #1448, #1457, #1458, #1471 and #1495)_
 
@@ -674,7 +674,7 @@ Queued after _ankylosaurus_ (maintainer, 2026-10-24): the first parity release. 
 
 **Moved from ankylosaurus 2026-11-14** _(maintainer trim: the HTML-input cluster gated on #1329's parser-library pick, unobserved Markdown-export polish, and #1416; #1243 keeps its decided option A)_
 
-- [ ] `html_to_ast` loses content and mis-styles malformed HTML. Pre-existing; approach decided 2026-11-01: option A, an HTML5 parser library walked to the AST (B, a hand-written model, and C, content-loss fixes only, not taken); the library choice is still pending (lexbor's CVE history, maintainer bus factor, installed size). See `docs/decisions/decision-html-error-recovery.md` (PR #1330); #1328 closed into it. From PR #1316 ([#1329](https://github.com/khuisman/mcp-gee-sweet/issues/1329))
+- [ ] `html_to_ast` loses content and mis-styles malformed HTML. Pre-existing; approach decided 2026-11-01: option A, an HTML5 parser library walked to the AST (B, a hand-written model, and C, content-loss fixes only, not taken); the library is justhtml, decided in PR #1649 (lexbor's CVE history, maintainer bus factor and installed size were weighed there). See `docs/decisions/decision-html-error-recovery.md` (PRs #1330, #1649); #1328 closed into it. From PR #1316 ([#1329](https://github.com/khuisman/mcp-gee-sweet/issues/1329))
 - [ ] HTML table cells: source newlines become paragraph breaks instead of collapsing like a browser. Enhancement; whether a cell newline should collapse was left open in PR #1215 ([#1221](https://github.com/khuisman/mcp-gee-sweet/issues/1221))
 - [ ] HTML input: source line breaks at a block's start or end become empty paragraphs (pretty-printed HTML). `wrong/narrow`, not observed; found in PR #1228, grouped with #1221 ([#1229](https://github.com/khuisman/mcp-gee-sweet/issues/1229))
 - [ ] An `<hr>` inside a table cell is dropped (raw HTML only; a cell has no paragraph to carry the rule). `wrong/rare`; from PR #1326 ([#1327](https://github.com/khuisman/mcp-gee-sweet/issues/1327))
