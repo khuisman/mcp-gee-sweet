@@ -1,7 +1,8 @@
 # Decision: Type Checking in CI
 
 **Date:** 2026-11-27
-**Status:** proposed. The maintainer picks an option; this doc records the evidence and a lean.
+**Status:** decided (maintainer, 2026-11-27): option C, pyright in basic mode on `src/` as a
+CI gate.
 **Tracking:** #379
 **Snapshot commit:** `develop` at `729cb79d`
 
@@ -120,4 +121,7 @@ the fixes from the gate would leave a ticket with nothing to show. Any triaged e
 turns out to be a user-visible bug gets its own ticket, so the typing PR doesn't carry
 behavior fixes.
 
-The choice is the maintainer's: C adds a CI gate and a dev dependency.
+## Decision
+
+**Decided (maintainer, 2026-11-27): option C.** The implementation ticket is filed
+separately from #379.
