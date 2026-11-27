@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass
 
 from markdown_it import MarkdownIt
-from markdown_it.common.utils import normalizeReference, unescapeAll
+from markdown_it.common.utils import MD_TRIM_CHARS, mdTrim, normalizeReference, unescapeAll
 from markdown_it.token import Token
 
 from ..front_matter import strip_front_matter
@@ -246,8 +246,15 @@ _MAX_QUOTE_DEPTH = _MAX_NESTING
 _LAZY_BREAK = "<!-- -->"
 
 # A pipe-table header row and the delimiter row under it (GFM "tables" extension).
-_TABLE_ROW_RE = re.compile(r"^ {0,3}(?!>)\S.*\|.*$|^ {0,3}\|")
-_TABLE_DELIM_RE = re.compile(r"^ {0,3}\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$")
+# Both trim with CommonMark's whitespace set, markdown-it's mdTrim — not Python's
+# str.strip: U+0085 and U+001C-U+001F stay on a line, and a row ending in one isn't a
+# table to markdown-it 4.3.0, where Python's trim still let it pass ours. The header's
+# first character and the delimiter's padding use that set too: markdown-it allows only
+# space and tab around a delimiter's pipes, and a leading U+0085 opens a header row
+# for it (Python's \S said no). The set is shared so D2's blank line goes in only before
+# a table markdown-it agrees on (#1620).
+_TABLE_ROW_RE = re.compile(r"^ {0,3}(?!>)[^" + re.escape(MD_TRIM_CHARS) + r"].*\|.*$|^ {0,3}\|")
+_TABLE_DELIM_RE = re.compile(r"^ {0,3}\|?[ \t]*:?-+:?[ \t]*(\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$")
 _UNESCAPED_PIPE_RE = re.compile(r"(?<!\\)\|")
 
 
@@ -322,7 +329,7 @@ def _owner(stack: list[_ListItemColumns], col: int) -> _ListItemColumns | None:
 
 
 def _table_cell_count(row: str) -> int:
-    row = row.strip()
+    row = mdTrim(row)
     row = row[1:] if row.startswith("|") else row
     row = row[:-1] if row.endswith("|") and not row.endswith("\\|") else row
     return len(_UNESCAPED_PIPE_RE.split(row))

@@ -1169,3 +1169,33 @@ class TestMarkdownItPy43:
         # dropped each of these from it.
         images = [r for r in _ast(md)[0].runs if isinstance(r, Image)]
         assert [i.alt for i in images] == [alt]
+
+    @pytest.mark.parametrize(
+        ("md", "item_text"),
+        [
+            # A header row ending in a character CommonMark's trim keeps.
+            (
+                "- item\n| a | b |\x85\n|---|---|\n| c | d |\n",
+                "item | a | b |\x85 |---|---| | c | d |",
+            ),
+            ("- item\n| a | b |\x1f\n|---|---|\n| c | d |\n", "item | a | b |\x1f |---|---| | c | d |"),
+            # A delimiter row ending in one, which already disagreed under 4.2.0.
+            (
+                "- item\n| a | b |\n|---|---|\x85\n| c | d |\n",
+                "item | a | b | |---|---|\x85 | c | d |",
+            ),
+        ],
+    )
+    def test_row_ending_where_markdown_it_keeps_it_is_not_a_table(self, md, item_text):
+        # 4.3.0 trims table rows with CommonMark's whitespace set, which keeps
+        # U+0085 and U+001C-U+001F, so a row ending in one is plain text. D2 trimmed
+        # with Python's set, put its blank line before the rows anyway and ended the
+        # list — for text markdown-it then read as the item's lazy continuation.
+        assert _preprocess(md) == md
+        assert _outline(md) == [("UL", 0, item_text)]
+
+    def test_row_starting_where_markdown_it_keeps_it_opens_a_table(self):
+        # The same set read the other way: a row starting in U+0085 opens a table
+        # for markdown-it (Python's \S said no), so D2 separates it as one.
+        md = "- item\n\x85| a | b\n|-|-|-|\n| c | d |\n"
+        assert _outline(md) == [("UL", 0, "item"), ("TABLE", 2, "")]
