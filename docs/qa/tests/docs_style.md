@@ -1037,4 +1037,7 @@ Read paragraph styles as in TC-DOC274.
 
 **Cleanup:** `delete_file` the doc and the scratch PDF
 
+**Result (2026-11-27) ✅ PASS — Kit, PR #1647 round 3 @ 66eda21a**
+`mcp-gee-sweet-kit`, reconnected after the reset. Step 1: `{BEFORE}` = 7 (`lineSpacing` 1, 0pt above and below, 1pt font), `{END}` = 24. Step 2: the image's paragraph (24–26, `inlineObjectElement` then the newline) has `lineSpacing` 1, 0pt above and below. Step 3: `requests: 4`; the image's paragraph has `lineSpacing` 115 and 6pt below; 7–8 still `lineSpacing` 1, 0pt above and below, 1pt font; "Intro" `lineSpacing` 115, 6pt below. Step 4: the PDF shows the image below the table, clear of its bottom border. Editor (Playwright, account check passed on the fixture doc, URL-verified, title "TC-DOC278"): the image sits below the table's bottom row, not over its border.
+
 ---
