@@ -24,7 +24,7 @@ Sheets, Drive, Docs, and Calendar are all covered — see [Tools](tools.md) for 
 | [**v0.9.4**](https://github.com/khuisman/mcp-gee-sweet/releases/tag/v0.9.4) | ✅ Security hotfix cut from v0.9.3: Pillow 13.0.0 for 12.3.0's open CVEs, which drops Python 3.10 ([#1158](https://github.com/khuisman/mcp-gee-sweet/issues/1158)). Nothing else from `develop` | Published 2026-10-22 |
 | [**v0.9.5**](https://github.com/khuisman/mcp-gee-sweet/releases/tag/v0.9.5) | ✅ Security hotfix cut from v0.9.4: requires `certifi>=2026.10.19` for the eMudhra/emSign CA incident ([#1217](https://github.com/khuisman/mcp-gee-sweet/issues/1217)). Nothing else from `develop` | Published 2026-10-24 |
 | [**v0.9.6 — Ornithomimus**](https://github.com/khuisman/mcp-gee-sweet/releases/tag/v0.9.6) | ✅ Launch release: Markdown → Docs fidelity (#1044 and its defects), Gmail sending safety, launch readiness, plus its locked fill | Published 2026-11-11 |
-| [**v0.9.7 — Ankylosaurus**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.7) | In flight since 2026-11-26: hardening and tool-surface cleanup (feature set done), plus its locked fill | Ships after release QA |
+| [**Ankylosaurus**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Aankylosaurus) | In flight since 2026-11-26: hardening and tool-surface cleanup (feature set done), plus its locked fill | Ships after release QA |
 | [**v1.0.0**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av1.0) | API stability declaration — Tier 3 items that make the cut + any breaking cleanups from v0.8–0.9 | Backwards-compatibility commitment |
 | [**v1.1.0+**](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22v1.1%2B%22) | Future domains — Tasks (separate minor release, needs a new API client; Gmail pulled forward to v0.9.2) | Expanded scope |
 
@@ -383,7 +383,7 @@ Security hotfix cut from the v0.9.4 tag, with nothing else from `develop` (maint
 
 - [x] Require `certifi>=2026.10.19` and ship it as the v0.9.5 hotfix. `severe/narrow` — lane A, after #1069 ([#1217](https://github.com/khuisman/mcp-gee-sweet/issues/1217)) (PR #1218; shipped in v0.9.5 via PR #1219)
 
-### v0.9.6 — Ornithomimus: launch release, Markdown fidelity, Gmail sending safety, launch readiness _(target: [v0.9.6](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.6))_
+### v0.9.6 — Ornithomimus: launch release, Markdown fidelity, Gmail sending safety, launch readiness _(label [`ornithomimus`](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Aornithomimus))_
 
 **Published 2026-11-11.** **In flight 2026-11-07 (maintainer):** numbered v0.9.6; every ticket moved from `planned: ornithomimus` to `v0.9.6`. **Held 2026-11-08** after Aziz's release pass for #1427, #1100, #1419 and #1429, all merged by 2026-11-09; the targeted re-run decides the cut.
 
@@ -488,7 +488,7 @@ Feature set and fill set by the maintainer 2026-10-18, under the release-scoping
 
 Moved out 2026-10-18: [#379](https://github.com/khuisman/mcp-gee-sweet/issues/379) (unversioned, Joy decides whether to do it); [#378](https://github.com/khuisman/mcp-gee-sweet/issues/378) closed (ASYNC240 stays off). Everything else formerly here is under _ankylosaurus_ below.
 
-### v0.9.7 — Ankylosaurus: hardening and tool-surface cleanup _(target: [v0.9.7](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Av0.9.7))_
+### ankylosaurus — hardening and tool-surface cleanup _(in flight, label [`ankylosaurus`](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Aankylosaurus); gets its number at the cut)_
 
 Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18. The maintainer sets this version's feature set and locks its fill when it opens.
 
@@ -498,7 +498,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 
 **Trimmed 2026-11-14 (maintainer):** 16 tickets moved to _velociraptor_ (the HTML-input cluster, gated on #1329's parser-library pick: #1329, #1221, #1229, #1327, #1401, #1467, #1468, #1478, #1491; unobserved Markdown-export polish: #893, #1317, #1493, #1482, #1407, #1243; and #1416), and #584 and #1420 to Unversioned. #646 stays. Tickets a community PR has claimed stay where they are (#1402, #1403, #1404, #1128, #1335, #1460, #1483, #1502).
 
-**In flight 2026-11-26 (maintainer):** the feature set is done (#1342, the last, merged in PR #1632), so ankylosaurus took the next number, v0.9.7. **Fill locked 2026-11-26**, in rank order: #1415, #1440, #1635, #1325 with #1370, #1339 with #1405, #1338, #1238, #1321, #1569 (last, `solo-only`: it touches every module), #1358, #1183, the docstrings item with #1341, #1379 and #1380, #1235, and #32 with #39. Tickets a community PR claims stay in: #1583, #1605, #1612, #1619 and #1620. Everything else moved to _velociraptor_ (listed there). From here only urgent fixes join.
+**In flight 2026-11-26 (maintainer):** the feature set is done (#1342, the last, merged in PR #1632), so ankylosaurus went in flight. **Fill locked 2026-11-26**, in rank order: #1415, #1440, #1635, #1325 with #1370, #1339 with #1405, #1338, #1238, #1321, #1569 (last, `solo-only`: it touches every module), #1358, #1183, the docstrings item with #1341, #1379 and #1380, #1235, and #32 with #39. Tickets a community PR claims stay in: #1583, #1605, #1612, #1619 and #1620. Everything else moved to _velociraptor_ (listed there). From here only urgent fixes join.
 
 **Feature set: comments** _(moved from ornithomimus 2026-10-24)_ — follows [`docs/decisions/decision-comments-first-class.md`](decisions/decision-comments-first-class.md) ([#661](https://github.com/khuisman/mcp-gee-sweet/issues/661)) and ships a breaking rename that the release notes must call out.
 
@@ -650,7 +650,7 @@ Fill candidates moved from v0.9.3 and the decision-needed backlog on 2026-10-18.
 - [ ] **Bundle:** `create_paragraph_bullets` fixes: one PR closing #1090, #1288 and #1297; #1297 decided 2026-11-01 (option B: a barrier on the level-0 path and the anchor wrap) ([#1339](https://github.com/khuisman/mcp-gee-sweet/issues/1339))
 - [ ] **Bundle:** docs and docstring cleanup: one PR closing #1197, #1187, #1188, #1076 (docstring move only) and #987 (keep rejecting, docstring note); the community-claimed docstring tickets join only if their PRs stall ([#1341](https://github.com/khuisman/mcp-gee-sweet/issues/1341))
 
-### velociraptor — Parity 1 _(queued, label [`planned: velociraptor`](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3A%22planned%3A+velociraptor%22); gets a number when it goes in flight)_
+### velociraptor — Parity 1 _(queued, label [`velociraptor`](https://github.com/khuisman/mcp-gee-sweet/issues?q=is%3Aissue+label%3Avelociraptor); gets its number at the cut)_
 
 Queued after _ankylosaurus_ (maintainer, 2026-10-24): the first parity release. The maintainer sets its feature set and locks its fill when it opens.
 
@@ -690,7 +690,7 @@ Queued after _ankylosaurus_ (maintainer, 2026-10-24): the first parity release. 
 - [ ] Markdown D1: also move a fence or paragraph indented beside a moved sub-list marker. Enhancement. Decided 2026-11-01: option A, content at the marker's original indent moves with it; add a test-plan entry ([#1243](https://github.com/khuisman/mcp-gee-sweet/issues/1243))
 - [ ] `upload_local_folder` on a large folder: no progress, uploads one at a time, and a failed file isn't logged — observed, TC-D300 ([#1416](https://github.com/khuisman/mcp-gee-sweet/issues/1416))
 
-**Moved from v0.9.7 at the lock, 2026-11-26** _(maintainer)_
+**Moved from ankylosaurus at the lock, 2026-11-26** _(maintainer)_
 
 - [ ] **Bundle:** CI tidy (on deck, no lane), one PR closing [#536](https://github.com/khuisman/mcp-gee-sweet/issues/536), [#619](https://github.com/khuisman/mcp-gee-sweet/issues/619), [#308](https://github.com/khuisman/mcp-gee-sweet/issues/308), [#708](https://github.com/khuisman/mcp-gee-sweet/issues/708) ([#897](https://github.com/khuisman/mcp-gee-sweet/issues/897))
 - [ ] **Bundle:** server/infra hygiene (#1010 folded in 2026-11-01), one PR closing [#517](https://github.com/khuisman/mcp-gee-sweet/issues/517), [#607](https://github.com/khuisman/mcp-gee-sweet/issues/607), [#614](https://github.com/khuisman/mcp-gee-sweet/issues/614), [#579](https://github.com/khuisman/mcp-gee-sweet/issues/579), [#637](https://github.com/khuisman/mcp-gee-sweet/issues/637) — lane B ([#892](https://github.com/khuisman/mcp-gee-sweet/issues/892))
