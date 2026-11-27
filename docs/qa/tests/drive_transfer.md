@@ -3755,3 +3755,25 @@ Run via `mcp-gee-sweet-kit` (OAuth) in `TEST_FOLDER_ID` on the Shared Drive, at 
 Re-run at head `56895d03` (the round-1 fixes plus a `develop` merge bringing #1180's `dropped_links`) via `mcp-gee-sweet-kit` (OAuth) on the Shared Drive. Calls 1 to 6 matched round 1 exactly: `shared: false` image outcomes, levels 0/1/2 in one `listId`, `☐`/`☑` tasks, the linked URL, an inline-image run, three exports identical once the `docs-images-rt` URLs are normalized, and a nested `<ul>` plus `<a href="https://example.com">` in the raw HTML. Not part of this case: `auto_downscale=True` with a 6000x5000 PNG returned `downscaled: true`, and a no-scheme link came back under `dropped_links` (`reason: no_scheme`).
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — SA in the Shared Drive run folder (tag is personal-Drive quota); image at my scratch `F2/qa-302/red.png`. Call 1: fileId, name qa-302-run1.md, parent, web_link, images[0] {fileId, shared: false}, no error. Structure: top/nested/deeper at levels 0/1/2 in one listId, tasks `☐ open task`/`☑ done task` bulleted, `https://example.com` run linked, one inline-image run. The three exports are identical apart from the docs-images-rt URL, each with three-level list, `- [ ] open task`/`- [x] done task`, `` `code span` ``, linked URL, fenced code. Raw HTML: `<li>nested item` in a nested `<ul>`, `<a href="https://example.com">`.
+
+### TC-D304: Converted uploads in a batch all keep the local mtime: the restamp waits for the conversion's own write (#1415) ⚠️ local-filesystem
+
+**Background:** A converted upload's `modifiedTime` restamp used to go out as soon as `create()` returned. Drive's conversion finishes a second or two later, and its write at the file's next `version` moved `modifiedTime` to just after the import's revision, over a restamp that had already landed. It happened to a fraction of a batch: 3 of 16 Sheets in the ornithomimus release pass (TC-D267's Result), and 3 of 24 under OAuth and 6 of 24 under a service account when probed. The restamp now waits until the file's `version` passes the one `create()` returned (`_await_import_write`, `docs/design/converted-upload-restamp.md`). One file can't show it, so this case uploads 24 at once, which is where it showed.
+
+**Setup**
+Create a scratch Drive folder `{FOLDER_ID}` on the Shared Drive (a service account identity reproduced the old drift most often). Locally, create `/tmp/qa-304/` holding 24 CSVs: `row01.csv` … `row21.csv`, each `a,b\n<n>,2\n`, plus `報告書.csv`, `データ.csv` and `表格.csv`, each `a,b\n1,2\n` (TC-D265's drift hit a CJK name). Set every file's mtime to 2023-01-01: `touch -t 202301010000 /tmp/qa-304/*.csv`.
+
+**Tool calls**
+1. `upload_local_folder(local_path="/tmp/qa-304", parent_folder_id={FOLDER_ID}, convert=True)`
+2. Wait at least 60 seconds, then `refresh_cache(folder_id={FOLDER_ID})` and `list_files(folder_id={FOLDER_ID})`
+3. `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-304", direction="bidirectional", export_format="csv", dry_run=True)`
+4. Run calls 1 to 3 twice more, each time into a fresh `{FOLDER_ID}`.
+
+**Checks**
+- Call 1: all 24 names in `uploaded`; `failed` and `skipped_unverified` are empty. It takes a few seconds longer than before #1415 (each conversion now waits about a second), not 15 seconds per file.
+- Call 2: 24 Google Sheets, each named without `.csv`, and every one's `modified_time` is the local mtime in UTC (`2023-01-01T08:00:00.000Z` on a machine in Pacific time). None is today's date. Before the fix, some of them were.
+- Call 3: 24 `actions`, every one `skip` with reason "in sync". None is `download` ("drive newer by …") or `conflict`.
+- All three runs pass: 72 Sheets, none drifted.
+
+**Teardown**
+Trash each `{FOLDER_ID}` with its contents, then `rm -rf /tmp/qa-304`.
