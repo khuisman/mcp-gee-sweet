@@ -888,6 +888,14 @@ class _AstParser(HTMLParser):
             # which this item's text may still have arrived through).
             while runs and isinstance(runs[-1], Run) and _is_formatting_whitespace(runs[-1].text):
                 runs.pop()
+            # The break before the boundary is source formatting too, but the
+            # arm's flush put it in _pending_runs where _trim_source_line_break
+            # — which reads only _run_buf — can't reach it (#1625 review):
+            # `<li>c\n<!-- … -->\n<ul>` kept `c\n` and drew the empty bullet
+            # #1619 took out. Only a trailing line-break edge of the last kept
+            # run goes; text after the boundary is content and ends the run
+            # where the edge isn't one.
+            runs = _without_trailing_line_break(runs)
             # One shot: it describes the padding right after that boundary, not
             # every flush for the rest of the document.
             self._trailing_padding = False
@@ -1970,17 +1978,27 @@ class _AstParser(HTMLParser):
     def _arm_trailing_padding(self) -> None:
         """A boundary just ended inside the open block — a transparent `</p>` in a
         list item (#1111), or a hidden element: an HTML comment, `<script>`/`<style>`
-        block, or an element with hidden/display:none (#1619). Flush the text so far
-        into its own runs and arm the one-shot trim _flush_pending_runs does at the
-        block's next flush. A browser shows nothing for the hidden element or for the
-        line break markdown-it writes after it (`<li>c<!-- … -->\n</li>`), where the
-        item held `['c\n']` and an item's "\n" is a paragraph break — an extra empty
-        bullet in the Doc. The text so far is flushed first so the padding lands in
-        runs of its own, the only kind the trim drops; text that follows the padding
-        is real content, and a non-whitespace run disarms the trim by ending its
-        while loop. Not in <pre> (its content is code), a table cell (#1221) or a
-        caption, whose text is captured raw."""
-        self._flush_run()
+        block, or an element with hidden/display:none (#1619). Arm the one-shot trim
+        _flush_pending_runs does at the block's next flush. A browser shows nothing
+        for the hidden element or for the line break markdown-it writes after it
+        (`<li>c<!-- … -->\n</li>`), where the item held `['c\n']` and an item's "\n" is
+        a paragraph break — an extra empty bullet in the Doc. Not in <pre> (its
+        content is code), a table cell (#1221) or a caption, whose text is captured
+        raw.
+
+        The text so far is flushed first, but only when the buffer ends at a
+        formatting-whitespace edge — the padding the boundary isolates (#1625
+        review): the flush puts that edge in a run of its own, where the
+        line-break trim in _flush_pending_runs reaches it. A boundary
+        mid-text has no padding to isolate, and flushing there split runs
+        that belong together: `- [x]<!-- done --> Ship it` flushed `[x]`
+        away from `" Ship it"`, and the task-marker check on the item's
+        first run missed the checkbox. Without the flush the item's text
+        stays one run, and the padding that follows the boundary still
+        lands in runs of its own once the boundary's flush ends the
+        pre-boundary text — the only kind of run the armed trim drops."""
+        if self._run_buf and self._run_buf[-1].endswith(tuple(_ASCII_FORMATTING_WHITESPACE)):
+            self._flush_run()
         self._trailing_padding = True
 
     def handle_endtag(self, tag):

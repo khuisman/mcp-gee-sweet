@@ -865,6 +865,38 @@ class TestHiddenBlockAfterItemText:
         md = "- c\n  <!-- x -->\n\n  tail text\n- d\n"
         assert _outline(md) == [("UL", 0, "c"), ("P", 0, "tail text"), ("UL", 0, "d")]
 
+    def test_a_break_before_the_comment_does_not_survive_a_nested_block(self):
+        # #1625 review: the arm's flush moved `c\n` into pending runs, where
+        # _trim_source_line_break — which reads only the run buffer — can't
+        # reach it, and the armed pop kept it because it isn't all
+        # whitespace: `c\n` and the extra empty bullet under it, where
+        # develop trims the same break. The armed trim now cuts a trailing
+        # line-break edge from the last kept run.
+        nodes = html_to_ast("<ul><li>c\n<!-- note -->\n<ul><li>n</li></ul></li></ul>")
+        assert [_text(n) for n in nodes] == ["c", "n"]
+
+    def test_a_break_before_the_comment_does_not_survive_a_rule(self):
+        # The same shape above a rule, the review's second example.
+        nodes = html_to_ast("<p>Intro\n<!-- x -->\n<hr>")
+        assert [_text(n) for n in nodes] == ["Intro", ""]
+
+    def test_a_pretty_printed_break_before_the_comment_draws_no_empty_bullet(self):
+        # The tight close: no nested block follows, so the break before the
+        # comment reaches the item only through the armed trim.
+        nodes = html_to_ast("<ul><li>c\n<!-- lint -->\n</li></ul>")
+        assert [_text(n) for n in nodes] == ["c"]
+
+    def test_a_comment_right_after_a_task_marker_keeps_the_checkbox(self):
+        # #1625 review: flushing at a boundary mid-text split "[x]" from
+        # " Ship it", and the marker check on the item's first run missed
+        # the checkbox — the Doc read a plain bullet "[x] Ship it". The
+        # flush now waits for a formatting-whitespace edge, so the item's
+        # text stays one run and the checkbox reads.
+        md = "- [x]<!-- done --> Ship it\n"
+        [item] = _ast(md)
+        assert item.checked is True
+        assert _text(item) == "Ship it"
+
 
 class TestLooseListsAfter1164:
     """With #1164 in, CommonMark's loose lists (`<li><p>…</p></li>`) keep their bullets
