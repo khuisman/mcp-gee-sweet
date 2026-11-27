@@ -646,17 +646,47 @@ class TestImageSpanStyle:
     def test_size_and_color_stay_the_paragraphs(self):
         # The write side never styles fontSize or foregroundColor on an image
         # (_IMAGE_TEXT_STYLE_FIELDS), so the read side doesn't invent fields
-        # an Image doesn't even have.
-        doc = self._doc(
-            "bold ",
-            {
-                "fontSize": {"magnitude": 12.0, "unit": "PT"},
-                "foregroundColor": {"color": {"rgbColor": {"red": 1.0}}},
+        # an Image doesn't even have. Asserted on the paragraph's runs, which
+        # DO read them — the previous form asserted only hasattr() on the
+        # Image, which can't fail while the dataclass has no such field
+        # (#1583).
+        size = {"fontSize": {"magnitude": 12.0, "unit": "PT"}}
+        color = {"foregroundColor": {"color": {"rgbColor": {"red": 1.0}}}}
+        run_ts = {"bold": True, **size, **color}
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "bold ", "textStyle": run_ts}},
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": run_ts,
+                                    }
+                                },
+                                {"textRun": {"content": " image\n", "textStyle": run_ts}},
+                            ]
+                        }
+                    }
+                ]
             },
-            " image\n",
-        )
-        image = document_to_ast(doc)[0].runs[1]
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        before, image, after = document_to_ast(doc)[0].runs
         assert isinstance(image, Image)
+        # The size and color stay the paragraph's: the runs keep reading
+        # them...
+        assert before.font_size == 12.0
+        assert before.foreground_color == RGBColor(1.0, 0.0, 0.0)
+        assert after.font_size == 12.0
+        assert after.foreground_color == RGBColor(1.0, 0.0, 0.0)
+        # ...and the image carries only the style it shares with them — the
+        # fields its own textStyle also carries size and color in are
+        # ignored for it, and nothing reads them into an Image.
+        assert image.bold is True
+        assert image.italic is None
         assert not hasattr(image, "font_size")
         assert not hasattr(image, "foreground_color")
 
@@ -1021,6 +1051,272 @@ class TestImageSpanStyle:
         }
         md = ast_to_markdown(document_to_ast(doc))
         assert md == f"*it*![logo]({self._URI}) **bold**\n"
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        assert types.index("em_close") < types.index("image")
+        assert types.index("image") < types.index("strong_open")
+
+    def test_a_styled_image_falls_back_beside_an_emoji(self):
+        # #1583: isalnum() didn't see a break beside an emoji or a symbol,
+        # but GitHub's cmark-gfm breaks the emphasis there too — a marker
+        # isn't flanking beside a character that is neither whitespace nor
+        # punctuation. The span falls back to the split rendering.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "\U0001f44d", "textStyle": {}}},
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True},
+                                    }
+                                },
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == f"\U0001f44d![logo]({self._URI})\n"
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        assert "strong_open" not in [c.type for c in inline.children]
+
+    def test_a_span_ending_in_an_image_falls_back_before_an_emoji(self):
+        # The closing marker's mirror: `**a ![logo](u)**\U0001F44D` — the
+        # emoji after the span's closing marker breaks its flanking on
+        # GitHub's cmark-gfm, where a word always did (#1583).
+        doc = self._doc("a ", {}, "\U0001f44d\n")
+        doc["body"]["content"][0]["paragraph"]["elements"][2]["textRun"]["textStyle"] = {}
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == f"**a** ![logo]({self._URI})\U0001f44d\n"
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        assert types.index("strong_close") < types.index("image")
+
+    def test_a_linked_span_keeps_its_wrap_after_an_emoji(self):
+        # #1610 review: a span that takes its own link wrap puts its markers
+        # inside the brackets — `\U0001F44D[**![logo](u) b**](L)` — so the
+        # character outside never touches them and the flanking break beside
+        # an emoji or a symbol doesn't apply; the span keeps its wrap, where
+        # a bare-marker span still falls back beside one.
+        link = {"url": "https://example.com/target"}
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "\U0001f44d", "textStyle": {}}},
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True, "link": link},
+                                    }
+                                },
+                                {
+                                    "textRun": {
+                                        "content": " b",
+                                        "textStyle": {"bold": True, "link": link},
+                                    }
+                                },
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == (f"\U0001f44d[**![logo]({self._URI}) b**](https://example.com/target)\n")
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        # One link around one strong span around the image — not the split
+        # rendering with the image bare and the link in two.
+        assert (
+            types.index("link_open")
+            < types.index("strong_open")
+            < types.index("image")
+            < types.index("strong_close")
+            < types.index("link_close")
+        )
+
+    def test_a_linked_span_keeps_its_wrap_before_an_emoji(self):
+        # The closing-marker mirror of the test above: the emoji sits after
+        # the wrap's `)`, never beside a marker.
+        link = {"url": "https://example.com/target"}
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "textRun": {
+                                        "content": "a ",
+                                        "textStyle": {"bold": True, "link": link},
+                                    }
+                                },
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True, "link": link},
+                                    }
+                                },
+                                {"textRun": {"content": "\U0001f44d", "textStyle": {}}},
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == (f"[**a ![logo]({self._URI})**](https://example.com/target)\U0001f44d\n")
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        assert (
+            types.index("link_open")
+            < types.index("strong_open")
+            < types.index("image")
+            < types.index("strong_close")
+            < types.index("link_close")
+        )
+
+    def test_a_letter_beside_a_linked_span_keeps_it_too(self):
+        # #1610 review: the same wrap keeps the span beside a letter — the
+        # wrap's bracket is between the letter and the marker, so the
+        # flanking rule can't see the letter at all, where a bare-marker
+        # span beside a letter has always fallen back.
+        link = {"url": "https://example.com/target"}
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "x", "textStyle": {}}},
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True, "link": link},
+                                    }
+                                },
+                                {
+                                    "textRun": {
+                                        "content": " b",
+                                        "textStyle": {"bold": True, "link": link},
+                                    }
+                                },
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == f"x[**![logo]({self._URI}) b**](https://example.com/target)\n"
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        assert "strong_open" in types and "strong_close" in types
+
+    def test_a_styled_image_keeps_its_span_beside_punctuation(self):
+        # The other side of #1583's character class: whitespace and Unicode
+        # punctuation leave the flanking rule satisfied, so a span beside an
+        # opening parenthesis still forms, unlike beside a letter or an
+        # emoji.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "(", "textStyle": {}}},
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True},
+                                    }
+                                },
+                                {
+                                    "textRun": {
+                                        "content": " b",
+                                        "textStyle": {"bold": True},
+                                    }
+                                },
+                                {"textRun": {"content": ")", "textStyle": {}}},
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == f"(**![logo]({self._URI}) b**)\n"
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        assert types.index("strong_open") < types.index("image")
+        assert types.index("image") < types.index("strong_close")
+
+    def test_a_styled_image_falls_back_after_a_backslash_ending_styled_run(self):
+        # #1583: an italic run "a\" renders `*a\\*` — an escaped
+        # backslash followed by a live closing marker. The old
+        # endswith("\\\\*") guard misread that as an escaped marker and
+        # let the span form, so the run's `*` and the span's `**` merged
+        # into one `***` run the parser reads as neither span. Backslash
+        # parity now decides: the marker is live, so the span falls back.
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "textRun": {
+                                        "content": "a\\",
+                                        "textStyle": {"italic": True},
+                                    }
+                                },
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True},
+                                    }
+                                },
+                                {
+                                    "textRun": {
+                                        "content": " b",
+                                        "textStyle": {"bold": True},
+                                    }
+                                },
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == f"*a\\\\*![logo]({self._URI}) **b**\n"
         tokens = _COMMONMARK.parse(md)
         [inline] = [t for t in tokens if t.type == "inline"]
         types = [c.type for c in inline.children]
