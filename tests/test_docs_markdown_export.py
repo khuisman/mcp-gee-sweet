@@ -1102,6 +1102,139 @@ class TestImageSpanStyle:
         types = [c.type for c in inline.children]
         assert types.index("strong_close") < types.index("image")
 
+    def test_a_linked_span_keeps_its_wrap_after_an_emoji(self):
+        # #1610 review: a span that takes its own link wrap puts its markers
+        # inside the brackets — `\U0001F44D[**![logo](u) b**](L)` — so the
+        # character outside never touches them and the flanking break beside
+        # an emoji or a symbol doesn't apply; the span keeps its wrap, where
+        # a bare-marker span still falls back beside one.
+        link = {"url": "https://example.com/target"}
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "\U0001f44d", "textStyle": {}}},
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True, "link": link},
+                                    }
+                                },
+                                {
+                                    "textRun": {
+                                        "content": " b",
+                                        "textStyle": {"bold": True, "link": link},
+                                    }
+                                },
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == (f"\U0001f44d[**![logo]({self._URI}) b**](https://example.com/target)\n")
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        # One link around one strong span around the image — not the split
+        # rendering with the image bare and the link in two.
+        assert (
+            types.index("link_open")
+            < types.index("strong_open")
+            < types.index("image")
+            < types.index("strong_close")
+            < types.index("link_close")
+        )
+
+    def test_a_linked_span_keeps_its_wrap_before_an_emoji(self):
+        # The closing-marker mirror of the test above: the emoji sits after
+        # the wrap's `)`, never beside a marker.
+        link = {"url": "https://example.com/target"}
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "textRun": {
+                                        "content": "a ",
+                                        "textStyle": {"bold": True, "link": link},
+                                    }
+                                },
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True, "link": link},
+                                    }
+                                },
+                                {"textRun": {"content": "\U0001f44d", "textStyle": {}}},
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == (f"[**a ![logo]({self._URI})**](https://example.com/target)\U0001f44d\n")
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        assert (
+            types.index("link_open")
+            < types.index("strong_open")
+            < types.index("image")
+            < types.index("strong_close")
+            < types.index("link_close")
+        )
+
+    def test_a_letter_beside_a_linked_span_keeps_it_too(self):
+        # #1610 review: the same wrap keeps the span beside a letter — the
+        # wrap's bracket is between the letter and the marker, so the
+        # flanking rule can't see the letter at all, where a bare-marker
+        # span beside a letter has always fallen back.
+        link = {"url": "https://example.com/target"}
+        doc = {
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {"textRun": {"content": "x", "textStyle": {}}},
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "img1",
+                                        "textStyle": {"bold": True, "link": link},
+                                    }
+                                },
+                                {
+                                    "textRun": {
+                                        "content": " b",
+                                        "textStyle": {"bold": True, "link": link},
+                                    }
+                                },
+                                {"textRun": {"content": "\n", "textStyle": {}}},
+                            ]
+                        }
+                    }
+                ]
+            },
+            "inlineObjects": {"img1": self._embedded()},
+        }
+        md = ast_to_markdown(document_to_ast(doc))
+        assert md == f"x[**![logo]({self._URI}) b**](https://example.com/target)\n"
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        assert "strong_open" in types and "strong_close" in types
+
     def test_a_styled_image_keeps_its_span_beside_punctuation(self):
         # The other side of #1583's character class: whitespace and Unicode
         # punctuation leave the flanking rule satisfied, so a span beside an

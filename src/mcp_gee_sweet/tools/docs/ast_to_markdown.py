@@ -543,8 +543,19 @@ def _markers_flank_image_edge(
     with no whitespace fall back as well — `*it***![logo](u) bold**` would
     lose its bold, and `**bold ![logo](u)***it*` its markers. Only an image
     at the span's edge puts a marker there — a run's edge whitespace already
-    renders outside the markers. The caller falls back to the split
-    rendering, the image bare, as before."""
+    renders outside the markers.
+
+    A span that takes its own link wrap — `style[3]` set with a run in the
+    group, so `_render_span` writes `[**…**](url)` — puts its markers inside
+    the brackets: neither the character outside nor a styled neighbour's
+    own marker can touch them, so both neighbour checks are skipped (#1610
+    review). The caller falls back to the split rendering, the image bare,
+    as before."""
+    if style[3] and any(isinstance(m, Run) for m in group):
+        # The span's own link wrap puts its markers inside the brackets —
+        # `[…](url)` — so the character outside never touches them, and a
+        # styled neighbour's own marker cannot merge with one either.
+        return False
     if isinstance(group[0], Image) and parts:
         prev = parts[-1]
         # A `*` the previous part ends in is a styled neighbor's own marker
