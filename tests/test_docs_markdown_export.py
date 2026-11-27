@@ -2067,6 +2067,17 @@ class TestAstToMarkdownComments:
             "    \\- not an item\n"
         )
 
+    def test_a_blockquote_marker_line_in_comment_text_is_escaped(self):
+        # #1634: the leading-">" escape (#1627) covers comment text too —
+        # `include_comments` runs every line through
+        # _escape_leading_block_marker — where a comment whose second line
+        # reads ">word" used to export unescaped and re-import as a
+        # blockquote.
+        comments = [{"author": {"display_name": "A"}, "content": "see below\n>word"}]
+        md = ast_to_markdown([Paragraph(runs=[Run(text="body")])], comments=comments)
+        section = md.split("## Comments\n\n", 1)[1]
+        assert section == "**A**\\\nsee below\\\n\\>word\n"
+
     def _render(self, content=None, quoted_text=None, reply=None):
         comment = {"author": {"display_name": "A"}, "content": content or "c", "replies": []}
         if quoted_text is not None:
