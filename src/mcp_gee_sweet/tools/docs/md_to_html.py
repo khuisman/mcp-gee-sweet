@@ -5,7 +5,6 @@ Design and the behavior changes from Python-Markdown: docs/design/markdown-parse
 """
 
 import bisect
-import functools
 import re
 from dataclasses import dataclass
 
@@ -668,13 +667,32 @@ def _autolink_span_windows(state) -> dict:
     link there (#1612) — so the suppression and the link the reader sees can't
     disagree. The spans are in order, so a delimiter's lookup bisects them
     instead of scanning (#1436 review). A window without a scheme or a `www.`
-    holds no URL span, so it skips the URL pass entirely (#1612)."""
+    holds no URL span, so it skips the URL pass entirely (#1612). Text inside
+    a link — a Markdown link's label or a raw-HTML `<a>`'s text — carries no
+    spans, tracking link depth the same way `_gfm_autolink_rule` does, since
+    that rule never links text inside a link: nothing protects a URL-shaped
+    label, and its tildes strike there, as on develop and GitHub (#1617
+    review)."""
     result: dict[int, tuple[list, int]] = {}
     tokens = state.tokens
     i = 0
     total = len(tokens)
+    link_depth = 0
     while i < total:
-        if tokens[i].type not in ("text", "text_special"):
+        token_type = tokens[i].type
+        if token_type == "link_open" or (
+            token_type == "html_inline" and _HTML_A_OPEN_RE.match(tokens[i].content)
+        ):
+            link_depth += 1
+            i += 1
+            continue
+        if token_type == "link_close" or (
+            token_type == "html_inline" and _HTML_A_CLOSE_RE.match(tokens[i].content)
+        ):
+            link_depth = max(0, link_depth - 1)
+            i += 1
+            continue
+        if token_type not in ("text", "text_special"):
             i += 1
             continue
         first = i
@@ -689,11 +707,14 @@ def _autolink_span_windows(state) -> dict:
         window = "".join(pieces)
         prev = tokens[first - 1] if first > 0 else None
         start_ok = prev is None or prev.type in _AUTOLINK_BOUNDARY_TOKENS
-        spans = (
-            [(start, end) for start, end, _ in _gfm_autolink_matches(window, start_ok)]
-            if "://" in window or "www." in window
-            else []
-        )
+        if link_depth:
+            spans = []
+        else:
+            spans = (
+                [(start, end) for start, end, _ in _gfm_autolink_matches(window, start_ok)]
+                if "://" in window or "www." in window
+                else []
+            )
         for token_index, offset in zip(range(first, i), offsets, strict=True):
             result[token_index] = (spans, offset)
     return result
@@ -832,10 +853,7 @@ def _process_delimiters(state, delimiters) -> None:
         closer = delimiters[closer_idx]
         jumps.append(0)
 
-        if (
-            delimiters[header_idx].marker != closer.marker
-            or last_token_idx != closer.token - 1
-        ):
+        if delimiters[header_idx].marker != closer.marker or last_token_idx != closer.token - 1:
             header_idx = closer_idx
         last_token_idx = closer.token
 
@@ -898,7 +916,9 @@ def _process_delimiters(state, delimiters) -> None:
         if closer.marker not in openers_bottom:
             openers_bottom[closer.marker] = [-1, -1, -1, -1, -1, -1]
 
-        min_opener_idx = openers_bottom[closer.marker][(3 if closer.open else 0) + (closer.length % 3)]
+        min_opener_idx = openers_bottom[closer.marker][
+            (3 if closer.open else 0) + (closer.length % 3)
+        ]
 
         opener_idx = header_idx - jumps[header_idx] - 1
 
@@ -945,17 +965,18 @@ def _process_delimiters(state, delimiters) -> None:
         closer_idx += 1
 
 
-def _tilde_autolink_cull(state, autolink_urls: bool) -> None:
+def _tilde_autolink_cull(state) -> None:
     """Drop every tilde delimiter that sits inside a GFM autolink span, before
     ``balance_pairs`` runs.
 
     The upstream ``strikethrough_single_tilde`` tokenizer accepts runs of one
     or two tildes (three or more are consumed as plain text). This rule drops
     the runs a GFM extended autolink swallows first (#1612), keeping the URL
-    text whole for the autolink core rule, as on develop — but only when this
-    parser autolinks: with ``autolink_urls=False`` there is no link to keep
-    whole, so ``www.a.com/~x~`` strikes instead of rendering neither linked
-    nor struck (#1612). A paragraph with no tilde delimiter skips the URL
+    text whole for the autolink core rule, as on develop. The cull runs on
+    both parsers: with ``autolink_urls=False`` the parameter's documented
+    contract leaves a URL as plain text, so URL-shaped text keeps its
+    tildes verbatim instead of striking (#1617 review). A paragraph with no
+    tilde delimiter skips the URL
     pass entirely (#1612). Pairing itself is ``_balance_pairs``'s, where the
     emphasis delimiters and the surviving tildes meet in closer order.
     """
@@ -966,10 +987,9 @@ def _tilde_autolink_cull(state, autolink_urls: bool) -> None:
     tilde_segments = [segment for segment in segments if any(d.marker == 0x7E for d in segment)]
     if not tilde_segments:
         return
-    if autolink_urls:
-        windows = _autolink_span_windows(state)
-        for segment in tilde_segments:
-            _cull_tildes_inside_autolinks(state, segment, windows)
+    windows = _autolink_span_windows(state)
+    for segment in tilde_segments:
+        _cull_tildes_inside_autolinks(state, segment, windows)
 
 
 def _single_tilde_pairs(state) -> None:
@@ -1022,13 +1042,9 @@ def _build_markdown_parser(autolink_urls: bool) -> MarkdownIt:
             "strikethrough_single_tilde": True,
         },
     ).enable(["table", "strikethrough"])
-    # The autolink cull only protects URLs when this parser links them
-    # (#1612): with autolinks off there is no link to keep whole.
-    md.inline.ruler2.before(
-        "balance_pairs",
-        "tilde_autolink_cull",
-        functools.partial(_tilde_autolink_cull, autolink_urls=autolink_urls),
-    )
+    # The cull keeps URL-shaped text whole on both parsers: linked when this
+    # parser autolinks, verbatim when autolink_urls=False (#1617 review).
+    md.inline.ruler2.before("balance_pairs", "tilde_autolink_cull", _tilde_autolink_cull)
     md.inline.ruler2.at("balance_pairs", _balance_pairs)
     md.inline.ruler2.after("strikethrough", "single_tilde_pairs", _single_tilde_pairs)
     # Keep link and image destinations as written. markdown-it percent-encodes them

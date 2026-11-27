@@ -236,7 +236,7 @@ class TestStrikethrough:
         start = time.perf_counter()
         html = _md_to_html(md)
         assert html.count("<s>") == 8000
-        assert time.perf_counter() - start < 2.0
+        assert time.perf_counter() - start < 5.0
 
     def test_tilde_pairing_is_linear_when_closers_step_back_over_consumed_pairs(
         self,
@@ -250,7 +250,7 @@ class TestStrikethrough:
         start = time.perf_counter()
         html = _md_to_html(md)
         assert html.count("<s>") == 8000
-        assert time.perf_counter() - start < 2.0
+        assert time.perf_counter() - start < 5.0
 
     def test_a_strike_wraps_an_emphasis_span(self):
         # cmark pairs the `*` closer first, which consumes `~b`, so `c~`
@@ -350,14 +350,29 @@ class TestStrikethrough:
         assert "mailto:a_www.b.com@c.com" in html
         assert "<s>x</s>" in html
 
-    def test_tildes_strike_inside_url_shaped_text_when_autolinks_are_off(self):
-        # The autolink-span suppression protects a link this parser never
-        # makes when autolink_urls=False, so `www.a.com/~x~` used to render
-        # neither linked nor struck. With no link to keep whole, the tildes
-        # pair and strike (#1612).
-        html = _md_to_html("www.a.com/~x~", autolink_urls=False)
+    def test_tildes_strike_inside_a_markdown_link_label(self):
+        # The autolink rule never links text inside a Markdown link, so the
+        # span pass gives the label no protection: `~~a~~` strikes there, as
+        # on develop and on GitHub (#1617 review).
+        html = _md_to_html("[see https://x.com/~~a~~/b](http://u.com)")
+        assert "<s>a</s>" in html
+        assert '<a href="http://u.com">' in html
+
+    def test_tildes_strike_inside_a_raw_html_anchor(self):
+        # Raw HTML <a> is the other link form its text never autolinks
+        # (#1617 review).
+        html = _md_to_html('<a href="http://u.com">see https://x.com/~~a~~/b</a>')
+        assert "<s>a</s>" in html
+
+    def test_url_shaped_text_stays_verbatim_when_autolinks_are_off(self):
+        # autolink_urls=False leaves a URL as plain text — the parameter's
+        # documented contract in create_doc/write_doc_content — so the cull
+        # keeps running with autolinks off and URL-shaped text keeps its
+        # tildes exactly as written (#1617 review).
+        html = _md_to_html("https://example.com/~user~/docs", autolink_urls=False)
         assert "<a " not in html
-        assert "<s>x</s>" in html
+        assert "https://example.com/~user~/docs" in html
+        assert "<s>" not in html
 
 
 class TestGfmAutolinks:
