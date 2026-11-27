@@ -1,7 +1,8 @@
 # Decision: How `html_to_ast` Recovers From Malformed HTML
 
 **Date:** 2026-11-01
-**Status:** proposed. The maintainer picks an option; this doc records the evidence and a lean.
+**Status:** decided. Option A (maintainer, 2026-11-01), with justhtml as the library
+(maintainer, 2026-11-27; see [Library choice](#library-choice-2026-11-27)).
 **Tracking:** #1329 (the bundled defects below)
 **Snapshot commit:** `develop` at `730b7dc7`; PR #1316 at `589d3991`
 
@@ -128,12 +129,117 @@ hold.
 
 ## Lean
 
+(2026-11-01. The library half is superseded by [Library choice](#library-choice-2026-11-27).)
+
 **A, with selectolax, if a compiled dependency is acceptable; C otherwise.** B ends up
 reimplementing the Standard by hand. C is cheap and can ship first: its four fixes are
 independent of the inline-styling code, and Option A would later replace them.
 
 The choice is the maintainer's, because A adds a runtime dependency and changes output on
 malformed input.
+
+## Library choice (2026-11-27)
+
+The maintainer chose option A on 2026-11-01 and left the library open until three checks
+were done for selectolax: lexbor's memory-safety and CVE history, the maintainer bus factor,
+and installed size. This section runs those checks and the same ones for every candidate.
+Every measurement is static and local (scratch venvs, CPython 3.14.5, macOS). None goes
+through `html_to_ast` or the Docs API.
+
+### Tree conformance
+
+There are 70 inputs: every row of the defect table above, every input added on #1329 since,
+and cases the walker depends on (`<pre>` leading newline, CRLF, character references, NUL,
+foster-parented table text, `<template>`, `<dialog>`, raw-text elements, foreign content).
+Each was parsed by each library and its `<body>` tree compared with html5lib's, after
+merging adjacent text nodes. On every input, selectolax, justhtml and markupever build the
+same tree as html5lib, apart from two settings that are options, not conformance gaps:
+
+- `<noscript>`: selectolax and html5lib parse it with scripting off (content as elements);
+  justhtml and markupever default to scripting on (content as raw text). justhtml takes
+  `scripting_enabled=`.
+- justhtml **sanitizes by default** (`JustHTML(html)` drops comments, unsafe URLs and more).
+  The walker must call `JustHTML(html, sanitize=False)`.
+
+Conformance doesn't separate the candidates. Safety and scaling do.
+
+### Scaling on adversarial input
+
+`html_to_ast` runs on whatever HTML a caller sends, raw HTML in Markdown included, so
+parse time has to stay linear in the input. Seconds per parse, one run each:
+
+| Input | selectolax | justhtml | markupever | `develop` today |
+|---|---|---|---|---|
+| 427 KB well-formed document (above) | 0.016 | 0.50 | — | 0.84 |
+| QA round 6 formatting input, n = 32,000 (96,000 tags) | 0.027 | 0.93 | — | — |
+| `<ul><li>` × 10,000 (nesting depth) | 1.1 | 0.34 | 2.7 | 2.1 |
+| `<ul><li>` × 40,000 (330 KB) | **46.8** | 1.2 | — | — |
+| `<div>` × 40,000 | 6.3 | 0.49 | — | — |
+| one `<p>` with 40,000 attributes (340 KB) | 6.0 | 0.049 | 0.72 | 0.080 |
+| one `<p>` with 200,000 attributes (1.4 MB) | **> 4.5 min, killed** | — | — | — |
+
+selectolax is quadratic in nesting depth and in attribute count. At 40,000 attributes,
+doubling the input costs it 5×. justhtml is linear on every input tried. markupever
+(html5ever) is quadratic in both, more mildly. selectolax releases the GIL while it parses,
+so a slow parse stalls only its own thread. justhtml holds the GIL, but
+`content._convert_doc_content` already runs the conversion off the event loop.
+
+Browsers bound nesting by capping tree depth (Chromium stops nesting at 512). Whichever
+library is picked, the walker should keep an explicit depth cap, as `md_to_html` does with
+`_MAX_NESTING`, and must not recurse on the Python stack.
+
+### Memory safety and maintenance
+
+| | selectolax (lexbor, C) | justhtml (pure Python) | markupever (html5ever, Rust) | html5lib |
+|---|---|---|---|---|
+| Net installed size | 7.3 MB | 2.0 MB | 1.9 MB | 1.5 MB (+ `six`, `webencodings`) |
+| Runtime dependencies | none | none | none | 2 |
+| License | MIT (lexbor Apache-2.0) | MIT | MIT | MIT |
+| Commits by top contributor | selectolax 703 of 753; lexbor 906 of 1,052 | 2,045 of 2,062 | 229 of 284 | spread; last push 2026-04 |
+| Popularity (GitHub stars) | 1.7k (lexbor 2.1k) | 1.2k | 41 | 1.2k |
+| Releases | 1.0.2, 2026-10-22 | 98 releases since 2025-12, now 3.18.0 | 0.5.1 | 1.1, 2020 |
+| Known advisories on the parse path | 2 lexbor CVEs (below) | 1 of 10, recursion DoS, fixed in 1.10.0 | none | none (2 old ones are in its serializer) |
+
+**lexbor.** CVE-2026-29078 (ISO-2022-JP encoder, out-of-bounds write) and CVE-2026-29079
+(fragment parser type confusion) are both high and fixed in lexbor 2.7.0. selectolax
+1.0.2 pins lexbor at `f4cbbcd` (2026-09-28), 109 commits past 2.7.0, so it has both fixes.
+But lexbor's commit log from 2025-11-27 to 2026-11-27 has more than 20 further memory-safety
+fixes with no CVE attached (use-after-free, heap and integer overflow, out-of-bounds write,
+NULL dereference). Two are out-of-bounds writes on our parse path:
+
+- `8c2d7a0` (2026-11-12): an out-of-bounds write in named character reference decoding,
+  reachable with `&nGt;` or `&nLt;` at a buffer boundary.
+- `de47b6b` (2026-11-12): an out-of-bounds write in attribute handling for foreign
+  (SVG/MathML) elements.
+
+Both landed after selectolax's pin (`8c2d7a0` is 12 commits past it). No selectolax release has picked them up,
+so the selectolax on PyPI today parses caller HTML with them unfixed. Neither project is in
+OSS-Fuzz. A C parser here means our memory safety depends on how quickly selectolax
+re-vendors lexbor.
+
+**justhtml.** It is pure Python, so a parser bug can't corrupt memory; the worst case is an
+exception or CPU time. Nine of its ten advisories are in its sanitizer, Markdown output,
+CSS selectors or linkifier, none of which the walker would call. The tenth, a recursion
+DoS on deep nesting, was fixed in 1.10.0. It is tested against the html5lib tree-construction
+tests. Its costs are a single maintainer, three major versions in 2026 (it needs a `<4` upper
+bound and a review at each major), and parsing about 30× slower than selectolax, still faster
+than `develop`'s own parser on the same document.
+
+**markupever and html5lib.** Both are ruled out. markupever is memory-safe but has three
+contributors and 41 stars, and it is quadratic in depth. html5lib is unmaintained and was
+already measured superlinear above.
+
+### Decision
+
+**Decided (maintainer, 2026-11-27): justhtml**, pinned `justhtml>=3.18,<4`, called with `sanitize=False`, under a walker
+with an explicit depth cap. The new information since 2026-11-01 reverses the lean:
+selectolax's speed matters less than the fact that it is quadratic on two simple inputs
+and that the release on PyPI today carries unfixed out-of-bounds writes on our parse path.
+justhtml is linear everywhere tried, memory-safe, has no dependencies and is 2 MB.
+
+The trade-off being accepted is a single maintainer who ships major versions often. If that
+becomes unacceptable, the fallback is selectolax with an input-size and depth pre-check ahead of
+it, plus a standing check that each selectolax release has re-vendored lexbor's HTML fixes.
 
 ## Decided alongside: #1231 scope
 
