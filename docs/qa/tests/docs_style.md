@@ -963,3 +963,81 @@ Read paragraph styles as in TC-DOC274.
 `mcp-gee-sweet-sky`, reconnected after the reset. Step 1: `{END}` = 29. Step 2: "old one" (29–37) and "old two" (37–45) both `lineSpacing` 1 with 0pt above and below. Step 3: `{"insertions": 1, "trailingParagraphReset": true}`; "old one" and "old two more" have no spacing of their own, and the empty paragraph before the table (12–13) kept `lineSpacing` 1. Editor (Playwright, URL-verified, title "TC-DOC275"): both lines sit below the table on their own lines, no overlap. Step 4: `{"insertions": 1, "trailingParagraphReset": true}`; "tail" (29–34) in the body with no spacing of its own. Step 5: run from a fresh interpreter calling the registered `style_doc_range` with a docs service that raises on any attribute access: NaN gave `{"error": "ranges[1]: line_spacing must be a number or null, got nan"}` and inf `... got inf`, with no API touched, so the check now runs before the `font_family` bold-restore read. Also re-ran TC-DOC274 step 3 on a fresh doc against the `targetRevisionId` change: same result as round 1 (`trailingParagraphReset: true`, both lines with no spacing of their own, "Lead " in the first paragraph).
 
 ---
+
+## `get_doc_theme` after a doc's final table (#1440)
+
+### TC-DOC276: `get_doc_theme` doesn't read collapsed text after a final table as the body style ⚠️ destructive
+
+**Purpose:** text added after a final table in the Docs editor keeps the collapse #1100 leaves there (`lineSpacing` 1, 0pt above and below). In a doc whose only body text before the table is a heading, `get_doc_theme` read that text as NORMAL_TEXT and reported `line_spacing: 1`, which `apply_theme` would set on every body paragraph, so their lines overprint. It's now a block: its font is still read, but not its line spacing or spacing.
+
+`insert_doc_text` resets the collapse on what it writes (#1439), so step 2 adds the text with a raw `insertText` from a fresh interpreter, as typing in the editor does. Read paragraph styles as in TC-DOC274.
+
+**Steps**
+1. `create_doc(title="TC-DOC276", folder_id={FOLDER_ID}, content_format="markdown", content="# Title\n\n| a | b |\n|---|---|\n| 1 | 2 |\n")` → `{DOC}`; `get_doc_structure`: the last paragraph's `startIndex` is `{END}`
+2. From a fresh interpreter, one raw `batchUpdate` with `insertText` of `"added later"` at `{END}`; read the last paragraph's style
+3. `get_doc_theme(doc_id={DOC})`
+4. `style_doc_range(doc_id={DOC}, ranges=[{"start_index": {END}, "end_index": <{END} + 11>, "font_family": "Georgia"}])`, then `get_doc_theme(doc_id={DOC})`
+
+**Checks**
+- Step 2: "added later" has `lineSpacing` 1 and 0pt above and below
+- Step 3: the result has no `NORMAL_TEXT` key and no `line_spacing` of 1 anywhere (before #1440: `{"NORMAL_TEXT": {"line_spacing": 1}}`)
+- Step 4: `NORMAL_TEXT` is exactly `{"font_family": "Georgia"}`: the font of the doc's only body text, with no `line_spacing`, `space_above` or `space_below`
+
+**Cleanup:** `delete_file` the doc
+
+**Result (2026-11-27) ✅ PASS — Kit, PR #1647 round 1 @ 73fad873**
+`mcp-gee-sweet-kit`, reconnected after the reset. Step 1: `{END}` = 24; the empty paragraph before the table (7–8) is collapsed (`lineSpacing` 1, 0pt above and below). Step 2: "added later" (24–36) has `lineSpacing` 1 with 0pt above and below. Step 3: `{}`, no `NORMAL_TEXT` and no `line_spacing` anywhere. Step 4: `{"NORMAL_TEXT": {"font_family": "Georgia"}}`. Extra probe, not part of the case: `apply_theme(theme={"NORMAL_TEXT": {"line_spacing": 115, "space_below": 6}}, overwrite=True)` then gave the collapsed empty paragraph before the table `lineSpacing` 115 and 6pt below (send-back on the PR).
+
+---
+
+### TC-DOC277: `apply_theme(overwrite=True)` keeps empty collapsed lines collapsed, and a collapsed heading doesn't hide a real one (PR #1647 QA round 1) ⚠️ destructive
+
+**Purpose:** the overwrite pass wrote the theme's spacing onto the emitter's empty collapsed paragraphs too, giving the 1pt line before a table its full height and the line after a final table back the height #1100 took away. It now leaves an empty collapsed paragraph's spacing alone, and a 1pt font where the collapse set one. On the read side, collapsed text set to a heading was the first paragraph of that heading's style, so a later real heading's spacing never reached the theme.
+
+Read paragraph and text styles as in TC-DOC274.
+
+**Steps**
+1. `create_doc(title="TC-DOC277", folder_id={FOLDER_ID}, content_format="markdown", content="Intro\n\n| a | b |\n|---|---|\n| 1 | 2 |\n")` → `{DOC}`; `get_doc_structure`: the empty paragraph before the table is `{BEFORE}`, the last paragraph's `startIndex` is `{END}`
+2. `apply_theme(doc_id={DOC}, theme={"NORMAL_TEXT": {"line_spacing": 115, "space_below": 6, "font_size": 11}}, overwrite=True)`; read the paragraph styles and each paragraph's `fontSize`
+3. From a fresh interpreter, one raw `batchUpdate` with `insertText` of `"added\nReal"` at `{END}`; read the paragraph styles
+4. `get_doc_structure`; `style_doc_range(doc_id={DOC}, ranges=[{"start_index": <"added" start>, "end_index": <its end − 1>, "named_style_type": "HEADING_2"}, {"start_index": <"Real" start>, "end_index": <its end − 1>, "named_style_type": "HEADING_2", "line_spacing": null, "space_above": 18, "space_below": null}])`; read the paragraph styles
+5. `get_doc_theme(doc_id={DOC})`
+
+**Checks**
+- Step 2: "Intro" has `lineSpacing` 115 and 6pt below. `{BEFORE}` still has `lineSpacing` 1, 0pt above and below, and a 1pt font. The paragraph at `{END}` still has `lineSpacing` 1 and 0pt above and below. (The 11pt font matches the NORMAL_TEXT style the same call sets, so the API may report no `fontSize` on "Intro" or at `{END}`.)
+- Step 3: "added" and "Real" both have `lineSpacing` 1 and 0pt above and below
+- Step 4: both are `HEADING_2`; "added" still has `lineSpacing` 1 and no space above or below of its own (the style change may drop `spaceAbove`, which still reads as 0; if `lineSpacing` 1 is gone, the case no longer reaches the read-side check: note it in the Result); "Real" has no `lineSpacing` of its own and 18pt above
+- Step 5: `HEADING_2` is exactly `{"space_above": 18}` (before the fix: `{}` or no `HEADING_2` key, from "added")
+
+**Cleanup:** `delete_file` the doc
+
+**Result (2026-11-27) ✅ PASS — Kit, PR #1647 round 2 @ 78611d13**
+`mcp-gee-sweet-kit`, reconnected after the reset. Step 1: `{BEFORE}` = 7 (`lineSpacing` 1, 0pt above and below, 1pt font), `{END}` = 24 (`lineSpacing` 1, 0pt above and below, no font size). Step 2: `requests: 5`; "Intro" `lineSpacing` 115, 6pt below; 7–8 unchanged with its 1pt font; 24–25 unchanged. Step 3: "added" (24–30) and "Real" (30–35) both `lineSpacing` 1, 0pt above and below. Step 4: both `HEADING_2`; "added" kept `lineSpacing` 1 and 0pt below, `spaceAbove` dropped (reads as 0); "Real" no `lineSpacing`, 18pt above. Step 5: `{"NORMAL_TEXT": {"line_spacing": 115, "space_below": 6}, "HEADING_2": {"space_above": 18}}`. Extra probe, not part of the case: on a second doc of the same content, a raw `insertInlineImage` at `{END}` left a paragraph holding only the image at `lineSpacing` 1, 0pt above and below; the same `apply_theme(overwrite=True)` left it there (`_is_kept_collapse` reads a paragraph with no text runs as empty), and the PDF export shows the image overlapping the table's bottom border (send-back on the PR).
+
+---
+
+### TC-DOC278: `apply_theme(overwrite=True)` gives an image after a final table the theme's spacing (PR #1647 QA round 2) ⚠️ destructive
+
+**Purpose:** an image put after a doc's final table (the editor's Insert > Image) lands in the collapsed paragraph there and keeps its 1% line spacing, so it overlaps the table. The overwrite pass leaves only a collapsed paragraph whose only content is its newline alone; one holding an image, or any text, whitespace included, gets the theme's spacing.
+
+Read paragraph styles as in TC-DOC274.
+
+**Playwright: required** (step 4: the image sits below the table, not over its bottom border)
+
+**Steps**
+1. `create_doc(title="TC-DOC278", folder_id={FOLDER_ID}, content_format="markdown", content="Intro\n\n| a | b |\n|---|---|\n| 1 | 2 |\n")` → `{DOC}`; `get_doc_structure`: the empty paragraph before the table is `{BEFORE}`, the last paragraph's `startIndex` is `{END}`
+2. From a fresh interpreter, one raw `batchUpdate` with `insertInlineImage` of a public PNG (e.g. `https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png`) at `{END}`; read the paragraph styles
+3. `apply_theme(doc_id={DOC}, theme={"NORMAL_TEXT": {"line_spacing": 115, "space_below": 6}}, overwrite=True)`; read the paragraph styles
+4. `download_file(file_id={DOC}, local_path=<scratch dir>, export_format="pdf")` and open the PDF; open the doc in the editor
+
+**Checks**
+- Step 2: the image's paragraph has `lineSpacing` 1 and 0pt above and below
+- Step 3: the image's paragraph has `lineSpacing` 115 and 6pt below; `{BEFORE}` still has `lineSpacing` 1 and 0pt above and below
+- Step 4: in the PDF and the editor, the image sits below the table, clear of its bottom border
+
+**Cleanup:** `delete_file` the doc and the scratch PDF
+
+**Result (2026-11-27) ✅ PASS — Kit, PR #1647 round 3 @ 66eda21a**
+`mcp-gee-sweet-kit`, reconnected after the reset. Step 1: `{BEFORE}` = 7 (`lineSpacing` 1, 0pt above and below, 1pt font), `{END}` = 24. Step 2: the image's paragraph (24–26, `inlineObjectElement` then the newline) has `lineSpacing` 1, 0pt above and below. Step 3: `requests: 4`; the image's paragraph has `lineSpacing` 115 and 6pt below; 7–8 still `lineSpacing` 1, 0pt above and below, 1pt font; "Intro" `lineSpacing` 115, 6pt below. Step 4: the PDF shows the image below the table, clear of its bottom border. Editor (Playwright, account check passed on the fixture doc, URL-verified, title "TC-DOC278"): the image sits below the table's bottom row, not over its border.
+
+---
