@@ -7996,10 +7996,11 @@ class _ImportingDrive(_FakeDriveFS):
         return super()._update(**kwargs)
 
 
-def _http_error(status: int) -> HttpError:
+def _http_error(status: int, reason: str | None = None) -> HttpError:
     resp = MagicMock()
     resp.status = status
-    return HttpError(resp=resp, content=b"{}")
+    body = {"error": {"errors": [{"reason": reason}]}} if reason else {}
+    return HttpError(resp=resp, content=json.dumps(body).encode())
 
 
 def _importing_ctx(fs: _FakeDriveFS):
@@ -8089,6 +8090,25 @@ class TestRestampWaitsForImportWrite:
             "restamp",
         ]
 
+    async def test_rate_limit_403_keeps_polling(self, tmp_path):
+        """PR #1648 QA round 2: Drive also refuses for quota with a 403
+        (rateLimitExceeded, userRateLimitExceeded), which is no answer about the
+        import either."""
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2\n")
+        fs = _ImportingDrive({"folder1": []}, writes_after=0)
+        fs.get_errors_first = [
+            _http_error(403, "rateLimitExceeded"),
+            _http_error(403, "userRateLimitExceeded"),
+        ]
+
+        result = await _upload_local_file(
+            fs.svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        assert fs.events == ["create", "get:error", "get:error", "get:5", "restamp"]
+
     async def test_transient_poll_errors_until_the_bound_still_restamp(self, tmp_path, monkeypatch):
         monkeypatch.setattr(transfer_module, "_IMPORT_WRITE_WAIT_SECONDS", 0.05)
         monkeypatch.setattr(transfer_module, "_IMPORT_WRITE_POLL_SECONDS", 0.01)
@@ -8104,16 +8124,22 @@ class TestRestampWaitsForImportWrite:
         assert fs.events.count("get:error") > 1
         assert fs.events[-1] == "restamp"
 
-    @pytest.mark.parametrize("error", [RuntimeError("blip"), "404"])
+    @pytest.mark.parametrize(
+        "error",
+        [
+            RuntimeError("blip"),
+            _http_error(404),
+            _http_error(403, "insufficientFilePermissions"),
+        ],
+        ids=["unexpected", "404", "403-not-rate-limit"],
+    )
     async def test_non_transient_poll_error_restamps_without_waiting(self, tmp_path, error):
-        """A 404 or an unexpected error won't improve with time: the restamp
-        goes out, and any real problem (the file gone) surfaces from it with
-        the fileId."""
+        """A 404, a 403 that isn't a rate limit, or an unexpected error won't
+        improve with time: the restamp goes out, and any real problem (the
+        file gone) surfaces from it with the fileId."""
         local_file = tmp_path / "data.csv"
         local_file.write_text("a,b\n1,2\n")
-        fs = _ImportingDrive(
-            {"folder1": []}, get_error=_http_error(404) if error == "404" else error
-        )
+        fs = _ImportingDrive({"folder1": []}, get_error=error)
 
         result = await _upload_local_file(
             fs.svc, str(local_file), "folder1", skip_if_exists=False, convert=True

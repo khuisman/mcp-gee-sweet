@@ -30,7 +30,7 @@ from ...local_files import (
 )
 from ..atomic_write import _check_destination, _is_partial_download, _write_atomically
 from ..front_matter import strip_front_matter
-from ..http_errors import is_storage_quota_error
+from ..http_errors import is_rate_limit_403, is_storage_quota_error
 from ..mime_types import guess_mime_type
 from ..pagination import PageLimitExceeded, iter_pages
 from ..response_limits import (
@@ -564,7 +564,8 @@ async def _await_import_write(drive_service: Any, file_id: str, created_version:
     that write has landed. Sent then, the restamp held on every file.
 
     Bounded by _IMPORT_WRITE_WAIT_SECONDS. A transient poll failure (5xx,
-    429, transport: cache._is_transient) keeps polling to that bound. Returns
+    429, transport: cache._is_transient) or a rate-limit 403
+    (http_errors.is_rate_limit_403) keeps polling to that bound. Returns
     without waiting when create() reported no version, and stops waiting on
     any other poll failure: either way the restamp goes out as it did before
     #1415, so nothing is worse than without the wait. A failure that matters
@@ -589,11 +590,12 @@ async def _await_import_write(drive_service: Any, file_id: str, created_version:
             if int(current["version"]) > baseline:
                 return
         except Exception as e:
-            # A 5xx, a 429 or a transport failure says nothing about the
-            # import, so keep polling: under quota pressure, restamping early
-            # is exactly what loses (PR #1648 QA round 1). Anything else (a
-            # 404, a RefreshError, a malformed reply) won't improve with time.
-            if not _is_transient(e):
+            # A 5xx, a 429, Drive's rate-limit 403 or a transport failure says
+            # nothing about the import, so keep polling: under quota pressure,
+            # restamping early is exactly what loses (PR #1648 QA rounds 1-2).
+            # Anything else (a 404, another 403, a RefreshError, a malformed
+            # reply) won't improve with time.
+            if not (_is_transient(e) or is_rate_limit_403(e)):
                 logger.debug("Restamping %s without waiting for its import: %s", file_id, e)
                 return
             logger.debug("Version read for %s failed, polling again: %s", file_id, e)
