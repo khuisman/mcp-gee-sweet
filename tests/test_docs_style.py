@@ -2468,7 +2468,8 @@ class TestApplyThemeTool:
     @staticmethod
     def _collapse_doc():
         """Body text; the 1pt collapsed line before a table; the table; the collapsed line
-        after it (no font set); text a user typed there later, still collapsed."""
+        after it (no font set); then, still collapsed, text a user typed there later, an
+        image inserted there, and a line holding only a space."""
         collapsed = {"lineSpacing": 1, "spaceAbove": {"unit": "PT"}, "spaceBelow": {"unit": "PT"}}
         one_point = {"fontSize": {"magnitude": 1, "unit": "PT"}}
 
@@ -2482,6 +2483,8 @@ class TestApplyThemeTool:
                 },
             }
 
+        image = paragraph(27, 29, "\n", collapsed)
+        image["paragraph"]["elements"].insert(0, {"inlineObjectElement": {"inlineObjectId": "i"}})
         return {
             "body": {
                 "content": [
@@ -2490,6 +2493,8 @@ class TestApplyThemeTool:
                     {"startIndex": 7, "endIndex": 20, "table": {}},
                     paragraph(20, 21, "\n", collapsed),
                     paragraph(21, 27, "typed\n", collapsed),
+                    image,
+                    paragraph(29, 31, " \n", collapsed),
                 ]
             }
         }
@@ -2531,12 +2536,16 @@ class TestApplyThemeTool:
         assert by_start[6] == [{"updateTextStyle": "weightedFontFamily"}]
         # The line after the final table keeps its spacing; it has the doc's font size.
         assert by_start[20] == [{"updateTextStyle": "weightedFontFamily,fontSize"}]
-        # Text typed into it gets the theme's spacing back, as insert_doc_text does.
+        # Text typed into it gets the theme's spacing back, as insert_doc_text does, and so
+        # do an image and a line of whitespace: at 1% they overlap the table (PR #1647
+        # QA round 2).
         assert by_start[21] == both
+        assert by_start[27] == both
+        assert by_start[29] == both
 
     async def test_overwrite_with_only_spacing_sends_nothing_for_a_collapsed_line(self):
         by_start = await self._overwrite_requests({"NORMAL_TEXT": {"line_spacing": 115}})
-        assert set(by_start) == {1, 21}
+        assert set(by_start) == {1, 21, 27, 29}
 
     async def test_get_doc_theme_returns_theme_dict(self):
         tools = self._setup()

@@ -270,8 +270,10 @@ onto every paragraph of a matching style, so it gave the emitter's empty collaps
 their full height back: a quote separator turned into a blank line, and the line after a final
 table could push #1100's blank last page again. An empty collapsed paragraph now keeps its
 spacing, and its 1pt font where the collapse set one (the line after a final table has the doc's
-size, so it takes the theme's). Text typed into a collapsed paragraph does get the theme's spacing,
-as `insert_doc_text` gives it the doc's (#1439): there the collapse is what makes it unreadable.
+size, so it takes the theme's). "Empty" means its only content is its closing newline. Anything
+put in a collapsed paragraph does get the theme's spacing: text (whitespace included), as
+`insert_doc_text` gives it the doc's (#1439), and an inline image, which at 1% line spacing
+overlaps the table above it (PR #1647 QA round 2). There the collapse is what makes it unreadable.
 
 `get_doc_as_markdown` doesn't read paragraph spacing, so the export is the same with or without
 gaps (checked live on r06).

@@ -72,9 +72,16 @@ def _is_block_paragraph(para: dict) -> bool:
 
 
 def _is_kept_collapse(para: dict) -> bool:
-    """Whether apply_theme's overwrite pass leaves a paragraph's spacing alone: an empty
-    one carrying the emitter's collapse (`_has_collapse_signature`)."""
-    return not _text_runs(para) and _has_collapse_signature({"paragraph": para})
+    """Whether apply_theme's overwrite pass leaves a paragraph's spacing alone: one
+    carrying the emitter's collapse (`_has_collapse_signature`) whose only content is its
+    closing newline. Anything else in it, an inline image or text, even whitespace,
+    overlaps what's around it at 1% line spacing, so it gets the theme's (PR #1647 QA
+    round 2)."""
+    elements = para.get("elements", [])
+    only_newline = all("textRun" in element for element in elements) and "".join(
+        element["textRun"].get("content", "") for element in elements
+    ) in ("", "\n")
+    return only_newline and _has_collapse_signature({"paragraph": para})
 
 
 def _at_one_point(para: dict) -> bool:
@@ -1453,8 +1460,8 @@ def register(tool):
         overwriting their current styles including any individual overrides. An empty
         line that a Markdown or HTML write shrank to nearly no height (between two quotes,
         before a table, or after a doc's final table) keeps its spacing and its 1pt font,
-        or it would show as a blank line or push a blank last page; text typed into one
-        gets the theme's spacing.
+        or it would show as a blank line or push a blank last page; anything put in one
+        (text or an image) gets the theme's spacing.
 
         Theme entry keys (NORMAL_TEXT, HEADING_1-6, TITLE, SUBTITLE). Each entry can
         include (all optional):

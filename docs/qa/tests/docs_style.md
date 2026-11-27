@@ -1015,3 +1015,26 @@ Read paragraph and text styles as in TC-DOC274.
 `mcp-gee-sweet-kit`, reconnected after the reset. Step 1: `{BEFORE}` = 7 (`lineSpacing` 1, 0pt above and below, 1pt font), `{END}` = 24 (`lineSpacing` 1, 0pt above and below, no font size). Step 2: `requests: 5`; "Intro" `lineSpacing` 115, 6pt below; 7–8 unchanged with its 1pt font; 24–25 unchanged. Step 3: "added" (24–30) and "Real" (30–35) both `lineSpacing` 1, 0pt above and below. Step 4: both `HEADING_2`; "added" kept `lineSpacing` 1 and 0pt below, `spaceAbove` dropped (reads as 0); "Real" no `lineSpacing`, 18pt above. Step 5: `{"NORMAL_TEXT": {"line_spacing": 115, "space_below": 6}, "HEADING_2": {"space_above": 18}}`. Extra probe, not part of the case: on a second doc of the same content, a raw `insertInlineImage` at `{END}` left a paragraph holding only the image at `lineSpacing` 1, 0pt above and below; the same `apply_theme(overwrite=True)` left it there (`_is_kept_collapse` reads a paragraph with no text runs as empty), and the PDF export shows the image overlapping the table's bottom border (send-back on the PR).
 
 ---
+
+### TC-DOC278: `apply_theme(overwrite=True)` gives an image after a final table the theme's spacing (PR #1647 QA round 2) ⚠️ destructive
+
+**Purpose:** an image put after a doc's final table (the editor's Insert > Image) lands in the collapsed paragraph there and keeps its 1% line spacing, so it overlaps the table. The overwrite pass leaves only a collapsed paragraph whose only content is its newline alone; one holding an image, or any text, whitespace included, gets the theme's spacing.
+
+Read paragraph styles as in TC-DOC274.
+
+**Playwright: required** (step 4: the image sits below the table, not over its bottom border)
+
+**Steps**
+1. `create_doc(title="TC-DOC278", folder_id={FOLDER_ID}, content_format="markdown", content="Intro\n\n| a | b |\n|---|---|\n| 1 | 2 |\n")` → `{DOC}`; `get_doc_structure`: the empty paragraph before the table is `{BEFORE}`, the last paragraph's `startIndex` is `{END}`
+2. From a fresh interpreter, one raw `batchUpdate` with `insertInlineImage` of a public PNG (e.g. `https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png`) at `{END}`; read the paragraph styles
+3. `apply_theme(doc_id={DOC}, theme={"NORMAL_TEXT": {"line_spacing": 115, "space_below": 6}}, overwrite=True)`; read the paragraph styles
+4. `download_file(file_id={DOC}, local_path=<scratch dir>, export_format="pdf")` and open the PDF; open the doc in the editor
+
+**Checks**
+- Step 2: the image's paragraph has `lineSpacing` 1 and 0pt above and below
+- Step 3: the image's paragraph has `lineSpacing` 115 and 6pt below; `{BEFORE}` still has `lineSpacing` 1 and 0pt above and below
+- Step 4: in the PDF and the editor, the image sits below the table, clear of its bottom border
+
+**Cleanup:** `delete_file` the doc and the scratch PDF
+
+---
