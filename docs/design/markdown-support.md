@@ -258,10 +258,20 @@ A paragraph carrying the collapse the emitter writes (`lineSpacing` 1, no space 
 `emitter._has_collapse_signature`) is a block too (#1440). Text added after a Doc's final table
 inherits that collapse (#1100), and in a Doc whose only body text before the table is in headings
 or cells it was read as NORMAL_TEXT: `apply_theme` with that theme set 1% line spacing on every
-body paragraph, so their lines overprinted. Whatever its named style, such a paragraph gives none
-of what the collapse wrote: no line spacing, no spacing, and no 1pt font (the collapse's size on a
-quote separator or the empty line before a table). 1% line spacing alone, with spacing of its own,
-is still read: only the whole signature is the emitter's.
+body paragraph, so their lines overprinted. A collapsed paragraph of another named style (that
+text made a heading) is skipped the same way, so a later real heading of that style decides; it's
+read only when its style has no other paragraph (PR #1647 QA round 1). Whatever its named style,
+such a paragraph gives none of what the collapse wrote: no line spacing, no spacing, and no 1pt
+font (the collapse's size on a quote separator or the empty line before a table). 1% line spacing
+alone, with spacing of its own, is still read: only the whole signature is the emitter's.
+
+`apply_theme(overwrite=True)` is the write side of the same rule. It writes the theme's spacing
+onto every paragraph of a matching style, so it gave the emitter's empty collapsed paragraphs
+their full height back: a quote separator turned into a blank line, and the line after a final
+table could push #1100's blank last page again. An empty collapsed paragraph now keeps its
+spacing, and its 1pt font where the collapse set one (the line after a final table has the doc's
+size, so it takes the theme's). Text typed into a collapsed paragraph does get the theme's spacing,
+as `insert_doc_text` gives it the doc's (#1439): there the collapse is what makes it unreadable.
 
 `get_doc_as_markdown` doesn't read paragraph spacing, so the export is the same with or without
 gaps (checked live on r06).

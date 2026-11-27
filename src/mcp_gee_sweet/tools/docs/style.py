@@ -71,6 +71,21 @@ def _is_block_paragraph(para: dict) -> bool:
     )
 
 
+def _is_kept_collapse(para: dict) -> bool:
+    """Whether apply_theme's overwrite pass leaves a paragraph's spacing alone: an empty
+    one carrying the emitter's collapse (`_has_collapse_signature`)."""
+    return not _text_runs(para) and _has_collapse_signature({"paragraph": para})
+
+
+def _at_one_point(para: dict) -> bool:
+    """Whether a paragraph's text is in the collapse's 1pt font, which a quote separator
+    and the empty line before a table carry (the line after a final table doesn't)."""
+    return any(
+        element.get("textRun", {}).get("textStyle", {}).get("fontSize", {}).get("magnitude") == 1
+        for element in para.get("elements", [])
+    )
+
+
 def _text_fields(run: dict) -> dict:
     ts = run.get("textStyle", {})
     fields: dict = {}
@@ -144,10 +159,15 @@ def _read_body_styles(doc: dict) -> dict:
     QA rounds 1 and 2). So NORMAL_TEXT comes from body text, not a block
     (_is_block_paragraph), and doesn't read that spacing (_body_style_entry). Only a doc
     with no body text at all takes NORMAL_TEXT from its first block with text.
+
+    A paragraph of any other named style carrying the emitter's collapse (text added
+    after a doc's final table, then made a heading) is skipped the same way, so a later
+    real paragraph of that style decides; it's that style's fallback only when there is
+    none (PR #1647 QA round 1).
     """
     theme: dict = {}
     seen: set[str] = set()
-    first_block: dict | None = None
+    fallbacks: dict[str, dict] = {}
     for elem in doc.get("body", {}).get("content", []):
         para = elem.get("paragraph")
         if not para:
@@ -155,18 +175,24 @@ def _read_body_styles(doc: dict) -> dict:
         style_type = para.get("paragraphStyle", {}).get("namedStyleType")
         if style_type not in _NAMED_STYLE_TYPES or style_type in seen:
             continue
-        if style_type == "NORMAL_TEXT" and _is_block_paragraph(para):
-            if first_block is None and _text_runs(para):
-                first_block = para
+        skipped = (
+            _is_block_paragraph(para)
+            if style_type == "NORMAL_TEXT"
+            else _has_collapse_signature({"paragraph": para})
+        )
+        if skipped:
+            if style_type not in fallbacks and _text_runs(para):
+                fallbacks[style_type] = para
             continue
         seen.add(style_type)
         entry = _body_style_entry(style_type, para)
         if entry:
             theme[style_type] = entry
-    if first_block is not None and "NORMAL_TEXT" not in seen:
-        entry = _body_style_entry("NORMAL_TEXT", first_block)
-        if entry:
-            theme["NORMAL_TEXT"] = entry
+    for style_type, para in fallbacks.items():
+        if style_type not in seen:
+            entry = _body_style_entry(style_type, para)
+            if entry:
+                theme[style_type] = entry
     return theme
 
 
@@ -1309,8 +1335,9 @@ def register(tool):
         first of them with text is used. Its space_above and space_below leave out 8pt
         and 10pt, the spacing a Markdown or HTML write puts around blocks and between
         paragraphs. Text added after a doc's final table, where a write leaves an empty
-        paragraph at 1% line spacing with no spacing, is skipped too, and gives no line
-        spacing, spacing or 1pt font to any style.
+        paragraph at 1% line spacing with no spacing, is skipped too, whatever its named
+        style: a later paragraph of the same style decides, and only when there is none
+        is it read, giving its font but no line spacing, spacing or 1pt font.
 
         Subsequent paragraphs of the same named style type that differ in style are
         ignored — they are treated as intentional individual overrides outside the theme.
@@ -1423,7 +1450,11 @@ def register(tool):
         updated named style defaults.
 
         Set overwrite=True to also apply the theme directly to all existing paragraphs,
-        overwriting their current styles including any individual overrides.
+        overwriting their current styles including any individual overrides. An empty
+        line that a Markdown or HTML write shrank to nearly no height (between two quotes,
+        before a table, or after a doc's final table) keeps its spacing and its 1pt font,
+        or it would show as a blank line or push a blank last page; text typed into one
+        gets the theme's spacing.
 
         Theme entry keys (NORMAL_TEXT, HEADING_1-6, TITLE, SUBTITLE). Each entry can
         include (all optional):
@@ -1499,18 +1530,25 @@ def register(tool):
                     continue
                 entry = named_style_keys[style_type]
                 rng = {"startIndex": elem["startIndex"], "endIndex": elem["endIndex"]}
+                # An empty paragraph the emitter collapsed (a quote separator, the line
+                # before a table, the one after a doc's final table) keeps its collapse:
+                # the theme's spacing would show it as a blank line, or bring back the
+                # blank last page (PR #1647 QA round 1). Text typed into one gets the
+                # theme's spacing, as insert_doc_text gives it the doc's (#1439).
+                kept_collapse = _is_kept_collapse(para)
 
                 ps: dict = {}
                 ps_fields: list[str] = []
-                if "line_spacing" in entry:
-                    ps["lineSpacing"] = entry["line_spacing"]
-                    ps_fields.append("lineSpacing")
-                if "space_above" in entry:
-                    ps["spaceAbove"] = {"magnitude": entry["space_above"], "unit": "PT"}
-                    ps_fields.append("spaceAbove")
-                if "space_below" in entry:
-                    ps["spaceBelow"] = {"magnitude": entry["space_below"], "unit": "PT"}
-                    ps_fields.append("spaceBelow")
+                if not kept_collapse:
+                    if "line_spacing" in entry:
+                        ps["lineSpacing"] = entry["line_spacing"]
+                        ps_fields.append("lineSpacing")
+                    if "space_above" in entry:
+                        ps["spaceAbove"] = {"magnitude": entry["space_above"], "unit": "PT"}
+                        ps_fields.append("spaceAbove")
+                    if "space_below" in entry:
+                        ps["spaceBelow"] = {"magnitude": entry["space_below"], "unit": "PT"}
+                        ps_fields.append("spaceBelow")
                 if ps_fields:
                     requests.append(
                         {
@@ -1527,7 +1565,7 @@ def register(tool):
                 if "font_family" in entry:
                     ts["weightedFontFamily"] = {"fontFamily": entry["font_family"]}
                     ts_fields.append("weightedFontFamily")
-                if "font_size" in entry:
+                if "font_size" in entry and not (kept_collapse and _at_one_point(para)):
                     ts["fontSize"] = {"magnitude": entry["font_size"], "unit": "PT"}
                     ts_fields.append("fontSize")
                 if "bold" in entry:

@@ -989,3 +989,26 @@ Read paragraph styles as in TC-DOC274.
 `mcp-gee-sweet-kit`, reconnected after the reset. Step 1: `{END}` = 24; the empty paragraph before the table (7–8) is collapsed (`lineSpacing` 1, 0pt above and below). Step 2: "added later" (24–36) has `lineSpacing` 1 with 0pt above and below. Step 3: `{}`, no `NORMAL_TEXT` and no `line_spacing` anywhere. Step 4: `{"NORMAL_TEXT": {"font_family": "Georgia"}}`. Extra probe, not part of the case: `apply_theme(theme={"NORMAL_TEXT": {"line_spacing": 115, "space_below": 6}}, overwrite=True)` then gave the collapsed empty paragraph before the table `lineSpacing` 115 and 6pt below (send-back on the PR).
 
 ---
+
+### TC-DOC277: `apply_theme(overwrite=True)` keeps empty collapsed lines collapsed, and a collapsed heading doesn't hide a real one (PR #1647 QA round 1) ⚠️ destructive
+
+**Purpose:** the overwrite pass wrote the theme's spacing onto the emitter's empty collapsed paragraphs too, giving the 1pt line before a table its full height and the line after a final table back the height #1100 took away. It now leaves an empty collapsed paragraph's spacing alone, and a 1pt font where the collapse set one. On the read side, collapsed text set to a heading was the first paragraph of that heading's style, so a later real heading's spacing never reached the theme.
+
+Read paragraph and text styles as in TC-DOC274.
+
+**Steps**
+1. `create_doc(title="TC-DOC277", folder_id={FOLDER_ID}, content_format="markdown", content="Intro\n\n| a | b |\n|---|---|\n| 1 | 2 |\n")` → `{DOC}`; `get_doc_structure`: the empty paragraph before the table is `{BEFORE}`, the last paragraph's `startIndex` is `{END}`
+2. `apply_theme(doc_id={DOC}, theme={"NORMAL_TEXT": {"line_spacing": 115, "space_below": 6, "font_size": 11}}, overwrite=True)`; read the paragraph styles and each paragraph's `fontSize`
+3. From a fresh interpreter, one raw `batchUpdate` with `insertText` of `"added\nReal"` at `{END}`; read the paragraph styles
+4. `get_doc_structure`; `style_doc_range(doc_id={DOC}, ranges=[{"start_index": <"added" start>, "end_index": <its end − 1>, "named_style_type": "HEADING_2"}, {"start_index": <"Real" start>, "end_index": <its end − 1>, "named_style_type": "HEADING_2", "line_spacing": null, "space_above": 18, "space_below": null}])`; read the paragraph styles
+5. `get_doc_theme(doc_id={DOC})`
+
+**Checks**
+- Step 2: "Intro" has `lineSpacing` 115 and 6pt below. `{BEFORE}` still has `lineSpacing` 1, 0pt above and below, and a 1pt font. The paragraph at `{END}` still has `lineSpacing` 1 and 0pt above and below. (The 11pt font matches the NORMAL_TEXT style the same call sets, so the API may report no `fontSize` on "Intro" or at `{END}`.)
+- Step 3: "added" and "Real" both have `lineSpacing` 1 and 0pt above and below
+- Step 4: both are `HEADING_2`; "added" still has `lineSpacing` 1 and no space above or below of its own (the style change may drop `spaceAbove`, which still reads as 0; if `lineSpacing` 1 is gone, the case no longer reaches the read-side check: note it in the Result); "Real" has no `lineSpacing` of its own and 18pt above
+- Step 5: `HEADING_2` is exactly `{"space_above": 18}` (before the fix: `{}` or no `HEADING_2` key, from "added")
+
+**Cleanup:** `delete_file` the doc
+
+---
