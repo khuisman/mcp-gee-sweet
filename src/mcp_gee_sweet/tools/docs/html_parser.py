@@ -204,6 +204,14 @@ class _OpenElement:
     counted: bool = False
     # A container that holds its own text, counted in _container_depth.
     container_text: bool = False
+    # Counted in _tag_depth: it took the generic inline-element path.
+    counted: bool = False
+    # A container that holds its own text, counted in _container_depth.
+    container_text: bool = False
+    # The formatting this element contributes to runs flushed while it is open, for
+    # an inline tag opened with no block around it (#1404); None on every other
+    # element. See _AstParser._bare_formatting.
+    formatting: _ElementFormatting | None = None
     # A container that opened inside an open block (#1403): it breaks the block's
     # text around its own, and `container_mark`/`container_epoch` say whether any of
     # its content arrived in the segment its end tag closes in.
@@ -212,7 +220,29 @@ class _OpenElement:
     container_epoch: int = 0
 
 
-# <mark> highlights its text in yellow, a browser's default <mark> color (#1119).
+@dataclass(frozen=True)
+class _ElementFormatting:
+    """The formatting one open inline element contributes to the runs flushed while
+    it is open (#1404): recorded on the element itself instead of the live depth
+    counters, which every block boundary resets, so a document opening blocks
+    inside the tag can no longer end the style at the first boundary. The
+    open-element stack ends it instead — at the tag's own close, or an outer
+    element's close (#1391) — and `_bare_formatting` keeps it out of table cells."""
+
+    bold: bool = False
+    italic: bool = False
+    underline: bool = False
+    strike: bool = False
+    mark: bool = False
+    code: bool = False
+    # "SUBSCRIPT"/"SUPERSCRIPT" for <sub>/<sup>; the innermost open one wins.
+    baseline: str | None = None
+
+
+# What _bare_formatting returns when nothing contributes (#1404).
+_NO_FORMATTING = _ElementFormatting()
+
+
 _MARK_RGB = (1.0, 1.0, 0.0)
 # Every inline tag that styles its text: the Run/Image field it sets and the value.
 # The one mapping: the tag sets below, which handle_starttag/handle_endtag use, are
@@ -249,6 +279,33 @@ _INLINE_BASELINE = {
 }
 _INLINE_MARK = _inline_tags("background_color")
 _INLINE_CODE = _inline_tags("font_family")
+# The inline formatting tags that can open with no block around them and so record
+# their contribution on their open element (#1404) instead of the live counters.
+# Every tag in the one mapping can: each styles text, so _formatting_of reads it.
+_INLINE_FORMATTING_TAGS = set(_INLINE_CHARACTER_STYLES)
+
+# The _ElementFormatting field each _INLINE_CHARACTER_STYLES field name maps to
+# (_formatting_of, #1404): the shared vocabulary of the two style systems.
+_BARE_FORMATTING_FIELDS = {
+    "bold": "bold",
+    "italic": "italic",
+    "underline": "underline",
+    "strikethrough": "strike",
+    "background_color": "mark",
+    "font_family": "code",
+}
+
+
+def _formatting_of(tag: str) -> _ElementFormatting:
+    """The one formatting contribution `tag`'s open element records (#1404). Only
+    called for tags in _INLINE_FORMATTING_TAGS; reads the same one mapping the
+    counter-side tag sets derive from, so a tag added there styles both sides."""
+    field_name, value = _INLINE_CHARACTER_STYLES[tag]
+    if field_name == "baseline_offset":
+        return _ElementFormatting(baseline=value)
+    return _ElementFormatting(**{_BARE_FORMATTING_FIELDS[field_name]: True})
+
+
 # HTML void elements: never get a matching close tag from Python's stdlib
 # HTMLParser unless the source text itself self-closes them ("<img ... />"),
 # since HTMLParser has no built-in HTML5 void-element awareness. Excluded from
@@ -517,6 +574,9 @@ class _BlockFrame:
     # The interrupted block's _block_implicit, so a resumed implicit paragraph keeps
     # its source line breaks too.
     implicit: bool = False
+    # The interrupted block's _block_anonymous, so a resumed anonymous paragraph
+    # still counts as "no block of its own" for a later inline tag (#1404 review).
+    anonymous: bool = False
 
 
 def _px_to_pt(value: str) -> float | None:
@@ -659,6 +719,7 @@ class _AstParser(HTMLParser):
         # flush's preserve-or-drop decision (#401) is actually made.
         self._block_resumed = False
         self._block_implicit = False  # see _open_block
+        self._block_anonymous = False  # see _open_block
         # True while the last content of the current segment is a <br>: only then does
         # _emit_block_node drop a final "\v", so an authored "\v" character stays
         # (PR #772). Per-segment, reset by _open_block.
@@ -750,11 +811,19 @@ class _AstParser(HTMLParser):
         # key's positions in the stack, and _scope_boundaries the positions of open
         # tables and cells, which an end tag outside the table structure can't close
         # past; both keep a lookup O(1), and every element is pushed and popped once.
+        # An inline formatting tag opened with no block around it carries its
+        # formatting on its own element (#1404), so the stack ends that style
+        # exactly where the element ends.
         self._open_elements: list[_OpenElement] = []
         self._open_index: dict[str, list[int]] = {}
         self._scope_boundaries: list[int] = []
         # Open containers that hold their own text (_OpenElement.container_text).
         self._container_depth = 0
+        # Open elements carrying element-recorded formatting (#1404): the count of
+        # _open_elements entries with formatting set, so the run flush and the
+        # end-tag pre-flush can skip the element walk when none is open (the
+        # common case).
+        self._bare_formatting_open = 0
         # Segments a container-in-block element was opened in, so an end tag in a
         # later segment (a nested block inside it reopened the outer block) knows
         # the container's own content ended with that block (#1403).
@@ -763,6 +832,12 @@ class _AstParser(HTMLParser):
         self._hidden_depth = 0
 
         # --- inline formatting stacks ---
+        # The block-side state (#1404): what a formatting tag opened inside an open
+        # block or table cell bumps, reset at every block boundary by
+        # _close_dangling_inline_formatting — the leak guard for a tag left unclosed
+        # at a boundary, where a browser would auto-close it. A tag opened with no
+        # block around it records on its open element instead (see
+        # _ElementFormatting) and is untouched by that reset.
         self._bold_depth = 0
         self._italic_depth = 0
         self._underline_depth = 0
@@ -773,9 +848,13 @@ class _AstParser(HTMLParser):
         self._code_depth = 0  # inline <code> nesting; ignored inside <pre>
         self._link_url: list[str] = []  # stack of href values
         # href values of <a> tags opened with no block or table cell around them.
-        # Read only by the bare top-level <img> branch (#977), so a top-level
-        # "<a href><img></a>" keeps its link; kept apart from _link_url so text
-        # handling, and an unclosed top-level <a>, are unaffected.
+        # Read wherever content such an <a> wraps keeps its link (#1404): the bare
+        # top-level <img> branch (#977, "<a href><img></a>"), the in-block <img>
+        # fallback, and every run _flush_run commits while the anchor is open — a
+        # container's paragraph, a <p> of its own, a list item. Kept apart from
+        # _link_url, the block-side stack that _close_dangling_inline_formatting
+        # clears at block boundaries; bare links stop at table cells, which read
+        # _link_url alone (see _bare_formatting).
         self._bare_link_url: list[str] = []
         # One entry per open <a>: which of the two stacks above its start tag
         # pushed an href onto ("block" or "bare"), or None if it pushed nothing
@@ -825,6 +904,52 @@ class _AstParser(HTMLParser):
     # helpers
     # ------------------------------------------------------------------
 
+    def _record_bare_formatting(self, formatting: _ElementFormatting) -> None:
+        """Record `formatting` on the inline element just opened (#1404): the element
+        carries it for as long as it stays open, so the block boundaries a document
+        opens inside the tag — each of which flushes runs and resets the live
+        per-segment counters — can no longer end the style at the first one. The
+        open-element stack ends it instead: the tag's own close pops the element,
+        an outer element's close pops everything inside it (#1391), and
+        _bare_formatting keeps it out of table cells."""
+        self._open_elements[-1].formatting = formatting
+        self._bare_formatting_open += 1
+
+    def _bare_formatting(self) -> _ElementFormatting:
+        """The union of the formatting recorded on open elements (#1404), for a run
+        flushed now: every inline element opened with no block around it that is
+        still on the open-element stack contributes. None of it reaches inside a
+        table — an element opened outside a cell sits below the cell on the stack,
+        and a browser's active formatting stops at the table's structure the same
+        way (`<table><tr><b><td>x</td></b></tr></table>` leaves the cell plain, as
+        develop's parser does too) — so a table's runs keep reading only what its
+        own cells opened, which takes the live counters."""
+        if not self._bare_formatting_open or self._table_depth:
+            return _NO_FORMATTING
+        bold = italic = underline = strike = mark = code = False
+        baseline = None
+        for element in reversed(self._open_elements):
+            formatting = element.formatting
+            if formatting is None:
+                continue
+            bold = bold or formatting.bold
+            italic = italic or formatting.italic
+            underline = underline or formatting.underline
+            strike = strike or formatting.strike
+            mark = mark or formatting.mark
+            code = code or formatting.code
+            if baseline is None:
+                baseline = formatting.baseline
+        return _ElementFormatting(
+            bold=bold,
+            italic=italic,
+            underline=underline,
+            strike=strike,
+            mark=mark,
+            code=code,
+            baseline=baseline,
+        )
+
     def _flush_run(self):
         """Commit buffered text as a Run (if non-empty) to pending_runs."""
         text = "".join(self._run_buf)
@@ -833,8 +958,21 @@ class _AstParser(HTMLParser):
         self._run_buf = []
         run = Run(
             text=text,
-            link_url=self._link_url[-1] if self._link_url else None,
-            **self._character_style(),
+            # An <a> opened with no block or cell around it pushed its href as a
+            # bare link (#977); a run flushed while it is still open — the
+            # paragraph of a block container it wraps, a <p> of its own, a list
+            # item — keeps that link, the way the bare top-level <img> branch and
+            # the in-block <img> fallback already do (#1404). Never inside a
+            # table: like the element-recorded styles, a bare link stops at table
+            # cells (see _bare_formatting).
+            link_url=(
+                self._link_url[-1]
+                if self._link_url
+                else self._bare_link_url[-1]
+                if self._bare_link_url and self._table_depth == 0
+                else None
+            ),
+            **self._run_style(),
         )
         self._pending_runs.append(run)
 
@@ -871,6 +1009,31 @@ class _AstParser(HTMLParser):
             ),
         }
 
+    def _run_style(self) -> dict:
+        """_character_style with the formatting an inline tag opened with no block
+        around it recorded on its open element unioned in (#1404): a run in a block
+        the tag wraps keeps the tag's style across the block boundaries inside it,
+        which the live counters — whose values _character_style reads — reset at
+        every boundary. The counters keep precedence where both apply (the
+        innermost open baseline wins in either system)."""
+        style = self._character_style()
+        bare = self._bare_formatting()
+        if bare.bold:
+            style["bold"] = True
+        if bare.italic:
+            style["italic"] = True
+        if bare.underline:
+            style["underline"] = True
+        if bare.strike:
+            style["strikethrough"] = True
+        if bare.mark:
+            style["background_color"] = RGBColor(*_MARK_RGB)
+        if bare.code and style["font_family"] is None:
+            style["font_family"] = "Courier New"
+        if bare.baseline is not None and style["baseline_offset"] is None:
+            style["baseline_offset"] = bare.baseline
+        return style
+
     def _flush_pending_runs(self) -> list[Run | Image]:
         self._flush_run()
         runs, self._pending_runs = self._pending_runs, []
@@ -891,7 +1054,13 @@ class _AstParser(HTMLParser):
         return runs
 
     def _open_block(
-        self, tag: str, *, resumed: bool, named_style: str | None, implicit: bool = False
+        self,
+        tag: str,
+        *,
+        resumed: bool,
+        named_style: str | None,
+        implicit: bool = False,
+        anonymous: bool = False,
     ):
         """Reset every piece of per-segment block-open state together, in the
         one place all four sites that begin buffering a block's content route
@@ -916,6 +1085,13 @@ class _AstParser(HTMLParser):
         # not HTML to reflow, and a caller's line structure would vanish silently
         # (PR #1356 QA round 1).
         self._block_implicit = implicit
+        # True for the paragraph the parser itself opens directly inside a container
+        # or <blockquote> for content with no block of its own (_ANONYMOUS_BLOCK,
+        # #1391) — as opposed to a real <div> start tag, which also routes through
+        # here under the same "div" name. Like _block_implicit, it marks the block
+        # as the parser's own construct, so an inline tag opened in it is bare-side
+        # (#1404 review).
+        self._block_anonymous = anonymous
         self._ends_with_line_break = False
         self._segment_had_line_break = False
         self._block_had_unsupported_content = False
@@ -973,6 +1149,8 @@ class _AstParser(HTMLParser):
                 self._tag_depth -= 1
             if element.container_text:
                 self._container_depth -= 1
+            if element.formatting is not None:
+                self._bare_formatting_open -= 1
             popped.append(element)
         return popped
 
@@ -1210,6 +1388,13 @@ class _AstParser(HTMLParser):
         close for all inline state. Otherwise formatting silently leaks into
         every node for the rest of the document, since the tag that would have
         decremented these depths never arrives.
+
+        Only the block-side counters and the block-side link stack end here
+        (#1404). The formatting a tag opened with no block around it records on
+        its open element deliberately survives this reset: that tag wraps the
+        boundary rather than sitting inside it, and the element ends it — at its
+        own close, or an outer element's close — instead of the boundary ending
+        it. That is what keeps a tag wrapping several blocks working.
         """
         self._bold_depth = 0
         self._italic_depth = 0
@@ -1458,6 +1643,7 @@ class _AstParser(HTMLParser):
                 list_depth=(len(self._list_ordered) if new_construct_tag in ("ol", "ul") else None),
                 lists=self._block_lists,
                 implicit=self._block_implicit,
+                anonymous=self._block_anonymous,
             )
         )
         self._block_tag = None
@@ -1559,7 +1745,11 @@ class _AstParser(HTMLParser):
         if not resumes:
             return
         self._open_block(
-            frame.outer_tag, resumed=True, named_style=frame.named_style, implicit=frame.implicit
+            frame.outer_tag,
+            resumed=True,
+            named_style=frame.named_style,
+            implicit=frame.implicit,
+            anonymous=frame.anonymous,
         )
 
     # ------------------------------------------------------------------
@@ -1861,7 +2051,7 @@ class _AstParser(HTMLParser):
         # Directly in a container it opens the container's own paragraph instead, so
         # text after it joins it, as text before it would (PR #1400 QA round 1).
         if tag == "img" and _image_src(attr_dict) and self._can_open_anonymous_block():
-            self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None)
+            self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None, anonymous=True)
         if tag == "img" and self._block_tag is None and self._table_depth == 0:
             src = _image_src(attr_dict)
             if src:
@@ -1883,15 +2073,42 @@ class _AstParser(HTMLParser):
             self._open_elements[-1].counted = True
         if (tag not in _VOID_TAGS or tag == "br") and self._can_open_anonymous_block():
             # Opened before the tag's own handling below, so <div><b>x</b></div> is bold.
-            self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None)
-        if (
-            self._block_tag
-            or self._capturing_caption()
-            or (self._table_depth >= 1 and self._table_stack and self._table_stack[-1].in_cell)
-        ):
+            self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None, anonymous=True)
+        in_cell = (
+            self._table_depth >= 1 and bool(self._table_stack) and self._table_stack[-1].in_cell
+        )
+        in_caption = self._capturing_caption()
+        # A formatting tag or <a> opened with no block of its own around it records
+        # its formatting on its open element (#1404) instead of the live depth
+        # counters: those are per-segment state that every block boundary resets
+        # (_close_dangling_inline_formatting), which ended the style at the first
+        # block inside the tag — <b><div>l1</div><div>l2</div></b> styled only l1.
+        # On the element, the style ends where the element does: at its own close,
+        # at an outer element's close (#1391), and — like a browser's active
+        # formatting markers, and like develop — never inside table cells, which
+        # _bare_formatting keeps the element-recorded style out of entirely. "No
+        # block of its own" is the top level and a table's non-cell structure,
+        # plus the parser's own paragraphs: the implicit one bare top-level text
+        # opens (#343), and the anonymous one the parser opens directly inside a
+        # container or <blockquote> for an inline tag or the container's own text
+        # (_ANONYMOUS_BLOCK, #1391) — the source HTML wrote no block around the
+        # tag in either case (#1404 review). A real block, a cell, or a caption
+        # around the tag keeps the counters: the caption is inside the table
+        # (#1402), where the recorded style and bare links don't apply, and the
+        # counters' boundary reset stays the leak guard for a tag left unclosed
+        # inside a block, where a browser would auto-close it
+        # (test_unclosed_bold_does_not_leak_past_nested_list).
+        bare_side = (
+            not in_cell
+            and not in_caption
+            and (self._block_tag is None or self._block_implicit or self._block_anonymous)
+        )
+        if self._block_tag or in_cell or in_caption:
             self._release_cell_whitespace()
             self._flush_run()
-            if tag in _INLINE_BOLD:
+            if bare_side and tag in _INLINE_FORMATTING_TAGS:
+                self._record_bare_formatting(_formatting_of(tag))
+            elif tag in _INLINE_BOLD:
                 self._bold_depth += 1
             elif tag in _INLINE_ITALIC:
                 self._italic_depth += 1
@@ -1906,8 +2123,8 @@ class _AstParser(HTMLParser):
             elif tag == "a":
                 href = attr_dict.get("href", "")
                 if href:
-                    self._link_url.append(href)
-                self._anchor_pushes.append("block" if href else None)
+                    (self._bare_link_url if bare_side else self._link_url).append(href)
+                self._anchor_pushes.append(("bare" if bare_side else "block") if href else None)
             elif tag in _INLINE_CODE and not self._in_pre:
                 self._code_depth += 1
             elif tag == "pre":
@@ -1925,14 +2142,17 @@ class _AstParser(HTMLParser):
                 src = _image_src(attr_dict)
                 if src:
                     link_url = self._link_url[-1] if self._link_url else None
-                    if link_url is None and self._block_tag == _ANONYMOUS_BLOCK:
-                        # An <a> around the container, which opened with no block around
-                        # it, pushed its href as a bare link, which a bare <img> uses
-                        # (#977); one in the container's paragraph keeps it the same way
-                        # (PR #1400 QA round 2).
+                    if link_url is None and self._block_tag is not None and self._table_depth == 0:
+                        # An <a> around the block, which opened with no block around
+                        # it, pushed its href as a bare link (#977), which a bare
+                        # top-level <img> reads; an image in any block it wraps keeps
+                        # it the same way — the container's own paragraph (PR #1400 QA
+                        # round 2), a <p> of its own (#1404 review), a list item.
+                        # Never inside a table: bare links stop at table cells, like
+                        # the element-recorded styles (see _bare_formatting).
                         link_url = self._bare_link_url[-1] if self._bare_link_url else None
                     self._pending_runs.append(
-                        _make_image(attr_dict, src, link_url, self._character_style())
+                        _make_image(attr_dict, src, link_url, self._run_style())
                     )
                     self._ends_with_line_break = False
                 elif self._block_tag:
@@ -1949,9 +2169,28 @@ class _AstParser(HTMLParser):
             if href:
                 self._bare_link_url.append(href)
             self._anchor_pushes.append("bare" if href else None)
+        elif tag in _INLINE_FORMATTING_TAGS:
+            # The true-bare counterpart of the branch above: nothing records on the
+            # live counters here, since the block boundaries inside the tag would
+            # reset them (#1404). The element does the scoping instead: a stray
+            # close names nothing open and is ignored, and an unclosed tag ends
+            # with the outer element that contains it (#1391), so nothing leaks
+            # past the element's own scope. Text with no block of its own at all
+            # still stays dropped (#343), since nothing flushes outside a block.
+            self._record_bare_formatting(_formatting_of(tag))
 
     def handle_endtag(self, tag):
         tag = _PRE_ALIASES.get(tag, tag)
+        # Text still buffered when a close tag arrives was typed inside the elements
+        # that close is about to pop, so it must keep the formatting they record
+        # (#1404): flush it while they are all still on the stack, before
+        # _pop_elements removes them — the flushes the close paths run below happen
+        # after the pop. Only the element-recorded side needs this; the live counters
+        # a guarded inline tag bumps don't change at pop time, so with no bare
+        # formatting element open the buffer keeps flushing exactly where it does
+        # today.
+        if self._run_buf and self._bare_formatting_open:
+            self._flush_run()
         # An end tag closes the element it names and everything still open inside it,
         # innermost first, as a browser's does (#1391): an unclosed <b>, hidden <video>,
         # <p> or list ends with its container or cell. One naming nothing open is
@@ -2253,6 +2492,10 @@ class _AstParser(HTMLParser):
                 self._cell_pre_depth = max(0, self._cell_pre_depth - 1)
         elif tag == "a":
             self._close_anchor()
+        # A formatting tag's bare-side close needs no branch of its own (#1404):
+        # _pop_elements already took its element — with its recorded formatting —
+        # off the stack, and any text it still held flushed before the pop, in
+        # handle_endtag. A stray close naming nothing open never reaches here.
 
     def _release_cell_whitespace(self):
         """Write held cell whitespace (see handle_data) ahead of the content about to
@@ -2338,7 +2581,7 @@ class _AstParser(HTMLParser):
             return
         # An "&nbsp;" draws a line in a container, as source indentation doesn't.
         if data and not _is_formatting_whitespace(data) and self._can_open_anonymous_block():
-            self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None)
+            self._open_block(_ANONYMOUS_BLOCK, resumed=False, named_style=None, anonymous=True)
         # Table-cell text and open-block text are independent triggers that happen
         # to be buffered the same way today; kept as separate branches so either
         # can diverge without first untangling a merged condition (#638).

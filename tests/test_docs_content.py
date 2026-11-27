@@ -934,6 +934,129 @@ class TestContainerText:
         assert nodes[0].runs[0].text == "quoted"
         assert nodes[0].blockquote_depth == 1
 
+    def test_bold_wrapping_a_container_keeps_the_style(self):
+        # #1404: an inline tag opened with no block around it records no style,
+        # so <b><div>x</div></b> wrote plain text.
+        nodes = html_to_ast("<b><div>x</div></b>")
+        assert [(r.text, r.bold) for r in nodes[0].runs] == [("x", True)]
+
+    def test_a_link_wrapping_a_container_keeps_the_link(self):
+        # #1404's <a> twin: the href was pushed as a bare link (see the bare
+        # top-level <img>, #977) but a run never read it back.
+        nodes = html_to_ast('<a href="https://x.test"><div>card</div></a>')
+        assert [(r.text, r.link_url) for r in nodes[0].runs] == [("card", "https://x.test")]
+
+    def test_a_link_wrapping_a_paragraph_keeps_the_link(self):
+        nodes = html_to_ast('<a href="https://x.test"><p>para</p></a>')
+        assert [(r.text, r.link_url) for r in nodes[0].runs] == [("para", "https://x.test")]
+
+    def test_a_link_wrapping_two_containers_links_both_paragraphs(self):
+        nodes = html_to_ast('<a href="https://x.test"><div>l1</div><div>l2</div></a>')
+        assert [r.link_url for n in nodes for r in n.runs] == [
+            "https://x.test",
+            "https://x.test",
+        ]
+
+    def test_italic_wrapping_a_list_keeps_the_style_on_items(self):
+        nodes = html_to_ast("<i><ul><li>y</li></ul></i>")
+        assert [(r.text, r.italic) for r in nodes[0].runs] == [("y", True)]
+
+    def test_a_style_ended_after_the_container_does_not_leak(self):
+        # The bare-side close balances the depth the start tag recorded (#1404),
+        # and a closed link stops at its container.
+        nodes = html_to_ast("<b><div>b</div></b><div>plain</div>")
+        assert [(r.text, r.bold) for n in nodes for r in n.runs] == [
+            ("b", True),
+            ("plain", None),
+        ]
+
+    def test_a_closed_link_does_not_reach_a_later_container(self):
+        nodes = html_to_ast('<a href="https://x.test"><div>l</div></a><div>y</div>')
+        assert [r.link_url for n in nodes for r in n.runs] == ["https://x.test", None]
+
+    def test_bold_wrapping_two_containers_styles_both(self):
+        # #1404 review: with the style on the live depth counters, the block boundary
+        # at the first </div> reset it, so only l1 came out bold (the <a href> twin
+        # above kept both, since a bare link isn't per-segment state).
+        nodes = html_to_ast("<b><div>l1</div><div>l2</div></b>")
+        assert [(r.text, r.bold) for n in nodes for r in n.runs] == [
+            ("l1", True),
+            ("l2", True),
+        ]
+
+    def test_bold_wrapping_a_containers_inner_paragraph_styles_all_segments(self):
+        # The same reset, one container: the <p> inside the div is a second boundary,
+        # and the resumed trailing segment after it a third.
+        nodes = html_to_ast("<b><div>a<p>b</p>c</div></b>")
+        assert [(r.text, r.bold) for n in nodes for r in n.runs] == [
+            ("a", True),
+            ("b", True),
+            ("c", True),
+        ]
+
+    def test_italic_around_a_list_with_a_nested_list_styles_all_items(self):
+        # The nested <ul> interrupts the outer <li> mid-segment, another boundary
+        # that used to end the style: with the counters, l1 was italic and l2 plain.
+        nodes = html_to_ast("<i><ul><li>l1<ul><li>l2</li></ul></li></ul></i>")
+        assert [(r.text, r.italic) for n in nodes for r in n.runs] == [
+            ("l1", True),
+            ("l2", True),
+        ]
+
+    def test_intro_text_before_a_bold_wrapped_container_keeps_them_apart(self):
+        # #1404's own symptom from the review: the bare text opens the implicit
+        # paragraph first, and the container boundary under the tag used to reset
+        # the style, so x came out plain. The intro keeps its own plain style: it
+        # flushes before the tag records its formatting.
+        nodes = html_to_ast("Intro <b><div>x</div></b>")
+        assert [(r.text, r.bold) for n in nodes for r in n.runs] == [
+            ("Intro ", None),
+            ("x", True),
+        ]
+
+    def test_bold_opened_in_a_table_row_leaves_the_cells_plain(self):
+        # The table-cell quirk from the #1404 review: a browser's active formatting
+        # stops at the table's structure, so <table><tr><b><td>x</td>... renders
+        # both cells plain — verified against develop, which leaves them plain too —
+        # and the element-recorded style must not cross a cell boundary either.
+        nodes = html_to_ast("<table><tr><b><td>x</td><td>y</td></b></tr></table>")
+        assert [[(r.text, r.bold) for r in cell.children] for cell in nodes[0].rows[0].cells] == [
+            [("x", None)],
+            [("y", None)],
+        ]
+
+    def test_link_wrapping_a_container_inside_a_container_keeps_the_link(self):
+        # The #1404 review round 2: one level down, the parser opens its anonymous
+        # paragraph (_ANONYMOUS_BLOCK) for the <a> before the tag records anything,
+        # and bare_side didn't count that paragraph as "no block around it", so the
+        # href went on the per-segment _link_url and the inner container's start tag
+        # reset it — the #1404 card lost its link whenever it was wrapped.
+        nodes = html_to_ast('<div><a href="https://x.test"><div>title</div></a></div>')
+        assert [(r.text, r.link_url) for n in nodes for r in n.runs] == [
+            ("title", "https://x.test")
+        ]
+        # The same markup in a full page's <body>, the wrapper the review called
+        # out: also the parser's own paragraph, also bare.
+        nodes = html_to_ast('<body><a href="https://x.test"><div>title</div></a></body>')
+        assert [(r.text, r.link_url) for n in nodes for r in n.runs] == [
+            ("title", "https://x.test")
+        ]
+
+    def test_bold_wrapping_a_paragraph_inside_a_container_styles_it(self):
+        # The <b> twin of the case above: <p> is a real block, but the <b> is
+        # inside the container's anonymous paragraph, not inside the <p>.
+        nodes = html_to_ast("<div><b><p>x</p></b></div>")
+        assert [(r.text, r.bold) for n in nodes for r in n.runs] == [("x", True)]
+
+    def test_bold_wrapping_containers_inside_a_blockquote_styles_both(self):
+        # Both segments: the quote's own anonymous paragraph hosts the <b>, and the
+        # two container boundaries under it used to end the style at the first.
+        nodes = html_to_ast("<blockquote><b><div>a</div><div>b</div></b></blockquote>")
+        assert [(r.text, r.bold) for n in nodes for r in n.runs] == [
+            ("a", True),
+            ("b", True),
+        ]
+
     def test_inline_only_content_in_a_quote(self):
         nodes = html_to_ast("<blockquote><b>quoted</b></blockquote>")
         assert [(r.text, r.bold) for r in nodes[0].runs] == [("quoted", True)]
