@@ -28,7 +28,9 @@ All live, 2026-11-27, on a scratch folder in the team's Shared Drive. The upload
 
 Before the restamp, `_await_import_write` polls `files().get(fields="version")` every `_IMPORT_WRITE_POLL_SECONDS` (0.5 s) until the version is past the one `create()` returned, for at most `_IMPORT_WRITE_WAIT_SECONDS` (15 s). Both `create()` calls that convert ask for `version` in their fields.
 
-If the version never moves within the bound, if a poll fails, or if `create()` returned no version, the restamp goes out at once, as it did before. The wait can make an upload slower but never leaves it worse stamped than before.
+A poll that fails with a 5xx, a 429 or a transport error (`cache._is_transient`) says nothing about the import, so the wait keeps polling; under quota pressure, restamping early is what loses (PR #1648 QA round 1). If the version never moves within the bound, if a poll fails any other way (a 404, a malformed reply), or if `create()` returned no version, the restamp goes out at once, as it did before. The wait can make an upload slower but never leaves it worse stamped than before.
+
+The wait and the restamp run in one shielded cancel scope, followed by a checkpoint. Before the wait, a cancellation after `create()` returned still let the restamp's request finish on its thread; without the shield, a cancellation during the wait would drop the restamp and leave the file on its upload time. The shield holds a cancel for at most the wait's bound plus one request.
 
 The restamp now waits for the import's own write, which #814's [decision](../decisions/decision-converted-doc-change-detection.md) (option 2) and #421 rejected as having "no conversion finished signal". For a Doc that's still true of what #814 measured: the Docs backend moves `modifiedTime` minutes after an *edit*, and no wait at upload time helps there. A convert_markdown Doc's change detection runs off properties and revision history, and stays that way. What this measures is narrower: the import's own write, the one that overwrote the restamp, is visible through `version`, on every conversion type.
 

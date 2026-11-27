@@ -12,12 +12,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, BinaryIO, Literal
 
+import anyio
+import anyio.lowlevel
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload, MediaInMemoryUpload, MediaIoBaseDownload
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread, invalidating, thread_http
+from ...cache import _is_transient
 from ...local_files import (
     LocalFileAccessError,
     check_read,
@@ -560,11 +563,13 @@ async def _await_import_write(drive_service: Any, file_id: str, created_version:
     returns version 4, sometimes 5, so once the version is past create()'s,
     that write has landed. Sent then, the restamp held on every file.
 
-    Bounded by _IMPORT_WRITE_WAIT_SECONDS. Returns without waiting when
-    create() reported no version, and stops waiting when a poll fails: either
-    way the restamp goes out as it did before #1415, so nothing is worse than
-    without the wait. A failure that matters (the file gone, a quota refusal)
-    surfaces from the restamp itself, with its fileId."""
+    Bounded by _IMPORT_WRITE_WAIT_SECONDS. A transient poll failure (5xx,
+    429, transport: cache._is_transient) keeps polling to that bound. Returns
+    without waiting when create() reported no version, and stops waiting on
+    any other poll failure: either way the restamp goes out as it did before
+    #1415, so nothing is worse than without the wait. A failure that matters
+    (the file gone, a quota refusal) surfaces from the restamp itself, with
+    its fileId."""
     if created_version is None:
         return
     try:
@@ -584,8 +589,14 @@ async def _await_import_write(drive_service: Any, file_id: str, created_version:
             if int(current["version"]) > baseline:
                 return
         except Exception as e:
-            logger.debug("Restamping %s without waiting for its import: %s", file_id, e)
-            return
+            # A 5xx, a 429 or a transport failure says nothing about the
+            # import, so keep polling: under quota pressure, restamping early
+            # is exactly what loses (PR #1648 QA round 1). Anything else (a
+            # 404, a RefreshError, a malformed reply) won't improve with time.
+            if not _is_transient(e):
+                logger.debug("Restamping %s without waiting for its import: %s", file_id, e)
+                return
+            logger.debug("Version read for %s failed, polling again: %s", file_id, e)
         if loop.time() + _IMPORT_WRITE_POLL_SECONDS > deadline:
             logger.debug(
                 "Import of %s made no write within %ss; restamping anyway",
@@ -634,22 +645,29 @@ async def _restamp_modified_time(
     must not be lost (#420). Shared by _upload_local_file and
     _sync_level._run_one so a future change to this workaround lands in both
     (#435)."""
-    await _await_import_write(drive_service, file_id, created_version)
-    try:
-        await execute_in_thread(
-            drive_service.files()
-            .update(
-                fileId=file_id,
-                body={"modifiedTime": lmtime_str},
-                supportsAllDrives=True,
-                fields="id",
+    # Shielded: the file already exists, and a cancellation during the wait
+    # would otherwise drop the restamp and leave it on its upload time, the
+    # #1415 symptom (PR #1648 QA round 1). Bounded by the wait's own bound
+    # plus one request. The checkpoint after it delivers a held-off cancel.
+    failure: dict[str, Any] | None = None
+    with anyio.CancelScope(shield=True):
+        await _await_import_write(drive_service, file_id, created_version)
+        try:
+            await execute_in_thread(
+                drive_service.files()
+                .update(
+                    fileId=file_id,
+                    body={"modifiedTime": lmtime_str},
+                    supportsAllDrives=True,
+                    fields="id",
+                )
+                .execute,
+                drive_service,
             )
-            .execute,
-            drive_service,
-        )
-    except Exception as e:
-        return _restamp_failure_result(file_id, e, drive_service)
-    return None
+        except Exception as e:
+            failure = _restamp_failure_result(file_id, e, drive_service)
+    await anyio.lowlevel.checkpoint()
+    return failure
 
 
 def _format_bytes_note(so_far: int, total: int | None) -> str:

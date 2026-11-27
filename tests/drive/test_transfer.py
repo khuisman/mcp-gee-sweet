@@ -7955,6 +7955,8 @@ class _ImportingDrive(_FakeDriveFS):
         self.created_version = created_version
         self.writes_after = writes_after
         self.get_error = get_error
+        # Raised by the first polls, one each, before any answers.
+        self.get_errors_first: list[Exception] = []
         self.create_fields: list[str] = []
         self.get_polls = 0
         self.events: list[str] = []
@@ -7972,6 +7974,10 @@ class _ImportingDrive(_FakeDriveFS):
 
     def _get(self, **kwargs):
         resp = MagicMock()
+        if self.get_errors_first:
+            self.events.append("get:error")
+            resp.execute.side_effect = self.get_errors_first.pop(0)
+            return resp
         if self.get_error is not None:
             self.events.append("get:error")
             resp.execute.side_effect = self.get_error
@@ -7988,6 +7994,12 @@ class _ImportingDrive(_FakeDriveFS):
         if "media_body" not in kwargs:
             self.events.append("restamp")
         return super()._update(**kwargs)
+
+
+def _http_error(status: int) -> HttpError:
+    resp = MagicMock()
+    resp.status = status
+    return HttpError(resp=resp, content=b"{}")
 
 
 def _importing_ctx(fs: _FakeDriveFS):
@@ -8054,13 +8066,54 @@ class TestRestampWaitsForImportWrite:
         assert fs.events.count("restamp") == 1
         assert 1 < fs.get_polls < 20
 
-    async def test_failed_poll_restamps_without_waiting(self, tmp_path):
-        """A failed version read isn't the upload's failure: the restamp goes
-        out, and any real problem (the file gone) surfaces from it with the
-        fileId."""
+    async def test_transient_poll_errors_keep_polling(self, tmp_path):
+        """PR #1648 QA round 1: a 503 or a 429 on the version read says nothing
+        about the import, so the wait goes on rather than restamping early,
+        which is what loses under quota pressure."""
         local_file = tmp_path / "data.csv"
         local_file.write_text("a,b\n1,2\n")
-        fs = _ImportingDrive({"folder1": []}, get_error=RuntimeError("blip"))
+        fs = _ImportingDrive({"folder1": []}, writes_after=0)
+        fs.get_errors_first = [_http_error(503), _http_error(429), TimeoutError("slow")]
+
+        result = await _upload_local_file(
+            fs.svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        assert fs.events == [
+            "create",
+            "get:error",
+            "get:error",
+            "get:error",
+            "get:5",
+            "restamp",
+        ]
+
+    async def test_transient_poll_errors_until_the_bound_still_restamp(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(transfer_module, "_IMPORT_WRITE_WAIT_SECONDS", 0.05)
+        monkeypatch.setattr(transfer_module, "_IMPORT_WRITE_POLL_SECONDS", 0.01)
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2\n")
+        fs = _ImportingDrive({"folder1": []}, get_error=_http_error(503))
+
+        result = await _upload_local_file(
+            fs.svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        assert fs.events.count("get:error") > 1
+        assert fs.events[-1] == "restamp"
+
+    @pytest.mark.parametrize("error", [RuntimeError("blip"), "404"])
+    async def test_non_transient_poll_error_restamps_without_waiting(self, tmp_path, error):
+        """A 404 or an unexpected error won't improve with time: the restamp
+        goes out, and any real problem (the file gone) surfaces from it with
+        the fileId."""
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2\n")
+        fs = _ImportingDrive(
+            {"folder1": []}, get_error=_http_error(404) if error == "404" else error
+        )
 
         result = await _upload_local_file(
             fs.svc, str(local_file), "folder1", skip_if_exists=False, convert=True
@@ -8068,6 +8121,36 @@ class TestRestampWaitsForImportWrite:
 
         assert "error" not in result
         assert fs.events == ["create", "get:error", "restamp"]
+
+    async def test_cancel_during_the_wait_still_restamps(self, tmp_path, monkeypatch):
+        """PR #1648 QA round 1: the file exists once create() returns, so a
+        cancellation during the wait must not drop its restamp (the #1415
+        symptom). The wait and the restamp are shielded; the cancel lands
+        after them."""
+        monkeypatch.setattr(transfer_module, "_IMPORT_WRITE_POLL_SECONDS", 0.01)
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2\n")
+        fs = _ImportingDrive({"folder1": []}, writes_after=5)
+        finished = []
+
+        async def upload():
+            finished.append(
+                await _upload_local_file(
+                    fs.svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+                )
+            )
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(upload)
+            with anyio.fail_after(5):
+                while fs.get_polls < 1:
+                    await anyio.sleep(0.001)
+            tg.cancel_scope.cancel()
+
+        assert finished == []  # the cancel still reached the caller
+        assert fs.events[-1] == "restamp"
+        assert fs.events.count("restamp") == 1
+        assert fs.events[-2] == "get:5"  # it waited for the import first
 
     async def test_create_without_version_restamps_at_once(self, tmp_path):
         local_file = tmp_path / "data.csv"
