@@ -4,7 +4,11 @@ from unittest.mock import MagicMock
 
 from googleapiclient.errors import HttpError
 
-from mcp_gee_sweet.tools.http_errors import http_error_has_reason, is_storage_quota_error
+from mcp_gee_sweet.tools.http_errors import (
+    http_error_has_reason,
+    is_rate_limit_403,
+    is_storage_quota_error,
+)
 
 
 def _http_error(status: int, reason: str | None = None, content: bytes | None = None):
@@ -52,3 +56,19 @@ class TestIsStorageQuotaError:
 
     def test_non_http_error_does_not_match(self):
         assert not is_storage_quota_error(ValueError("storageQuotaExceeded"))
+
+
+class TestIsRateLimit403:
+    def test_both_rate_limit_reasons_match(self):
+        assert is_rate_limit_403(_http_error(403, "rateLimitExceeded"))
+        assert is_rate_limit_403(_http_error(403, "userRateLimitExceeded"))
+
+    def test_other_403_reason_does_not_match(self):
+        assert not is_rate_limit_403(_http_error(403, "insufficientFilePermissions"))
+        assert not is_rate_limit_403(_http_error(403, "storageQuotaExceeded"))
+
+    def test_rate_limit_reason_on_other_status_does_not_match(self):
+        assert not is_rate_limit_403(_http_error(429, "rateLimitExceeded"))
+
+    def test_non_http_error_does_not_match(self):
+        assert not is_rate_limit_403(ValueError("rateLimitExceeded"))
