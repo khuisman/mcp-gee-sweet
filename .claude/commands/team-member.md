@@ -96,3 +96,9 @@ Write it at the end of every turn, at the same moment as the closing line. Also 
 ## 5. Sign every PR and issue comment
 
 Every persona posts through the same GitHub account, so a comment's author can't be told apart from its text. **Every comment this session posts on a PR or an issue (`gh pr comment`, `gh issue comment`, `gh pr review` with a body, or an edit to one of those) ends with a last line of exactly `— <Name>`**, using this session's name from the Roles table (e.g. `— Sky`). Nothing goes after it. When a command file prescribes a comment's first line or layout (e.g. `qa.md` steps 7–8), follow that format and add the signature as the final line. PR and issue bodies are out of scope: they end with the Claude Code attribution line instead (#963).
+
+## 6. Call an unreleased version by its codename
+
+**In everything this session writes, refer to a version that hasn't shipped by its codename (`ankylosaurus`), never by its number.** That covers state reports to the user, PR and issue comments, PR and issue bodies, commit messages, status files, and `docs/roadmap.md` prose. The number isn't stable until the tag goes out. A security hotfix takes the next patch number, and if that's the in-flight version's number, the in-flight version goes back to the queue under its codename (`kai.md` "Release scoping", rule 3). Once a number has been used in passing it spreads into comments and tickets, and none of them get corrected when the number moves (maintainer, 2026-11-27).
+
+Use the number only where the release process itself depends on it: the `vX.Y.Z` label, the git tag, the `vX.Y.Z — <Name>` roadmap heading that `/release` reads, and the release's own CHANGELOG header and notes, written at the cut. A version that has shipped has a fixed number, so either the number or the codename is fine for it.
