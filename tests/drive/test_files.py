@@ -2857,10 +2857,17 @@ class TestCsvChunks:
         chunks = drive_files_module._csv_chunks
 
         def _record_planning_thread(rows):
-            seen_threads.append(("padding+chunks", threading.get_ident()))
+            seen_threads.append(("chunks", threading.get_ident()))
             return chunks(rows)
 
         monkeypatch.setattr(drive_files_module, "_csv_chunks", _record_planning_thread)
+        pad_rows = drive_files_module._pad_rows
+
+        def _record_padding_thread(rows, width):
+            seen_threads.append(("padding", threading.get_ident()))
+            return pad_rows(rows, width)
+
+        monkeypatch.setattr(drive_files_module, "_pad_rows", _record_padding_thread)
         helper = TestImportCsvToSheet()
         path = helper._write_csv(tmp_path, [["a", "b"], ["c"]])
         ctx = _make_ctx(
@@ -2874,7 +2881,10 @@ class TestCsvChunks:
         await _drive_tools["import_csv_to_sheet"](local_path=str(path), title="X", ctx=ctx)
         # The event loop runs on this test's own thread, which asyncio.to_thread leaves.
         loop_thread = threading.get_ident()
-        assert [step for step, _ in seen_threads] == ["scan", "padding+chunks"]
+        # The padding is a module-level helper of its own (#1638), so the test
+        # records its thread separately from the chunk planning it feeds —
+        # moving the padding back before the to_thread call fails here.
+        assert [step for step, _ in seen_threads] == ["scan", "padding", "chunks"]
         assert all(ident != loop_thread for _, ident in seen_threads), seen_threads
 
     async def test_a_refused_file_hears_no_planning_progress(self, tmp_path, monkeypatch):
