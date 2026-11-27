@@ -1,22 +1,45 @@
 import asyncio
 import json
 import logging
-from typing import Any
+from typing import Any, Literal
 
+from googleapiclient.errors import HttpError
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
+from ...deprecation import deprecated_tool
 from ..concurrency import report_progress_safe
+from ..http_errors import http_error_has_reason
 from . import _user_fields
 
 logger = logging.getLogger(__name__)
+
+
+def _entry_principal(perm: Any, perm_type: str | None) -> str:
+    """What `share_file`'s progress message names an entry by: its address or
+    domain when it has one, else its type. A malformed entry (not a dict) is named
+    by its type, which is then None."""
+    if isinstance(perm, dict):
+        for key in ("email_address", "domain"):
+            value = perm.get(key)
+            if value:
+                return str(value)
+    return str(perm_type)
 
 
 def register(tool):
     @tool(
         annotations=ToolAnnotations(title="Share Spreadsheet", destructiveHint=True),
         groups=("sheets",),
+    )
+    @deprecated_tool(
+        use=(
+            "`share_file` with each recipient as "
+            "`{'type': 'user', 'email_address': ..., 'role': ...}`, setting this tool's "
+            "default `'role': 'writer'` explicitly"
+        ),
+        removed_in="the next feature release",
     )
     async def share_spreadsheet(
         spreadsheet_id: str,
@@ -257,7 +280,7 @@ def register(tool):
     async def transfer_ownership(
         file_id: str,
         new_owner_email: str,
-        send_notification: bool = True,
+        send_notification: Literal[True] = True,
         ctx: Context = None,
     ) -> dict[str, Any]:
         """
@@ -266,13 +289,22 @@ def register(tool):
         Args:
             file_id: The Google Drive file or folder ID.
             new_owner_email: Email address of the new owner.
-            send_notification: Whether to send a notification email to the new owner.
-                                Defaults to True, and must stay True: Drive refuses
-                                any ownership transfer whose notification is disabled.
+            send_notification: Always True, so it can be omitted: Drive refuses an
+                                ownership transfer whose notification email is
+                                disabled, so the new owner is always emailed.
 
         Returns:
             Confirmation with fileId, new_owner, and permissionId.
-            {"error": ...} if send_notification is False, before any API call.
+            {"error": ...}, with nothing changed, when the file is in a shared
+            drive: the shared drive's organization owns its items, so they have
+            no owner to transfer. A shared drive organizer can move the item into
+            their own My Drive, which makes them its owner.
+            {"error": ...}, with nothing changed, when Drive transfers ownership
+            only once the new owner accepts a transfer request (as between two
+            personal gmail.com accounts), which this tool doesn't send.
+            A transfer to an account in another organization raises Drive's own
+            error: Drive allows a transfer only within the current owner's
+            organization.
 
         Note:
             Requires OAuth auth — service accounts have no personal Drive identity
@@ -281,32 +313,57 @@ def register(tool):
         """
         drive_service = ctx.request_context.lifespan_context.drive_service
 
-        if not send_notification:
-            # Drive answers a transfer with a disabled notification by 403'ing
-            # "The sendNotificationEmail parameter … must not be disabled for
-            # ownership transfers" — before it even looks the file up (confirmed
-            # with a nonexistent file ID in the v0.9.2 QA pass, #1055). Forwarding
-            # the request would only turn that into an opaque API error, so the
-            # unsupported value is rejected here.
+        if send_notification is not True:
+            # The schema allows only True, so only a caller that skips validation
+            # gets here. Drive answers a transfer with a disabled notification with
+            # a 403 ("must not be disabled for ownership transfers") before it even
+            # looks the file up (confirmed with a nonexistent file ID in the v0.9.2
+            # QA pass, #1055), so the value is refused here instead.
             return {
                 "error": "send_notification=False is not supported for ownership "
-                "transfers: Drive requires sendNotificationEmail, so the new owner "
-                "always gets the notification email. Omit the parameter or pass True."
+                "transfers: Drive refuses an ownership transfer whose notification "
+                "email is disabled, so the new owner is always emailed. Omit the "
+                "parameter or pass True."
             }
 
-        result = await execute_in_thread(
-            drive_service.permissions()
-            .create(
-                fileId=file_id,
-                body={"type": "user", "role": "owner", "emailAddress": new_owner_email},
-                transferOwnership=True,
-                sendNotificationEmail=send_notification,
-                supportsAllDrives=True,
-                fields="id",
+        try:
+            result = await execute_in_thread(
+                drive_service.permissions()
+                .create(
+                    fileId=file_id,
+                    body={"type": "user", "role": "owner", "emailAddress": new_owner_email},
+                    transferOwnership=True,
+                    # Literal, not the parameter: Drive refuses False here (#1181).
+                    sendNotificationEmail=True,
+                    supportsAllDrives=True,
+                    fields="id",
+                )
+                .execute,
+                drive_service,
             )
-            .execute,
-            drive_service,
-        )
+        except HttpError as e:
+            # Drive's own text ("Owner role is invalid for shared drive items.")
+            # says neither why nor what to do instead (#1181).
+            if http_error_has_reason(e, 403, "ownerOnTeamDriveItemNotSupported"):
+                return {
+                    "error": f"File {file_id} is in a shared drive, and a shared drive "
+                    "item has no owner to transfer: the shared drive's organization "
+                    "owns it. Nothing was changed. A shared drive organizer can move "
+                    "the item into their own My Drive, which makes them its owner."
+                }
+            # Drive answers "Consent is required to transfer ownership of a file to
+            # another user.", naming neither whose consent nor how to get it (seen
+            # between two gmail.com accounts, #1181). The message is worded from the
+            # reason alone, so it holds for any pair of accounts Drive sends it for.
+            if http_error_has_reason(e, 403, "consentRequiredForOwnershipTransfer"):
+                return {
+                    "error": f"Drive won't transfer ownership of {file_id} until "
+                    f"{new_owner_email} accepts a transfer request, and this tool "
+                    "doesn't send one. Nothing was changed. The owner can send the "
+                    "request from the file's Share dialog in Drive (Transfer "
+                    f"ownership); {new_owner_email} then accepts it."
+                }
+            raise
 
         logger.debug("Transferred ownership of %s to %s", file_id, new_owner_email)
         return {
@@ -315,7 +372,13 @@ def register(tool):
             "permissionId": result.get("id"),
         }
 
-    @tool(annotations=ToolAnnotations(title="Share File", destructiveHint=True), default=True)
+    @tool(
+        annotations=ToolAnnotations(title="Share File", destructiveHint=True),
+        default=True,
+        # share_spreadsheet's replacement (#665), so `sheets` keeps a sharing tool
+        # once it's removed.
+        groups=("sheets",),
+    )
     async def share_file(
         file_id: str,
         permissions: list[dict[str, str]],
@@ -331,7 +394,8 @@ def register(tool):
 
         Args:
             file_id: The Google Drive file or folder ID.
-            permissions: List of permission entries. Each must have 'type' and 'role'.
+            permissions: List of permission entries. Each must have 'type'; 'role'
+                         is optional and defaults to 'reader'.
                          Additional fields depend on type:
                            type='user' or 'group' — requires 'email_address'
                            type='domain'          — requires 'domain'
@@ -451,12 +515,17 @@ def register(tool):
             # asyncio.gather resolves — see #316/#319's original rationale, extended
             # to this tool by #355.
             completed[0] += 1
+            # Named by its address or domain where it has one, as share_spreadsheet
+            # names each recipient, so entries of one type can be told apart.
+            principal = _entry_principal(perm, perm_type)
             await report_progress_safe(
-                ctx, completed[0], total, f"{perm_type}: {item_result['_kind']}", str(perm_type)
+                ctx, completed[0], total, f"{principal}: {item_result['_kind']}", principal
             )
             return item_result
 
-        # Same return_exceptions=True + tagged-result pattern as share_spreadsheet.
+        # return_exceptions=True: _share_one already catches its own errors, but this
+        # also lets every in-flight share finish before surfacing an unexpected
+        # exception, instead of orphaning in-flight tasks.
         raw = await asyncio.gather(*(_share_one(p) for p in permissions), return_exceptions=True)
         successes = []
         failures = []

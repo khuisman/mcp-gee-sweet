@@ -97,7 +97,7 @@ If neither is set, or the value is empty, the `default` group is registered. `EN
 |---|---|---|
 | `default` | 39 | Everyday reading and writing across all five services. What an unset or empty `ENABLED_TOOLS` loads |
 | `all` | 156 | Every tool, plus the deprecated alias of each recently renamed tool |
-| `sheets` | 46 | Every spreadsheet tool: data, sheets, formatting, charts, and creating, listing, searching, importing and sharing spreadsheets (which are in `drive` too) |
+| `sheets` | 47 | Every spreadsheet tool: data, sheets, formatting, charts, and creating, listing, searching, importing and sharing spreadsheets (which are in `drive` too) |
 | `drive` | 45 | Every Drive tool: files, sharing, comments, activity, upload, download, local sync, and creating, listing, searching, importing and sharing spreadsheets (also in `sheets`) |
 | `docs` | 34 | Every Docs tool |
 | `calendar` | 17 | Every Calendar tool |

@@ -1,4 +1,5 @@
 import logging
+import math
 from typing import Any, Literal
 
 from mcp.server.mcpserver import Context
@@ -341,6 +342,50 @@ def _text_style_and_fields(style: dict) -> tuple[dict, list[str]]:
     return text_style, fields
 
 
+# style_doc_range's paragraph spacing keys (#1439), each with its Docs field and whether
+# zero is a valid value (a 0% line spacing isn't; 0pt of space is).
+_PARAGRAPH_SPACING_KEYS = (
+    ("line_spacing", "lineSpacing", False),
+    ("space_above", "spaceAbove", True),
+    ("space_below", "spaceBelow", True),
+)
+
+
+def _paragraph_spacing_and_fields(style: dict) -> tuple[dict, list[str]] | str:
+    """Build a paragraphStyle dict + field mask from style_doc_range's line_spacing
+    (percent, 100 = single), space_above and space_below (points) keys (#1439).
+
+    A key given as null clears that field, so the paragraph takes its named style's
+    value again: the Docs API resets a field named in `fields` but absent from the
+    style (checked live). Returns an error string for a value that isn't a finite
+    number, a negative one, or a line_spacing of 0.
+    """
+    paragraph_style: dict = {}
+    fields: list[str] = []
+    for key, api_field, zero_ok in _PARAGRAPH_SPACING_KEYS:
+        if key not in style:
+            continue
+        value = style[key]
+        fields.append(api_field)
+        if value is None:
+            continue
+        # NaN and infinity pass every comparison below and aren't valid JSON numbers.
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+        ):
+            return f"{key} must be a number or null, got {value!r}"
+        if value < 0 or (value == 0 and not zero_ok):
+            limit = "zero or more" if zero_ok else "greater than zero"
+            return f"{key} must be {limit}, got {value!r}"
+        if key == "line_spacing":
+            paragraph_style[api_field] = value
+        else:
+            paragraph_style[api_field] = {"magnitude": value, "unit": "PT"}
+    return paragraph_style, fields
+
+
 def _build_named_style_requests(style_type: str, entry: dict) -> list[dict]:
     """Build an updateNamedStyle batchUpdate request for one named style type.
 
@@ -430,20 +475,26 @@ def _is_paragraph_start(doc: dict, index: int) -> bool:
     #1584: Docs styles text inserted at such an index from the character
     after index (the paragraph's own first character), not from the newline
     before it, so a style-inheritance read must probe there instead. Walks
-    table cells like _bold_runs_in_range does; a missing startIndex only
-    happens on a document's very first element, which implicitly starts at 1."""
+    table cells like _bold_runs_in_range does; a missing startIndex is
+    carried forward from the previous item's endIndex (starting at 1), as
+    _bold_runs_in_range and indices._collect_doc_paragraphs carry theirs,
+    rather than defaulting every list position back to 1 — a missing field
+    only happens on a document's very first element (#1606)."""
 
-    def _walk(items: list) -> bool:
+    def _walk(items: list, start: int) -> bool:
+        offset = start
         for item in items or []:
-            if item.get("paragraph") and item.get("startIndex", 1) == index:
+            item_start = item.get("startIndex", offset)
+            if item.get("paragraph") and item_start == index:
                 return True
+            offset = item.get("endIndex", item_start)
             for row in (item.get("table") or {}).get("tableRows") or []:
                 for cell in row.get("tableCells") or []:
-                    if _walk(cell.get("content") or []):
+                    if _walk(cell.get("content") or [], item_start):
                         return True
         return False
 
-    return _walk((doc.get("body") or {}).get("content"))
+    return _walk((doc.get("body") or {}).get("content"), 1)
 
 
 def _bold_runs_in_range(doc: dict, start_index: int, end_index: int) -> list[dict[str, int]]:
@@ -530,6 +581,13 @@ def register(tool):
                 Paragraph style:
                   named_style_type (str): NORMAL_TEXT, HEADING_1 … HEADING_6,
                       TITLE, SUBTITLE
+                  line_spacing (float | null): percent of single spacing
+                      (100 = single, 115 = 1.15x, 150 = 1.5x)
+                  space_above (float | null): points above the paragraph
+                  space_below (float | null): points below the paragraph
+                  Null for any of the three clears the paragraph's own value, so it
+                  takes its named style's again. Paragraph style applies to every
+                  paragraph the range touches.
 
                 Text style:
                   bold (bool), italic (bool), underline (bool), strikethrough (bool)
@@ -552,10 +610,21 @@ def register(tool):
             those. A separate call only restores per-run formatting the paragraph
             already had elsewhere, and only after reading the runs to know it.
             Passing only text-style fields never takes the updateParagraphStyle path.
+            Setting named_style_type likewise clears the paragraph's own line_spacing,
+            space_above and space_below, except any the same range dict sets.
         """
         lc = ctx.request_context.lifespan_context
         if not ranges:
             return {"error": "ranges list is empty"}
+
+        # Validated before any read, so a bad value costs no API call and isn't hidden
+        # by a read's error (PR #1631 QA round 1).
+        spacing: list[tuple[dict, list[str]]] = []
+        for i, r in enumerate(ranges):
+            built = _paragraph_spacing_and_fields(r)
+            if isinstance(built, str):
+                return {"error": f"ranges[{i}]: {built}"}
+            spacing.append(built)
 
         # #1273: a font_family range that sends no bold in the same request
         # clears the range's direct bold, so the bold spans to restore are read
@@ -597,13 +666,19 @@ def register(tool):
         for i, r in enumerate(ranges):
             rng = {"startIndex": r["start_index"], "endIndex": r["end_index"]}
 
+            # One updateParagraphStyle carries the named style and the spacing (#1439),
+            # so the spacing named here is set together with the named style's.
+            paragraph_style, paragraph_fields = spacing[i]
             if "named_style_type" in r:
+                paragraph_style = {"namedStyleType": r["named_style_type"], **paragraph_style}
+                paragraph_fields = ["namedStyleType", *paragraph_fields]
+            if paragraph_fields:
                 requests.append(
                     {
                         "updateParagraphStyle": {
                             "range": rng,
-                            "paragraphStyle": {"namedStyleType": r["named_style_type"]},
-                            "fields": "namedStyleType",
+                            "paragraphStyle": paragraph_style,
+                            "fields": ",".join(paragraph_fields),
                         }
                     }
                 )
