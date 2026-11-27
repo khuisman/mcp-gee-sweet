@@ -27,10 +27,10 @@ the project's `.venv`). No tool was called through a server.
 the return type. `ruff check --select ANN` finds 358 gaps in `src/` (158 unannotated
 parameters, 109 missing return types, 91 `Any`) and about 9,000 in `tests/`, mostly test
 functions with no `-> None`. #379's figure of 1,635 was counted with `--select ANN .` on an
-older tree; the scope isn't recorded.
+older tree whose commit isn't recorded.
 
-**Type errors.** `pyright src` in its default (basic) mode reports **680 errors** in 53
-files. 600 of them come from three patterns:
+**Type errors.** `pyright src` in its default (basic) mode reports **680 errors** in 24 of
+`src/`'s 53 files. 600 of them come from three patterns:
 
 | Pattern | Errors | Cause |
 |---|---|---|
@@ -39,8 +39,8 @@ files. 600 of them come from three patterns:
 | `ToolAnnotations(title=..., readOnlyHint=True)` | 149 | `ToolAnnotations` declares `read_only_hint` and accepts `readOnlyHint` only as a pydantic alias, which the checker doesn't see. |
 
 The other 80 are spread thinly. Most are `X | None` passed where `X` is required, 16 are
-"possibly unbound" variables (for example `resized` in `docs/images.py`, `drive_service`,
-`cleanup_error` in `docs/content.py`), a handful are `None` member access
+"possibly unbound" variables (for example `resized` in `docs/images.py`,
+`drive_service` in `drive/transfer.py`, `cleanup_error` in `docs/content.py`), a handful are `None` member access
 (`doc_to_ast.py`, `emitter.py`), and one is `auth.py:1001` passing `Credentials | None` to a
 `Credentials` parameter. None of them has been checked as a real bug or a false positive.
 Some will be guarded at runtime in ways the checker can't follow.
