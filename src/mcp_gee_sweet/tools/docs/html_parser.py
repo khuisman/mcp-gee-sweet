@@ -1182,10 +1182,22 @@ class _AstParser(HTMLParser):
         _block_tag, so the container's blocks open normally again and its nested
         <li> keeps its items, exactly as on develop. Also False with no block
         open at all: the container's element outlives the outer block's close,
-        but its stretch died with it."""
-        return self._block_tag is not None and any(
-            e.container_in_block is not None for e in self._open_elements
-        )
+        but its stretch died with it.
+
+        The stretch is the container's own segment, not just any segment the
+        container element survived into (#1587 review): the innermost
+        container's stored epoch has to equal the current one. A block opened
+        inside a construct that interrupted the outer block — a nested list's
+        own <li>, a quote's <p> — sits in a later segment, so the container's
+        keep-local rule no longer reaches it and the block keeps its own level
+        and shape, as on develop."""
+        if self._block_tag is None:
+            return False
+        for element in reversed(self._open_elements):
+            if element.container_in_block is not None:
+                _, epoch = element.container_in_block
+                return epoch == self._segment_epoch
+        return False
 
     def _capturing_caption(self) -> bool:
         """True while the innermost open table's own <caption> is capturing text
@@ -1203,12 +1215,18 @@ class _AstParser(HTMLParser):
         """True where content with no block of its own gets a paragraph (#1391): directly
         inside a container or a <blockquote>. Unlike the implicit paragraph for bare
         top-level text (#343), its source line breaks are soft breaks: this is HTML, not
-        plain lines, and it opens for an inline tag too, not just for text."""
+        plain lines, and it opens for an inline tag too, not just for text.
+
+        The continuation of a container-split <p> (#1551) counts too
+        (#1587 review): while _p_split_pending holds — no block or table open —
+        an inline tag, an <img> or text after the container opens the
+        continuation block right there, where the text-only window lost the
+        tag's own style and the link before the text arrived."""
         return (
             self._block_tag is None
             and self._table_depth == 0
             and not self._hidden_depth
-            and bool(self._container_depth or self._blockquote_ids)
+            and (self._p_split_pending or bool(self._container_depth or self._blockquote_ids))
         )
 
     def _tail_kind(self) -> str:

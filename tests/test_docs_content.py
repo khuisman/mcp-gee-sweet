@@ -1523,6 +1523,45 @@ class TestContainerInOpenBlockBreaksItsText:
         assert [_node_text(n) for n in nodes] == ["a", "c"]
         assert [n.depth for n in nodes] == [0, 1]
 
+    def test_an_inline_tag_after_the_container_keeps_its_style_or_link(self):
+        # #1587 review: the continuation of the split <p> opened only when
+        # its text arrived, so an inline tag starting there skipped its own
+        # bookkeeping — <strong> lost the bold, <a href> the link, and an
+        # <img> landed as its own paragraph. The continuation block now opens
+        # at the tag too, and the tag's span covers the text after it, as on
+        # develop.
+        nodes = html_to_ast("<p>Intro<div>box</div><strong>Note:</strong> rest</p>")
+        assert [_node_text(n) for n in nodes] == ["Intro", "box", "Note: rest"]
+        assert [r.bold for r in nodes[2].runs] == [True, None]
+        nodes = html_to_ast('<p>a<div>b</div><a href="u">c</a></p>')
+        assert [_node_text(n) for n in nodes] == ["a", "b", "c"]
+        assert all(r.link_url == "u" for r in nodes[2].runs)
+        nodes = html_to_ast('<p>a<div>b</div><img src="x.png"> t</p>')
+        assert [_node_text(n) for n in nodes] == ["a", "b", " t"]
+        assert [type(r).__name__ for r in nodes[2].runs] == ["Image", "Run"]
+
+    def test_blocks_inside_a_construct_nested_in_the_container_keep_their_shape(self):
+        # #1587 review: the container element outlives the construct that
+        # interrupted the outer block, but its keep-local rule died with its
+        # stretch — a block opened inside the nested construct sat in a later
+        # segment, so a nested item's <h3> lost its heading level, its second
+        # <p> joined the first as one bullet, and a quote's <p>s ran together.
+        # Tying _in_block_container() to the container's own segment — its
+        # stored epoch — leaves those blocks their own shape, as on develop.
+        nodes = html_to_ast("<ul><li>a<div><ul><li><h3>T</h3></li></ul></div></li></ul>")
+        assert [type(n).__name__ for n in nodes] == ["BulletItem", "BulletItem"]
+        assert [_node_text(n) for n in nodes] == ["a", "T"]
+        assert [n.depth for n in nodes] == [0, 1]
+        assert nodes[1].heading_level == 3
+        nodes = html_to_ast("<ul><li>a<div><ul><li><p>b</p><p>c</p></li></ul></div></li></ul>")
+        assert [type(n).__name__ for n in nodes] == ["BulletItem", "BulletItem", "Paragraph"]
+        assert [_node_text(n) for n in nodes] == ["a", "b", "c"]
+        assert [n.depth for n in nodes[:2]] == [0, 1]
+        assert nodes[2].list_depth == 1
+        nodes = html_to_ast("<ul><li>a<div><blockquote>q<p>r</p></blockquote></div></li></ul>")
+        assert [_node_text(n) for n in nodes] == ["a", "q", "r"]
+        assert [n.blockquote_depth for n in nodes[1:]] == [1, 1]
+
     def test_the_ps_text_after_the_container_collapses_its_soft_breaks(self):
         # #1551 review, item 3: the text after the container is the <p>'s
         # continuation — a real paragraph whose source line breaks collapse,
