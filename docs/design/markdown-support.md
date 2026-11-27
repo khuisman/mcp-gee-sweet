@@ -254,6 +254,15 @@ NORMAL_TEXT from its first block with text, font but not those values. The first
 style decides even with no explicit style, and a text field counts only when every run in it
 shares that field, or one run's inline bold or code span would read as the Doc's body text.
 
+A paragraph carrying the collapse the emitter writes (`lineSpacing` 1, no space above or below,
+`emitter._has_collapse_signature`) is a block too (#1440). Text added after a Doc's final table
+inherits that collapse (#1100), and in a Doc whose only body text before the table is in headings
+or cells it was read as NORMAL_TEXT: `apply_theme` with that theme set 1% line spacing on every
+body paragraph, so their lines overprinted. Whatever its named style, such a paragraph gives none
+of what the collapse wrote: no line spacing, no spacing, and no 1pt font (the collapse's size on a
+quote separator or the empty line before a table). 1% line spacing alone, with spacing of its own,
+is still read: only the whole signature is the emitter's.
+
 `get_doc_as_markdown` doesn't read paragraph spacing, so the export is the same with or without
 gaps (checked live on r06).
 

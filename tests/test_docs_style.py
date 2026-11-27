@@ -2231,6 +2231,59 @@ class TestApplyThemeTool:
         }
         assert _read_body_styles(doc)["NORMAL_TEXT"] == {"space_below": 4}
 
+    def _collapsed_after_table_doc(self, *, body_before=None, font_size=None):
+        """A heading, a final table, and text later added in the collapsed paragraph:
+        the style _build_trailing_para_after_table_collapse leaves there, as the API
+        returns it (a zero magnitude is omitted)."""
+        collapsed = {"lineSpacing": 1, "spaceAbove": {"unit": "PT"}, "spaceBelow": {"unit": "PT"}}
+        added = self._body_paragraph(collapsed, "added later\n", font="Georgia")
+        if font_size is not None:
+            text_style = added["paragraph"]["elements"][0]["textRun"]["textStyle"]
+            text_style["fontSize"] = {"magnitude": font_size, "unit": "PT"}
+        heading = {
+            "paragraph": {
+                "paragraphStyle": {"namedStyleType": "HEADING_1"},
+                "elements": [{"textRun": {"content": "Title\n", "textStyle": {}}}],
+            }
+        }
+        content = [heading, *([body_before] if body_before else []), {"table": {}}, added]
+        return {"body": {"content": content}}
+
+    def test_text_added_after_a_collapsed_final_table_gives_no_collapse_spacing(self):
+        """Its 1% line spacing as a theme overprints every body line (#1440). With no
+        other body text, it still gives its font."""
+        theme = _read_body_styles(self._collapsed_after_table_doc())
+        assert theme["NORMAL_TEXT"] == {"font_family": "Georgia"}
+
+    def test_a_block_before_the_table_decides_over_collapsed_text(self):
+        """Both are blocks; the first with text gives the fallback, as before."""
+        quote = self._body_paragraph(
+            {"borderLeft": {"width": {"magnitude": 3, "unit": "PT"}}}, "q\n", font="Arial"
+        )
+        theme = _read_body_styles(self._collapsed_after_table_doc(body_before=quote))
+        assert theme["NORMAL_TEXT"] == {"font_family": "Arial"}
+
+    def test_collapsed_paragraph_gives_no_one_point_font(self):
+        """The collapse sets 1pt on a quote separator and the line before a table."""
+        theme = _read_body_styles(self._collapsed_after_table_doc(font_size=1))
+        assert theme["NORMAL_TEXT"] == {"font_family": "Georgia"}
+
+    def test_collapsed_paragraph_keeps_a_real_font_size(self):
+        theme = _read_body_styles(self._collapsed_after_table_doc(font_size=12))
+        assert theme["NORMAL_TEXT"] == {"font_family": "Georgia", "font_size": 12}
+
+    def test_heading_made_from_collapsed_text_gives_no_collapse_spacing(self):
+        doc = self._collapsed_after_table_doc()
+        doc["body"]["content"] = doc["body"]["content"][1:]  # drop the earlier heading
+        doc["body"]["content"][-1]["paragraph"]["paragraphStyle"]["namedStyleType"] = "HEADING_2"
+        assert _read_body_styles(doc) == {"HEADING_2": {"font_family": "Georgia"}}
+
+    def test_one_percent_line_spacing_with_real_spacing_is_still_read(self):
+        """Only the whole collapse signature is the emitter's."""
+        style = {"lineSpacing": 1, "spaceBelow": {"magnitude": 4, "unit": "PT"}}
+        doc = {"body": {"content": [self._body_paragraph(style, "body\n")]}}
+        assert _read_body_styles(doc)["NORMAL_TEXT"] == {"line_spacing": 1, "space_below": 4}
+
     @staticmethod
     def _paragraph_gap_doc():
         """A gap paragraph, one with a quote edge's 8pt, and a heading at the gap's value."""

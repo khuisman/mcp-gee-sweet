@@ -7,7 +7,12 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from ...deprecation import deprecated_tool
-from .emitter import _BLOCK_SPACING_PT, PARAGRAPH_GAP_PT, _border_width
+from .emitter import (
+    _BLOCK_SPACING_PT,
+    PARAGRAPH_GAP_PT,
+    _border_width,
+    _has_collapse_signature,
+)
 from .indices import isolated_bullet_run_wrap_requests, utf16_len
 from .invalidation import doc_invalidating
 
@@ -43,11 +48,15 @@ def _magnitude(paragraph_style: dict, field_name: str) -> float | None:
 
 def _is_block_paragraph(para: dict) -> bool:
     """Whether a NORMAL_TEXT paragraph is a block rather than body text: a quote or a
-    rule (a left or bottom border), an empty line, or a code block by the emitter's whole
-    signature, since a paragraph merely set in Courier New is body text."""
+    rule (a left or bottom border), an empty line, a paragraph the emitter collapsed
+    (`_has_collapse_signature`: text later added after a doc's final table takes its 1%
+    line spacing, #1440), or a code block by the emitter's whole signature, since a
+    paragraph merely set in Courier New is body text."""
     paragraph_style = para.get("paragraphStyle", {})
-    if _border_width(paragraph_style, "borderLeft") or _border_width(
-        paragraph_style, "borderBottom"
+    if (
+        _border_width(paragraph_style, "borderLeft")
+        or _border_width(paragraph_style, "borderBottom")
+        or _has_collapse_signature({"paragraph": para})
     ):
         return True
     runs = _text_runs(para)
@@ -86,7 +95,13 @@ def _body_style_entry(style_type: str, para: dict) -> dict:
     spacing the emitter writes around a block or between paragraphs isn't read: that's
     what those values are on a server-written doc, and a theme carrying one would set it
     across the whole doc. A text field counts only when every run shares it: a bold
-    lead-in or a code span is that run's own style, not the paragraph's."""
+    lead-in or a code span is that run's own style, not the paragraph's.
+
+    A paragraph carrying the emitter's collapse (`_has_collapse_signature`, of any named
+    style) gives none of what the collapse wrote: not its 1% line spacing or zero
+    spacing, which as a theme would overprint every line (#1440), and not a 1pt font, which
+    the collapse sets on a quote separator or the empty line before a table."""
+    collapsed = _has_collapse_signature({"paragraph": para})
 
     def spacing(field_name: str) -> float | None:
         value = _magnitude(ps, field_name)
@@ -95,18 +110,21 @@ def _body_style_entry(style_type: str, para: dict) -> dict:
 
     entry: dict = {}
     ps = para.get("paragraphStyle", {})
-    if "lineSpacing" in ps:
-        entry["line_spacing"] = ps["lineSpacing"]
-    space_above = spacing("spaceAbove")
-    if space_above is not None:
-        entry["space_above"] = space_above
-    space_below = spacing("spaceBelow")
-    if space_below is not None:
-        entry["space_below"] = space_below
+    if not collapsed:
+        if "lineSpacing" in ps:
+            entry["line_spacing"] = ps["lineSpacing"]
+        space_above = spacing("spaceAbove")
+        if space_above is not None:
+            entry["space_above"] = space_above
+        space_below = spacing("spaceBelow")
+        if space_below is not None:
+            entry["space_below"] = space_below
     run_fields = [_text_fields(run) for run in _text_runs(para)]
     if run_fields:
         first, *rest = run_fields
         entry.update({k: v for k, v in first.items() if all(other.get(k) == v for other in rest)})
+    if collapsed and entry.get("font_size") == 1:
+        del entry["font_size"]
     return entry
 
 
@@ -1290,7 +1308,9 @@ def register(tool):
         block or an empty line is skipped, unless the doc has no body text, and then the
         first of them with text is used. Its space_above and space_below leave out 8pt
         and 10pt, the spacing a Markdown or HTML write puts around blocks and between
-        paragraphs.
+        paragraphs. Text added after a doc's final table, where a write leaves an empty
+        paragraph at 1% line spacing with no spacing, is skipped too, and gives no line
+        spacing, spacing or 1pt font to any style.
 
         Subsequent paragraphs of the same named style type that differ in style are
         ignored — they are treated as intentional individual overrides outside the theme.

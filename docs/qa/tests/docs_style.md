@@ -963,3 +963,26 @@ Read paragraph styles as in TC-DOC274.
 `mcp-gee-sweet-sky`, reconnected after the reset. Step 1: `{END}` = 29. Step 2: "old one" (29–37) and "old two" (37–45) both `lineSpacing` 1 with 0pt above and below. Step 3: `{"insertions": 1, "trailingParagraphReset": true}`; "old one" and "old two more" have no spacing of their own, and the empty paragraph before the table (12–13) kept `lineSpacing` 1. Editor (Playwright, URL-verified, title "TC-DOC275"): both lines sit below the table on their own lines, no overlap. Step 4: `{"insertions": 1, "trailingParagraphReset": true}`; "tail" (29–34) in the body with no spacing of its own. Step 5: run from a fresh interpreter calling the registered `style_doc_range` with a docs service that raises on any attribute access: NaN gave `{"error": "ranges[1]: line_spacing must be a number or null, got nan"}` and inf `... got inf`, with no API touched, so the check now runs before the `font_family` bold-restore read. Also re-ran TC-DOC274 step 3 on a fresh doc against the `targetRevisionId` change: same result as round 1 (`trailingParagraphReset: true`, both lines with no spacing of their own, "Lead " in the first paragraph).
 
 ---
+
+## `get_doc_theme` after a doc's final table (#1440)
+
+### TC-DOC276: `get_doc_theme` doesn't read collapsed text after a final table as the body style ⚠️ destructive
+
+**Purpose:** text added after a final table in the Docs editor keeps the collapse #1100 leaves there (`lineSpacing` 1, 0pt above and below). In a doc whose only body text before the table is a heading, `get_doc_theme` read that text as NORMAL_TEXT and reported `line_spacing: 1`, which `apply_theme` would set on every body paragraph, so their lines overprint. It's now a block: its font is still read, but not its line spacing or spacing.
+
+`insert_doc_text` resets the collapse on what it writes (#1439), so step 2 adds the text with a raw `insertText` from a fresh interpreter, as typing in the editor does. Read paragraph styles as in TC-DOC274.
+
+**Steps**
+1. `create_doc(title="TC-DOC276", folder_id={FOLDER_ID}, content_format="markdown", content="# Title\n\n| a | b |\n|---|---|\n| 1 | 2 |\n")` → `{DOC}`; `get_doc_structure`: the last paragraph's `startIndex` is `{END}`
+2. From a fresh interpreter, one raw `batchUpdate` with `insertText` of `"added later"` at `{END}`; read the last paragraph's style
+3. `get_doc_theme(doc_id={DOC})`
+4. `style_doc_range(doc_id={DOC}, ranges=[{"start_index": {END}, "end_index": <{END} + 11>, "font_family": "Georgia"}])`, then `get_doc_theme(doc_id={DOC})`
+
+**Checks**
+- Step 2: "added later" has `lineSpacing` 1 and 0pt above and below
+- Step 3: the result has no `NORMAL_TEXT` key and no `line_spacing` of 1 anywhere (before #1440: `{"NORMAL_TEXT": {"line_spacing": 1}}`)
+- Step 4: `NORMAL_TEXT` is exactly `{"font_family": "Georgia"}`: the font of the doc's only body text, with no `line_spacing`, `space_above` or `space_below`
+
+**Cleanup:** `delete_file` the doc
+
+---
