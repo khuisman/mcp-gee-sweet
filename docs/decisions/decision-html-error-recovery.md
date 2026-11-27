@@ -166,11 +166,14 @@ Conformance doesn't separate the candidates. Safety and scaling do.
 ### Scaling on adversarial input
 
 `html_to_ast` runs on whatever HTML a caller sends, raw HTML in Markdown included, so
-parse time has to stay linear in the input. Seconds per parse, one run each:
+parse time has to stay linear in the input. Seconds per parse, one run each. justhtml is
+timed with `sanitize=False`, the mode the walker will use. Its default, sanitizing mode runs
+on a faster path: 0.17 s against 0.59 s on the 427 KB document (re-measured 2026-11-27). The
+0.20 s in the 2026-11-01 table above is that default mode, not the walker's cost.
 
 | Input | selectolax | justhtml | markupever | `develop` today |
 |---|---|---|---|---|
-| 427 KB well-formed document (above) | 0.016 | 0.50 | — | 0.84 |
+| 427 KB well-formed document (above) | 0.016 | 0.50–0.59 | — | 0.84 |
 | QA round 6 formatting input, n = 32,000 (96,000 tags) | 0.027 | 0.93 | — | — |
 | `<ul><li>` × 10,000 (nesting depth) | 1.1 | 0.34 | 2.7 | 2.1 |
 | `<ul><li>` × 40,000 (330 KB) | **46.8** | 1.2 | — | — |
@@ -197,8 +200,8 @@ library is picked, the walker should keep an explicit depth cap, as `md_to_html`
 | License | MIT (lexbor Apache-2.0) | MIT | MIT | MIT |
 | Commits by top contributor | selectolax 703 of 753; lexbor 906 of 1,052 | 2,045 of 2,062 | 229 of 284 | spread; last push 2026-04 |
 | Popularity (GitHub stars) | 1.7k (lexbor 2.1k) | 1.2k | 41 | 1.2k |
-| Releases | 1.0.2, 2026-10-22 | 98 releases since 2025-12, now 3.18.0 | 0.5.1 | 1.1, 2020 |
-| Known advisories on the parse path | 2 lexbor CVEs (below) | 1 of 10, recursion DoS, fixed in 1.10.0 | none | none (2 old ones are in its serializer) |
+| Releases | 1.0.2, 2026-10-22 | 100 releases, 99 of them since 2025-12-01, now 3.18.0 | 0.5.1 | 1.1, 2020 |
+| Known advisories on the parse path | 2 lexbor CVEs (below) | 3 findings: recursion DoS (fixed 1.10.0), quadratic `<selectedcontent>` (3.11.0), uncaught `ValueError` on a non-ASCII digit in `&#…;` (3.17.0); all below the pin | none | none (2 old ones are in its serializer) |
 
 **lexbor.** CVE-2026-29078 (ISO-2022-JP encoder, out-of-bounds write) and CVE-2026-29079
 (fragment parser type confusion) are both high and fixed in lexbor 2.7.0. selectolax
@@ -218,11 +221,21 @@ OSS-Fuzz. A C parser here means our memory safety depends on how quickly selecto
 re-vendors lexbor.
 
 **justhtml.** It is pure Python, so a parser bug can't corrupt memory; the worst case is an
-exception or CPU time. Nine of its ten advisories are in its sanitizer, Markdown output,
-CSS selectors or linkifier, none of which the walker would call. The tenth, a recursion
-DoS on deep nesting, was fixed in 1.10.0. It is tested against the html5lib tree-construction
+exception or CPU time. Its repository lists 12 advisories. Three findings are on
+`JustHTML(...)`'s parse path, whatever `sanitize` is set to, and all are fixed below the
+`>=3.18` pin:
+
+- GHSA-v7cf-c9rm-wm3j: a recursion DoS on deep nesting, fixed in 1.10.0.
+- GHSA-gjf2-f4jc-69xf, finding 2: quadratic time and memory in the `<selectedcontent>`
+  projection, fixed in 3.11.0.
+- GHSA-6cr7-h2q7-28p7: an uncaught `ValueError` from the 4-byte `&#²;`, fixed in 3.17.0.
+
+The rest are in its sanitizer, Markdown output, CSS selectors or linkifier, none of which
+the walker would call. GHSA-6cr7 is what "the worst case is an exception" looks like in
+practice, so the walker must catch an unexpected parser exception and report it, never let
+it escape. It is tested against the html5lib tree-construction
 tests. Its costs are a single maintainer, three major versions in 2026 (it needs a `<4` upper
-bound and a review at each major), and parsing about 30× slower than selectolax, still faster
+bound and a review at each major), and parsing about 35× slower than selectolax with `sanitize=False`, still faster
 than `develop`'s own parser on the same document.
 
 **markupever and html5lib.** Both are ruled out. markupever is memory-safe but has three
