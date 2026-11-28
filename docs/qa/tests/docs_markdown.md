@@ -1857,6 +1857,38 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Result (2026-11-28, PR #1656 QA round 3 @ f6b94194, Sky) ✅ PASS — steps 1–5, one run.** Steps 1–4: same structure and markdown as rounds 1 and 2. Step 5, tasks: source has ☐ (0), ☑ (0), ☐ x (1), ☐ a (0), ☐ (1), ☐ y (2), ☐ c (1) in one list; the export is `- [ ] <!-- -->\n- [x] <!-- -->\n\n  - [ ] x\n- [ ] a\n  - [ ] <!-- -->\n\n    - [ ] y\n  - [ ] c`; the copy matches the source item for item, with no `[ ]`/`[x]` text. Step 5, paragraph: same as round 2, the copy "a" (0), "p" (1), "b" (0), nothing else. All Docs trashed.
 
+### TC-MD514: An exported ordered list renders with the Doc's numbers: a sublist starting past 1, a numbered task list, adjacent lists, and numbers no marker holds (#1370) ⚠️ destructive
+**Prompt**
+> #1370, the five cases. Before it, `get_doc_as_markdown` wrote a sublist starting at 3 as `1.`, a numbered task item as `- [x]`, two adjacent numbered lists as one Markdown list, and an item numbered `-1` or with 10 digits as text that joined the item before it.
+> 1. `create_doc(title="TC-MD514 source", content=<the HTML below>)` (HTML, since `<ol reversed>` and `<ol start>` under a bullet have no Markdown form that keeps the numbers):
+>    ```
+>    <ul><li>Parent<ol start="3"><li>Child three</li><li>Child four</li></ol></li><li>Next</li></ul>
+>    <p>sep one</p>
+>    <ol start="3"><li>[x] Done</li><li>[ ] Not done</li></ol>
+>    <p>sep two</p>
+>    <ol start="3"><li>a</li></ol><ol start="7"><li>b</li></ol>
+>    <p>sep three</p>
+>    <ol reversed start="1"><li>r one</li><li>r zero</li><li>r minus one</li></ol>
+>    <p>sep four</p>
+>    <ol start="1234567890"><li>huge</li></ol>
+>    ```
+> 2. `get_doc_as_markdown(doc_id)` on the source Doc.
+> 3. Render step 2's markdown with a plain CommonMark parser (`uv run python -c` with `markdown_it.MarkdownIt("commonmark").render(...)`) and note the number each list item renders with.
+> 4. `create_doc(title="TC-MD514 round trip", content=<step 2's markdown>, content_format="markdown")`, then `get_doc_as_markdown` on it.
+> 5. PR #1661 QA round 1's two shapes. `create_doc(title="TC-MD514 shapes", content='<ul><li>a<ol start="3"><li>x</li></ol><ol start="-1"><li>y</li></ol><ol start="7"><li>z</li></ol></li><li>b</li></ul><p>sep</p><ol><ol><li>x</li></ol><li>y</li><li>z</li></ol>')` (a sublist item numbered -1 between two sublists, then a list whose first item is at nesting level 1), then `get_doc_as_markdown` on it, and render that markdown with plain CommonMark as in step 3.
+
+**Checks**
+- Step 2 contains `- Parent\n  <!-- -->\n  3. Child three\n  4. Child four\n- Next`, `3. [x] Done\n4. [ ] Not done`, `3. a\n7) b`, `1. r one\n0) r zero`, then `-1. r minus one` and `1234567890. huge` each as a paragraph of its own (a blank line before it). It contains no `1. Child three`, no `- [x]`, and no `\[x\]`.
+- Step 3: the items render as 3, 4 (under "Parent", inside its bulleted item, with no `<p>` in that list), 3, 4 (the task items), 3, 7, 1, 0, and the `-1.` and `1234567890.` lines render as `<p>` paragraphs, not list items. The `<!-- -->` line comes out as an HTML comment, not as text.
+- Step 4: the copy's export is the same as step 2's, character for character.
+- Step 5: the export starts `- a\n  <!-- -->\n  3. x\n  <!-- -->\n  -1. y\n  <!-- -->\n  7. z\n- b`, with no blank line inside "a"'s item, and ends `1. x\n1) y\n2) z`. CommonMark renders 3, 7 inside "a"'s item with no `<p>` in that list and `-1. y` as its text, then 1, 1, 2.
+
+**Cleanup:** trash every Doc the case created.
+
+**Result (2026-11-28, PR #1661 QA round 1 @ 0710ce85, Sky) ✅ PASS — steps 1–4, one run.** Step 2's export is `- Parent\n  <!-- -->\n  3. Child three\n  4. Child four\n- Next\n\nsep one\n\n3. [x] Done\n4. [ ] Not done\n\nsep two\n\n3. a\n7) b\n\nsep three\n\n1. r one\n0) r zero\n\n-1. r minus one\n\nsep four\n\n1234567890. huge\n\n`, with no `1. Child three`, `- [x]` or `\[x\]`. Step 3: CommonMark renders the items 3, 4 (inside "Parent"'s item, no `<p>` in that list, the comment kept as a comment), 3, 4, 3, 7, 1, 0, and `-1. r minus one` and `1234567890. huge` as `<p>`. Step 4: the copy's export is identical to step 2's. Outside the case, the same pass found a Doc whose list starts at nesting level 1 (`<ol><ol><li>x</li></ol><li>y</li><li>z</li></ol>`) exporting `1. x\n1. y\n2. z`, which renders 1, 2, 3 where the Doc shows 1, 1, 2: that's round 1's send-back, not part of this case's checks. All Docs trashed.
+
+**Result (2026-11-28, PR #1661 QA round 2 @ 1ff5c820, Sky) ✅ PASS — steps 1–5, one run.** Steps 1–4: step 2's export and step 4's copy are character for character the same as round 1's, so step 3 renders the same. Step 5's export is `- a\n  <!-- -->\n  3. x\n  <!-- -->\n  -1. y\n  <!-- -->\n  7. z\n- b\n\nsep\n\n1. x\n1) y\n2) z\n\n`. CommonMark renders 3 and 7 inside "a"'s item with no `<p>` in that list and `-1. y` as its text, then 1, then 1, 2 as a separate list. All Docs trashed.
+
 ---
 
 ## Known gaps and not-applicable

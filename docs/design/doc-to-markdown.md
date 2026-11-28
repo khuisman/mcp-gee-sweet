@@ -80,13 +80,40 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   txt and HTML exports both number the body items after the table from the list's start
   (measured live, PR #1234 QA round 1).
   `ast_to_markdown` writes that number, so an item resuming a list after a table starts its
-  Markdown list there (`3. c`). One exception: CommonMark lets an ordered list interrupt a
-  paragraph only when it starts at 1, and a sublist's first line follows its parent item's text
-  with just a newline, so a sublist whose first number isn't 1 writes `1.` there rather than
-  merging into the parent (`- a\n  5. a1` would read as one item). A blank line would keep the
-  number but make the parent list loose. An AST built by the write side has no number and still
-  renders `1.`. Writing a resumed list back still restarts it at 1 when a paragraph interrupts
-  it, because the write side ignores a list's start number (#1118).
+  Markdown list there (`3. c`). Every ordered item renders with its own number (#1370):
+  - CommonMark lets an ordered list interrupt a paragraph only when it starts at 1, and a
+    sublist's first line follows its parent item's text with just a newline (`- a\n  5. a1`
+    reads as one item). A blank line would keep the number but make the parent list loose, so
+    the sublist goes under an HTML comment line (`  <!-- -->`), which can interrupt a paragraph,
+    shows nothing, and keeps the list tight. Until #1370 that item wrote `1.` instead
+    (PR #1234). An empty parent has no paragraph to interrupt and gets no comment line.
+  - A Markdown list renders as its first number counting up, and two lists in a row with one
+    delimiter are one list. So `_OpenItems` records the delimiter and next number of each
+    ordered list Markdown still holds open, by the column its items start at, and an item
+    whose number isn't that next one starts a new list with the other delimiter (`3. a` then
+    `7) b`; a reversed list alternates on every item). A block at the margin ends every list,
+    a block in an item ends the lists in it, and an item ends the lists deeper than it, so the
+    item after any of those needs no switch. The record is by column, not AST depth: an item at
+    a skipped depth, or written at the margin after a quote change, is in the list at its
+    column. Keying it by depth let `<ol><ol><li>x</li></ol><li>y</li><li>z</li></ol>` export as
+    `1. x\n1. y\n2. z` (PR #1661 QA round 1).
+  - A task item keeps its number (`3. [x] Done`); it used to write `- [x]`, losing the number
+    and the list's type.
+  - A number no marker holds (a negative one, from `<ol reversed>`, or 10+ digits) is written
+    as a paragraph that opens with it (`-1. c`), inside its parent item, or at the margin for a
+    top-level item. As an item it read as the text of the item before it. Right after a list in
+    its parent item, the paragraph follows a comment line, which ends that list and can't be
+    read as its last item's text, so the parent's list stays tight (PR #1661 QA round 1).
+    Right after its parent's text or another such paragraph it takes a blank line instead: a
+    tight item draws no break between two paragraphs, so they'd show as one line. An item
+    after the paragraph, at its column, gets the comment line when it couldn't interrupt a
+    paragraph (one starting past 1, or an empty one, which would be a setext underline). The
+    paragraph's own children land one level up, in its parent's item: no item is there to nest
+    them under, and indenting them further makes an indented code block.
+
+  An AST built by the write side has no number and renders `1.`. Writing a resumed list back
+  still restarts it at 1 when a paragraph interrupts it, because the write side ignores a list's
+  start number (#1118).
 - **Checkbox state**: the write side has no `BULLET_CHECKBOX` preset — it prepends a literal
   `"☑ "`/`"☐ "` glyph to the item's own text (see emitter.py's comment on this). Read-back
   detects that exact prefix on the item's first run and strips it back off, setting
@@ -229,7 +256,7 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
   live round-trip verification (the initial version produced a blank line between every single
   list item, nested or not).
 - **Blocks inside a list item** (#1302): a node with a `list_depth` is indented to its item's
-  content column, the width of the item's own indent and marker (`_item_prefix`), so CommonMark
+  content column, the width of the item's own indent and marker (`_list_marker`), so CommonMark
   keeps it in the item and the list going past it. `_OpenItems` records the column of the last
   item at each depth. A quoted item's quote markers come before its indent (`> - a`). A block
   inside it is inside that quote too, whatever depth it reads with (a table reads none, and

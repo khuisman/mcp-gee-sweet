@@ -88,8 +88,14 @@ _FIRST_LINE_RULE = "***"
 # and "1. a\n   1. " as more of the parent's text. An HTML comment is content that
 # shows nothing, and html_parser ignores it, so the item reads back empty. An empty
 # task item gets it too, anywhere: GFM reads "[ ]" as a checkbox only with text
-# after it, and "- [ ] " came back as a plain item with the text "[ ]".
+# after it, and "- [ ] " came back as a plain item with the text "[ ]". On a line of
+# its own it also lets a sublist that starts past 1 follow its parent's text (#1370,
+# `_OpenItems._render`).
 _EMPTY_ITEM_TEXT = "<!-- -->"
+
+# The largest number a CommonMark ordered-list marker can hold: it has 1 to 9
+# digits, and no sign (#1370).
+_MAX_LIST_NUMBER = 999_999_999
 
 _NESTED_TABLE_PLACEHOLDER = (
     "*(nested table omitted — Markdown tables can't contain a table; "
@@ -103,7 +109,9 @@ def ast_to_markdown(nodes: list[DocNode], comments: list[dict] | None = None) ->
     prev_node: DocNode | None = None
     open_items = _OpenItems()
     for node in nodes:
-        rendered = open_items.render(node, prev_node)
+        written = _as_written(node)
+        rendered = open_items.render(written, prev_node, from_item=written is not node)
+        node = written
         if prev_node is None and rendered == _RULE:
             rendered = _FIRST_LINE_RULE
         if prev_node is not None:
@@ -152,6 +160,22 @@ class _OpenItems:
     def __init__(self) -> None:
         # Per open item depth: (content column, blockquote_depth).
         self._items: list[tuple[int, int]] = []
+        # The ordered lists Markdown holds open, by the column their items start at,
+        # as (delimiter, the number the next item renders as) (#1370). Keyed by
+        # column, not AST depth: a skipped depth's item is written at its parent's
+        # column, in the list there. One quote holds them all, since an item whose
+        # quote differs is written at the margin, ending every list.
+        self._ordered: dict[int, tuple[str, int]] = {}
+        self._ordered_quote = 0
+        # The column of the paragraph the last node left open, whose text a line at
+        # that column would continue unless it can interrupt a paragraph. None when
+        # the last node left none open, or one a blank line follows.
+        self._paragraph_column: int | None = None
+        # Whether the last node was an item written as a paragraph inside an item
+        # (`_as_written`), and whether this node follows the one before it with a
+        # newline instead of a blank line.
+        self._wrote_item_paragraph = False
+        self._joins_previous = False
         # Quote levels the last node wrote at the margin, before any indent.
         self._margin_quote = 0
         # For a block inside an item: (list_depth, content column, the quote levels it
@@ -161,7 +185,8 @@ class _OpenItems:
         self._wrote_empty_item_text = False
         self.separator = "\n\n"
 
-    def render(self, node: DocNode, prev_node: DocNode | None) -> str:
+    def render(self, node: DocNode, prev_node: DocNode | None, from_item: bool = False) -> str:
+        """`from_item` says `node` is an item `_as_written` wrote as a block."""
         prev_quote = self._margin_quote
         prev_inner = self._inner_quote
         # An item written with the comment has content, so it doesn't start blank:
@@ -172,15 +197,28 @@ class _OpenItems:
         # before a nested list together with the space after "[ ]", and "[ ]" alone
         # isn't a checkbox, so an empty task item lost its box (PR #1656 QA round 2).
         prev_has_text = self._wrote_empty_item_text
-        rendered = self._render(node, prev_node)
+        prev_item_paragraph = self._wrote_item_paragraph
+        rendered = self._render(node, prev_node, from_item)
+        # An item after an item written as a paragraph in an item stays in that
+        # item's list, so it takes a newline too, keeping the list tight.
         same_list = (
             isinstance(node, BulletItem)
-            and isinstance(prev_node, BulletItem)
+            and prev_node is not None
             and node.blockquote_depth == prev_node.blockquote_depth
-            and not (prev_has_text and _opens_sublist(node, prev_node))
+            and (
+                prev_item_paragraph
+                or (
+                    isinstance(prev_node, BulletItem)
+                    and not (prev_has_text and _opens_sublist(node, prev_node))
+                )
+            )
         )
         shared = min(prev_quote, self._margin_quote)
-        if same_list or (not prev_has_text and _starts_empty_item(prev_node, node)):
+        if (
+            same_list
+            or self._joins_previous
+            or (not prev_has_text and _starts_empty_item(prev_node, node))
+        ):
             self.separator = "\n"
         elif (
             prev_inner is not None
@@ -218,8 +256,17 @@ class _OpenItems:
         self._items[:] = [(0, 0)] * len(self._items)
         return 0
 
-    def _render(self, node: DocNode, prev_node: DocNode | None) -> str:
+    def _close_lists(self, column: int) -> None:
+        """End the ordered lists whose items start at `column` or further right."""
+        for key in [key for key in self._ordered if key >= column]:
+            del self._ordered[key]
+
+    def _render(self, node: DocNode, prev_node: DocNode | None, from_item: bool) -> str:
         self._wrote_empty_item_text = False
+        self._wrote_item_paragraph = False
+        self._joins_previous = False
+        paragraph_column = self._paragraph_column
+        self._paragraph_column = None
         if isinstance(node, BulletItem):
             opens_sublist = _opens_sublist(node, prev_node)
             quote = node.blockquote_depth
@@ -229,16 +276,41 @@ class _OpenItems:
             # parent wasn't exported) sits at the column this item nests under, so a
             # block that names it lands inside the same item, or at the margin.
             self._items.extend([(indent, quote)] * (node.depth - len(self._items)))
-            prefix = _item_prefix(node, opens_sublist, indent)
+            if quote != self._ordered_quote:
+                self._ordered.clear()
+                self._ordered_quote = quote
+            # The lists nested deeper than this item end at it.
+            self._close_lists(indent + 1)
+            marker, ordered_list = _list_marker(node, self._ordered.get(indent))
+            if ordered_list is None:
+                self._ordered.pop(indent, None)
+            else:
+                self._ordered[indent] = ordered_list
+            prefix = " " * indent + marker
             self._items.append((len(prefix), quote))
             self._margin_quote = quote
             self._inner_quote = None
             text = _item_text(node, opens_sublist)
             self._wrote_empty_item_text = text == _EMPTY_ITEM_TEXT
-            return _render_block(node, item_prefix=prefix, item_text=text)
+            if text and text != _EMPTY_ITEM_TEXT and not node.heading_level:
+                self._paragraph_column = len(prefix)
+            lead = ""
+            if paragraph_column == indent and (
+                not text or (node.ordered and node.number not in (None, 1))
+            ):
+                # The line before is a paragraph's, at this item's column: its parent's
+                # text, or an item written as a paragraph. CommonMark lets an item
+                # interrupt a paragraph only when it has text and, numbered, starts at 1,
+                # so "- a\n  3. c" read "3. c" as more of the parent's text. An HTML
+                # comment line can interrupt one and shows nothing, so the item after it
+                # keeps its number and the list stays tight (#1370). A blank line would
+                # keep the number too, but make the parent list loose (PR #1234).
+                lead = " " * indent + _EMPTY_ITEM_TEXT + "\n"
+            return _render_block(node, item_prefix=lead + prefix, item_text=text)
         list_depth = node.list_depth
         if list_depth is None or list_depth >= len(self._items):
             self._items.clear()
+            self._ordered.clear()
             self._margin_quote = node.blockquote_depth
             self._inner_quote = None
             if isinstance(node, Table):
@@ -248,6 +320,8 @@ class _OpenItems:
             return _render_block(node)
         del self._items[list_depth + 1 :]
         column, item_quote = self._items[list_depth]
+        # The lists in this item end at a block in it.
+        self._close_lists(column)
         # A block inside a quoted list's item is inside that list's quote too. Its
         # own depth can read lower: an unquoted table has no indent in the API, and
         # Docs puts an unindented empty paragraph before a table in an item.
@@ -260,7 +334,26 @@ class _OpenItems:
             if quote > outer:
                 body = _blockquote(body, quote - outer)
         else:
-            body = _render_block(node, blockquote_depth=quote - outer)
+            lead = ""
+            if from_item:
+                self._wrote_item_paragraph = True
+                if isinstance(node, Paragraph):
+                    self._paragraph_column = column
+                # An item written as a paragraph, right after a list in its parent item,
+                # follows it with a comment line, which ends the list and can't be read as
+                # more of its last item's text, instead of a blank line, which would make
+                # the parent's list loose (PR #1661 QA round 1). Right after its parent's
+                # text or another such paragraph it takes the blank line: a tight item
+                # draws no break between two paragraphs, so they'd show as one line.
+                self._joins_previous = (
+                    isinstance(prev_node, BulletItem)
+                    and prev_node.depth > list_depth
+                    and prev_node.blockquote_depth == node.blockquote_depth
+                    and quote == outer
+                )
+                if self._joins_previous:
+                    lead = _EMPTY_ITEM_TEXT + "\n"
+            body = lead + _render_block(node, blockquote_depth=quote - outer)
         body = _indent_lines(body, column)
         return _blockquote(body, outer) if outer else body
 
@@ -344,37 +437,68 @@ def _opens_sublist(node: DocNode, prev_node: DocNode | None) -> bool:
     )
 
 
-def _ordered_marker(node: BulletItem, opens_sublist: bool) -> str:
-    """The item's real number, from doc_to_ast, so an item resuming a list after an
-    interrupting block starts its Markdown list there (#1208); "1." when unknown.
+def _as_written(node: DocNode) -> DocNode:
+    """`node`, or the block it's written as when Markdown can't hold it.
 
-    CommonMark lets an ordered list interrupt a paragraph only when it starts at 1.
-    A sublist's first line follows its parent item's text, so "- a\\n  5. a1" reads
-    "5. a1" as more of the parent's text. That item writes "1." instead, keeping the
-    sublist and losing only its start number (PR #1234 QA round 1). A blank line
-    before it would keep the number but make the parent list loose."""
-    if node.number is None or (opens_sublist and node.number != 1):
-        return "1. "
-    return f"{node.number}. "
+    An ordered item whose number no CommonMark marker holds (a negative one, from
+    `<ol reversed>`, or one of 10+ digits; #1370) is a paragraph that opens with
+    its number, inside the item it's nested in, or at the margin. Written as an
+    item, "-1. c" was the text of the item before it, and "1234567890. x" too."""
+    if not (
+        isinstance(node, BulletItem)
+        and node.ordered
+        and node.number is not None
+        and not 0 <= node.number <= _MAX_LIST_NUMBER
+    ):
+        return node
+    label = f"{node.number}. {_checkbox(node)}"
+    fields = {
+        "blockquote_depth": node.blockquote_depth,
+        "blockquote_path": node.blockquote_path,
+        "list_depth": node.depth - 1 if node.depth else None,
+    }
+    runs = [Run(text=label), *node.runs]
+    if node.heading_level:
+        return Heading(level=node.heading_level, runs=runs, **fields)
+    return Paragraph(runs=runs, **fields)
 
 
-def _item_prefix(node: BulletItem, opens_sublist: bool, indent: int) -> str:
-    """A list item's indent and list marker, before its text; its length is the
-    item's content column.
+def _list_marker(
+    node: BulletItem, open_list: tuple[str, int] | None
+) -> tuple[str, tuple[str, int] | None]:
+    """A list item's marker, before its text, and the ordered list it leaves open as
+    (delimiter, the number its next item renders as); None for a bulleted item.
+    `open_list` is the ordered list Markdown holds open at the item's column.
 
-    `indent` is the content column of the item it's nested in (0 at the top level).
-    CommonMark nests an item only when it starts at or past that column, which
-    depends on the parent's marker: 2 under "- ", 3 under "1. ", 4 under "10. ". A
-    fixed two spaces per depth read a numbered child as a sibling (#1128).
+    An ordered item writes its number from doc_to_ast, so an item resuming a list
+    after an interrupting block starts its Markdown list there (#1208), and an
+    unknown one "1.". A Markdown list renders as its first number counting up, so an
+    item whose number doesn't come next starts a new list. Two lists in a row with
+    one delimiter are one list, so that one switches between "." and ")" (#1370):
+    "3. a" over "7. b" rendered 3, 4.
+
+    A sublist's first item writes its own number too: `_OpenItems` puts the line
+    that lets it start past 1 under its parent's text.
 
     A checkbox's "[ ] " isn't part of the marker: CommonMark reads it as the
     item's text (GFM's task list is an extension of that paragraph), so a task
-    item's content column is 2 like any "- " item's, and `_render_block` writes
-    the box after this prefix. Counting it put a block 4 columns past the column,
-    an indented code block, and a child item in the parent's text."""
-    if node.ordered and node.checked is None:
-        return " " * indent + _ordered_marker(node, opens_sublist)
-    return " " * indent + "- "
+    item's content column is its marker's width, 2 for "- ", and `_render_block`
+    writes the box after it. Counting it put a block 4 columns past the column,
+    an indented code block, and a child item in the parent's text. An ordered task
+    item keeps its number (#1370); "- [x]" lost it and the list's type."""
+    if not node.ordered:
+        return "- ", None
+    number = node.number
+    written = 1 if number is None else number
+    if open_list is None:
+        # The item starts a Markdown list, which renders from its number.
+        delimiter, rendered = ".", written
+    elif number is None or number == open_list[1]:
+        # The item continues the open list, which renders it as the next number.
+        delimiter, rendered = open_list[0], open_list[1]
+    else:
+        delimiter, rendered = (")" if open_list[0] == "." else "."), number
+    return f"{written}{delimiter} ", (delimiter, rendered + 1)
 
 
 def _checkbox(node: BulletItem) -> str:
@@ -391,9 +515,9 @@ def _render_block(
 ) -> str:
     """`blockquote_depth` overrides the node's own, for a block whose outer quote
     levels its caller writes (see `_OpenItems`). `item_prefix` is a list item's
-    indent and marker, from `_item_prefix`, whose length `_OpenItems` records as
-    the column the item's children nest under. `item_text` is the item's text,
-    from `_item_text`."""
+    indent and marker (`_list_marker`), whose length `_OpenItems` records as the
+    column the item's children nest under, after any line `_OpenItems` puts before
+    the item. `item_text` is the item's text, from `_item_text`."""
     if isinstance(node, Paragraph) and node.rule:
         body = _RULE
     elif isinstance(node, Paragraph) and _is_code_block(node):
