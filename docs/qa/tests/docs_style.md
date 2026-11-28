@@ -954,13 +954,37 @@ Tool calls: `create_doc(title="TC-DOC283", content=<above>, content_format="mark
 
 **Checks**
 - After each `create_paragraph_bullets`: every quoted item reads (`indentFirstLine`, `indentStart`) = (54, 72) at level 0 and (90, 108) at level 1, with its `borderLeft`; "Quoted plain" is a level-0 item at (54, 72). qa1 keeps a bullet list of its own between QA and QB.
-- After the delete: "Quoted item one" is at (36, 36) and "Quoted nested" at (72, 72), both unlisted, both with their `borderLeft`. `get_doc_as_markdown` writes both with `>`. ("Quoted nested" reads as a quote two deep: a level's leftover indent and a quote's are the same 36pt, as for any nested item.)
+- After the delete: "Quoted item one" and "Quoted nested" are both at (36, 36), their quote's indent alone, unlisted, with their `borderLeft`. `get_doc_as_markdown` writes both as `> ` one quote deep, not `> > Quoted nested` (PR #1662 QA round 1).
+- Then re-bullet both in one call (`create_paragraph_bullets` with "Quoted item one" at `nesting_level` 0 and "Quoted nested" at 1): (54, 72) and (90, 108) again, not (126, 144).
 
 **Cleanup:** trash the doc.
 
 **Result (2026-11-28) ✅ PASS — Kit, QA round 1 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `9201ff8c`, reconnected after the reset**
 Before: quoted items at (54, 72) / (90, 108), "Quoted plain" unlisted at (36, 36), all with a 3pt `borderLeft`. After each `create_paragraph_bullets`: "Quoted item one" (54, 72), "Quoted nested" (90, 108), "Quoted plain" a level-0 item at (54, 72), QB (54, 72) with qa1 still on its own bullet list at (90, 108), every border kept. After the delete: (36, 36) and (72, 72), unlisted, borders kept; the export writes `> Quoted item one` and `> > Quoted nested`. Doc trashed.
 Extra probe, re-bulleting the two deleted items in one call (item one at level 0, nested at level 1): "Quoted nested" lands at (126, 144), not (90, 108). Its leftover 36pt level indent reads as a second quote level. Sent back.
+
+### TC-DOC284: What the walk keeps out, and what it keeps in its own list (PR #1662 QA round 1) ⚠️ destructive ⚠️ requires-oauth
+
+**Background:** PR #1662's QA round 1. The walk past what sits inside an item re-created a nested list with one of the two presets, so a nested checklist came back numbered; it stopped at a block inside a nested item; it moved a requested paragraph of a nested list into the outer list, splitting its own; and a zero-width left border read as a quote. Now a nested list goes back out only when a preset remakes it exactly (else the walk stops, as before #1288's fix), a block is checked against the listed paragraph just before it, a requested paragraph kept deeper than its item stays in its own list, and a quote needs a border with a width.
+
+**Prompt**
+> "Make a doc with this Markdown: '1. A\n    - a1\n2. B\n\nX\n\n1. A1\n    - B1\n    - B2\n    - B3\n2. A2\n\nY\n\n1. P\n    - p1\n\n      inside p1\n\n2. Q\n\nZ\n\n- edge\n'. Make a1 a checklist item, then work on each list."
+
+Tool calls: `create_doc(title="TC-DOC284", content=<above>, content_format="markdown")`, raw `documents().get()`. Make a1 a checklist with a raw `batchUpdate`: `deleteParagraphBullets` over a1, zero its `indentStart`/`indentFirstLine`, insert `"\t"` then `"\n\n"` at its start, `createParagraphBullets` with `BULLET_CHECKBOX` from its start + 1 to its end + 3, `deleteContentRange` the two inserted newlines. Set "edge"'s `borderLeft` to width 0 with a raw `updateParagraphStyle` (`fields: "borderLeft"`). Then, each followed by a raw `documents().get()`:
+1. `create_paragraph_bullets` on B.
+2. `create_paragraph_bullets` on A1 and on B2 with `nesting_level` 1, in one call.
+3. The same call with B2's range also given `"bullet_preset": "NUMBERED_DECIMAL_ALPHA_ROMAN"`.
+4. `create_paragraph_bullets` on Q.
+5. `create_paragraph_bullets` on "edge".
+
+**Checks**
+- 1: a1 is still a checklist item (its level's `glyphType` `GLYPH_TYPE_UNSPECIFIED`) on its own `listId`. B is on a new `listId`, apart from A's: the walk stopped at the checklist, as before #1288's fix.
+- 2: A1 and A2 share one `listId`; B1, B2 and B3 share another, all at level 1 with the ○ glyph.
+- 3: returns `{"error"}` and changes nothing.
+- 4: P and Q share one `listId`; p1 keeps a list of its own; "inside p1" has no bullet and keeps (72, 72).
+- 5: "edge" stays at (18, 36).
+
+**Cleanup:** trash the doc.
 
 ---
 

@@ -1145,6 +1145,25 @@ class TestCreateParagraphBulletsTool:
             }
         }
 
+    @staticmethod
+    def _preset_entry(preset):
+        # A list exactly as createParagraphBullets makes it with `preset`, all nine
+        # levels (read live, PR #1662 QA round 1).
+        levels = []
+        for level in range(9):
+            if preset == "BULLET_DISC_CIRCLE_SQUARE":
+                props = {"glyphSymbol": "●○■"[level % 3], "glyphFormat": f"%{level}"}
+            else:
+                glyph_type = ("DECIMAL", "ALPHA", "ROMAN")[level % 3]
+                props = {"glyphType": glyph_type, "glyphFormat": f"%{level}."}
+            props["bulletAlignment"] = "END" if props.get("glyphType") == "ROMAN" else "START"
+            props["startNumber"] = 1
+            props["indentFirstLine"] = {"magnitude": 18 + 36 * level, "unit": "PT"}
+            props["indentStart"] = {"magnitude": 36 + 36 * level, "unit": "PT"}
+            props["textStyle"] = {"underline": False}
+            levels.append(props)
+        return {"listProperties": {"nestingLevels": levels}}
+
     def _bullet_list_entry(self, num_levels=1):
         return {
             "listProperties": {"nestingLevels": [{"glyphSymbol": "●"} for _ in range(num_levels)]}
@@ -1679,7 +1698,10 @@ class TestCreateParagraphBulletsTool:
                 (6, 8, "B\n", {"listId": "L1"}),
                 (8, 10, "C\n", {"listId": "L1"}),
             ],
-            lists={"L1": self._numbered_list_entry(2), "L2": self._bullet_list_entry(2)},
+            lists={
+                "L1": self._preset_entry("NUMBERED_DECIMAL_ALPHA_ROMAN"),
+                "L2": self._preset_entry("BULLET_DISC_CIRCLE_SQUARE"),
+            },
         )
 
     @pytest.mark.parametrize("target", [(6, 8), (1, 3), (8, 10)])
@@ -1726,9 +1748,9 @@ class TestCreateParagraphBulletsTool:
                 (12, 14, "B\n", {"listId": "L1"}),
             ],
             lists={
-                "L1": self._numbered_list_entry(3),
-                "L2": self._bullet_list_entry(3),
-                "L3": self._numbered_list_entry(3),
+                "L1": self._preset_entry("NUMBERED_DECIMAL_ALPHA_ROMAN"),
+                "L2": self._preset_entry("BULLET_DISC_CIRCLE_SQUARE"),
+                "L3": self._preset_entry("NUMBERED_DECIMAL_ALPHA_ROMAN"),
             },
         )
         reqs = await self._requests(doc, [{"start_index": 12, "end_index": 14}])
@@ -1909,6 +1931,170 @@ class TestCreateParagraphBulletsTool:
         reqs = await self._requests(doc, [{"start_index": 1, "end_index": 6}])
         assert "createParagraphBullets" in reqs[-1]
 
+    @pytest.mark.parametrize(
+        "nested_entry",
+        [
+            # A checklist (BULLET_CHECKBOX): no preset here remakes it.
+            {
+                "listProperties": {
+                    "nestingLevels": [{"glyphType": "GLYPH_TYPE_UNSPECIFIED"} for _ in range(9)]
+                }
+            },
+            # A bullet list with one level changed (a custom start number).
+            "custom_start",
+        ],
+    )
+    async def test_run_stops_at_a_nested_list_no_preset_remakes(self, nested_entry):
+        # PR #1662 QA round 1: a nested checklist came back numbered. The walk
+        # takes in only a nested list one of the two presets remakes exactly.
+        if nested_entry == "custom_start":
+            nested_entry = self._preset_entry("BULLET_DISC_CIRCLE_SQUARE")
+            nested_entry["listProperties"]["nestingLevels"][1]["startNumber"] = 3
+        doc = self._nested_other_type_doc()
+        doc["lists"]["L2"] = nested_entry
+        reqs = await self._requests(doc, [{"start_index": 6, "end_index": 8}])
+        assert reqs[0] == {"deleteParagraphBullets": {"range": {"startIndex": 6, "endIndex": 10}}}
+
+    async def test_run_continues_past_a_block_inside_a_nested_item(self):
+        # PR #1662 QA round 1: `1. A` / `- b1` / a block in b1 (72, 72) / `2. B`.
+        # The block is inside b1, the listed paragraph just before it.
+        doc = self._doc(
+            [
+                (1, 3, "A\n", {"listId": "L1"}),
+                (3, 6, "b1\n", {"listId": "L2", "nestingLevel": 1}),
+                (6, 16, "inside b1\n", None, self._indents(72, 72)),
+                (16, 18, "B\n", {"listId": "L1"}),
+            ],
+            lists={
+                "L1": self._preset_entry("NUMBERED_DECIMAL_ALPHA_ROMAN"),
+                "L2": self._preset_entry("BULLET_DISC_CIRCLE_SQUARE"),
+            },
+        )
+        reqs = await self._requests(doc, [{"start_index": 1, "end_index": 3}])
+        assert reqs[0] == {"deleteParagraphBullets": {"range": {"startIndex": 1, "endIndex": 18}}}
+        assert reqs[-2:] == [
+            {"deleteParagraphBullets": {"range": {"startIndex": 6, "endIndex": 16}}},
+            {
+                "updateParagraphStyle": {
+                    "range": {"startIndex": 6, "endIndex": 16},
+                    "paragraphStyle": self._indents(72, 72),
+                    "fields": "indentStart,indentFirstLine",
+                }
+            },
+        ]
+
+    def _requested_nested_doc(self):
+        # `1. A1` / `- B1` / `- B2` / `- B3` / `2. A2`.
+        return self._doc(
+            [
+                (1, 4, "A1\n", {"listId": "L1"}),
+                (4, 7, "B1\n", {"listId": "L2", "nestingLevel": 1}),
+                (7, 10, "B2\n", {"listId": "L2", "nestingLevel": 1}),
+                (10, 13, "B3\n", {"listId": "L2", "nestingLevel": 1}),
+                (13, 16, "A2\n", {"listId": "L1"}),
+            ],
+            lists={
+                "L1": self._preset_entry("NUMBERED_DECIMAL_ALPHA_ROMAN"),
+                "L2": self._preset_entry("BULLET_DISC_CIRCLE_SQUARE"),
+            },
+        )
+
+    async def test_requested_paragraph_in_a_nested_list_stays_in_it(self):
+        # PR #1662 QA round 1: A1 and B2 (level 1) in one call moved B2 into A's
+        # numbered list and split B1 and B3 apart. B2 stays in L2, whose one span
+        # covers B1..B3 with its own bullet preset.
+        reqs = await self._requests(
+            self._requested_nested_doc(),
+            [
+                {"start_index": 1, "end_index": 4},
+                {"start_index": 7, "end_index": 10, "nesting_level": 1},
+            ],
+        )
+        deletes = [
+            r["deleteParagraphBullets"]["range"] for r in reqs if "deleteParagraphBullets" in r
+        ]
+        assert deletes == [
+            {"startIndex": 1, "endIndex": 16},
+            {"startIndex": 4, "endIndex": 13},
+        ]
+        presets = [
+            r["createParagraphBullets"]["bulletPreset"]
+            for r in reqs
+            if "createParagraphBullets" in r
+        ]
+        assert presets == ["NUMBERED_DECIMAL_ALPHA_ROMAN", "BULLET_DISC_CIRCLE_SQUARE"]
+
+    async def test_requested_paragraph_promoted_out_of_a_nested_list_joins_the_outer(self):
+        # Asked for level 0, B2 is no longer inside A1: it's an item of A's list.
+        reqs = await self._requests(
+            self._requested_nested_doc(),
+            [
+                {"start_index": 1, "end_index": 4},
+                {"start_index": 7, "end_index": 10, "nesting_level": 0},
+            ],
+        )
+        deletes = [
+            r["deleteParagraphBullets"]["range"] for r in reqs if "deleteParagraphBullets" in r
+        ]
+        assert deletes == [
+            {"startIndex": 1, "endIndex": 16},
+            {"startIndex": 4, "endIndex": 7},
+            {"startIndex": 10, "endIndex": 13},
+        ]
+
+    async def test_requested_nested_paragraph_with_another_preset_is_refused(self):
+        tools = self._setup()
+        mock_docs, ctx = self._mocks(self._requested_nested_doc())
+        result = await tools["create_paragraph_bullets"](
+            doc_id="doc123",
+            ranges=[
+                {"start_index": 1, "end_index": 4},
+                {
+                    "start_index": 7,
+                    "end_index": 10,
+                    "nesting_level": 1,
+                    "bullet_preset": "NUMBERED_DECIMAL_ALPHA_ROMAN",
+                },
+            ],
+            ctx=ctx,
+        )
+        assert "error" in result
+        mock_docs.documents().batchUpdate().execute.assert_not_called()
+
+    async def test_zero_width_border_is_not_a_quote(self):
+        # PR #1662 QA round 1: Docs keeps borderLeft when its width is set to 0
+        # (checked live), and that item went from (18, 36) to (54, 72).
+        style = self._indents(18, 36)
+        style["borderLeft"] = {"width": {"unit": "PT"}, "dashStyle": "SOLID"}
+        doc = self._doc([(1, 6, "Item\n", {"listId": "L1"}, style)])
+        reqs = await self._requests(doc, [{"start_index": 1, "end_index": 6}])
+        assert "createParagraphBullets" in reqs[-1]
+
+    async def test_quote_depth_reads_the_lists_own_level_indent(self):
+        # PR #1662 QA round 1: a list with its own level indents (a Word import):
+        # level 0 at 54pt, a quoted item at 90pt is one quote deep, not two.
+        entry = self._preset_entry("BULLET_DISC_CIRCLE_SQUARE")
+        entry["listProperties"]["nestingLevels"][0]["indentStart"] = {"magnitude": 54}
+        doc = self._doc(
+            [(1, 6, "Item\n", {"listId": "L1"}, self._indents(72, 90, border=True))],
+            lists={"L1": entry},
+        )
+        reqs = await self._requests(doc, [{"start_index": 1, "end_index": 6}])
+        assert reqs[-1]["updateParagraphStyle"]["paragraphStyle"] == self._indents(54, 72)
+
+    async def test_quoted_block_in_an_item_reads_the_items_quote(self):
+        # A quoted block inside a quoted item sits at the item's text indent plus
+        # the quote (72, 72); bulleted, it's one quote deep, not two.
+        doc = self._doc(
+            [
+                (1, 6, "Item\n", {"listId": "L1"}, self._indents(54, 72, border=True)),
+                (6, 13, "block\n", None, self._indents(72, 72, border=True)),
+            ],
+            lists={"L1": self._preset_entry("BULLET_DISC_CIRCLE_SQUARE")},
+        )
+        reqs = await self._requests(doc, [{"start_index": 6, "end_index": 13}])
+        assert reqs[-1]["updateParagraphStyle"]["paragraphStyle"] == self._indents(54, 72)
+
     async def test_get_doc_error_returns_error_dict(self):
         tools = self._setup()
         mock_docs = MagicMock()
@@ -1947,8 +2133,9 @@ class TestDeleteParagraphBulletsTool:
     async def test_quoted_item_keeps_its_quote_indent(self):
         # #1090 (Kit's evidence): deleteParagraphBullets sets both indents to
         # 36pt per level whatever the quote added (confirmed live), so each
-        # quoted item in range gets its quote's 36pt back on top. An unquoted
-        # one, and a quoted one outside the range, get nothing.
+        # quoted item in range is set to its quote's indent alone, its level's
+        # left off so it reads back as one quote (PR #1662 QA round 1). An
+        # unquoted one, and a quoted one outside the range, get nothing.
         def para(start, end, level, border):
             style = {"indentStart": {"magnitude": 72, "unit": "PT"}}
             if border:
@@ -1995,7 +2182,7 @@ class TestDeleteParagraphBulletsTool:
                     "fields": "indentStart,indentFirstLine",
                 }
             }
-            for start, end, indent in [(1, 5, 36), (5, 9, 72)]
+            for start, end, indent in [(1, 5, 36), (5, 9, 36)]
         ]
 
     async def test_sends_one_request_per_range(self):
