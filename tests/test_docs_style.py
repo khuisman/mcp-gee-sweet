@@ -19,7 +19,9 @@ from mcp_gee_sweet.tools.docs.emitter import (
     _run_style_requests,
 )
 from mcp_gee_sweet.tools.docs.style import (
+    _STYLED_ELEMENT_KINDS,
     _add_or_clear_field,
+    _bold_runs_in_range,
     _build_named_style_requests,
     _clear_paragraph_gap_requests,
     _own_paragraph_spacing_fields,
@@ -514,6 +516,61 @@ class TestThemeHelpers:
 # ---------------------------------------------------------------------------
 
 
+class TestBoldRunsInRangeElementKinds:
+    """#1635: every ParagraphElement kind that carries a textStyle counts as a
+    run for the bold read, not only textRun."""
+
+    def test_kinds_match_the_discovery_document(self):
+        # Pins _STYLED_ELEMENT_KINDS to the Docs API's own schema, so a kind
+        # Google adds with a textStyle fails here instead of reading as plain.
+        import json
+        from pathlib import Path
+
+        import googleapiclient
+
+        path = Path(googleapiclient.__file__).parent / "discovery_cache/documents/docs.v1.json"
+        schemas = json.loads(path.read_text())["schemas"]
+        styled = {
+            name
+            for name, prop in schemas["ParagraphElement"]["properties"].items()
+            if "$ref" in prop and "textStyle" in schemas[prop["$ref"]]["properties"]
+        }
+        assert set(_STYLED_ELEMENT_KINDS) == styled
+        assert len(_STYLED_ELEMENT_KINDS) == len(styled)
+
+    @staticmethod
+    def _doc(elements: list[dict]) -> dict:
+        return {"body": {"content": [{"startIndex": 1, "paragraph": {"elements": elements}}]}}
+
+    def test_bold_image_and_text_merge_into_one_span(self):
+        doc = self._doc(
+            [
+                {
+                    "startIndex": 1,
+                    "endIndex": 2,
+                    "inlineObjectElement": {"inlineObjectId": "i", "textStyle": {"bold": True}},
+                },
+                {
+                    "startIndex": 2,
+                    "endIndex": 4,
+                    "textRun": {"content": "ab", "textStyle": {"bold": True}},
+                },
+            ]
+        )
+        assert _bold_runs_in_range(doc, 1, 4) == [{"startIndex": 1, "endIndex": 4}]
+
+    def test_element_without_text_style_is_skipped_but_advances_offset(self):
+        # An equation has no textStyle: never bold, but it still takes its
+        # index, so the bold run after it is read at the right position.
+        doc = self._doc(
+            [
+                {"equation": {}, "endIndex": 2},
+                {"textRun": {"content": "B", "textStyle": {"bold": True}}},
+            ]
+        )
+        assert _bold_runs_in_range(doc, 1, 3) == [{"startIndex": 2, "endIndex": 3}]
+
+
 class TestStyleDocRangeTool:
     def _setup(self):
         tool, tools = _make_tool_registry()
@@ -635,6 +692,52 @@ class TestStyleDocRangeTool:
         assert bold_update["textStyle"] == {"bold": True}
         # only the bold part of the requested range [7, 11) is restored: [7, 10)
         assert bold_update["range"] == {"startIndex": 7, "endIndex": 10}
+
+    async def test_font_family_only_restores_bold_over_bold_inline_image(self):
+        """#1635: a directly bold inline image in the range is restored with the
+        text around it, so text typed after it later still inherits bold."""
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {
+            "documentId": "doc123",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 7,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "startIndex": 1,
+                                    "endIndex": 2,
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "kix.img",
+                                        "textStyle": {"bold": True},
+                                    },
+                                },
+                                {
+                                    "startIndex": 2,
+                                    "endIndex": 7,
+                                    "textRun": {"content": "text\n", "textStyle": {}},
+                                },
+                            ]
+                        },
+                    }
+                ]
+            },
+        }
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["style_doc_range"](
+            doc_id="doc123",
+            ranges=[{"start_index": 1, "end_index": 6, "font_family": "Georgia"}],
+            ctx=ctx,
+        )
+        assert "error" not in result
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        assert [r["updateTextStyle"]["fields"] for r in reqs] == ["weightedFontFamily", "bold"]
+        assert reqs[1]["updateTextStyle"]["range"] == {"startIndex": 1, "endIndex": 2}
 
     async def test_adjacent_bold_runs_merge_into_one_restore_request(self):
         """#1273: two adjacent bold runs inside the range restore as one span."""
