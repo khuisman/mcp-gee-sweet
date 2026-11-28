@@ -1883,6 +1883,8 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Cleanup:** trash every Doc the case created.
 
+**Result (2026-11-28, PR #1661 QA round 1 @ 0710ce85, Sky) ✅ PASS — steps 1–4, one run.** Step 2's export is `- Parent\n  <!-- -->\n  3. Child three\n  4. Child four\n- Next\n\nsep one\n\n3. [x] Done\n4. [ ] Not done\n\nsep two\n\n3. a\n7) b\n\nsep three\n\n1. r one\n0) r zero\n\n-1. r minus one\n\nsep four\n\n1234567890. huge\n\n`, with no `1. Child three`, `- [x]` or `\[x\]`. Step 3: CommonMark renders the items 3, 4 (inside "Parent"'s item, no `<p>` in that list, the comment kept as a comment), 3, 4, 3, 7, 1, 0, and `-1. r minus one` and `1234567890. huge` as `<p>`. Step 4: the copy's export is identical to step 2's. Outside the case, the same pass found a Doc whose list starts at nesting level 1 (`<ol><ol><li>x</li></ol><li>y</li><li>z</li></ol>`) exporting `1. x\n1. y\n2. z`, which renders 1, 2, 3 where the Doc shows 1, 1, 2: that's round 1's send-back, not part of this case's checks. All Docs trashed.
+
 ---
 
 ## Known gaps and not-applicable
