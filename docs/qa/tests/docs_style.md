@@ -875,6 +875,80 @@ Cleanup: run folder QA-orn-D-2026-11-08 trashed (not permanent), along with ever
 
 ---
 
+## `create_paragraph_bullets`/`delete_paragraph_bullets`: what sits inside an item, adjacent lists, quotes (#1339)
+
+Each case runs on a throwaway doc made with `create_doc(content_format="markdown")` and trashed afterward. Read `nestingLevel`, `listId` and the indents through a raw `documents().get()` (`get_doc_structure` has no indents), or through `get_doc_structure` where only levels and `listId`s are checked.
+
+### TC-DOC280: Re-bulleting an item after a nested list of the other type keeps the numbering (#1288) ⚠️ destructive ⚠️ requires-oauth
+
+**Background:** #1288. The converter writes `1. A` / `- a1` / `2. B` / `3. C` as one numbered list (A, B, C share a `listId`) with a bullet list (a1) inside A. The tool's same-list expansion stopped at a1, so re-bulleting B made B and C a new list showing 1., 2. It now takes in everything inside the item (a1), bullets A..C in one call, and takes a1 back out as its own bullet list.
+
+**Prompt**
+**Playwright: required**
+> "Make a doc with this Markdown: '1. A\n    - a1\n2. B\n3. C\n'. Then re-bullet B without changing anything."
+
+Tool calls: `create_doc(title="TC-DOC280", content="1. A\n    - a1\n2. B\n3. C\n", content_format="markdown")`, `get_doc_structure(doc_id=<id>)` (note B's indices and every `listId`), `create_paragraph_bullets(doc_id=<id>, ranges=[{"start_index": <B start>, "end_index": <B end>}])`, `get_doc_structure(doc_id=<id>)`, `get_doc_as_markdown(doc_id=<id>)`.
+
+**Checks**
+- Before and after: A, B and C share one `listId` at level 0; a1 has a different `listId` at level 1.
+- `get_doc_as_markdown` reads `1. A`, `   - a1`, `2. B`, `3. C`.
+- On screen: the doc shows 1. A, ○ a1, 2. B, 3. C.
+- Repeat the call on C, then on A: the same structure after each.
+
+**Cleanup:** trash the doc.
+
+### TC-DOC281: Re-bulleting an item after a paragraph inside the item above keeps the numbering (#1339) ⚠️ destructive ⚠️ requires-oauth
+
+**Background:** found while fixing #1288 (live, 2026-11-28): the expansion also stopped at an unlisted paragraph inside an item (#1094's block in an item, indented to the item's text), with the same restart. It now takes the block in and gives it back: bullet removed, its own indents restored.
+
+**Prompt**
+**Playwright: required**
+> "Make a doc with this Markdown: '1. A\n\n   inside A\n\n2. B\n    - b1\n\n    inside b1\n\n    - b2\n3. C\n'. Then re-bullet C without changing anything."
+
+Tool calls: `create_doc(title="TC-DOC281", content=<above>, content_format="markdown")`, raw `documents().get()` (note every paragraph's `listId`, level and indents), `create_paragraph_bullets(doc_id=<id>, ranges=[{"start_index": <C start>, "end_index": <C end>}])`, raw `documents().get()`, `get_doc_as_markdown(doc_id=<id>)`.
+
+**Checks**
+- After: A, B and C share one `listId`; b1 and b2 each keep a list of their own at level 1; "inside A" and "inside b1" have no bullet and keep the indents they had before (36/36).
+- `get_doc_as_markdown` matches its output before the call.
+- On screen: C shows 3.
+
+**Cleanup:** trash the doc.
+
+### TC-DOC282: A paragraph bulleted right after a same-style list starts its own list, at the requested level (#1297) ⚠️ destructive ⚠️ requires-oauth
+
+**Background:** #1297, option B (maintainer, 2026-11-01). `createParagraphBullets` joins a range to the list of the paragraph just before it when the presets match, counting levels from that paragraph's. So a level-1 numbered Z after `1. P` / `1. a` landed in P's list at level 2, and re-bulleting "Paren one" (its own numbered list, right after another) moved it into the list above as 3. Every span after a listed paragraph now goes through the anchor wrap with a barrier.
+
+**Prompt**
+**Playwright: required**
+> "Make a doc with this Markdown: '1. P\n    1. a\n\nZ\n\n1. Dot one\n2. Dot two\n\n1) Paren one\n'. Re-bullet 'Paren one' without changing anything, then make Z a numbered item at level 1."
+
+Tool calls: `create_doc(title="TC-DOC282", content=<above>, content_format="markdown")`, `get_doc_structure(doc_id=<id>)`, `create_paragraph_bullets(doc_id=<id>, ranges=[{"start_index": <Paren one start>, "end_index": <Paren one end>}])`, `get_doc_structure(doc_id=<id>)`, `create_paragraph_bullets(doc_id=<id>, ranges=[{"start_index": <Z start>, "end_index": <Z end>, "nesting_level": 1, "bullet_preset": "NUMBERED_DECIMAL_ALPHA_ROMAN"}])`, `get_doc_structure(doc_id=<id>)`.
+
+**Checks**
+- After the first call: "Paren one" has a `listId` of its own, not Dot one's, at level 0.
+- After the second: Z has a `listId` of its own, not P's, at `nestingLevel` 1. Dot one's list is unchanged.
+- No leaked tab or extra empty paragraph anywhere.
+- On screen: "Paren one" shows 1.; Z shows a. indented one level.
+
+**Cleanup:** trash the doc.
+
+### TC-DOC283: Quoted paragraphs keep their quote's indent through both bullet tools (#1090) ⚠️ destructive ⚠️ requires-oauth
+
+**Background:** #1090. `createParagraphBullets` sets a list level's own indents and `deleteParagraphBullets` sets 36pt per level (both confirmed live), so a quoted paragraph lost its quote's 36pt: it kept the gray bar but sat where an unquoted one would, and after a delete the export dropped the `>`. Both tools now read each paragraph's quote depth before their requests and put the quote's indent back on top.
+
+**Prompt**
+> "Make a doc with this Markdown: '> - Quoted item one\n>     - Quoted nested\n> - Quoted item two\n\nPlain\n\n> Quoted plain\n\n> 1. QA\n>     - qa1\n> 2. QB\n'. Re-bullet 'Quoted item one', bullet 'Quoted plain', re-bullet QB, then remove the bullets from 'Quoted item one' and 'Quoted nested'."
+
+Tool calls: `create_doc(title="TC-DOC283", content=<above>, content_format="markdown")`, raw `documents().get()`, then `create_paragraph_bullets` on each of "Quoted item one", "Quoted plain" and QB in turn (no level or preset), raw `documents().get()` after each, then `delete_paragraph_bullets(doc_id=<id>, ranges=[{"start_index": <Quoted item one start>, "end_index": <Quoted nested end>}])`, raw `documents().get()`, `get_doc_as_markdown(doc_id=<id>)`.
+
+**Checks**
+- After each `create_paragraph_bullets`: every quoted item reads (`indentFirstLine`, `indentStart`) = (54, 72) at level 0 and (90, 108) at level 1, with its `borderLeft`; "Quoted plain" is a level-0 item at (54, 72). qa1 keeps a bullet list of its own between QA and QB.
+- After the delete: "Quoted item one" is at (36, 36) and "Quoted nested" at (72, 72), both unlisted, both with their `borderLeft`. `get_doc_as_markdown` writes both with `>`. ("Quoted nested" reads as a quote two deep: a level's leftover indent and a quote's are the same 36pt, as for any nested item.)
+
+**Cleanup:** trash the doc.
+
+---
+
 ## `get_doc_theme(source=)` (#1527)
 
 ### TC-DOC264: `get_doc_theme` reads the body, the named styles, or both ⚠️ destructive

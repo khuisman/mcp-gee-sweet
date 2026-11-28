@@ -7,11 +7,16 @@ from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread
 from ...deprecation import deprecated_tool
+from .doc_to_ast import _infer_blockquote_depth
 from .emitter import (
     _BLOCK_SPACING_PT,
+    _LIST_INDENT_PT_PER_LEVEL,
     PARAGRAPH_GAP_PT,
+    _block_indents,
     _border_width,
     _has_collapse_signature,
+    _indent_style_request,
+    list_level_indents,
 )
 from .indices import isolated_bullet_run_wrap_requests, utf16_len
 from .invalidation import doc_invalidating
@@ -642,6 +647,187 @@ def _bold_runs_in_range(doc: dict, start_index: int, end_index: int) -> list[dic
     return spans
 
 
+def _body_paragraphs(doc: dict) -> list[dict]:
+    """The body's top-level paragraphs in order, each with its range, bullet, quote
+    depth, indents and whether its text opens with a tab. All of it is read here, from
+    the document as fetched, since every request after the bullet delete moves the
+    indents (#1090)."""
+    paragraphs = []
+    for elem in doc.get("body", {}).get("content", []):
+        if "paragraph" not in elem:
+            continue
+        para = elem["paragraph"]
+        style = para.get("paragraphStyle", {})
+        bullet = para.get("bullet")
+        base = list_level_indents(bullet.get("nestingLevel", 0))[1] if bullet else 0
+        runs = [e.get("textRun", {}).get("content", "") for e in para.get("elements", [])]
+        paragraphs.append(
+            {
+                "start": elem.get("startIndex", 0),
+                "end": elem.get("endIndex", 0),
+                "bullet": bullet,
+                "quote_depth": _infer_blockquote_depth(style, base),
+                "indents": (
+                    _magnitude(style, "indentFirstLine") or 0,
+                    _magnitude(style, "indentStart") or 0,
+                ),
+                "leading_tab": "".join(runs).startswith("\t"),
+            }
+        )
+    return paragraphs
+
+
+def _nesting_level(paragraph: dict) -> int:
+    return (paragraph["bullet"] or {}).get("nestingLevel", 0)
+
+
+def _in_item(block: dict, item: dict) -> bool:
+    """Whether unlisted paragraph `block` reads as a block inside list item `item`
+    (#1094), as doc_to_ast._ListItemContext reads one: both lines at the text indent
+    of the item's level or a shallower one, plus the item's quote. Its text mustn't
+    open with a tab, which createParagraphBullets would consume as depth."""
+    first_line, start = block["indents"]
+    if block["leading_tab"] or first_line != start:
+        return False
+    quote_indent = _block_indents(item["quote_depth"])[1]
+    return any(
+        start == list_level_indents(level)[1] + quote_indent
+        for level in range(_nesting_level(item) + 1)
+    )
+
+
+def _list_reach(paragraphs: list[dict], i: int, step: int) -> list[tuple[int, str]]:
+    """The paragraphs of paragraph `i`'s list reached from it in direction `step` (+1
+    or -1), each as (index, role). Its own list's items ("item") are reached through
+    touching paragraphs. So is a run of other paragraphs between two of its items
+    (#1288) when every one of them is inside the item before it, which Docs numbers
+    past: a paragraph of a list nested deeper than that item ("nested"; the converter
+    writes `1. A` / `- a1` / `2. B` as one numbered list with a bullet list inside), or
+    an unlisted block inside it ("block", #1094). The walk stops at a table, or at a
+    run that isn't inside the item before it."""
+    list_id = paragraphs[i]["bullet"].get("listId")
+    reached: list[tuple[int, str]] = []
+    gap: list[int] = []
+    last_item = i
+    j = i
+    while 0 <= j + step < len(paragraphs):
+        k = j + step
+        before, after = (
+            (paragraphs[j], paragraphs[k]) if step > 0 else (paragraphs[k], paragraphs[j])
+        )
+        if before["end"] != after["start"]:
+            break
+        bullet = paragraphs[k]["bullet"]
+        if bullet and bullet.get("listId") == list_id:
+            # The item a gap is inside is the one before it in the document.
+            parent = paragraphs[last_item if step > 0 else k]
+            if not all(
+                _nesting_level(paragraphs[g]) > _nesting_level(parent)
+                if paragraphs[g]["bullet"]
+                else _in_item(paragraphs[g], parent)
+                for g in gap
+            ):
+                break
+            reached.extend((g, "nested" if paragraphs[g]["bullet"] else "block") for g in gap)
+            reached.append((k, "item"))
+            gap = []
+            last_item = k
+        elif bullet or paragraphs[k]["indents"][1] > 0:
+            gap.append(k)
+        else:
+            break
+        j = k
+    return reached
+
+
+def _zero_indent_request(start: int, end: int) -> dict:
+    """deleteParagraphBullets leaves a level-N item indented 36pt * N, and
+    createParagraphBullets counts that indent as depth on top of the inserted tabs,
+    so re-bulleting an already-listed paragraph compounded its level (#1069,
+    confirmed live). Zeroing both indents first lets the tabs alone set the level."""
+    return {
+        "updateParagraphStyle": {
+            "range": {"startIndex": start, "endIndex": end},
+            "paragraphStyle": {
+                "indentStart": {"magnitude": 0, "unit": "PT"},
+                "indentFirstLine": {"magnitude": 0, "unit": "PT"},
+            },
+            "fields": "indentStart,indentFirstLine",
+        }
+    }
+
+
+def _bullet_requests(units: list[dict], preset: str, *, barrier: bool) -> list[dict]:
+    """Delete, zero the indent, insert each unit's depth-tabs, and bullet `units` (a
+    contiguous span) in one createParagraphBullets call. Every position outside the
+    span, and the span's own once the call has consumed the tabs, ends where it was.
+
+    A span with no level-0 unit goes through the anchor wrap (#713), and so does one
+    that needs a `barrier`: createParagraphBullets joins its range to the list of the
+    paragraph just before it when the presets match, whatever the levels (confirmed
+    live, #1241), so a span after a listed paragraph starts its own list (#1297)."""
+    start, end = units[0]["start"], units[-1]["end"]
+    requests = [
+        {"deleteParagraphBullets": {"range": {"startIndex": start, "endIndex": end}}},
+        _zero_indent_request(start, end),
+    ]
+    total_tabs = 0
+    # Descending, so an insert never moves a later unit's start.
+    for unit in reversed(units):
+        total_tabs += unit["nesting_level"]
+        if unit["nesting_level"]:
+            requests.append(
+                {
+                    "insertText": {
+                        "location": {"index": unit["start"]},
+                        "text": "\t" * unit["nesting_level"],
+                    }
+                }
+            )
+    if min(u["nesting_level"] for u in units) == 0 and not barrier:
+        requests.append(
+            {
+                "createParagraphBullets": {
+                    "range": {"startIndex": start, "endIndex": end + total_tabs},
+                    "bulletPreset": preset,
+                }
+            }
+        )
+    else:
+        # The anchor wrap's insert and delete cancel, so positions outside the span
+        # are left where the plain call leaves them.
+        requests.extend(
+            isolated_bullet_run_wrap_requests(start, end + total_tabs, preset, barrier=barrier)
+        )
+    return requests
+
+
+def _nested_lists(run: list[dict]) -> list[list[dict]]:
+    """The lists nested in `run` (#1288) that go back out after its one call: for
+    each stretch of units inside an item, one span per nested list, from its first
+    unit to its last, in document order, so a list comes before the lists nested in
+    it. A span holds what is nested in it too, which the later spans (and the blocks,
+    after them) take back out in turn, as emitter._top_list_requests does."""
+    spans: list[list[dict]] = []
+    stretch: list[dict] = []
+    for unit in [*run, None]:
+        if unit is not None and unit["role"] != "item":
+            stretch.append(unit)
+            continue
+        first: dict[str, int] = {}
+        last: dict[str, int] = {}
+        for index, nested in enumerate(stretch):
+            if nested["role"] != "nested":
+                continue
+            list_id = nested["existing_bullet"].get("listId")
+            first.setdefault(list_id, index)
+            last[list_id] = index
+        for list_id in sorted(first, key=first.__getitem__):
+            spans.append(stretch[first[list_id] : last[list_id] + 1])
+        stretch = []
+    return spans
+
+
 def register(tool):
     @tool(
         annotations=ToolAnnotations(title="Style Document Range", destructiveHint=True),
@@ -1022,7 +1208,11 @@ def register(tool):
           paragraph(s) it covers, and — for any that are already part of a
           list — expands the affected span to include their full contiguous
           run of same-list neighbors (preserving each neighbor's own current
-          nesting level unchanged). Contiguous spans sharing one bullet
+          nesting level unchanged). The run continues past what sits inside
+          one of its items: a list nested deeper than the item, or an
+          unlisted paragraph indented to the item's text. Those keep their
+          own list or no list, and the items after them keep counting.
+          Contiguous spans sharing one bullet
           preset are then submitted as a single createParagraphBullets call
           each, applied in descending document-position order so no
           not-yet-processed span's indices are invalidated by an earlier
@@ -1032,6 +1222,13 @@ def register(tool):
           that is bulleted alongside the real items and then deleted, so the
           items land at their true nesting level instead of collapsing to 0
           (the same fix emitter.py carries).
+        - createParagraphBullets joins its range to the list of the paragraph
+          just before it when the presets match. A span right after a list
+          item therefore always starts a list of its own, at the requested
+          levels; to add a paragraph to an existing list, include that list's
+          items in the call.
+        - A quoted paragraph keeps its quote's indent on top of its list
+          level's.
 
         Use get_doc_structure to obtain start_index/end_index for each target
         range — typically one paragraph's own startIndex/endIndex, or a
@@ -1102,82 +1299,66 @@ def register(tool):
                     return "BULLET_DISC_CIRCLE_SQUARE"
                 return None
 
-            body_paragraphs = [
-                (
-                    elem.get("startIndex", 0),
-                    elem.get("endIndex", 0),
-                    elem["paragraph"].get("bullet"),
-                )
-                for elem in doc.get("body", {}).get("content", [])
-                if "paragraph" in elem
-            ]
-            by_start = {ps: (pe, b) for ps, pe, b in body_paragraphs}
-            by_end = {pe: (ps, b) for ps, pe, b in body_paragraphs}
+            paragraphs = _body_paragraphs(doc)
+            index_of = {(p["start"], p["end"]): i for i, p in enumerate(paragraphs)}
+
+            def unit(i: int, **fields: Any) -> dict:
+                p = paragraphs[i]
+                return {
+                    "start": p["start"],
+                    "end": p["end"],
+                    "existing_bullet": p["bullet"],
+                    "quote_depth": p["quote_depth"],
+                    "indents": p["indents"],
+                    **fields,
+                }
 
             requested: dict[tuple[int, int], dict] = {}
             for r in ranges:
                 r_start, r_end = r["start_index"], r["end_index"]
-                preset_explicit = "bullet_preset" in r
-                nesting_level = r.get("nesting_level", 0)
                 covered = [
-                    (ps, pe, b) for ps, pe, b in body_paragraphs if ps < r_end and pe > r_start
+                    i for i, p in enumerate(paragraphs) if p["start"] < r_end and p["end"] > r_start
                 ]
                 if not covered:
                     return {"error": f"no paragraph overlaps range {r_start}-{r_end}"}
-                for ps, pe, bullet in covered:
-                    requested[(ps, pe)] = {
-                        "start": ps,
-                        "end": pe,
-                        "nesting_level": nesting_level,
-                        "preset": r.get("bullet_preset"),
-                        "preset_explicit": preset_explicit,
-                        "existing_bullet": bullet,
-                    }
+                for i in covered:
+                    p = paragraphs[i]
+                    requested[(p["start"], p["end"])] = unit(
+                        i,
+                        nesting_level=r.get("nesting_level", 0),
+                        preset=r.get("bullet_preset"),
+                        preset_explicit="bullet_preset" in r,
+                        role="item",
+                    )
 
-            # Expand each already-listed requested paragraph to include its
-            # full contiguous same-listId neighbor run (see docstring) —
-            # context paragraphs keep their own current nesting level and
-            # carry no explicit preset of their own (resolved per-run below).
+            # Expand each already-listed requested paragraph to its whole list (see
+            # docstring), across what is inside its items (#1288). Context paragraphs
+            # keep their own current nesting level and carry no explicit preset of
+            # their own (resolved per run below). A context paragraph that any
+            # expansion reached as inside an item stays inside it, and a requested
+            # one is always an item: it goes where the request puts it.
             expanded: dict[tuple[int, int], dict] = dict(requested)
-            for ps, pe, bullet in body_paragraphs:
-                key = (ps, pe)
-                if key not in requested or not bullet:
+            for key in requested:
+                i = index_of[key]
+                if not paragraphs[i]["bullet"]:
                     continue
-                list_id = bullet.get("listId")
-
-                cursor = ps
-                while cursor in by_end:
-                    prev_start, prev_bullet = by_end[cursor]
-                    if not prev_bullet or prev_bullet.get("listId") != list_id:
-                        break
-                    pkey = (prev_start, cursor)
-                    if pkey not in expanded:
-                        expanded[pkey] = {
-                            "start": prev_start,
-                            "end": cursor,
-                            "nesting_level": prev_bullet.get("nestingLevel", 0),
-                            "preset": None,
-                            "preset_explicit": False,
-                            "existing_bullet": prev_bullet,
-                        }
-                    cursor = prev_start
-
-                cursor = pe
-                while cursor in by_start:
-                    next_end, next_bullet = by_start[cursor]
-                    if not next_bullet or next_bullet.get("listId") != list_id:
-                        break
-                    nkey = (cursor, next_end)
-                    if nkey not in expanded:
-                        expanded[nkey] = {
-                            "start": cursor,
-                            "end": next_end,
-                            "nesting_level": next_bullet.get("nestingLevel", 0),
-                            "preset": None,
-                            "preset_explicit": False,
-                            "existing_bullet": next_bullet,
-                        }
-                    cursor = next_end
+                for step in (-1, 1):
+                    for k, role in _list_reach(paragraphs, i, step):
+                        p = paragraphs[k]
+                        kkey = (p["start"], p["end"])
+                        if kkey in requested:
+                            continue
+                        if kkey in expanded:
+                            if role != "item":
+                                expanded[kkey]["role"] = role
+                            continue
+                        expanded[kkey] = unit(
+                            k,
+                            nesting_level=_nesting_level(p),
+                            preset=None,
+                            preset_explicit=False,
+                            role=role,
+                        )
 
             units = sorted(expanded.values(), key=lambda u: u["start"])
 
@@ -1215,83 +1396,49 @@ def register(tool):
                     resolved_preset = next(iter(explicit_presets))
                 else:
                     resolved_preset = next(
-                        (p for u in run if (p := infer_preset(u["existing_bullet"])) is not None),
+                        (
+                            p
+                            for u in run
+                            if u["role"] == "item"
+                            and (p := infer_preset(u["existing_bullet"])) is not None
+                        ),
                         "BULLET_DISC_CIRCLE_SQUARE",
                     )
 
-                run_start = run[0]["start"]
-                run_end = run[-1]["end"]
-                requests.append(
-                    {
-                        "deleteParagraphBullets": {
-                            "range": {"startIndex": run_start, "endIndex": run_end}
-                        }
-                    }
+                first = index_of[(run[0]["start"], run[0]["end"])]
+                previous = paragraphs[first - 1] if first else None
+                follows_list = bool(
+                    previous and previous["end"] == run[0]["start"] and previous["bullet"]
                 )
-                # deleteParagraphBullets leaves a level-N item indented
-                # 36pt * N, and createParagraphBullets counts that indent as
-                # depth on top of the inserted tabs, so re-bulleting an
-                # already-listed paragraph compounded its level (#1069,
-                # confirmed live). Zero both indents first so the tabs alone
-                # set the level; the new bullet sets its own indents.
-                requests.append(
-                    {
-                        "updateParagraphStyle": {
-                            "range": {"startIndex": run_start, "endIndex": run_end},
-                            "paragraphStyle": {
-                                "indentStart": {"magnitude": 0, "unit": "PT"},
-                                "indentFirstLine": {"magnitude": 0, "unit": "PT"},
-                            },
-                            "fields": "indentStart,indentFirstLine",
-                        }
-                    }
-                )
-                total_tabs = 0
-                min_nesting = min(u["nesting_level"] for u in run)
-                for unit in sorted(run, key=lambda u: u["start"], reverse=True):
-                    total_tabs += unit["nesting_level"]
-                    if unit["nesting_level"]:
+                requests.extend(_bullet_requests(run, resolved_preset, barrier=follows_list))
+                # That call put what is inside the run's items in its list. Each
+                # nested list goes back out with its own preset, a barrier keeping it
+                # from joining the item just before it, the way
+                # emitter._top_list_requests takes a nested list out (#1288). Every
+                # one of these sequences ends with every position where it started.
+                for span in _nested_lists(run):
+                    preset = infer_preset(span[0]["existing_bullet"]) or "BULLET_DISC_CIRCLE_SQUARE"
+                    requests.extend(_bullet_requests(span, preset, barrier=True))
+                # A block inside an item goes back out last, since a nested list's
+                # call bullets one inside it again, and back to its own indents.
+                # Docs numbers the items after it by listId, past it (#1094).
+                for u in run:
+                    if u["role"] == "block":
+                        rng = {"startIndex": u["start"], "endIndex": u["end"]}
+                        requests.append({"deleteParagraphBullets": {"range": rng}})
+                        requests.append(_indent_style_request(rng, u["indents"], border=False))
+                # createParagraphBullets sets the list level's indents, dropping a
+                # quoted paragraph's quote indent; its border survives (#1090).
+                for u in run:
+                    if u["quote_depth"] and u["role"] != "block":
+                        indents = _block_indents(u["quote_depth"], item_level=u["nesting_level"])
                         requests.append(
-                            {
-                                "insertText": {
-                                    "location": {"index": unit["start"]},
-                                    "text": "\t" * unit["nesting_level"],
-                                }
-                            }
+                            _indent_style_request(
+                                {"startIndex": u["start"], "endIndex": u["end"]},
+                                indents,
+                                border=False,
+                            )
                         )
-                if min_nesting == 0:
-                    requests.append(
-                        {
-                            "createParagraphBullets": {
-                                "range": {
-                                    "startIndex": run_start,
-                                    "endIndex": run_end + total_tabs,
-                                },
-                                "bulletPreset": resolved_preset,
-                            }
-                        }
-                    )
-                else:
-                    # Isolated run: no unit sits at nesting_level 0, so
-                    # createParagraphBullets — which assigns each paragraph
-                    # nestingLevel = (its leading-tab count) - (the minimum
-                    # across the call's whole range) — would collapse the entire
-                    # run to nestingLevel 0, rendering the depth-0 disc glyph
-                    # even though the per-level indent is bumped (issue #713;
-                    # same shape as #439, fixed for emitter.py in PR #711).
-                    # isolated_bullet_run_wrap_requests (indices.py, shared with
-                    # emitter.py per #727) prepends a throwaway 0-tab anchor
-                    # paragraph, bullets the extended range (anchor -> level 0,
-                    # real items -> their true level and correct glyph), then
-                    # deletes the anchor. The insert (+1) and delete (-1) cancel,
-                    # so every position outside [run_start, run_end] is left
-                    # exactly where the non-isolated path leaves it and the
-                    # descending-run application order still holds.
-                    requests.extend(
-                        isolated_bullet_run_wrap_requests(
-                            run_start, run_end + total_tabs, resolved_preset
-                        )
-                    )
 
             with doc_invalidating(lc.doc_cache, doc_id):
                 await execute_in_thread(
@@ -1317,7 +1464,8 @@ def register(tool):
         ranges, leaving each paragraph's text and other styling untouched.
         The API keeps a nested item's indent as paragraph indentation (36pt
         per nesting level for the standard presets), so a nested item stays
-        indented after its bullet is gone; a top-level item doesn't.
+        indented after its bullet is gone; a top-level item doesn't. A quoted
+        item keeps its quote's indent on top of that.
 
         Args:
             doc_id: The Google Doc file ID.
@@ -1341,6 +1489,30 @@ def register(tool):
         ]
 
         try:
+            doc = await execute_in_thread(
+                lc.docs_service.documents().get(documentId=doc_id).execute,
+                lc.docs_service,
+            )
+            # deleteParagraphBullets sets both indents to 36pt per nesting level,
+            # whatever a quote added (confirmed live), so a quoted item lost its
+            # quote's indent and read back unquoted (#1090). Put it back on top.
+            for p in _body_paragraphs(doc):
+                if not p["bullet"] or not p["quote_depth"]:
+                    continue
+                if not any(
+                    p["start"] < r["end_index"] and p["end"] > r["start_index"] for r in ranges
+                ):
+                    continue
+                level_indent = _LIST_INDENT_PT_PER_LEVEL * _nesting_level(p)
+                first_line, start = _block_indents(p["quote_depth"])
+                requests.append(
+                    _indent_style_request(
+                        {"startIndex": p["start"], "endIndex": p["end"]},
+                        (first_line + level_indent, start + level_indent),
+                        border=False,
+                    )
+                )
+
             with doc_invalidating(lc.doc_cache, doc_id):
                 await execute_in_thread(
                     lc.docs_service.documents()

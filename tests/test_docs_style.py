@@ -1093,6 +1093,19 @@ class TestStyleDocRangeParagraphSpacing:
 # ---------------------------------------------------------------------------
 
 
+def _zero_indent(start, end):
+    return {
+        "updateParagraphStyle": {
+            "range": {"startIndex": start, "endIndex": end},
+            "paragraphStyle": {
+                "indentStart": {"magnitude": 0, "unit": "PT"},
+                "indentFirstLine": {"magnitude": 0, "unit": "PT"},
+            },
+            "fields": "indentStart,indentFirstLine",
+        }
+    }
+
+
 class TestCreateParagraphBulletsTool:
     """#334 round 2: createParagraphBullets is a no-op on an already-listed
     paragraph, and infers nesting only relative to whatever else is in the
@@ -1109,12 +1122,14 @@ class TestCreateParagraphBulletsTool:
         return tools
 
     def _doc(self, paragraphs, lists=None):
-        # paragraphs: list of (start, end, text, bullet_or_None)
+        # paragraphs: list of (start, end, text, bullet_or_None[, paragraphStyle])
         content = []
-        for start, end, text, bullet in paragraphs:
+        for start, end, text, bullet, *style in paragraphs:
             para = {"elements": [{"textRun": {"content": text}}]}
             if bullet is not None:
                 para["bullet"] = bullet
+            if style:
+                para["paragraphStyle"] = style[0]
             content.append({"startIndex": start, "endIndex": end, "paragraph": para})
         doc = {"documentId": "doc123", "body": {"content": content}}
         if lists is not None:
@@ -1636,6 +1651,264 @@ class TestCreateParagraphBulletsTool:
         )
         assert "error" in result
 
+    async def _requests(self, doc, ranges):
+        tools = self._setup()
+        mock_docs, ctx = self._mocks(doc)
+        result = await tools["create_paragraph_bullets"](doc_id="doc123", ranges=ranges, ctx=ctx)
+        assert "error" not in result
+        return mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+
+    @staticmethod
+    def _indents(first_line, start, border=False):
+        style = {
+            "indentFirstLine": {"magnitude": first_line, "unit": "PT"},
+            "indentStart": {"magnitude": start, "unit": "PT"},
+        }
+        if border:
+            style["borderLeft"] = {"width": {"magnitude": 3, "unit": "PT"}}
+        return style
+
+    def _nested_other_type_doc(self):
+        # #1288's repro as the converter writes it (confirmed live): `1. A` /
+        # `- a1` / `2. B` / `3. C` is one numbered list (L1) with a bullet list
+        # (L2) inside A.
+        return self._doc(
+            [
+                (1, 3, "A\n", {"listId": "L1"}),
+                (3, 6, "a1\n", {"listId": "L2", "nestingLevel": 1}),
+                (6, 8, "B\n", {"listId": "L1"}),
+                (8, 10, "C\n", {"listId": "L1"}),
+            ],
+            lists={"L1": self._numbered_list_entry(2), "L2": self._bullet_list_entry(2)},
+        )
+
+    @pytest.mark.parametrize("target", [(6, 8), (1, 3), (8, 10)])
+    async def test_run_continues_past_a_nested_list_of_the_other_type(self, target):
+        # #1288: re-bulleting any item of L1 covers the whole list, a1 included,
+        # in one numbered call (so B and C keep counting from A), then takes a1
+        # back out with its own bullet preset behind a barrier.
+        reqs = await self._requests(
+            self._nested_other_type_doc(),
+            [{"start_index": target[0], "end_index": target[1]}],
+        )
+        creates = [r["createParagraphBullets"] for r in reqs if "createParagraphBullets" in r]
+        # A's list: 1..10 plus a1's one tab; then a1's: the anchor (after the
+        # barrier, at 4) through a1 (3..6 plus its tab, two places on).
+        assert creates == [
+            {
+                "range": {"startIndex": 1, "endIndex": 11},
+                "bulletPreset": "NUMBERED_DECIMAL_ALPHA_ROMAN",
+            },
+            {
+                "range": {"startIndex": 4, "endIndex": 9},
+                "bulletPreset": "BULLET_DISC_CIRCLE_SQUARE",
+            },
+        ]
+        main = reqs.index({"createParagraphBullets": creates[0]})
+        assert reqs[main + 1 :] == [
+            {"deleteParagraphBullets": {"range": {"startIndex": 3, "endIndex": 6}}},
+            _zero_indent(3, 6),
+            {"insertText": {"location": {"index": 3}, "text": "\t"}},
+            {"insertText": {"location": {"index": 3}, "text": "\n\n"}},
+            {"createParagraphBullets": creates[1]},
+            {"deleteContentRange": {"range": {"startIndex": 3, "endIndex": 5}}},
+        ]
+
+    async def test_nested_list_inside_a_nested_list_goes_out_after_its_parent(self):
+        # A sublist (L3) inside a1's list (L2) inside A: L2's span covers L3's
+        # item too, then L3's own span takes it back out.
+        doc = self._doc(
+            [
+                (1, 3, "A\n", {"listId": "L1"}),
+                (3, 6, "a1\n", {"listId": "L2", "nestingLevel": 1}),
+                (6, 9, "x1\n", {"listId": "L3", "nestingLevel": 2}),
+                (9, 12, "a2\n", {"listId": "L2", "nestingLevel": 1}),
+                (12, 14, "B\n", {"listId": "L1"}),
+            ],
+            lists={
+                "L1": self._numbered_list_entry(3),
+                "L2": self._bullet_list_entry(3),
+                "L3": self._numbered_list_entry(3),
+            },
+        )
+        reqs = await self._requests(doc, [{"start_index": 12, "end_index": 14}])
+        deletes = [
+            r["deleteParagraphBullets"]["range"] for r in reqs if "deleteParagraphBullets" in r
+        ]
+        assert deletes == [
+            {"startIndex": 1, "endIndex": 14},
+            {"startIndex": 3, "endIndex": 12},
+            {"startIndex": 6, "endIndex": 9},
+        ]
+        presets = [
+            r["createParagraphBullets"]["bulletPreset"]
+            for r in reqs
+            if "createParagraphBullets" in r
+        ]
+        assert presets == [
+            "NUMBERED_DECIMAL_ALPHA_ROMAN",
+            "BULLET_DISC_CIRCLE_SQUARE",
+            "NUMBERED_DECIMAL_ALPHA_ROMAN",
+        ]
+
+    @pytest.mark.parametrize(
+        "between",
+        [
+            # Another list at the item's own level isn't inside it.
+            (3, 6, "o1\n", {"listId": "L2"}),
+            # Nor is an unlisted paragraph at the margin.
+            (3, 6, "p1\n", None),
+            # Nor one indented past the item's text.
+            (3, 6, "p1\n", None, {"indentStart": {"magnitude": 72, "unit": "PT"}}),
+        ],
+    )
+    async def test_run_stops_at_a_paragraph_not_inside_the_item(self, between):
+        doc = self._doc(
+            [
+                (1, 3, "A\n", {"listId": "L1"}),
+                between,
+                (6, 8, "B\n", {"listId": "L1"}),
+            ]
+        )
+        reqs = await self._requests(doc, [{"start_index": 6, "end_index": 8}])
+        assert reqs[0] == {"deleteParagraphBullets": {"range": {"startIndex": 6, "endIndex": 8}}}
+
+    def _block_doc(self, block_text="inside A\n"):
+        # A block inside item A (#1094): unlisted, both lines at A's text indent.
+        return self._doc(
+            [
+                (1, 3, "A\n", {"listId": "L1"}),
+                (3, 12, block_text, None, self._indents(36, 36)),
+                (12, 14, "B\n", {"listId": "L1"}),
+            ],
+            lists={"L1": self._numbered_list_entry()},
+        )
+
+    async def test_run_continues_past_a_block_inside_an_item(self):
+        # Docs numbers B past the block, so the run takes it in and gives it
+        # back: its bullet removed and its own indents restored, last.
+        reqs = await self._requests(self._block_doc(), [{"start_index": 12, "end_index": 14}])
+        assert reqs[0] == {"deleteParagraphBullets": {"range": {"startIndex": 1, "endIndex": 14}}}
+        assert reqs[-2:] == [
+            {"deleteParagraphBullets": {"range": {"startIndex": 3, "endIndex": 12}}},
+            {
+                "updateParagraphStyle": {
+                    "range": {"startIndex": 3, "endIndex": 12},
+                    "paragraphStyle": self._indents(36, 36),
+                    "fields": "indentStart,indentFirstLine",
+                }
+            },
+        ]
+
+    async def test_block_opening_with_a_tab_stops_the_run(self):
+        # createParagraphBullets would consume its tab as depth.
+        reqs = await self._requests(
+            self._block_doc("\tinside A\n"), [{"start_index": 12, "end_index": 14}]
+        )
+        assert reqs[0] == {"deleteParagraphBullets": {"range": {"startIndex": 12, "endIndex": 14}}}
+
+    async def test_run_after_a_list_item_gets_a_barrier_at_level_zero(self):
+        # #1297 (option B, maintainer 2026-11-01): createParagraphBullets joins a
+        # range to the same-preset list just before it, so a level-0 span after
+        # a list item goes through the anchor wrap with a barrier and starts
+        # its own list.
+        doc = self._doc(
+            [
+                (1, 9, "Dot one\n", {"listId": "L1"}),
+                (9, 19, "Paren one\n", {"listId": "L2"}),
+            ],
+            lists={"L1": self._numbered_list_entry(), "L2": self._numbered_list_entry()},
+        )
+        reqs = await self._requests(doc, [{"start_index": 9, "end_index": 19}])
+        assert reqs[2:] == [
+            {"insertText": {"location": {"index": 9}, "text": "\n\n"}},
+            {
+                "createParagraphBullets": {
+                    "range": {"startIndex": 10, "endIndex": 21},
+                    "bulletPreset": "NUMBERED_DECIMAL_ALPHA_ROMAN",
+                }
+            },
+            {"deleteContentRange": {"range": {"startIndex": 9, "endIndex": 11}}},
+        ]
+
+    async def test_nested_run_after_a_list_item_gets_a_barrier(self):
+        # #1297's repro: Z bulleted at level 1 right after P's list.
+        doc = self._doc(
+            [
+                (1, 3, "P\n", {"listId": "L1"}),
+                (3, 5, "a\n", {"listId": "L1", "nestingLevel": 1}),
+                (5, 7, "Z\n", None),
+            ],
+            lists={"L1": self._numbered_list_entry(2)},
+        )
+        reqs = await self._requests(
+            doc,
+            [
+                {
+                    "start_index": 5,
+                    "end_index": 7,
+                    "nesting_level": 1,
+                    "bullet_preset": "NUMBERED_DECIMAL_ALPHA_ROMAN",
+                }
+            ],
+        )
+        assert reqs[2:] == [
+            {"insertText": {"location": {"index": 5}, "text": "\t"}},
+            {"insertText": {"location": {"index": 5}, "text": "\n\n"}},
+            {
+                "createParagraphBullets": {
+                    "range": {"startIndex": 6, "endIndex": 10},
+                    "bulletPreset": "NUMBERED_DECIMAL_ALPHA_ROMAN",
+                }
+            },
+            {"deleteContentRange": {"range": {"startIndex": 5, "endIndex": 7}}},
+        ]
+
+    async def test_quoted_items_keep_their_quote_indent(self):
+        # #1090's repro: a quoted level-0/1/0 list re-bulleted from its first
+        # item. Each item gets its level's indents plus 36pt for the quote,
+        # after the bullet call, leaving its border alone.
+        quoted = {"listId": "L1"}
+        doc = self._doc(
+            [
+                (1, 17, "Quoted item one\n", quoted, self._indents(54, 72, border=True)),
+                (
+                    17,
+                    31,
+                    "Quoted nested\n",
+                    {"listId": "L1", "nestingLevel": 1},
+                    self._indents(90, 108, border=True),
+                ),
+                (31, 47, "Quoted item two\n", quoted, self._indents(54, 72, border=True)),
+            ]
+        )
+        reqs = await self._requests(doc, [{"start_index": 1, "end_index": 17}])
+        create = next(i for i, r in enumerate(reqs) if "createParagraphBullets" in r)
+        restores = reqs[create + 1 :]
+        assert [r["updateParagraphStyle"]["range"] for r in restores] == [
+            {"startIndex": 1, "endIndex": 17},
+            {"startIndex": 17, "endIndex": 31},
+            {"startIndex": 31, "endIndex": 47},
+        ]
+        assert [r["updateParagraphStyle"]["paragraphStyle"] for r in restores] == [
+            self._indents(54, 72),
+            self._indents(90, 108),
+            self._indents(54, 72),
+        ]
+        assert all(
+            r["updateParagraphStyle"]["fields"] == "indentStart,indentFirstLine" for r in restores
+        )
+
+    async def test_quoted_plain_paragraph_keeps_its_quote_indent(self):
+        doc = self._doc([(1, 14, "Quoted plain\n", None, self._indents(36, 36, border=True))])
+        reqs = await self._requests(doc, [{"start_index": 1, "end_index": 14}])
+        assert reqs[-1]["updateParagraphStyle"]["paragraphStyle"] == self._indents(54, 72)
+
+    async def test_unquoted_item_gets_no_indent_restore(self):
+        doc = self._doc([(1, 6, "Item\n", {"listId": "L1"}, self._indents(18, 36))])
+        reqs = await self._requests(doc, [{"start_index": 1, "end_index": 6}])
+        assert "createParagraphBullets" in reqs[-1]
+
     async def test_get_doc_error_returns_error_dict(self):
         tools = self._setup()
         mock_docs = MagicMock()
@@ -1671,9 +1944,64 @@ class TestDeleteParagraphBulletsTool:
         result = await tools["delete_paragraph_bullets"](doc_id="doc123", ranges=[], ctx=ctx)
         assert "error" in result
 
+    async def test_quoted_item_keeps_its_quote_indent(self):
+        # #1090 (Kit's evidence): deleteParagraphBullets sets both indents to
+        # 36pt per level whatever the quote added (confirmed live), so each
+        # quoted item in range gets its quote's 36pt back on top. An unquoted
+        # one, and a quoted one outside the range, get nothing.
+        def para(start, end, level, border):
+            style = {"indentStart": {"magnitude": 72, "unit": "PT"}}
+            if border:
+                style["borderLeft"] = {"width": {"magnitude": 3, "unit": "PT"}}
+            return {
+                "startIndex": start,
+                "endIndex": end,
+                "paragraph": {
+                    "elements": [{"textRun": {"content": "x\n"}}],
+                    "bullet": {"listId": "L1", "nestingLevel": level},
+                    "paragraphStyle": style,
+                },
+            }
+
+        doc = {
+            "body": {
+                "content": [
+                    para(1, 5, 0, True),
+                    para(5, 9, 1, True),
+                    para(9, 13, 0, False),
+                    para(13, 17, 0, True),
+                ]
+            }
+        }
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = doc
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+
+        result = await tools["delete_paragraph_bullets"](
+            doc_id="doc123", ranges=[{"start_index": 1, "end_index": 13}], ctx=ctx
+        )
+        assert "error" not in result
+        reqs = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        assert reqs[1:] == [
+            {
+                "updateParagraphStyle": {
+                    "range": {"startIndex": start, "endIndex": end},
+                    "paragraphStyle": {
+                        "indentStart": {"magnitude": indent, "unit": "PT"},
+                        "indentFirstLine": {"magnitude": indent, "unit": "PT"},
+                    },
+                    "fields": "indentStart,indentFirstLine",
+                }
+            }
+            for start, end, indent in [(1, 5, 36), (5, 9, 72)]
+        ]
+
     async def test_sends_one_request_per_range(self):
         tools = self._setup()
         mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = {"body": {"content": []}}
         mock_docs.documents().batchUpdate().execute.return_value = {}
         ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
 
