@@ -1779,10 +1779,10 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 ---
 
-### TC-MD511: Content markdown-it-py 4.2.0 lost: raw HTML with a blank line in an item, image alt text ⚠️ destructive
+### TC-MD512: Content markdown-it-py 4.2.0 lost: raw HTML with a blank line in an item, image alt text ⚠️ destructive
 **Prompt**
 > #1596's two fixes, live. Under markdown-it-py 4.2.0 a comment holding a blank line inside a list item hid the rest of the Doc, and an image's fallback text lost its escapes, entities, code and line breaks. Run on a server whose environment has markdown-it-py 4.3.0 or later.
-> 1. `create_doc(title="TC-MD511 html", content=<the Markdown below>, content_format="markdown")`, then `get_doc_structure(doc_id)`:
+> 1. `create_doc(title="TC-MD512 html", content=<the Markdown below>, content_format="markdown")`, then `get_doc_structure(doc_id)`:
 >    ```
 >    - a
 >      <!-- hidden comment
@@ -1794,16 +1794,16 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 >
 >    Last paragraph.
 >    ```
-> 2. `create_doc(title="TC-MD511 alt", content=<the Markdown below>, content_format="markdown")`. Each image path names no file, so each image is written as its fallback text:
+> 2. `create_doc(title="TC-MD512 alt", content=<the Markdown below>, content_format="markdown")`. Each image path names no file, so each image is written as its fallback text:
 >    ```
->    ![a \* b](missing-tc-md511-1.png)
+>    ![a \* b](missing-tc-md512-1.png)
 >
->    ![a &amp; b &copy;](missing-tc-md511-2.png)
+>    ![a &amp; b &copy;](missing-tc-md512-2.png)
 >
->    ![see `code` here](missing-tc-md511-3.png)
+>    ![see `code` here](missing-tc-md512-3.png)
 >
 >    ![line\
->    break](missing-tc-md511-4.png)
+>    break](missing-tc-md512-4.png)
 >    ```
 
 **Checks**
@@ -1813,6 +1813,49 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 **Cleanup:** trash both Docs.
 
 **Result (2026-11-25, PR #1622 QA round 1 @ 7652bfeb, Rio) ✅ PASS — steps 1–2, one run, server on markdown-it-py 4.3.0.** Step 1: four paragraphs "a" (level 0), "b visible" (level 1), "after" (level 0), one list, then the unbulleted "Last paragraph."; nothing from the comment appears. Step 2: `images` has four entries, each with an `error` (`No file found at …`) and `fallback_text` `a * b`, `a & b ©`, `see code here`, `line break`; the Doc's four paragraphs read the same. Both Docs trashed.
+
+---
+
+### TC-MD513: An exported empty item round-trips: an empty first sub-item, an empty task item, and an empty item holding only a code block (#1325) ⚠️ destructive
+**Prompt**
+> #1323 and #1324, live. An empty first sub-item was exported as a bare `  - ` under its parent's text, which CommonMark reads as a setext underline (the parent comes back a heading) or, numbered, as more of the parent's text. An empty item holding only a block was exported with a blank line after its marker, which ends the item.
+> 1. `create_doc(title="TC-MD513 source", content=<the Markdown below>, content_format="markdown")`. The HTML comment is how this Markdown writes an empty item under a parent's text; the import ignores it:
+>    ````
+>    - a
+>      - <!-- -->
+>      - c
+>
+>    1. x
+>       1. <!-- -->
+>       2. y
+>
+>    Between.
+>
+>    1. 
+>       ```
+>       code
+>       ```
+>    2. b
+>    ````
+> 2. `get_doc_structure(doc_id)` on the source Doc.
+> 3. `get_doc_as_markdown(doc_id)` on the source Doc.
+> 4. `create_doc(title="TC-MD513 round trip", content=<step 3's markdown>, content_format="markdown")`, then `get_doc_structure` on it.
+> 5. PR #1656 QA round 1's two shapes. `create_doc(title="TC-MD513 tasks", content="- [ ] <!-- -->\n- [x] <!-- -->\n\n  - [ ] x\n- [ ] a\n  - [ ] <!-- -->\n\n    - [ ] y\n  - [ ] c\n", content_format="markdown")` (two empty task items, unchecked and checked, the checked one with a sub-item of its own, and an empty unchecked task item as a first sub-item, also with a sub-item of its own; QA round 2), and `create_doc(title="TC-MD513 paragraph", content="<ul><li>a<ul><li>&nbsp;<p>p</p></li></ul></li><li>b</li></ul>")` (HTML: an empty sub-item holding the paragraph "p", which Markdown can't write). For each: `get_doc_structure`, `get_doc_as_markdown`, then `create_doc` with that markdown (`content_format="markdown"`) and `get_doc_structure` on the copy.
+
+**Checks**
+- Step 2: bullets "a" (level 0), an empty item (level 1), "c" (level 1); then numbered "x" (level 0), an empty item (level 1), "y" (level 1); the unbulleted "Between."; then a numbered empty item (level 0), the code paragraph `code` (no bullet, indented under that item), and "b" (level 0). The first and last numbered lists share one `listId` each, with no heading anywhere.
+- Step 3: the markdown contains `- a\n  - <!-- -->\n  - c` and `1. x\n   1. <!-- -->\n   2. y`, and the empty numbered item's line `1. ` is followed directly by the indented fence, with no blank line between them. It doesn't contain `  - \n` or `   1. \n`.
+- Step 4: the structure matches step 2's: same paragraphs, same bullet levels, the same items sharing a `listId` ("b" in the same list as the empty item above it, numbered 2), and no paragraph with a `HEADING_*` style.
+- Step 5, tasks: the source Doc has seven checkbox-list items: empty (level 0, unchecked), empty (level 0, checked), "x" (level 1, unchecked), "a" (level 0, unchecked), empty (level 1, unchecked), "y" (level 2, unchecked), then "c" (level 1, unchecked). The export writes each empty task item as `[ ] <!-- -->` or `[x] <!-- -->` after its marker, with a blank line before the sub-item that follows an empty item, and the copy's structure matches the source's, with no item whose text is `[ ]` or `[x]`.
+- Step 5, paragraph: the source Doc has "a" (level 0), an empty item (level 1), the unbulleted "p" indented under it, then "b" (level 0). The export contains `  - <!-- -->\n\n    p` (a blank line after the comment). The copy has "a" (level 0), "p" as a bullet at level 1, then "b" (level 0), and no other paragraph: the empty item takes the paragraph's text, the known loss #1658 records, and no empty item appears at level 0.
+
+**Cleanup:** trash every Doc the case created.
+
+**Result (2026-11-28, PR #1656 QA round 1 @ fc69b1ba, Sky) ✅ PASS — steps 1–4, one run.** Step 2: "a" (0), empty (1), "c" (1) in one list; "x" (0), empty (1), "y" (1) in one list; unbulleted "Between."; empty item (0), unbulleted "code", "b" (0) sharing the empty item's `listId`; no heading. Step 3: `- a\n  - <!-- -->\n  - c\n1. x\n   1. <!-- -->\n   2. y\n\nBetween.\n\n1. \n   ```\n   code\n   ```\n\n2. b\n\n`, with no bare `  - ` or `   1. ` line. Step 4: same paragraphs, levels and list grouping as step 2, no heading. Also checked outside the case: the step 3 Markdown's lists, uploaded with `upload_local_file(convert=True)` (Drive's own import), keep both empty sub-items empty, with no comment text. An empty sub-item holding a paragraph (`- a\n  - <!-- -->\n    p`) does not round-trip: the Doc reads "a" (0), empty (1), empty (0), "p" (0), a send-back in the round's comment. All Docs trashed.
+
+**Result (2026-11-28, PR #1656 QA round 2 @ 0e19e593, Sky) ⚠️ PARTIAL — steps 1–5 as written pass; one shape next to step 5 fails.** Steps 1–4: same structure and markdown as round 1. Step 5, tasks: source has ☐ (0), ☑ (0), ☐ a (0), ☐ (1), ☐ c (1) in one list; the export is `- [ ] <!-- -->\n- [x] <!-- -->\n- [ ] a\n  - [ ] <!-- -->\n  - [ ] c`; the copy matches the source, with no `[ ]`/`[x]` text. Step 5, paragraph: source "a" (0), empty (1), unbulleted "p", "b" (0); the export has `  - <!-- -->\n\n    p`; the copy is "a" (0), "p" (1), "b" (0), nothing else. Fails outside the case: an empty task item with a sub-item of its own (source built from `- [ ] <!-- -->\n\n  - x\n- [ ] b`) exports `- [ ] <!-- -->\n  - x\n- [ ] b`, and the copy's first item reads `[ ]` as plain text instead of an empty checkbox, a send-back in the round's comment. All Docs trashed.
+
+**Result (2026-11-28, PR #1656 QA round 3 @ f6b94194, Sky) ✅ PASS — steps 1–5, one run.** Steps 1–4: same structure and markdown as rounds 1 and 2. Step 5, tasks: source has ☐ (0), ☑ (0), ☐ x (1), ☐ a (0), ☐ (1), ☐ y (2), ☐ c (1) in one list; the export is `- [ ] <!-- -->\n- [x] <!-- -->\n\n  - [ ] x\n- [ ] a\n  - [ ] <!-- -->\n\n    - [ ] y\n  - [ ] c`; the copy matches the source item for item, with no `[ ]`/`[x]` text. Step 5, paragraph: same as round 2, the copy "a" (0), "p" (1), "b" (0), nothing else. All Docs trashed.
 
 ---
 
