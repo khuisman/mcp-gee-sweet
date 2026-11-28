@@ -168,12 +168,16 @@ class _OpenItems:
         # its first block takes the usual blank line. A newline there made a paragraph
         # right after the comment the item's text with the line breaks around the
         # comment kept, which the import wrote as extra paragraphs (PR #1656 QA round 1).
+        # A nested item takes one too: in a tight item, html_parser trims the line break
+        # before a nested list together with the space after "[ ]", and "[ ]" alone
+        # isn't a checkbox, so an empty task item lost its box (PR #1656 QA round 2).
         prev_has_text = self._wrote_empty_item_text
         rendered = self._render(node, prev_node)
         same_list = (
             isinstance(node, BulletItem)
             and isinstance(prev_node, BulletItem)
             and node.blockquote_depth == prev_node.blockquote_depth
+            and not (prev_has_text and _opens_sublist(node, prev_node))
         )
         shared = min(prev_quote, self._margin_quote)
         if same_list or (not prev_has_text and _starts_empty_item(prev_node, node)):

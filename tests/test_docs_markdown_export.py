@@ -4457,12 +4457,12 @@ class TestEmptyFirstSubItem:
             ),
             pytest.param(
                 [_bullet("a"), _empty_bullet(1), _bullet("g", 2), _bullet("b")],
-                "- a\n  - <!-- -->\n    - g\n- b\n",
+                "- a\n  - <!-- -->\n\n    - g\n- b\n",
                 id="with-a-child-of-its-own",
             ),
             pytest.param(
                 [_bullet("a"), _empty_bullet(1), _empty_bullet(2), _bullet("c", 2)],
-                "- a\n  - <!-- -->\n    - <!-- -->\n    - c\n",
+                "- a\n  - <!-- -->\n\n    - <!-- -->\n    - c\n",
                 id="empty-under-empty",
             ),
             pytest.param(
@@ -4578,6 +4578,31 @@ class TestEmptyTaskItem:
                 lambda c: [_empty_bullet(checked=c), _code_block("x", 0)],
                 "- {box} <!-- -->\n\n  ```\n  x\n  ```\n",
                 id="holding-a-code-block",
+            ),
+            # A tight item lost the box: html_parser trims the line break before
+            # the nested list together with the space after "[ ]" (QA round 2).
+            pytest.param(
+                lambda c: [_empty_bullet(checked=c), _bullet("x", 1), _bullet("b", checked=c)],
+                "- {box} <!-- -->\n\n  - x\n- {box} b\n",
+                id="with-a-sub-item",
+            ),
+            pytest.param(
+                lambda c: [
+                    _bullet("a"),
+                    _empty_bullet(1, checked=c),
+                    _bullet("x", 2),
+                    _bullet("c", 1),
+                ],
+                "- a\n  - {box} <!-- -->\n\n    - x\n  - c\n",
+                id="first-sub-item-with-a-sub-item",
+            ),
+            pytest.param(
+                lambda c: [
+                    _empty_bullet(checked=c, blockquote_depth=1),
+                    _bullet("x", 1, blockquote_depth=1),
+                ],
+                "> - {box} <!-- -->\n>\n>   - x\n",
+                id="quoted-with-a-sub-item",
             ),
         ],
     )
