@@ -549,8 +549,12 @@ def _is_paragraph_start(doc: dict, index: int) -> bool:
 
 
 # The ParagraphElement kinds that carry their own `textStyle` (Docs API v1;
-# tests/test_docs_style.py pins this against the discovery document):
-# Docs styles text inserted beside any of them from that style (#1635).
+# tests/test_docs_style.py pins this against the discovery document). Checked
+# live for seven of them (inlineObjectElement, footnoteReference, pageBreak,
+# person, dateElement, richLink, dropdown): Docs styles text inserted beside
+# each from its bold, and a font request with no bold clears that bold (#1635,
+# PR #1655). autoText, columnBreak and horizontalRule are assumed to behave the
+# same from the schema alone, since no request inserts them.
 _STYLED_ELEMENT_KINDS = (
     "textRun",
     "inlineObjectElement",
@@ -577,9 +581,10 @@ def _bold_runs_in_range(doc: dict, start_index: int, end_index: int) -> list[dic
     is not part of the run and is not affected by the font request. Every
     ParagraphElement kind that carries a `textStyle` counts as a run, not only
     `textRun` (`_STYLED_ELEMENT_KINDS`): Docs styles inserted text from a
-    directly bold inline image, person chip, autoText or footnote reference
-    just as from text, and the font request clears such an element's bold as
-    it does text's (#1635, both live-confirmed for an inline image). Adjacent bold
+    directly bold inline image, person chip or footnote reference just as from
+    text, and the font request clears such an element's bold as it does text's
+    (#1635; which kinds were checked live and which are assumed from the
+    schema is noted on `_STYLED_ELEMENT_KINDS`). Adjacent bold
     runs merge into one span, and table cells are walked with their content.
     A ParagraphElement sometimes carries no `startIndex` — the Docs API omits
     it, usually on a document's very first element — so the offset is carried
