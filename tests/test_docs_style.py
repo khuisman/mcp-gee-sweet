@@ -2231,6 +2231,77 @@ class TestApplyThemeTool:
         }
         assert _read_body_styles(doc)["NORMAL_TEXT"] == {"space_below": 4}
 
+    def _collapsed_after_table_doc(self, *, body_before=None, font_size=None):
+        """A heading, a final table, and text later added in the collapsed paragraph:
+        the style _build_trailing_para_after_table_collapse leaves there, as the API
+        returns it (a zero magnitude is omitted)."""
+        collapsed = {"lineSpacing": 1, "spaceAbove": {"unit": "PT"}, "spaceBelow": {"unit": "PT"}}
+        added = self._body_paragraph(collapsed, "added later\n", font="Georgia")
+        if font_size is not None:
+            text_style = added["paragraph"]["elements"][0]["textRun"]["textStyle"]
+            text_style["fontSize"] = {"magnitude": font_size, "unit": "PT"}
+        heading = {
+            "paragraph": {
+                "paragraphStyle": {"namedStyleType": "HEADING_1"},
+                "elements": [{"textRun": {"content": "Title\n", "textStyle": {}}}],
+            }
+        }
+        content = [heading, *([body_before] if body_before else []), {"table": {}}, added]
+        return {"body": {"content": content}}
+
+    def test_text_added_after_a_collapsed_final_table_gives_no_collapse_spacing(self):
+        """Its 1% line spacing as a theme overprints every body line (#1440). With no
+        other body text, it still gives its font."""
+        theme = _read_body_styles(self._collapsed_after_table_doc())
+        assert theme["NORMAL_TEXT"] == {"font_family": "Georgia"}
+
+    def test_a_block_before_the_table_decides_over_collapsed_text(self):
+        """Both are blocks; the first with text gives the fallback, as before."""
+        quote = self._body_paragraph(
+            {"borderLeft": {"width": {"magnitude": 3, "unit": "PT"}}}, "q\n", font="Arial"
+        )
+        theme = _read_body_styles(self._collapsed_after_table_doc(body_before=quote))
+        assert theme["NORMAL_TEXT"] == {"font_family": "Arial"}
+
+    def test_collapsed_paragraph_gives_no_one_point_font(self):
+        """The collapse sets 1pt on a quote separator and the line before a table."""
+        theme = _read_body_styles(self._collapsed_after_table_doc(font_size=1))
+        assert theme["NORMAL_TEXT"] == {"font_family": "Georgia"}
+
+    def test_collapsed_paragraph_keeps_a_real_font_size(self):
+        theme = _read_body_styles(self._collapsed_after_table_doc(font_size=12))
+        assert theme["NORMAL_TEXT"] == {"font_family": "Georgia", "font_size": 12}
+
+    def test_heading_made_from_collapsed_text_gives_no_collapse_spacing(self):
+        doc = self._collapsed_after_table_doc()
+        doc["body"]["content"] = doc["body"]["content"][1:]  # drop the earlier heading
+        doc["body"]["content"][-1]["paragraph"]["paragraphStyle"]["namedStyleType"] = "HEADING_2"
+        assert _read_body_styles(doc) == {"HEADING_2": {"font_family": "Georgia"}}
+
+    def test_collapsed_heading_doesnt_hide_a_later_real_heading(self):
+        """Text after table A made a HEADING_2 keeps the collapse; the real HEADING_2
+        after table B decides (PR #1647 QA round 1)."""
+        doc = self._collapsed_after_table_doc()
+        collapsed_heading = doc["body"]["content"][-1]
+        collapsed_heading["paragraph"]["paragraphStyle"]["namedStyleType"] = "HEADING_2"
+        real_heading = {
+            "paragraph": {
+                "paragraphStyle": {
+                    "namedStyleType": "HEADING_2",
+                    "spaceAbove": {"magnitude": 18, "unit": "PT"},
+                },
+                "elements": [{"textRun": {"content": "Real\n", "textStyle": {}}}],
+            }
+        }
+        doc["body"]["content"] += [{"table": {}}, real_heading]
+        assert _read_body_styles(doc)["HEADING_2"] == {"space_above": 18}
+
+    def test_one_percent_line_spacing_with_real_spacing_is_still_read(self):
+        """Only the whole collapse signature is the emitter's."""
+        style = {"lineSpacing": 1, "spaceBelow": {"magnitude": 4, "unit": "PT"}}
+        doc = {"body": {"content": [self._body_paragraph(style, "body\n")]}}
+        assert _read_body_styles(doc)["NORMAL_TEXT"] == {"line_spacing": 1, "space_below": 4}
+
     @staticmethod
     def _paragraph_gap_doc():
         """A gap paragraph, one with a quote edge's 8pt, and a heading at the gap's value."""
@@ -2393,6 +2464,88 @@ class TestApplyThemeTool:
         ]
         assert styles[0]["paragraphStyle"] == {}
         assert styles[-1]["paragraphStyle"]["spaceBelow"]["magnitude"] == 20
+
+    @staticmethod
+    def _collapse_doc():
+        """Body text; the 1pt collapsed line before a table; the table; the collapsed line
+        after it (no font set); then, still collapsed, text a user typed there later, an
+        image inserted there, and a line holding only a space."""
+        collapsed = {"lineSpacing": 1, "spaceAbove": {"unit": "PT"}, "spaceBelow": {"unit": "PT"}}
+        one_point = {"fontSize": {"magnitude": 1, "unit": "PT"}}
+
+        def paragraph(start, end, text, style=None, text_style=None):
+            return {
+                "startIndex": start,
+                "endIndex": end,
+                "paragraph": {
+                    "paragraphStyle": {"namedStyleType": "NORMAL_TEXT", **(style or {})},
+                    "elements": [{"textRun": {"content": text, "textStyle": text_style or {}}}],
+                },
+            }
+
+        image = paragraph(27, 29, "\n", collapsed)
+        image["paragraph"]["elements"].insert(0, {"inlineObjectElement": {"inlineObjectId": "i"}})
+        return {
+            "body": {
+                "content": [
+                    paragraph(1, 6, "body\n"),
+                    paragraph(6, 7, "\n", collapsed, one_point),
+                    {"startIndex": 7, "endIndex": 20, "table": {}},
+                    paragraph(20, 21, "\n", collapsed),
+                    paragraph(21, 27, "typed\n", collapsed),
+                    image,
+                    paragraph(29, 31, " \n", collapsed),
+                ]
+            }
+        }
+
+    async def _overwrite_requests(self, theme):
+        tools = self._setup()
+        mock_docs = MagicMock()
+        mock_docs.documents().get().execute.return_value = self._collapse_doc()
+        mock_docs.documents().batchUpdate().execute.return_value = {}
+        ctx = _make_ctx(docs_service=mock_docs, doc_cache=MagicMock())
+        await tools["apply_theme"](doc_id="doc123", theme=theme, ctx=ctx, overwrite=True)
+        requests = mock_docs.documents().batchUpdate.call_args[1]["body"]["requests"]
+        by_start: dict[int, list[dict]] = {}
+        for request in requests:
+            for kind in ("updateParagraphStyle", "updateTextStyle"):
+                if kind in request:
+                    start = request[kind]["range"]["startIndex"]
+                    by_start.setdefault(start, []).append({kind: request[kind]["fields"]})
+        return by_start
+
+    async def test_overwrite_keeps_an_empty_collapsed_paragraphs_collapse(self):
+        """The theme's spacing would undo the collapse (PR #1647 QA round 1)."""
+        theme = {
+            "NORMAL_TEXT": {
+                "line_spacing": 115,
+                "space_above": 4,
+                "space_below": 6,
+                "font_family": "Georgia",
+                "font_size": 11,
+            }
+        }
+        by_start = await self._overwrite_requests(theme)
+        both = [
+            {"updateParagraphStyle": "lineSpacing,spaceAbove,spaceBelow"},
+            {"updateTextStyle": "weightedFontFamily,fontSize"},
+        ]
+        assert by_start[1] == both
+        # The 1pt line before the table keeps its spacing and its 1pt font.
+        assert by_start[6] == [{"updateTextStyle": "weightedFontFamily"}]
+        # The line after the final table keeps its spacing; it has the doc's font size.
+        assert by_start[20] == [{"updateTextStyle": "weightedFontFamily,fontSize"}]
+        # Text typed into it gets the theme's spacing back, as insert_doc_text does, and so
+        # do an image and a line of whitespace: at 1% they overlap the table (PR #1647
+        # QA round 2).
+        assert by_start[21] == both
+        assert by_start[27] == both
+        assert by_start[29] == both
+
+    async def test_overwrite_with_only_spacing_sends_nothing_for_a_collapsed_line(self):
+        by_start = await self._overwrite_requests({"NORMAL_TEXT": {"line_spacing": 115}})
+        assert set(by_start) == {1, 21, 27, 29}
 
     async def test_get_doc_theme_returns_theme_dict(self):
         tools = self._setup()

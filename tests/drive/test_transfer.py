@@ -700,9 +700,8 @@ class TestUploadLocalFileConvert:
         assert create_kwargs["body"]["mimeType"] == target_mime
 
         update_calls = drive_svc.files.return_value.update.call_args_list
-        # The restamp is one update among possibly two — #1309's display-name
-        # extension strip may fire its own name-only update afterwards — so find
-        # it by its body, not by call order.
+        # Found by its body, not by call order, so another metadata update
+        # added later can't be mistaken for it.
         restamp_calls = [
             c for c in update_calls if c.kwargs.get("body") == {"modifiedTime": expected_mtime}
         ]
@@ -7936,3 +7935,317 @@ class TestCallsThatWriteNothingCreateNoDirectories:
 
         assert result["failed"] == []
         assert _tree(tmp_path) == {"new", "new/sub"}
+
+
+class _ImportingDrive(_FakeDriveFS):
+    """_FakeDriveFS whose create() returns a `version` and whose files().get()
+    reports that version moving on only after `writes_after` polls, the way
+    Drive's import conversion writes to a new file a second or two after
+    create() returns (#1415). `events` records the calls in order."""
+
+    def __init__(
+        self,
+        children,
+        *,
+        created_version: str | None = "4",
+        writes_after: int | None = 2,
+        get_error: Exception | None = None,
+    ):
+        super().__init__(children)
+        self.created_version = created_version
+        self.writes_after = writes_after
+        self.get_error = get_error
+        # Raised by the first polls, one each, before any answers.
+        self.get_errors_first: list[Exception] = []
+        self.create_fields: list[str] = []
+        self.get_polls = 0
+        self.events: list[str] = []
+        self.svc.files.return_value.get.side_effect = self._get
+
+    def _create(self, **kwargs):
+        self.create_fields.append(kwargs.get("fields", ""))
+        self.events.append("create")
+        resp = super()._create(**kwargs)
+        resp.execute.return_value = {
+            **resp.execute.return_value,
+            "version": self.created_version,
+        }
+        return resp
+
+    def _get(self, **kwargs):
+        resp = MagicMock()
+        if self.get_errors_first:
+            self.events.append("get:error")
+            resp.execute.side_effect = self.get_errors_first.pop(0)
+            return resp
+        if self.get_error is not None:
+            self.events.append("get:error")
+            resp.execute.side_effect = self.get_error
+            return resp
+        self.get_polls += 1
+        moved = self.writes_after is not None and self.get_polls > self.writes_after
+        created = int(self.created_version or 0)
+        version = str(created + 1 if moved else created)
+        self.events.append(f"get:{version}")
+        resp.execute.return_value = {"version": version}
+        return resp
+
+    def _update(self, **kwargs):
+        if "media_body" not in kwargs:
+            self.events.append("restamp")
+        return super()._update(**kwargs)
+
+
+def _http_error(status: int, reason: str | None = None) -> HttpError:
+    resp = MagicMock()
+    resp.status = status
+    body = {"error": {"errors": [{"reason": reason}]}} if reason else {}
+    return HttpError(resp=resp, content=json.dumps(body).encode())
+
+
+def _importing_ctx(fs: _FakeDriveFS):
+    ctx = MagicMock()
+    ctx.request_context.lifespan_context.drive_service = fs.svc
+    ctx.request_context.lifespan_context.drive_folder_cache = MagicMock()
+    ctx.report_progress = AsyncMock()
+    return ctx
+
+
+@pytest.fixture
+def _fast_import_poll(monkeypatch):
+    monkeypatch.setattr(transfer_module, "_IMPORT_WRITE_POLL_SECONDS", 0)
+
+
+@pytest.mark.usefixtures("_fast_import_poll")
+class TestRestampWaitsForImportWrite:
+    """#1415: Drive's import conversion moves a converted file's modifiedTime
+    a second or two after create() returns, so a restamp sent before that
+    write was overwritten (3 of 24 CSV → Sheet uploads under OAuth, 6 of 24
+    under a service account, measured live). The restamp now waits until the
+    file's version moves past the one create() returned."""
+
+    async def test_upload_local_file_restamps_only_after_the_version_moves(self, tmp_path):
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2\n")
+        fs = _ImportingDrive({"folder1": []}, writes_after=2)
+
+        result = await _upload_local_file(
+            fs.svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        assert "version" in fs.create_fields[0]
+        assert fs.events == ["create", "get:4", "get:4", "get:5", "restamp"]
+
+    async def test_version_already_past_create_restamps_after_one_poll(self, tmp_path):
+        local_file = tmp_path / "deck.pptx"
+        local_file.write_bytes(b"pptx")
+        fs = _ImportingDrive({"folder1": []}, created_version="5", writes_after=0)
+
+        result = await _upload_local_file(
+            fs.svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        assert fs.events == ["create", "get:6", "restamp"]
+
+    async def test_no_write_within_the_bound_still_restamps(self, tmp_path, monkeypatch):
+        """If Drive stops making the write, the restamp goes out as it did
+        before the wait existed, not never."""
+        monkeypatch.setattr(transfer_module, "_IMPORT_WRITE_WAIT_SECONDS", 0.05)
+        monkeypatch.setattr(transfer_module, "_IMPORT_WRITE_POLL_SECONDS", 0.01)
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2\n")
+        fs = _ImportingDrive({"folder1": []}, writes_after=None)
+
+        result = await _upload_local_file(
+            fs.svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        assert fs.events[-1] == "restamp"
+        assert fs.events.count("restamp") == 1
+        assert 1 < fs.get_polls < 20
+
+    async def test_transient_poll_errors_keep_polling(self, tmp_path):
+        """PR #1648 QA round 1: a 503 or a 429 on the version read says nothing
+        about the import, so the wait goes on rather than restamping early,
+        which is what loses under quota pressure."""
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2\n")
+        fs = _ImportingDrive({"folder1": []}, writes_after=0)
+        fs.get_errors_first = [_http_error(503), _http_error(429), TimeoutError("slow")]
+
+        result = await _upload_local_file(
+            fs.svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        assert fs.events == [
+            "create",
+            "get:error",
+            "get:error",
+            "get:error",
+            "get:5",
+            "restamp",
+        ]
+
+    async def test_rate_limit_403_keeps_polling(self, tmp_path):
+        """PR #1648 QA round 2: Drive also refuses for quota with a 403
+        (rateLimitExceeded, userRateLimitExceeded), which is no answer about the
+        import either."""
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2\n")
+        fs = _ImportingDrive({"folder1": []}, writes_after=0)
+        fs.get_errors_first = [
+            _http_error(403, "rateLimitExceeded"),
+            _http_error(403, "userRateLimitExceeded"),
+        ]
+
+        result = await _upload_local_file(
+            fs.svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        assert fs.events == ["create", "get:error", "get:error", "get:5", "restamp"]
+
+    async def test_transient_poll_errors_until_the_bound_still_restamp(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(transfer_module, "_IMPORT_WRITE_WAIT_SECONDS", 0.05)
+        monkeypatch.setattr(transfer_module, "_IMPORT_WRITE_POLL_SECONDS", 0.01)
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2\n")
+        fs = _ImportingDrive({"folder1": []}, get_error=_http_error(503))
+
+        result = await _upload_local_file(
+            fs.svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        assert fs.events.count("get:error") > 1
+        assert fs.events[-1] == "restamp"
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            RuntimeError("blip"),
+            _http_error(404),
+            _http_error(403, "insufficientFilePermissions"),
+        ],
+        ids=["unexpected", "404", "403-not-rate-limit"],
+    )
+    async def test_non_transient_poll_error_restamps_without_waiting(self, tmp_path, error):
+        """A 404, a 403 that isn't a rate limit, or an unexpected error won't
+        improve with time: the restamp goes out, and any real problem (the
+        file gone) surfaces from it with the fileId."""
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2\n")
+        fs = _ImportingDrive({"folder1": []}, get_error=error)
+
+        result = await _upload_local_file(
+            fs.svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        assert fs.events == ["create", "get:error", "restamp"]
+
+    async def test_cancel_during_the_wait_still_restamps(self, tmp_path, monkeypatch):
+        """PR #1648 QA round 1: the file exists once create() returns, so a
+        cancellation during the wait must not drop its restamp (the #1415
+        symptom). The wait and the restamp are shielded; the cancel lands
+        after them."""
+        monkeypatch.setattr(transfer_module, "_IMPORT_WRITE_POLL_SECONDS", 0.01)
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2\n")
+        fs = _ImportingDrive({"folder1": []}, writes_after=5)
+        finished = []
+
+        async def upload():
+            finished.append(
+                await _upload_local_file(
+                    fs.svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+                )
+            )
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(upload)
+            with anyio.fail_after(5):
+                while fs.get_polls < 1:
+                    await anyio.sleep(0.001)
+            tg.cancel_scope.cancel()
+
+        assert finished == []  # the cancel still reached the caller
+        assert fs.events[-1] == "restamp"
+        assert fs.events.count("restamp") == 1
+        assert fs.events[-2] == "get:5"  # it waited for the import first
+
+    async def test_create_without_version_restamps_at_once(self, tmp_path):
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2\n")
+        fs = _ImportingDrive({"folder1": []}, created_version=None)
+
+        result = await _upload_local_file(
+            fs.svc, str(local_file), "folder1", skip_if_exists=False, convert=True
+        )
+
+        assert "error" not in result
+        assert fs.events == ["create", "restamp"]
+
+    async def test_plain_upload_does_not_wait(self, tmp_path):
+        local_file = tmp_path / "data.csv"
+        local_file.write_text("a,b\n1,2\n")
+        fs = _ImportingDrive({"folder1": []})
+
+        result = await _upload_local_file(fs.svc, str(local_file), "folder1", skip_if_exists=False)
+
+        assert "error" not in result
+        assert fs.events == ["create"]
+
+    async def test_upload_local_folder_waits_for_each_file(self, tmp_path):
+        (tmp_path / "a.csv").write_text("a\n1\n")
+        (tmp_path / "b.csv").write_text("b\n2\n")
+        fs = _ImportingDrive({"folder1": []}, writes_after=1)
+
+        result = await _transfer_tools["upload_local_folder"](
+            local_path=str(tmp_path),
+            parent_folder_id="folder1",
+            convert=True,
+            ctx=_importing_ctx(fs),
+        )
+
+        assert sorted(result["uploaded"]) == ["a.csv", "b.csv"]
+        assert fs.events.count("restamp") == 2
+        # Each restamp follows a poll that saw the version move.
+        for i, event in enumerate(fs.events):
+            if event == "restamp":
+                assert fs.events[i - 1] == "get:5"
+
+    async def test_sync_folder_convert_markdown_restamps_after_the_version_moves(self, tmp_path):
+        (tmp_path / "notes.md").write_text("# Heading")
+        fs = _ImportingDrive({"root": []}, writes_after=1)
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            convert_markdown=True,
+            ctx=_importing_ctx(fs),
+        )
+
+        assert result["uploaded"] == ["notes.md"]
+        assert "version" in fs.create_fields[0]
+        assert fs.events == ["create", "get:4", "get:5", "restamp"]
+
+    async def test_sync_folder_plain_upload_neither_asks_for_version_nor_waits(self, tmp_path):
+        (tmp_path / "notes.txt").write_text("x")
+        fs = _ImportingDrive({"root": []})
+
+        result = await _transfer_tools["sync_folder"](
+            folder_id="root",
+            local_path=str(tmp_path),
+            direction="upload",
+            ctx=_importing_ctx(fs),
+        )
+
+        assert result["uploaded"] == ["notes.txt"]
+        assert fs.create_fields == ["id"]
+        assert fs.events == ["create"]

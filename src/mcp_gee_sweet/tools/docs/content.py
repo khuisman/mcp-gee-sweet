@@ -19,7 +19,7 @@ from ...deprecation import deprecated_tool
 from ...local_files import LocalFileAccessError, check_read, check_write
 from ..drive import _FolderInvalidation, _quota_error_text
 from ..drive.transfer import _GOOGLE_DOC_MIME
-from ..http_errors import http_error_has_reason, is_storage_quota_error
+from ..http_errors import http_error_has_reason, is_rate_limit_403, is_storage_quota_error
 from ..response_limits import enforce_response_size_cap, write_capped_result_to_disk
 from .anchors import compute_scheme_slugs, resolve_heading_anchor
 from .ast import (
@@ -609,9 +609,6 @@ async def _doc_parents(drive_service, doc_id: str) -> tuple[list[str] | None, Ex
     return metadata.get("parents"), None
 
 
-_RATE_LIMIT_REASONS = ("rateLimitExceeded", "userRateLimitExceeded")
-
-
 def _doc_unreachable(e: Exception) -> bool:
     """True when a Drive read of the doc failed because the doc isn't there or this
     account can't read it: a 404, or a 403 that isn't a rate limit. That's the doc's
@@ -621,9 +618,7 @@ def _doc_unreachable(e: Exception) -> bool:
         return False
     if e.resp.status == 404:
         return True
-    return e.resp.status == 403 and not any(
-        http_error_has_reason(e, 403, reason) for reason in _RATE_LIMIT_REASONS
-    )
+    return e.resp.status == 403 and not is_rate_limit_403(e)
 
 
 async def _create_doc_file(
