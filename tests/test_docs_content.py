@@ -1540,6 +1540,55 @@ class TestContainerInOpenBlockBreaksItsText:
         assert [_node_text(n) for n in nodes] == ["a", "b", " t"]
         assert [type(r).__name__ for r in nodes[2].runs] == ["Image", "Run"]
 
+    def test_an_inline_end_tag_after_the_container_lowers_its_style(self):
+        # #1587 review: the inline tags the split <p> holds stay live across
+        # the container, so their end tags must count in the continuation
+        # too, where the text-only gate left the depth raised — "c" after
+        # the </b> read bold, as no other paragraph's text does. Every inline
+        # style lowers the same way, as on develop.
+        nodes = html_to_ast("<p><b>a<div>b</div></b>c</p>")
+        assert [_node_text(n) for n in nodes] == ["a", "b", "c"]
+        assert all(r.bold for r in nodes[0].runs)
+        assert all(r.bold for r in nodes[1].runs)
+        assert all(not r.bold for r in nodes[2].runs)
+        for html, attr in (
+            ("<p><i>a<div>b</div></i>c</p>", "italic"),
+            ("<p><u>a<div>b</div></u>c</p>", "underline"),
+            ("<p><s>a<div>b</div></s>c</p>", "strikethrough"),
+        ):
+            nodes = html_to_ast(html)
+            assert [_node_text(n) for n in nodes] == ["a", "b", "c"]
+            assert all(getattr(r, attr) for r in nodes[1].runs)
+            assert all(not getattr(r, attr) for r in nodes[2].runs)
+        nodes = html_to_ast("<p><code>a<div>b</div></code>c</p>")
+        assert [_node_text(n) for n in nodes] == ["a", "b", "c"]
+        assert all(r.font_family == "Courier New" for r in nodes[1].runs)
+        assert all(r.font_family is None for r in nodes[2].runs)
+
+    def test_an_only_content_heading_or_styled_p_in_a_container_keeps_its_own_shape(self):
+        # #1587 review: the container's keep-local return ran before the
+        # list-item heading and named-style branches, so a heading or a
+        # styled <p> that was the item's only content, wrapped in a container,
+        # lost its level or style and read as a plain bullet. With no text in
+        # the segment yet the local return stands aside, and those branches
+        # apply as they did without the container — a bulleted heading keeps
+        # its level and a `data-style` paragraph its NamedBlock identity, as
+        # on develop.
+        nodes = html_to_ast("<ul><li><div><h3>T</h3></div></li></ul>")
+        assert [type(n).__name__ for n in nodes] == ["BulletItem"]
+        assert nodes[0].heading_level == 3
+        assert _node_text(nodes[0]) == "T"
+        nodes = html_to_ast('<ul><li><div><p data-style="title">S</p></div></li></ul>')
+        assert [type(n).__name__ for n in nodes] == ["BulletItem", "NamedBlock"]
+        assert _node_text(nodes[0]) == ""
+        assert nodes[1].style_type == "TITLE"
+        assert _node_text(nodes[1]) == "S"
+        # With text before it the container still keeps the block local —
+        # the break it draws is the boundary, as the pinned tests above read.
+        nodes = html_to_ast("<ul><li>a<div><h3>T</h3></div>c</li></ul>")
+        assert [type(n).__name__ for n in nodes] == ["BulletItem"]
+        assert _node_text(nodes[0]) == "a\vT\vc"
+
     def test_blocks_inside_a_construct_nested_in_the_container_keep_their_shape(self):
         # #1587 review: the container element outlives the construct that
         # interrupted the outer block, but its keep-local rule died with its

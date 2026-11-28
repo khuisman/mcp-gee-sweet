@@ -164,6 +164,8 @@ def _visible_len(text: str) -> int:
     ("\v") removed — a break draws a line, not letters, buffered or flushed
     alike, where a flushed "\v" used to count as text."""
     return len(text.strip(_ASCII_FORMATTING_WHITESPACE).replace("\v", ""))
+
+
 # A browser's parser implies </caption> at any of these start tags, plus at a second
 # <caption>: the same implied close keeps one caption's capture from swallowing the
 # table's own content, and keeps a reopened caption from reading as one run with the
@@ -1210,6 +1212,7 @@ class _AstParser(HTMLParser):
                 _, epoch = element.container_in_block
                 return epoch == self._segment_epoch
         return False
+
     def _in_text_content(self) -> bool:
         """Whether buffered text is being captured right now: an open block's, a
         table cell's, or a caption's — the one gate the start- and end-tag inline
@@ -1998,8 +2001,14 @@ class _AstParser(HTMLParser):
             # became a node of its own, so the block can't become one either —
             # its boundaries read as the line breaks a browser's box draws, the
             # same way a <p> inside a caption does (#1550), and the outer block's
-            # segment keeps its text instead of the item splitting.
-            if self._in_block_container():
+            # segment keeps its text instead of the item splitting. Only while
+            # the segment has text: with nothing of the block's own before it
+            # (#1587 review), a heading or a styled <p> that is the item's only
+            # content, wrapped in a container, is that item's own content as it
+            # was without the container — a bulleted heading keeps its level
+            # and a `data-style` paragraph its NamedBlock identity — where the
+            # local return ran before those branches and read the item plain.
+            if self._in_block_container() and self._tail_kind() != "none":
                 if self._tail_kind() == "text":
                     self._flush_run()
                     self._run_buf.append(_LineBreak("\v"))
@@ -2637,7 +2646,12 @@ class _AstParser(HTMLParser):
 
         # --- inline elements / unrecognized tags ---
         # _pop_elements already took a counted element out of _tag_depth.
-        if self._in_text_content():
+        # The split <p>'s own inline end tags count here too (#1587 review):
+        # while _p_split_pending holds — no block or table open — an inline
+        # tag the <p> holds closes in its continuation, where the text-only
+        # gate left its depth raised: `<p><b>a<div>b</div></b>c</p>` kept "c"
+        # bold, where the count lowers and "c" reads plain as on develop.
+        if self._in_text_content() or (self._p_split_pending and self._table_depth == 0):
             self._flush_run()
             if tag in _INLINE_BOLD:
                 self._bold_depth = max(0, self._bold_depth - 1)
