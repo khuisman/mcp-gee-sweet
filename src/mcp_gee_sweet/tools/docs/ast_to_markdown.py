@@ -82,6 +82,13 @@ _LEADING_BLOCKQUOTE_MARKER = re.compile(r"^>")
 _RULE = "---"
 _FIRST_LINE_RULE = "***"
 
+# The text of an empty item that opens a sublist (#1323). Its line follows the
+# parent item's text, and CommonMark lets an item interrupt a paragraph only when
+# it has content: "- a\n  - " reads the bare "-" as a setext underline (a heading),
+# and "1. a\n   1. " as more of the parent's text. An HTML comment is content that
+# shows nothing, and html_parser ignores it, so the item reads back empty.
+_EMPTY_SUBLIST_ITEM_TEXT = "<!-- -->"
+
 _NESTED_TABLE_PLACEHOLDER = (
     "*(nested table omitted — Markdown tables can't contain a table; "
     "use get_doc_structure for full fidelity)*"
@@ -212,7 +219,7 @@ class _OpenItems:
             self._items.append((len(prefix), quote))
             self._margin_quote = quote
             self._inner_quote = None
-            return _render_block(node, item_prefix=prefix)
+            return _render_block(node, item_prefix=prefix, opens_sublist=opens_sublist)
         list_depth = node.list_depth
         if list_depth is None or list_depth >= len(self._items):
             self._items.clear()
@@ -364,11 +371,14 @@ def _render_block(
     node: Heading | Paragraph | BulletItem | NamedBlock,
     blockquote_depth: int | None = None,
     item_prefix: str = "",
+    opens_sublist: bool = False,
 ) -> str:
     """`blockquote_depth` overrides the node's own, for a block whose outer quote
     levels its caller writes (see `_OpenItems`). `item_prefix` is a list item's
     indent and marker, from `_item_prefix`, whose length `_OpenItems` records as
-    the column the item's children nest under."""
+    the column the item's children nest under. `opens_sublist` (`_opens_sublist`)
+    says the item's line follows its parent's text, where an item with no text
+    is written as `_EMPTY_SUBLIST_ITEM_TEXT` (#1323)."""
     if isinstance(node, Paragraph) and node.rule:
         body = _RULE
     elif isinstance(node, Paragraph) and _is_code_block(node):
@@ -389,6 +399,8 @@ def _render_block(
             # Text after the marker starts the item's first block, so "# a" or
             # "> a" there would read as a heading or quote inside the item.
             text = _escape_leading_block_marker(text)
+            if opens_sublist and not text and node.checked is None:
+                text = _EMPTY_SUBLIST_ITEM_TEXT
         body = f"{item_prefix}{_checkbox(node)}{text}"
     else:
         body = _escape_leading_block_marker(_render_inline(node.runs))

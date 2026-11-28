@@ -4386,3 +4386,198 @@ class TestTaskItemContentColumn:
 
     def test_ordered_task_item_keeps_a_dash_marker(self):
         assert ast_to_markdown([_bullet("a", ordered=True, checked=False)]) == "- [ ] a\n"
+
+
+def _empty_bullet(depth=0, ordered=False, number=None, **kwargs):
+    if ordered and number is None:
+        number = 1
+    return BulletItem(runs=[], depth=depth, ordered=ordered, number=number, **kwargs)
+
+
+def _code_block(text, list_depth):
+    return Paragraph(runs=[_code(text)], list_depth=list_depth)
+
+
+def _shape(nodes):
+    """What a round trip has to keep: each node's type, text, item depth, the
+    item it's inside, and its quote depth."""
+    return [
+        (
+            type(n).__name__,
+            "".join(getattr(r, "text", "") for r in getattr(n, "runs", None) or []),
+            getattr(n, "depth", None),
+            getattr(n, "list_depth", None),
+            n.blockquote_depth,
+        )
+        for n in nodes
+    ]
+
+
+def _reimported(markdown_text):
+    return html_to_ast(md_to_html._md_to_html(markdown_text))
+
+
+class TestEmptyFirstSubItem:
+    """#1323: an empty item opening a sublist sat right under its parent's text as
+    a bare marker, and CommonMark lets only an item with content interrupt a
+    paragraph. "- a\\n  - " read the "-" as a setext underline, turning the parent
+    into a heading and dropping the item; "1. a\\n   1. " read as more of the
+    parent's text. The item's text is now an HTML comment, which html_parser
+    ignores. Every case is checked under plain CommonMark and as a round trip
+    through our own import."""
+
+    @pytest.mark.parametrize(
+        "nodes, expected",
+        [
+            pytest.param(
+                [_bullet("a"), _empty_bullet(1), _bullet("c", 1)],
+                "- a\n  - <!-- -->\n  - c\n",
+                id="bullet",
+            ),
+            pytest.param(
+                [
+                    _bullet("a", ordered=True),
+                    _empty_bullet(1, ordered=True),
+                    _bullet("b", 1, ordered=True, number=2),
+                ],
+                "1. a\n   1. <!-- -->\n   2. b\n",
+                id="ordered",
+            ),
+            pytest.param(
+                [_bullet("a", ordered=True, number=10), _empty_bullet(1, ordered=True)],
+                "10. a\n    1. <!-- -->\n",
+                id="under-a-wide-number",
+            ),
+            pytest.param(
+                [_bullet("a"), _empty_bullet(1), _bullet("b")],
+                "- a\n  - <!-- -->\n- b\n",
+                id="only-child",
+            ),
+            pytest.param(
+                [_bullet("a"), _empty_bullet(1), _bullet("g", 2), _bullet("b")],
+                "- a\n  - <!-- -->\n    - g\n- b\n",
+                id="with-a-child-of-its-own",
+            ),
+            pytest.param(
+                [_bullet("a"), _empty_bullet(1), _empty_bullet(2), _bullet("c", 2)],
+                "- a\n  - <!-- -->\n    - <!-- -->\n    - c\n",
+                id="empty-under-empty",
+            ),
+            pytest.param(
+                [
+                    _bullet("a", blockquote_depth=1),
+                    _empty_bullet(1, blockquote_depth=1),
+                    _bullet("c", 1, blockquote_depth=1),
+                ],
+                "> - a\n>   - <!-- -->\n>   - c\n",
+                id="quoted",
+            ),
+            pytest.param(
+                [_bullet("a", checked=False), _empty_bullet(1), _bullet("c", 1)],
+                "- [ ] a\n  - <!-- -->\n  - c\n",
+                id="under-a-task-item",
+            ),
+            pytest.param(
+                [_bullet("a"), _empty_bullet(1), _code_block("x", 1), _bullet("b")],
+                "- a\n  - <!-- -->\n    ```\n    x\n    ```\n\n- b\n",
+                id="holding-a-code-block",
+            ),
+        ],
+    )
+    def test_reads_back_as_an_empty_item(self, nodes, expected):
+        md = ast_to_markdown(nodes)
+        assert md == expected
+        html = _tight_html(md)
+        assert "<h2>" not in html
+        assert html.count("<li>") == sum(isinstance(n, BulletItem) for n in nodes)
+        assert _shape(_reimported(md)) == _shape(nodes)
+
+    def test_whitespace_only_text_counts_as_empty(self):
+        nodes = [_bullet("a"), BulletItem(runs=[Run(text="  ")], depth=1), _bullet("c", 1)]
+        md = ast_to_markdown(nodes)
+        assert md == "- a\n  - <!-- -->\n  - c\n"
+        assert "<h2>" not in _tight_html(md)
+
+    @pytest.mark.parametrize(
+        "nodes, expected",
+        [
+            pytest.param(
+                [_bullet("a"), _empty_bullet(), _bullet("c")], "- a\n- \n- c\n", id="sibling"
+            ),
+            pytest.param([_empty_bullet()], "- \n", id="alone"),
+            pytest.param(
+                [_bullet("a"), _empty_bullet(1, checked=False)], "- a\n  - [ ] \n", id="task"
+            ),
+        ],
+    )
+    def test_an_empty_item_that_interrupts_nothing_stays_bare(self, nodes, expected):
+        """A sibling item doesn't interrupt the paragraph before it, and a task
+        item's box is its text, so neither needs the comment."""
+        assert ast_to_markdown(nodes) == expected
+
+
+class TestEmptyItemHoldingOnlyABlock:
+    """#1324: an empty item whose only content is a block exported a blank line
+    after its marker, and CommonMark ends an item that starts blank at that line,
+    so the block fell out of the list and the next item restarted it. PR #1326's
+    separator fix (a newline after an empty item, `_starts_empty_item`) covered
+    this, with only a rule tested (`test_docs_rule.py`); these pin the shapes the
+    issue reported."""
+
+    @pytest.mark.parametrize(
+        "block, expected",
+        [
+            pytest.param(
+                _code_block("x", 0),
+                "1. \n   ```\n   x\n   ```\n\n2. b\n",
+                id="code-block",
+            ),
+            pytest.param(
+                Paragraph(runs=[Run(text="q")], list_depth=0, blockquote_depth=1),
+                "1. \n   > q\n\n2. b\n",
+                id="quote",
+            ),
+        ],
+    )
+    def test_block_stays_in_the_empty_item(self, block, expected):
+        nodes = [_empty_bullet(ordered=True), block, _bullet("b", ordered=True, number=2)]
+        md = ast_to_markdown(nodes)
+        assert md == expected
+        tokens = [t.type for t in _COMMONMARK.parse(md)]
+        assert tokens.count("ordered_list_open") == 1
+        assert tokens.count("list_item_open") == 2
+        assert _shape(_reimported(md)) == _shape(nodes)
+
+    def test_table_stays_in_the_empty_item(self):
+        table = Table(rows=[Row(cells=[Cell(children=[Run(text="c")])])], list_depth=0)
+        nodes = [_empty_bullet(), table, _bullet("b")]
+        md = ast_to_markdown(nodes)
+        assert md == "- \n  | c |\n  | --- |\n\n- b\n"
+        tokens = [t.type for t in _COMMONMARK.parse(md)]
+        assert tokens.count("bullet_list_open") == 1
+        assert tokens.count("table_open") == 1
+        assert _shape(_reimported(md)) == _shape(nodes)
+
+
+class TestNestedListParsesTheSameEverywhere:
+    """#1314's done-when: an exported list with bullet and numbered children
+    under numbered parents, one numbered 10 or higher, nests the same under plain
+    CommonMark as under our own import. #1128 fixed the indent
+    (`TestNestedListIndentsToParentContentColumn`); this compares the parsers."""
+
+    def test_issue_examples(self):
+        nodes = [
+            _bullet("Top", ordered=True),
+            _bullet("Nested", 1),
+            _bullet("Sub", 1, ordered=True),
+            _bullet("Next", ordered=True, number=2),
+            _bullet("Ten", ordered=True, number=10),
+            _bullet("Deep", 1, ordered=True),
+            _bullet("Deeper", 2),
+            _bullet("Eleven", ordered=True, number=11),
+        ]
+        md = ast_to_markdown(nodes)
+        plain = "".join(MarkdownIt("commonmark").render(md).split())
+        ours = "".join(md_to_html._md_to_html(md).split())
+        assert plain == ours
+        assert _shape(_reimported(md)) == _shape(nodes)
