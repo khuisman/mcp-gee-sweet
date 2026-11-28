@@ -901,6 +901,9 @@ Tool calls: `create_doc(title="TC-DOC280", content="1. A\n    - a1\n2. B\n3. C\n
 Before: A, B, C on one `listId` at level 0 and a1 on its own at level 1, at (18, 36) / (54, 72). After re-bulleting B, then C, then A (a raw `documents().get()` after each): the same grouping, levels and indents each time. `get_doc_as_markdown`: `1. A` / `   - a1` / `2. B` / `3. C`. Not run: the on-screen check (Playwright not connected). Doc trashed.
 Extra probes: (1) a native checklist (`BULLET_CHECKBOX`, made with this tool) nested under A comes back a decimal numbered list when B is re-bulleted; before this PR a nested list wasn't touched. (2) A list item whose `borderLeft` was set to width 0 (Docs keeps the key, `width: {unit: PT}`) moves from (18, 36) to (54, 72) when a neighbour is re-bulleted. (3) `1. A1` / `- B1` / `- B2` / `- B3` / `2. A2`, requesting A1 and B2 (level 1) in one call: B2 moves into A's numbered list (export `1. B2`) and B1 and B3 become two lists. All three sent back.
 
+**Result (2026-11-28) 🟡 PARTIAL — Kit, QA round 2 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `32e4d53e`, reconnected after the reset**
+Re-bulleting B, then C, then A: A, B, C on one `listId` at level 0 after each, and a1 on its own at level 1 (the converter's bullet list passes `_exact_preset`). `get_doc_as_markdown`: `1. A` / `   - a1` / `2. B` / `3. C`. Not run: the on-screen check (Playwright not connected). Round 1's probes are TC-DOC284 now. Doc trashed.
+
 ### TC-DOC281: Re-bulleting an item after a paragraph inside the item above keeps the numbering (#1339) ⚠️ destructive ⚠️ requires-oauth
 
 **Background:** found while fixing #1288 (live, 2026-11-28): the expansion also stopped at an unlisted paragraph inside an item (#1094's block in an item, indented to the item's text), with the same restart. It now takes the block in and gives it back: bullet removed, its own indents restored.
@@ -921,6 +924,9 @@ Tool calls: `create_doc(title="TC-DOC281", content=<above>, content_format="mark
 **Result (2026-11-28) 🟡 PARTIAL — Kit, QA round 1 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `9201ff8c`, reconnected after the reset**
 After re-bulleting C: A, B, C share one `listId`; b1 and b2 keep their own lists at level 1; "inside A" and "inside b1" are unlisted at (36, 36), as before. `get_doc_as_markdown` reads the input back. Not run: the on-screen check (Playwright not connected). Doc trashed.
 Extra probe, a block inside a *nested* item: `1. A` / `    - b1` / `      inside b1` (72, 72) / `2. B`. Re-bulleting A gave A a new `listId` and left B on the old one, so B restarts at 1: the walk stops at a block inside the sublist's item. Sent back.
+
+**Result (2026-11-28) 🟡 PARTIAL — Kit, QA round 2 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `32e4d53e`, reconnected after the reset**
+After re-bulleting C: A, B, C on one `listId`; b1 and b2 on lists of their own at level 1; "inside A" and "inside b1" unlisted at (36, 36). Not run: the on-screen check (Playwright not connected). The nested-item block probe from round 1 is TC-DOC284 step 4 now, which passed. Doc trashed.
 
 ### TC-DOC282: A paragraph bulleted right after a same-style list starts its own list, at the requested level (#1297) ⚠️ destructive ⚠️ requires-oauth
 
@@ -963,6 +969,10 @@ Tool calls: `create_doc(title="TC-DOC283", content=<above>, content_format="mark
 Before: quoted items at (54, 72) / (90, 108), "Quoted plain" unlisted at (36, 36), all with a 3pt `borderLeft`. After each `create_paragraph_bullets`: "Quoted item one" (54, 72), "Quoted nested" (90, 108), "Quoted plain" a level-0 item at (54, 72), QB (54, 72) with qa1 still on its own bullet list at (90, 108), every border kept. After the delete: (36, 36) and (72, 72), unlisted, borders kept; the export writes `> Quoted item one` and `> > Quoted nested`. Doc trashed.
 Extra probe, re-bulleting the two deleted items in one call (item one at level 0, nested at level 1): "Quoted nested" lands at (126, 144), not (90, 108). Its leftover 36pt level indent reads as a second quote level. Sent back.
 
+**Result (2026-11-28) ✅ PASS — Kit, QA round 2 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `32e4d53e`, reconnected after the reset**
+After each `create_paragraph_bullets`: "Quoted item one" (54, 72), "Quoted nested" (90, 108), "Quoted plain" a level-0 item at (54, 72), QB (54, 72) with qa1 on its own bullet list at (90, 108), every border kept. After the delete: both items unlisted at (36, 36) with their borders; the export writes `> Quoted item one` / `>` / `> Quoted nested`, one quote deep. The re-bullet round trip gives (54, 72) and (90, 108). Doc trashed.
+Extra probes, a quoted paragraph beside a list: (1) `- A` / `> x` (x at (36, 36), touching A) and `1. N1` / `    1. n2` / `> y`: `create_paragraph_bullets` on x, then on y, leaves each at (18, 36) with its border, the #1090 symptom (expected (54, 72), which round 1's head gave). `_item_holding` reads each as a block inside the item above it and takes that item's quote depth of 0. (2) `- A` / `  > q` (72, 72) / `- B`, bulleting q: (90, 108), a quote two deep, not (54, 72). (3) `1. A` / `   > q` / `2. B`, re-bulleting B: B on a new `listId`, and the export reads `1. B`; the walk doesn't take in a quoted block inside an unquoted item. All three sent back.
+
 ### TC-DOC284: What the walk keeps out, and what it keeps in its own list (PR #1662 QA round 1) ⚠️ destructive ⚠️ requires-oauth
 
 **Background:** PR #1662's QA round 1. The walk past what sits inside an item re-created a nested list with one of the two presets, so a nested checklist came back numbered; it stopped at a block inside a nested item; it moved a requested paragraph of a nested list into the outer list, splitting its own; and a zero-width left border read as a quote. Now a nested list goes back out only when a preset remakes it exactly (else the walk stops, as before #1288's fix), a block is checked against the listed paragraph just before it, a requested paragraph kept deeper than its item stays in its own list, and a quote needs a border with a width.
@@ -985,6 +995,9 @@ Tool calls: `create_doc(title="TC-DOC284", content=<above>, content_format="mark
 - 5: "edge" stays at (18, 36).
 
 **Cleanup:** trash the doc.
+
+**Result (2026-11-28) ✅ PASS — Kit, QA round 2 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `32e4d53e`, reconnected after the reset**
+Setup as written: a1 became a checklist item (`GLYPH_TYPE_UNSPECIFIED` at every level) on its own `listId`, and "edge" kept a `borderLeft` with `width: {unit: PT}`. 1: a1 kept its checklist and its `listId`; B moved to a new `listId`, apart from A's. 2: A1 and A2 on one new `listId`; B1, B2 and B3 on another at level 1, ● / ○ bullet list. 3: `{"error": "the paragraph at index 16 is in a list nested in another list's item; …"}`, with the `listId`s from step 2 unchanged. 4: P and Q on one `listId`, p1 on its own, "inside p1" unlisted at (72, 72). 5: "edge" at (18, 36). Doc trashed.
 
 ---
 
