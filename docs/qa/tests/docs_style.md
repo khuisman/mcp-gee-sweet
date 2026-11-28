@@ -1062,4 +1062,8 @@ Read element styles from a fresh interpreter with a raw `documents().get()`: `ge
 
 **Cleanup:** `delete_file` the doc
 
+**Result (2026-11-28) ✅ PASS — Kit, QA round 1 of PR #1655, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `d07df3b0`, reconnected after the reset**
+Step 3: `inlineObjectElement` [3, 4) `bold: true`. Step 4: `requests: 2`; the image `bold: true` with Georgia 400; `aa` [1, 3) and ` b` [4, 6) Georgia, not bold. Step 5: `x` [4, 5) bold (and Georgia, from the image). Doc trashed.
+Extra probe, the other element kinds (raw `batchUpdate` from a fresh interpreter, one doc per kind holding `aaa bbb` / `ccc ddd`): for each of `footnoteReference` (`createFootnote`), `pageBreak` (`insertPageBreak`), `person` (`insertPerson`), `dateElement` (`insertDate`), `richLink` (`insertRichLink`, the doc's own URL) and `dropdown` (`createDropdownDefinition` + `insertDropdown`; IDs need the `kix.` and `dropdownItem.` prefixes and two or more options), the element bolded on its own. A control `insertText` right after it comes out bold, so Docs inherits from every one. A `weightedFontFamily` update with no `bold` over the second paragraph's element clears its bold. Then through the tools: `insert_softbreak_paragraph` with a Courier New line right after the element comes out bold and Courier New, and `style_doc_range(font_family="Georgia")` over [1, 5) returns `requests: 2` and leaves the element `bold: true`. No request inserts `autoText`, `columnBreak` or `horizontalRule`, so those three weren't checked. Docs trashed.
+
 ---
