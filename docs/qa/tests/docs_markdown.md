@@ -1855,6 +1855,8 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Result (2026-11-28, PR #1656 QA round 2 @ 0e19e593, Sky) ⚠️ PARTIAL — steps 1–5 as written pass; one shape next to step 5 fails.** Steps 1–4: same structure and markdown as round 1. Step 5, tasks: source has ☐ (0), ☑ (0), ☐ a (0), ☐ (1), ☐ c (1) in one list; the export is `- [ ] <!-- -->\n- [x] <!-- -->\n- [ ] a\n  - [ ] <!-- -->\n  - [ ] c`; the copy matches the source, with no `[ ]`/`[x]` text. Step 5, paragraph: source "a" (0), empty (1), unbulleted "p", "b" (0); the export has `  - <!-- -->\n\n    p`; the copy is "a" (0), "p" (1), "b" (0), nothing else. Fails outside the case: an empty task item with a sub-item of its own (source built from `- [ ] <!-- -->\n\n  - x\n- [ ] b`) exports `- [ ] <!-- -->\n  - x\n- [ ] b`, and the copy's first item reads `[ ]` as plain text instead of an empty checkbox, a send-back in the round's comment. All Docs trashed.
 
+**Result (2026-11-28, PR #1656 QA round 3 @ f6b94194, Sky) ✅ PASS — steps 1–5, one run.** Steps 1–4: same structure and markdown as rounds 1 and 2. Step 5, tasks: source has ☐ (0), ☑ (0), ☐ x (1), ☐ a (0), ☐ (1), ☐ y (2), ☐ c (1) in one list; the export is `- [ ] <!-- -->\n- [x] <!-- -->\n\n  - [ ] x\n- [ ] a\n  - [ ] <!-- -->\n\n    - [ ] y\n  - [ ] c`; the copy matches the source item for item, with no `[ ]`/`[x]` text. Step 5, paragraph: same as round 2, the copy "a" (0), "p" (1), "b" (0), nothing else. All Docs trashed.
+
 ---
 
 ## Known gaps and not-applicable
