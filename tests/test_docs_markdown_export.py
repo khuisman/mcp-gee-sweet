@@ -25,8 +25,8 @@ from mcp_gee_sweet.tools.docs.ast import (
     Run,
     Table,
 )
-from mcp_gee_sweet.tools.docs.ast_to_markdown import ast_to_markdown
-from mcp_gee_sweet.tools.docs.doc_to_ast import document_to_ast
+from mcp_gee_sweet.tools.docs.ast_to_markdown import _markers_flank_image_edge, ast_to_markdown
+from mcp_gee_sweet.tools.docs.doc_to_ast import _character_style, document_to_ast
 from mcp_gee_sweet.tools.docs.html_parser import html_to_ast
 
 # Strict CommonMark, plus GFM pipe tables. Python-Markdown (used by some older
@@ -684,11 +684,13 @@ class TestImageSpanStyle:
         assert after.foreground_color == RGBColor(1.0, 0.0, 0.0)
         # ...and the image carries only the style it shares with them — the
         # fields its own textStyle also carries size and color in are
-        # ignored for it, and nothing reads them into an Image.
+        # ignored for it, because _character_style has no such fields to
+        # read into an Image at all (#1583), where the old hasattr() asserts
+        # passed no matter what (#1644).
         assert image.bold is True
         assert image.italic is None
-        assert not hasattr(image, "font_size")
-        assert not hasattr(image, "foreground_color")
+        assert "font_size" not in _character_style(run_ts)
+        assert "foreground_color" not in _character_style(run_ts)
 
     def test_italic_and_strike_wrap_the_same_span(self):
         style = {"italic": True, "strikethrough": True}
@@ -1088,6 +1090,116 @@ class TestImageSpanStyle:
         tokens = _COMMONMARK.parse(md)
         [inline] = [t for t in tokens if t.type == "inline"]
         assert "strong_open" not in [c.type for c in inline.children]
+
+    def test_the_grouped_form_beside_an_emoji_still_reimports_styled(self):
+        # #1644: the fallback beside an emoji matches GitHub's cmark-gfm,
+        # which breaks the flanking there — but markdown-it-py 4.3
+        # (CommonMark 0.31.2, the re-import side) counts an emoji as
+        # punctuation and keeps the grouped span, so `\U0001F44D**![logo](u)
+        # b**` would still re-import with a bold image. The trade-off is
+        # deliberate — GitHub's rendering wins, the round trip loses the
+        # image's style — and documented in known-limitations.
+        tokens = _COMMONMARK.parse(f"\U0001f44d**![logo]({self._URI}) b**\n")
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        assert types.index("strong_open") < types.index("image") < types.index("strong_close")
+
+    def test_an_empty_part_hides_no_letter_from_the_flank_check(self):
+        # #1644: the opening-side check read only the last rendered part,
+        # where an empty part — an empty styled run renders as one — hid
+        # the letter before it, and `see`, an empty run, then the span
+        # exported its literal asterisks. The check reads past empty parts
+        # now, and an empty run inside the span is skipped to the first
+        # member that renders.
+        runs = [
+            Run("see"),
+            Run("", italic=True),
+            Image(src=self._URI, alt="logo", bold=True),
+            Run(" b", bold=True),
+        ]
+        assert ast_to_markdown([Paragraph(runs=runs)]) == f"see![logo]({self._URI}) **b**\n"
+        runs = [
+            Run("see"),
+            Run("", bold=True),
+            Image(src=self._URI, alt="logo", bold=True),
+            Run(" b", bold=True),
+        ]
+        assert ast_to_markdown([Paragraph(runs=runs)]) == f"see![logo]({self._URI}) **b**\n"
+
+    def test_a_live_strike_marker_beside_a_struck_span_falls_back(self):
+        # #1644: a struck neighbour's own `~~` and a struck span's opening
+        # marker merge into one delimiter run — `~~a~~` beside
+        # `~~![logo](u)` read as `~~a~~~~~~...` — where the marker-merge
+        # guard checked only `*`, and only for bold or italic. Both sides
+        # of the guard read the span's own marker kind now.
+        runs = [
+            Run("a", strikethrough=True),
+            Run("", italic=True),
+            Image(src=self._URI, alt="logo", strikethrough=True),
+            Run(" b", strikethrough=True),
+        ]
+        assert ast_to_markdown([Paragraph(runs=runs)]) == f"~~a~~![logo]({self._URI}) ~~b~~\n"
+        # The closing side's mirror: a next run carrying strike writes its
+        # `~~` directly after the span's closing one.
+        group = [
+            Run("b", strikethrough=True),
+            Image(src=self._URI, alt="logo", strikethrough=True),
+        ]
+        nxt = Run("c", strikethrough=True)
+        assert _markers_flank_image_edge(
+            group, ["x"], [group[0], group[1], nxt], 2, (False, False, True, None)
+        )
+        # A live `*` before a strike span still reads as punctuation: the
+        # kinds don't merge, and the span keeps its markers.
+        assert not _markers_flank_image_edge(
+            [Image(src=self._URI, alt="logo", strikethrough=True), Run(" b", strikethrough=True)],
+            ["*a*"],
+            [],
+            2,
+            (False, False, True, None),
+        )
+
+    def test_a_linked_or_code_run_after_the_span_no_longer_falls_back(self):
+        # #1644: the next-side check read the run's raw text, where a linked
+        # run renders starting "[" and a code run with a backtick — both
+        # punctuation — so the span fell back for nothing and the image lost
+        # its style on the re-import. Their own markers sit inside the
+        # brackets and between backticks, so they can't merge with the
+        # span's either.
+        runs = [
+            Run("a ", bold=True),
+            Image(src=self._URI, alt="logo", bold=True),
+            Run("b", bold=True, link_url="https://x.y"),
+        ]
+        md = ast_to_markdown([Paragraph(runs=runs)])
+        assert md == f"**a ![logo]({self._URI})**[**b**](https://x.y)\n"
+        tokens = _COMMONMARK.parse(md)
+        [inline] = [t for t in tokens if t.type == "inline"]
+        types = [c.type for c in inline.children]
+        assert types.index("strong_open") < types.index("image") < types.index("strong_close")
+        runs = [
+            Run("a ", bold=True),
+            Image(src=self._URI, alt="logo", bold=True),
+            Run("b", bold=True, font_family="Courier New"),
+        ]
+        assert ast_to_markdown([Paragraph(runs=runs)]) == f"**a ![logo]({self._URI})**`b`\n"
+
+    def test_only_commonmark_whitespace_leaves_the_flanking_rule_met(self):
+        # #1644: `str.isspace()` also counted \x85, \x1c-\x1f and the
+        # U+2028/U+2029 separators, which no parser reads as whitespace, and
+        # an ASCII control character counted as punctuation — CommonMark
+        # reads both as neither, like a letter beside the marker.
+        for ch in ("\x85", "\x1c", "\x01", "\u2028"):
+            runs = [
+                Run(f"a{ch}"),
+                Image(src=self._URI, alt="logo", bold=True),
+                Run(" b", bold=True),
+            ]
+            assert ast_to_markdown([Paragraph(runs=runs)]) == f"a{ch}![logo]({self._URI}) **b**\n"
+        # A real space still satisfies the flanking rule, and the span keeps
+        # its markers.
+        runs = [Run("a "), Image(src=self._URI, alt="logo", bold=True), Run(" b", bold=True)]
+        assert ast_to_markdown([Paragraph(runs=runs)]) == f"a **![logo]({self._URI}) b**\n"
 
     def test_a_span_ending_in_an_image_falls_back_before_an_emoji(self):
         # The closing marker's mirror: `**a ![logo](u)**\U0001F44D` — the
@@ -2110,6 +2222,22 @@ class TestAstToMarkdownTables:
         table = self._table([["a|b"]])
         assert "a\\|b" in ast_to_markdown([table])
 
+    def test_a_spans_link_destination_escapes_a_pipe_once_in_a_cell(self):
+        # #1583's single-escape fix had no pin (#1644): a linked span in a
+        # table cell renders its destination through _table_safe once, where
+        # a pre-escaped destination came out double-escaped — an escaped
+        # backslash and a live pipe that split the row. Removing the fix
+        # would fail here.
+        table = Table(
+            rows=[
+                Row(
+                    cells=[Cell(children=[Run(text="link", bold=True, link_url="https://x.y/a|b")])]
+                )
+            ]
+        )
+        md = ast_to_markdown([table])
+        assert md == "| [**link**](https://x.y/a\\|b) |\n| --- |\n", md
+
     def test_multiline_cell_with_blank_spacer_renders_as_double_br(self):
         # Mirrors test_blank_spacer_paragraph_in_a_cell_is_preserved_not_dropped
         # one layer up, at the actual Markdown-rendering level: the cell's
@@ -2365,14 +2493,34 @@ class TestAstToMarkdownComments:
 
     def test_a_blockquote_marker_line_in_comment_text_is_escaped(self):
         # #1634: the leading-">" escape (#1627) covers comment text too —
-        # `include_comments` runs every line through
-        # _escape_leading_block_marker — where a comment whose second line
-        # reads ">word" used to export unescaped and re-import as a
-        # blockquote.
+        # `include_comments` runs every line that can start a block through
+        # _escape_leading_block_marker; a reply's first line is the one that
+        # can't, after "**author**: " on its own line (#1644) — where a
+        # comment whose second line reads ">word" used to export unescaped
+        # and re-import as a blockquote.
         comments = [{"author": {"display_name": "A"}, "content": "see below\n>word"}]
         md = ast_to_markdown([Paragraph(runs=[Run(text="body")])], comments=comments)
         section = md.split("## Comments\n\n", 1)[1]
         assert section == "**A**\\\nsee below\\\n\\>word\n"
+
+    def test_a_blockquote_marker_line_in_a_quote_and_a_reply_is_escaped(self):
+        # #1644: the #1634 escape covers the quote's own lines and a reply's
+        # continuation lines too, where only the comment's own lines and the
+        # reply's first line were pinned — the reply's first line follows
+        # "**B**: " on its own line, so it can't start a block, but its
+        # continuation lines are lines of their own.
+        section = self._quote_md("intro\n>word")
+        assert section == "**A**\n> intro\\\n> \\>word\n\nfix\n"
+        comments = [
+            {
+                "author": {"display_name": "A"},
+                "content": "see the reply",
+                "replies": [{"author": {"display_name": "B"}, "content": "r\n>word"}],
+            }
+        ]
+        md = ast_to_markdown([Paragraph(runs=[Run(text="body")])], comments=comments)
+        section = md.split("## Comments\n\n", 1)[1]
+        assert section == "**A**\\\nsee the reply\n  - **B**: r\\\n    \\>word\n"
 
     def _render(self, content=None, quoted_text=None, reply=None):
         comment = {"author": {"display_name": "A"}, "content": content or "c", "replies": []}
