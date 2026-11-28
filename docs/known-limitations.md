@@ -410,6 +410,26 @@ raw Docs API via `batch_update` passthrough) instead. Related: docs/design/doc-t
 
 ---
 
+### `get_doc_as_markdown` — an image in a styled span beside an emoji loses its style on re-import
+
+**What:** A styled span whose edge sits beside an emoji or a symbol — `👍` directly before a bold
+image and its text — exports in the split rendering (`👍![logo](u) **b**`), so the image itself
+comes back unstyled when the exported Markdown is re-imported through `update_doc_from_file` or
+any other Markdown-writing tool.
+
+**Why:** GitHub's renderer (cmark-gfm) breaks an emphasis marker's flanking rule beside a
+character in the S categories — an emoji or a symbol is neither whitespace nor punctuation
+there — so the grouped form `👍**![logo](u) b**` renders as literal asterisks on GitHub.
+markdown-it-py 4.3 (CommonMark 0.31.2, this server's re-import side) counts those same
+categories as punctuation and would keep the span, but the export targets GitHub's rendering
+(#1610, #1644): the round trip is the accepted trade-off, and a unit test parses the grouped
+form to keep the choice visible.
+
+**Workaround:** Keep a space between the emoji and the styled span — `👍 **![logo](u) b**`
+round-trips with the image's style intact.
+
+---
+
 ### `export_revision` on a Google Doc — links, images, and vanishing revision IDs
 
 **What:** `export_revision` (#959) returns a Doc revision as Markdown through the same converter

@@ -56,14 +56,16 @@ _BACKTICK_RUN = re.compile(r"`+")
 # heading, a bullet item, or an ordered-list item — rather than the plain
 # paragraph text it actually is (#591 QA round 1, live-confirmed for
 # "1. Not actually a list item" and "# Not a heading either"). Applied to a
-# plain Paragraph and to a list item's text, which starts the item's first
-# block, so "- # a" is a heading inside the item (#1302). Heading/NamedBlock
+# plain Paragraph, to a list item's text (which starts the item's first
+# block, so "- # a" is a heading inside the item, #1302), and to every
+# comment line that can start a block — a reply's first line can't, after
+# "**author**: " on its own line (#984, #1644). Heading/NamedBlock
 # text follows its own "#" prefix, where it's never re-parsed as a new block.
-# The blockquote marker is deliberately not in this regex: ">" is the one
-# marker CommonMark reads with no whitespace after it, so it has its own
-# check, _LEADING_BLOCKQUOTE_MARKER below (#1627, #1634) — adding it back
-# here would need the lookahead that requires trailing whitespace, which
-# would leave ">word" unescaped and bring #1627 back with it.
+# The blockquote marker stays out of this regex and keeps its own check,
+# _LEADING_BLOCKQUOTE_MARKER below, because it is the one marker CommonMark
+# reads with no whitespace after it (#1627, #1634) — folding it in as
+# ^(?:>|(#{1,6}|[*+-])(?=[ \t]|$)) would work too; kept apart, each marker
+# keeps the check that reads it.
 _LEADING_SIMPLE_MARKER = re.compile(r"^(#{1,6}|[*+-])(?=[ \t]|$)")
 _LEADING_ORDERED_MARKER = re.compile(r"^(\d{1,9})([.)])(?=[ \t]|$)")
 # A line of only "-" (spaces allowed) is a thematic break, or a setext
@@ -549,16 +551,30 @@ def _render_inline_parts(items: list, in_table: bool, cell: bool = False) -> lis
 def _breaks_flanking(ch: str) -> bool:
     """Whether a character beside an emphasis marker stops CommonMark reading
     the marker as flanking: a letter, a digit, or anything else that is
-    neither whitespace nor punctuation — an emoji or a symbol included,
-    which GitHub's cmark-gfm also breaks on where an isalnum() test saw no
-    break (#1583). Whitespace and Unicode punctuation leave the flanking
-    rule satisfied, so a marker beside them still reads as emphasis."""
-    if not ch or ch.isspace():
+    neither whitespace nor punctuation. Whitespace and punctuation leave the
+    flanking rule satisfied, so a marker beside them still reads as emphasis.
+
+    The two classes are CommonMark's own, not Python's (#1644): Unicode
+    whitespace is the Zs category plus space, tab, line feed, form feed and
+    carriage return — `str.isspace()` also counts \x1c-\x1f, \x85 and the
+    U+2028/U+2029 separators, which no parser reads as whitespace — and
+    ASCII punctuation is exactly `string.punctuation`, where an ASCII
+    control character is neither whitespace nor punctuation, like a letter
+    beside the marker. An emoji or a symbol breaks here too (#1583):
+    GitHub's cmark-gfm reads one as neither whitespace nor punctuation, so
+    the markers of a span beside it read literal on GitHub. markdown-it-py
+    4.3 — CommonMark 0.31.2, the re-import side — counts those categories
+    as punctuation and keeps the span, so a grouped form that re-imports
+    styled can still lose the style there; that round-trip trade-off is
+    documented in known-limitations (#1644)."""
+    if not ch:
+        return False
+    if ch in " \t\n\f\r" or unicodedata.category(ch) == "Zs":
         return False
     if ch.isascii():
-        # Every ASCII character that is neither whitespace nor alphanumeric
-        # is ASCII punctuation to CommonMark.
-        return ch.isalnum()
+        # Every ASCII character that is neither whitespace nor punctuation
+        # is neither to CommonMark — an ASCII control character included.
+        return ch not in string.punctuation
     return not unicodedata.category(ch).startswith("P")
 
 
@@ -576,14 +592,32 @@ def _markers_flank_image_edge(
     a symbol beside the image edge breaks the span the same way on GitHub's
     cmark-gfm (#1583). A neighboring styled run's own marker is just as bad
     (#1530 review): its `*` merges with an asterisk marker into a single
-    `***` run the parser reads as neither span, so a previous rendered part
-    ending in a live `*` — a styled neighbor's own marker, where a literal
-    one is escaped, and an escaped backslash before the marker leaves it
-    live too (#1583) — and a next run carrying bold or italic and starting
-    with no whitespace fall back as well — `*it***![logo](u) bold**` would
-    lose its bold, and `**bold ![logo](u)***it*` its markers. Only an image
-    at the span's edge puts a marker there — a run's edge whitespace already
-    renders outside the markers.
+    `***` run the parser reads as neither span, and its `~~` merges with a
+    strike marker into `~~~~` the same way (#1644) — so a previous rendered
+    part ending in a live marker of the span's own kind — `*` for bold or
+    italic, `~` for strike, where a literal one is escaped, and an escaped
+    backslash before the marker leaves it live too (#1583) — and a next run
+    carrying the same kind and starting with no whitespace fall back as
+    well — `*it***![logo](u) bold**` would lose its bold, `~~a~~` before
+    `~~![logo](u)~~` its strike, and `**bold ![logo](u)***it*` its markers.
+
+    The edges read what the neighbours render, not their raw text (#1644):
+    an empty part — an empty styled run renders as one — is skipped to the
+    part before it, where reading only the last part hid the letter, emoji
+    or live marker there and let the literal asterisks through; and the
+    next side reads what the next run renders — a linked run renders
+    starting "[" and a code run with a backtick, both punctuation — where
+    the run's own first character, a letter or an emoji, read as breaking
+    and fell the span back for nothing. Their own markers sit inside the
+    brackets and between backticks, so they can't merge with the span's
+    either.
+
+    Markers sit at a rendered span's edges in shapes this guard never
+    sees (#1644): a span holding no image at all never reaches it, and a
+    run's edge whitespace renders outside the markers — but `foo**(bar)**`
+    puts literal asterisks beside a letter the same way, the opening `**`
+    after "o" and before "(" not left-flanking. The guard covers the
+    image shapes, where the re-import loses the image's style.
 
     A span that takes its own link wrap — `style[3]` set with a run in the
     group, so `_render_span` writes `[**…**](url)` — puts its markers inside
@@ -596,30 +630,65 @@ def _markers_flank_image_edge(
         # `[…](url)` — so the character outside never touches them, and a
         # styled neighbour's own marker cannot merge with one either.
         return False
-    if isinstance(group[0], Image) and parts:
-        prev = parts[-1]
+    # A leading empty run renders nothing, so the span's marker sits at the
+    # edge the run hides: read the first member that renders (#1644).
+    edge = group[0]
+    if isinstance(edge, Run) and not edge.text:
+        for member in group[1:]:
+            if isinstance(member, Run) and not member.text:
+                continue
+            edge = member
+            break
+    if isinstance(edge, Image) and parts:
+        # The last part that rendered something: an empty part — an empty
+        # styled run renders as one — hides the character before it, and
+        # reading only the last part let `see`, an empty run, then the
+        # span export its literal asterisks (#1644).
+        prev = next((p for p in reversed(parts) if p), "")
         # A `*` the previous part ends in is a styled neighbor's own marker
         # when it's live — backslash parity decides (_ends_with_unescaped), so
         # an escaped backslash followed by a real marker counts too: an
         # italic run "a\\" renders `*a\\*`, where endswith("\\*") misread
         # the marker as escaped. Beside an opening asterisk marker the two
-        # merge into one `***` run.
-        if _breaks_flanking(prev[-1:]) or (
-            (style[0] or style[1]) and _ends_with_unescaped(prev, "*")
+        # merge into one `***` run, and a live `~` before a strike marker
+        # merges into `~~~~` the same way (#1644).
+        if (
+            _breaks_flanking(prev[-1:])
+            or ((style[0] or style[1]) and _ends_with_unescaped(prev, "*"))
+            or (style[2] and _ends_with_unescaped(prev, "~"))
         ):
             return True
     nxt = items[next_i] if next_i < len(items) else None
-    if isinstance(group[-1], Image) and isinstance(nxt, Run):
-        if _breaks_flanking(nxt.text[:1]):
+    # The trailing empty run's mirror: read the last member that renders
+    # (#1644).
+    tail = group[-1]
+    if isinstance(tail, Run) and not tail.text:
+        for member in reversed(group[:-1]):
+            if isinstance(member, Run) and not member.text:
+                continue
+            tail = member
+            break
+    if isinstance(tail, Image) and isinstance(nxt, Run):
+        # What the next part renders, not the run's raw text (#1644): a
+        # linked run renders starting "[" and a code run with a backtick —
+        # both punctuation, and their own markers sit inside the brackets
+        # and between backticks, where the run's own first character, a
+        # letter or an emoji, read as breaking and fell the span back for
+        # nothing.
+        linked_or_code = bool(nxt.link_url) or _is_code_run(nxt)
+        head = "[" if nxt.link_url else "`" if _is_code_run(nxt) else nxt.text[:1]
+        if _breaks_flanking(head):
             return True
-        # A next run carrying bold or italic writes its own marker directly
+        # A next run carrying the span's own marker kind writes it directly
         # after the span's closing one when it starts with no whitespace,
-        # and the two merge into a single `***` run.
+        # and the two merge into a single delimiter run — `***` for bold or
+        # italic (#1530), `~~~~` for strike (#1644) — so it falls back too.
         if (
-            (style[0] or style[1])
-            and (nxt.bold or nxt.italic)
-            and nxt.text[:1]
-            and not nxt.text[0].isspace()
+            not linked_or_code
+            and (style[0] or style[1] or style[2])
+            and (nxt.bold or nxt.italic or nxt.strikethrough)
+            and head
+            and not head[0].isspace()
         ):
             return True
     return False
@@ -753,8 +822,11 @@ def _image_body(image: Image) -> str:
 
 def _render_image(image: Image) -> str:
     """Markdown for one image, wrapped in a link when the image is linked.
-    Every image goes through here, so a linked image keeps its link in a
-    code paragraph, a table cell, and ordinary text alike (#951)."""
+    The paths that render an image bare go through here — a code paragraph,
+    a table cell, and a span that fell back to its split rendering — so a
+    linked image keeps its link in all of them (#951). A span that keeps its
+    group renders the image through _image_body instead, wrapped in the
+    span's own markers and link (#1530)."""
     body = _image_body(image)
     if image.link_url:
         body = f"[{body}]({_md_link_dest(image.link_url)})"
