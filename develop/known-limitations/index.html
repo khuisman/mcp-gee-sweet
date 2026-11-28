@@ -1568,6 +1568,12 @@ as a plain paragraph: its marker and tab as text, at the quote depth its indent 
 itself shows it correctly. An indent adds the item's list level to its quote depth, and nothing
 in the Doc separates the two. A quoted literal item at the top of a list, with a digit marker,
 reads back as a list item.</p>
+<p>Markdown has no marker for a negative number or one of 10 or more digits, so
+<code>get_doc_as_markdown</code> exports such an item (<code>&lt;ol reversed&gt;</code> counting past zero) as a paragraph
+that opens with its number (<code>-1. c</code>), inside its parent item, and writing that back gives a
+paragraph, not a list item. Items nested under such an item are exported one level up, as items
+of its parent, since Markdown has no list item there to nest them under. It exports a nested list starting past 1 under a <code>&lt;!-- --&gt;</code> line,
+which renders as nothing, so the list keeps its numbers.</p>
 <p>A marker too wide for a list's 18pt gap (<code>100.</code>, or <code>10.</code> in a heading) starts further left, so
 its text stays lined up with the other items. A marker wider than the level's whole text indent
 moves the item's text right, leaving the blocks and sublists under it behind. The width is
