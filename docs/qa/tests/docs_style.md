@@ -897,6 +897,10 @@ Tool calls: `create_doc(title="TC-DOC280", content="1. A\n    - a1\n2. B\n3. C\n
 
 **Cleanup:** trash the doc.
 
+**Result (2026-11-28) 🟡 PARTIAL — Kit, QA round 1 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `9201ff8c`, reconnected after the reset**
+Before: A, B, C on one `listId` at level 0 and a1 on its own at level 1, at (18, 36) / (54, 72). After re-bulleting B, then C, then A (a raw `documents().get()` after each): the same grouping, levels and indents each time. `get_doc_as_markdown`: `1. A` / `   - a1` / `2. B` / `3. C`. Not run: the on-screen check (Playwright not connected). Doc trashed.
+Extra probes: (1) a native checklist (`BULLET_CHECKBOX`, made with this tool) nested under A comes back a decimal numbered list when B is re-bulleted; before this PR a nested list wasn't touched. (2) A list item whose `borderLeft` was set to width 0 (Docs keeps the key, `width: {unit: PT}`) moves from (18, 36) to (54, 72) when a neighbour is re-bulleted. (3) `1. A1` / `- B1` / `- B2` / `- B3` / `2. A2`, requesting A1 and B2 (level 1) in one call: B2 moves into A's numbered list (export `1. B2`) and B1 and B3 become two lists. All three sent back.
+
 ### TC-DOC281: Re-bulleting an item after a paragraph inside the item above keeps the numbering (#1339) ⚠️ destructive ⚠️ requires-oauth
 
 **Background:** found while fixing #1288 (live, 2026-11-28): the expansion also stopped at an unlisted paragraph inside an item (#1094's block in an item, indented to the item's text), with the same restart. It now takes the block in and gives it back: bullet removed, its own indents restored.
@@ -913,6 +917,10 @@ Tool calls: `create_doc(title="TC-DOC281", content=<above>, content_format="mark
 - On screen: C shows 3.
 
 **Cleanup:** trash the doc.
+
+**Result (2026-11-28) 🟡 PARTIAL — Kit, QA round 1 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `9201ff8c`, reconnected after the reset**
+After re-bulleting C: A, B, C share one `listId`; b1 and b2 keep their own lists at level 1; "inside A" and "inside b1" are unlisted at (36, 36), as before. `get_doc_as_markdown` reads the input back. Not run: the on-screen check (Playwright not connected). Doc trashed.
+Extra probe, a block inside a *nested* item: `1. A` / `    - b1` / `      inside b1` (72, 72) / `2. B`. Re-bulleting A gave A a new `listId` and left B on the old one, so B restarts at 1: the walk stops at a block inside the sublist's item. Sent back.
 
 ### TC-DOC282: A paragraph bulleted right after a same-style list starts its own list, at the requested level (#1297) ⚠️ destructive ⚠️ requires-oauth
 
@@ -932,6 +940,9 @@ Tool calls: `create_doc(title="TC-DOC282", content=<above>, content_format="mark
 
 **Cleanup:** trash the doc.
 
+**Result (2026-11-28) 🟡 PARTIAL — Kit, QA round 1 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `9201ff8c`, reconnected after the reset**
+After the first call: "Paren one" on a `listId` of its own at level 0, Dot one's list unchanged. After the second: Z on a `listId` of its own at level 1, (54, 72); P's and Dot one's lists unchanged. No leaked tab or extra paragraph. Not run: the on-screen check (Playwright didn't connect in this session: `npx` not on PATH). Doc trashed.
+
 ### TC-DOC283: Quoted paragraphs keep their quote's indent through both bullet tools (#1090) ⚠️ destructive ⚠️ requires-oauth
 
 **Background:** #1090. `createParagraphBullets` sets a list level's own indents and `deleteParagraphBullets` sets 36pt per level (both confirmed live), so a quoted paragraph lost its quote's 36pt: it kept the gray bar but sat where an unquoted one would, and after a delete the export dropped the `>`. Both tools now read each paragraph's quote depth before their requests and put the quote's indent back on top.
@@ -946,6 +957,10 @@ Tool calls: `create_doc(title="TC-DOC283", content=<above>, content_format="mark
 - After the delete: "Quoted item one" is at (36, 36) and "Quoted nested" at (72, 72), both unlisted, both with their `borderLeft`. `get_doc_as_markdown` writes both with `>`. ("Quoted nested" reads as a quote two deep: a level's leftover indent and a quote's are the same 36pt, as for any nested item.)
 
 **Cleanup:** trash the doc.
+
+**Result (2026-11-28) ✅ PASS — Kit, QA round 1 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `9201ff8c`, reconnected after the reset**
+Before: quoted items at (54, 72) / (90, 108), "Quoted plain" unlisted at (36, 36), all with a 3pt `borderLeft`. After each `create_paragraph_bullets`: "Quoted item one" (54, 72), "Quoted nested" (90, 108), "Quoted plain" a level-0 item at (54, 72), QB (54, 72) with qa1 still on its own bullet list at (90, 108), every border kept. After the delete: (36, 36) and (72, 72), unlisted, borders kept; the export writes `> Quoted item one` and `> > Quoted nested`. Doc trashed.
+Extra probe, re-bulleting the two deleted items in one call (item one at level 0, nested at level 1): "Quoted nested" lands at (126, 144), not (90, 108). Its leftover 36pt level indent reads as a second quote level. Sent back.
 
 ---
 
