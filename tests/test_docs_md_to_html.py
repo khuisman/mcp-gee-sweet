@@ -141,20 +141,26 @@ class TestStrikethrough:
         ]
 
     def test_lone_tildes_inside_a_double_tilde_span_stay_inside(self):
-        # A lone ~ within a ~~...~~ span must not claim the closing run and
-        # un-strike the whole span; the ~~ pair still wins (#1436).
+        # A `~` run inside a `~~` span that could open or close takes the span
+        # with it: cmark-gfm tries the nearest opener whatever the width, and
+        # consumes both when the widths differ, so the whole row renders as
+        # literal text, as measured on GitHub (#1612).
         (para,) = _ast("~~was ~5 ms~~")
         assert [(r.text, r.strikethrough) for r in para.runs] == [
-            ("was ~5 ms", True),
+            ("~~was ~5 ms~~", None),
         ]
+        # An intra-word `~` can open and close, so the pairing arithmetic
+        # skips it as a closer and keeps it as an opener: the `~~` pair still
+        # strikes, as on GitHub (`~~a~b~~` -> <del>a~b</del>).
         (para,) = _ast("~~a~b~~")
         assert [(r.text, r.strikethrough) for r in para.runs] == [
             ("a~b", True),
         ]
 
     def test_double_tilde_pair_survives_a_leading_lone_tilde(self):
-        # `~a` has no matching single-tilde closer, so it stays literal while
-        # the `~~b~~` pair strikes, as on develop (#1436).
+        # `~a`'s opener can't pair with the intra-word `~~` closer under the
+        # emphasis arithmetic, so it stays literal while the `~~` pair strikes,
+        # as GitHub renders it: `~a~~b~~` -> `~a<del>b</del>` (#1612).
         (para,) = _ast("~a~~b~~")
         assert [(r.text, r.strikethrough) for r in para.runs] == [
             ("~a", None),
@@ -176,23 +182,32 @@ class TestStrikethrough:
             (" c~", None, None),
         ]
 
-    def test_single_tilde_pair_does_not_cross_a_double_tilde_pair(self):
-        # balance_pairs never pairs an opener that sits inside an already-matched
-        # span, so GFM strikes "a ~~b" and leaves the closing `~~` literal; a pass
-        # that pairs the tilde runs itself crossed the pairs and struck "a b c"
-        # with no literal tildes (#1502).
+    def test_mixed_width_tilde_rows_render_as_literal_text(self):
+        # cmark-gfm pairs a closer with the nearest tilde opener whatever the
+        # widths, and the attempt consumes both when they differ, so rows that
+        # mix `~` and `~~` runs render as literal text, as measured on GitHub
+        # (#1612). A pairing pass that matched by width first struck "a ~~b"
+        # here (#1436, #1502).
         (para,) = _ast("~a ~~b~ c~~")
         assert [(r.text, r.strikethrough) for r in para.runs] == [
-            ("a ~~b", True),
-            (" c~~", None),
+            ("~a ~~b~ c~~", None),
+        ]
+        # The mismatched attempt consumes only the runs it tries, so a clean
+        # pair later in the row still strikes: GitHub renders this row as
+        # `~gone~~ text <del>gone2</del>` (#1612).
+        (para,) = _ast("~gone~~ text ~gone2~")
+        assert [(r.text, r.strikethrough) for r in para.runs] == [
+            ("~gone~~ text ", None),
+            ("gone2", True),
         ]
 
     def test_tilde_pairing_is_linear_on_a_paragraph_of_unmatched_runs(self):
-        # One-tilde openers that can never close, then 2-tilde runs pairing among
-        # themselves. Pairing that walks every earlier delimiter per closer is
-        # quadratic here (#1502); the per-width marking hands pairing to
-        # balance_pairs, whose openers-bottom bookkeeping keeps this linear in
-        # the text, as the module's other linear-in-the-text rules are.
+        # One-tilde openers that can never close, then intra-word 2-tilde runs
+        # that pair among themselves: the 1-tilde openers are rejected for
+        # each `~~` closer under the emphasis arithmetic, and the failed
+        # closer sets the openers-bottom bound for later closers of its width,
+        # so the whole pass stays linear in the text, as cmark-gfm's own
+        # process_emphasis does (#1502, #1612).
         md = " ~a" * 8000 + "b~~" * 8000
         start = time.perf_counter()
         assert "<s>" in _md_to_html(md)
@@ -208,6 +223,70 @@ class TestStrikethrough:
         html = _md_to_html(md)
         assert "<s>" not in html and html.count("<a ") == 20000
         assert time.perf_counter() - start < 5.0
+
+    def test_tilde_pairing_is_linear_on_nested_tilde_pairs(self):
+        # Nested pairs: each closer pairs with the opener next to it, but the
+        # naive search walked back over the tildes an earlier pair consumed,
+        # one at a time, and `bottom` only moved when a closer failed — about
+        # 64M search steps for this 48 KB paragraph. Each consumed tilde is
+        # now unlinked from the search's previous-pointer chain (cmark's
+        # remove_delimiter), so a closer finds its opener without visiting a
+        # consumed one (#1617 review).
+        md = "~a " * 8000 + "b~ " * 8000
+        start = time.perf_counter()
+        html = _md_to_html(md)
+        assert html.count("<s>") == 8000
+        assert time.perf_counter() - start < 5.0
+
+    def test_tilde_pairing_is_linear_when_closers_step_back_over_consumed_pairs(
+        self,
+    ):
+        # The other quadratic shape: each `x~~` closer's search stepped back
+        # over all the `~a~` pairs consumed before it, and the span it then
+        # consumed was walked again to be marked. Both now skip consumed
+        # tildes outright, and the strike still nests the way cmark-gfm
+        # renders it (#1617 review).
+        md = "~~x " * 4000 + "~a~ " * 4000 + "x~~ " * 4000
+        start = time.perf_counter()
+        html = _md_to_html(md)
+        assert html.count("<s>") == 8000
+        assert time.perf_counter() - start < 5.0
+
+    def test_a_strike_wraps_an_emphasis_span(self):
+        # cmark pairs the `*` closer first, which consumes `~b`, so `c~`
+        # pairs with `~x` and the strike wraps the emphasis: exactly what
+        # develop and GitHub render (#1617 review). The tilde pass used to
+        # pair `~b` with `c~` before the emphasis had paired, and cull `~x`,
+        # so nothing struck.
+        (para,) = _ast("~x *a ~b* c~")
+        assert [(r.text, r.italic, r.strikethrough) for r in para.runs] == [
+            ("x ", None, True),
+            ("a ~b", True, True),
+            (" c", None, True),
+        ]
+        # The same shape with a `~~` strike.
+        (para,) = _ast("~~x *a ~b* c~~")
+        assert [(r.text, r.italic, r.strikethrough) for r in para.runs] == [
+            ("x ", None, True),
+            ("a ~b", True, True),
+            (" c", None, True),
+        ]
+        # The consumption cuts both ways: the tilde pair consumes the
+        # unmatched `*a` inside it, so the later `*` finds no opener and the
+        # strike stands alone, as on GitHub.
+        (para,) = _ast("~x *a b~ c*")
+        assert [(r.text, r.italic, r.strikethrough) for r in para.runs] == [
+            ("x *a b", None, True),
+            (" c*", None, None),
+        ]
+        # A tilde closer inside the span pairs before the `*` closer reaches
+        # it, so the strike nests in the emphasis, as on GitHub.
+        (para,) = _ast("*a ~b c~ d*")
+        assert [(r.text, r.italic, r.strikethrough) for r in para.runs] == [
+            ("a ", True, None),
+            ("b c", True, True),
+            (" d", True, None),
+        ]
 
     def test_single_tilde_pair_inside_a_bare_url_stays_text(self):
         # A `~` inside a GFM extended autolink is part of the URL, so the whole
@@ -247,6 +326,53 @@ class TestStrikethrough:
             ("200 and 300", True),
             ("400", None),
         ]
+
+    def test_double_tilde_pair_inside_a_bare_url_stays_text(self):
+        # A `~~` pair inside a bare URL used to split the link: the runs paired
+        # and struck inside the URL text. GitHub consumes the whole URL into
+        # the autolink before the tildes can pair, so a `~~` run that lies
+        # entirely inside a URL span is dropped like a `~` one is (#1612).
+        html = _md_to_html("see https://x.com/~~a~~/b")
+        assert "<s>" not in html
+        assert 'href="https://x.com/~~a~~/b"' in html
+        # A `~~` run the URL's trimmed label ends before is not inside the
+        # span, so it stays a delimiter — unpaired here, literal text.
+        html = _md_to_html("strike ~~gone~~ at https://x.com/a~~")
+        assert "<s>gone</s>" in html
+
+    def test_a_tilde_survives_a_url_the_autolink_rule_drops(self):
+        # The suppression spans come from _gfm_autolink_matches, so a URL that
+        # an overlapping email match drops — and which the core rule therefore
+        # never links — can't suppress a tilde: `~x~` strikes after the email
+        # link (#1612).
+        html = _md_to_html("a_www.b.com@c.com/~x~")
+        assert html.count("<a ") == 1
+        assert "mailto:a_www.b.com@c.com" in html
+        assert "<s>x</s>" in html
+
+    def test_tildes_strike_inside_a_markdown_link_label(self):
+        # The autolink rule never links text inside a Markdown link, so the
+        # span pass gives the label no protection: `~~a~~` strikes there, as
+        # on develop and on GitHub (#1617 review).
+        html = _md_to_html("[see https://x.com/~~a~~/b](http://u.com)")
+        assert "<s>a</s>" in html
+        assert '<a href="http://u.com">' in html
+
+    def test_tildes_strike_inside_a_raw_html_anchor(self):
+        # Raw HTML <a> is the other link form its text never autolinks
+        # (#1617 review).
+        html = _md_to_html('<a href="http://u.com">see https://x.com/~~a~~/b</a>')
+        assert "<s>a</s>" in html
+
+    def test_url_shaped_text_stays_verbatim_when_autolinks_are_off(self):
+        # autolink_urls=False leaves a URL as plain text — the parameter's
+        # documented contract in create_doc/write_doc_content — so the cull
+        # keeps running with autolinks off and URL-shaped text keeps its
+        # tildes exactly as written (#1617 review).
+        html = _md_to_html("https://example.com/~user~/docs", autolink_urls=False)
+        assert "<a " not in html
+        assert "https://example.com/~user~/docs" in html
+        assert "<s>" not in html
 
 
 class TestGfmAutolinks:
