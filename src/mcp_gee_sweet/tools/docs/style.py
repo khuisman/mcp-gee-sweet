@@ -548,6 +548,28 @@ def _is_paragraph_start(doc: dict, index: int) -> bool:
     return _walk((doc.get("body") or {}).get("content"), 1)
 
 
+# The ParagraphElement kinds that carry their own `textStyle` (Docs API v1;
+# tests/test_docs_style.py pins this against the discovery document). Checked
+# live for seven of them (inlineObjectElement, footnoteReference, pageBreak,
+# person, dateElement, richLink, dropdown): Docs styles text inserted beside
+# each from its bold, and a font request with no bold clears that bold (#1635,
+# PR #1655). autoText, columnBreak and horizontalRule are assumed to behave the
+# same from the schema alone, since no request inserts them.
+_STYLED_ELEMENT_KINDS = (
+    "textRun",
+    "inlineObjectElement",
+    "person",
+    "richLink",
+    "autoText",
+    "footnoteReference",
+    "dateElement",
+    "dropdown",
+    "pageBreak",
+    "columnBreak",
+    "horizontalRule",
+)
+
+
 def _bold_runs_in_range(doc: dict, start_index: int, end_index: int) -> list[dict[str, int]]:
     """The [startIndex, endIndex) spans of directly bold runs inside a range. #1273
 
@@ -556,7 +578,13 @@ def _bold_runs_in_range(doc: dict, start_index: int, end_index: int) -> list[dic
     `style_doc_range` reads these spans from the document first and restores
     `bold: true` over them in the same batchUpdate, after the font request.
     Only a run's own `textStyle.bold` counts — bold inherited from a named style
-    is not part of the run and is not affected by the font request. Adjacent bold
+    is not part of the run and is not affected by the font request. Every
+    ParagraphElement kind that carries a `textStyle` counts as a run, not only
+    `textRun` (`_STYLED_ELEMENT_KINDS`): Docs styles inserted text from a
+    directly bold inline image, person chip or footnote reference just as from
+    text, and the font request clears such an element's bold as it does text's
+    (#1635; which kinds were checked live and which are assumed from the
+    schema is noted on `_STYLED_ELEMENT_KINDS`). Adjacent bold
     runs merge into one span, and table cells are walked with their content.
     A ParagraphElement sometimes carries no `startIndex` — the Docs API omits
     it, usually on a document's very first element — so the offset is carried
@@ -568,7 +596,11 @@ def _bold_runs_in_range(doc: dict, start_index: int, end_index: int) -> list[dic
     def _runs_of_paragraph(para: dict, para_start: int) -> None:
         offset = para_start
         for element in para.get("elements") or []:
-            run = element.get("textRun")
+            text_run = element.get("textRun")
+            run = next(
+                (element[k] for k in _STYLED_ELEMENT_KINDS if isinstance(element.get(k), dict)),
+                None,
+            )
             run_start = element.get("startIndex")
             if run_start is None:
                 # No startIndex on this element (usually a document's first
@@ -578,11 +610,14 @@ def _bold_runs_in_range(doc: dict, start_index: int, end_index: int) -> list[dic
             run_end = element.get("endIndex")
             if run_end is None:
                 run_end = run_start
-                if run and run.get("content"):
-                    for ch in run["content"]:
+                if text_run is not None:
+                    for ch in text_run.get("content") or "":
                         run_end += utf16_len(ch)
+                elif run is not None:
+                    # Every non-text element is one index long.
+                    run_end += 1
             offset = run_end
-            if not run or run_end <= run_start:
+            if run is None or run_end <= run_start:
                 continue
             if run_end <= start_index or run_start >= end_index:
                 continue

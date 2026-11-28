@@ -1041,3 +1041,29 @@ Read paragraph styles as in TC-DOC274.
 `mcp-gee-sweet-kit`, reconnected after the reset. Step 1: `{BEFORE}` = 7 (`lineSpacing` 1, 0pt above and below, 1pt font), `{END}` = 24. Step 2: the image's paragraph (24–26, `inlineObjectElement` then the newline) has `lineSpacing` 1, 0pt above and below. Step 3: `requests: 4`; the image's paragraph has `lineSpacing` 115 and 6pt below; 7–8 still `lineSpacing` 1, 0pt above and below, 1pt font; "Intro" `lineSpacing` 115, 6pt below. Step 4: the PDF shows the image below the table, clear of its bottom border. Editor (Playwright, account check passed on the fixture doc, URL-verified, title "TC-DOC278"): the image sits below the table's bottom row, not over its border.
 
 ---
+
+### TC-DOC279: A `font_family` range keeps the bold of a directly bold inline image inside it (#1635) ⚠️ destructive
+
+**Purpose:** a `weightedFontFamily` update with no `bold` clears the direct bold of every element in its range, an inline image included (checked live while fixing #1635). `style_doc_range` restores the bold it read first, and that read now counts every element that carries a text style, not only text. `insert_softbreak_paragraph`'s restore uses the same read: TC-DOC272 steps 4 and 5 cover it.
+
+Read element styles from a fresh interpreter with a raw `documents().get()`: `get_doc_structure` reports `bold: null` for every inline image.
+
+**Steps**
+1. `create_doc(title="TC-DOC279", folder_id={FOLDER_ID}, content="<p>aa bb</p>")` → `{DOC}`
+2. `insert_inline_image(doc_id={DOC}, index=3, uri="https://www.google.com/images/branding/googlelogo/1x/googlelogo_color_272x92dp.png", width=40)`
+3. `style_doc_range(doc_id={DOC}, ranges=[{"start_index": 3, "end_index": 4, "bold": true}])`; raw read
+4. `style_doc_range(doc_id={DOC}, ranges=[{"start_index": 1, "end_index": 6, "font_family": "Georgia"}])`; raw read
+5. `insert_softbreak_paragraph(doc_id={DOC}, index=4, lines=[{"text": "x"}])`; raw read
+
+**Checks**
+- Step 3: the `inlineObjectElement` at [3, 4) has `textStyle.bold: true`
+- Step 4: `requests: 2`. The image still has `bold: true`, now with `weightedFontFamily` Georgia; `aa` and ` b` are Georgia and not bold
+- Step 5: the inserted `x` (no font, so no restore) is bold, inherited from the image, which shows the image's bold survived where text typed after it would read it
+
+**Cleanup:** `delete_file` the doc
+
+**Result (2026-11-28) ✅ PASS — Kit, QA round 1 of PR #1655, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `d07df3b0`, reconnected after the reset**
+Step 3: `inlineObjectElement` [3, 4) `bold: true`. Step 4: `requests: 2`; the image `bold: true` with Georgia 400; `aa` [1, 3) and ` b` [4, 6) Georgia, not bold. Step 5: `x` [4, 5) bold (and Georgia, from the image). Doc trashed.
+Extra probe, the other element kinds (raw `batchUpdate` from a fresh interpreter, one doc per kind holding `aaa bbb` / `ccc ddd`): for each of `footnoteReference` (`createFootnote`), `pageBreak` (`insertPageBreak`), `person` (`insertPerson`), `dateElement` (`insertDate`), `richLink` (`insertRichLink`, the doc's own URL) and `dropdown` (`createDropdownDefinition` + `insertDropdown`; IDs need the `kix.` and `dropdownItem.` prefixes and two or more options), the element bolded on its own. A control `insertText` right after it comes out bold, so Docs inherits from every one. A `weightedFontFamily` update with no `bold` over the second paragraph's element clears its bold. Then through the tools: `insert_softbreak_paragraph` with a Courier New line right after the element comes out bold and Courier New, and `style_doc_range(font_family="Georgia")` over [1, 5) returns `requests: 2` and leaves the element `bold: true`. No request inserts `autoText`, `columnBreak` or `horizontalRule`, so those three weren't checked. Docs trashed.
+
+---

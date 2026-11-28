@@ -1,5 +1,6 @@
 """Tests for docs editing tools — insert_page_break, insert_softbreak_paragraph."""
 
+from typing import ClassVar
 from unittest.mock import MagicMock
 
 import pytest
@@ -645,6 +646,134 @@ class TestBoldRestoreAtParagraphStart:
         bold_restore = reqs[2]["updateTextStyle"]
         assert bold_restore["range"] == {"startIndex": 1, "endIndex": 5}
         assert bold_restore["textStyle"] == {"bold": True}
+
+
+class TestBoldRestoreFromNonTextNeighbour:
+    """#1635: Docs styles inserted text from a directly bold inline image (and
+    any other ParagraphElement that carries a textStyle) just as from text, so
+    the bold restore must read the neighbour whatever its kind — at a
+    paragraph's start and mid-paragraph. Live-confirmed for an inline image in
+    the issue."""
+
+    def _ctx(self, docs_svc=None):
+        return _make_ctx(docs_service=docs_svc or MagicMock(), doc_cache=MagicMock())
+
+    @staticmethod
+    def _doc(neighbour: dict) -> dict:
+        # <p>plain</p><p>{neighbour} tail</p>: the neighbour sits at [7, 8).
+        return {
+            "documentId": "doc1",
+            "body": {
+                "content": [
+                    {
+                        "startIndex": 1,
+                        "endIndex": 7,
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "startIndex": 1,
+                                    "endIndex": 7,
+                                    "textRun": {"content": "plain\n", "textStyle": {}},
+                                }
+                            ]
+                        },
+                    },
+                    {
+                        "startIndex": 7,
+                        "endIndex": 14,
+                        "paragraph": {
+                            "elements": [
+                                {"startIndex": 7, "endIndex": 8, **neighbour},
+                                {
+                                    "startIndex": 8,
+                                    "endIndex": 14,
+                                    "textRun": {"content": " tail\n", "textStyle": {}},
+                                },
+                            ]
+                        },
+                    },
+                ]
+            },
+        }
+
+    async def _requests(self, doc: dict, index: int) -> list[dict]:
+        docs_svc = MagicMock()
+        docs_svc.documents().get().execute.return_value = doc
+        await _docs_tools["insert_softbreak_paragraph"](
+            doc_id="doc1",
+            index=index,
+            lines=[{"text": "code", "font_family": "Courier New"}],
+            ctx=self._ctx(docs_svc),
+        )
+        return docs_svc.documents().batchUpdate.call_args.kwargs["body"]["requests"]
+
+    @staticmethod
+    def _assert_restored(reqs: list[dict], index: int) -> None:
+        assert [next(iter(r)) for r in reqs] == ["insertText", "updateTextStyle", "updateTextStyle"]
+        assert reqs[1]["updateTextStyle"]["fields"] == "weightedFontFamily"
+        bold_restore = reqs[2]["updateTextStyle"]
+        assert bold_restore["range"] == {"startIndex": index, "endIndex": index + 4}
+        assert bold_restore["textStyle"] == {"bold": True}
+        assert bold_restore["fields"] == "bold"
+
+    _BOLD_IMAGE: ClassVar[dict] = {
+        "inlineObjectElement": {"inlineObjectId": "kix.img", "textStyle": {"bold": True}}
+    }
+
+    async def test_bold_image_at_paragraph_start_restores_bold(self):
+        # Insert at the paragraph's first index: the neighbour is the image itself.
+        self._assert_restored(await self._requests(self._doc(self._BOLD_IMAGE), 7), 7)
+
+    async def test_insert_right_after_bold_image_restores_bold(self):
+        # Mid-paragraph, right after the image: the neighbour is the image before index.
+        self._assert_restored(await self._requests(self._doc(self._BOLD_IMAGE), 8), 8)
+
+    async def test_plain_image_sends_no_restore(self):
+        plain = {"inlineObjectElement": {"inlineObjectId": "kix.img", "textStyle": {}}}
+        reqs = await self._requests(self._doc(plain), 8)
+        assert [next(iter(r)) for r in reqs] == ["insertText", "updateTextStyle"]
+
+    @pytest.mark.parametrize(
+        "kind, body",
+        [
+            ("person", {"personId": "p1", "personProperties": {"email": "a@example.com"}}),
+            ("autoText", {"type": "PAGE_NUMBER"}),
+            ("footnoteReference", {"footnoteId": "f1", "footnoteNumber": "1"}),
+            ("richLink", {"richLinkId": "r1"}),
+            ("dateElement", {"dateId": "d1"}),
+        ],
+    )
+    async def test_other_bold_non_text_neighbours_restore_bold(self, kind, body):
+        neighbour = {kind: {**body, "textStyle": {"bold": True}}}
+        self._assert_restored(await self._requests(self._doc(neighbour), 8), 8)
+
+    async def test_image_without_indices_counts_as_one_index(self):
+        # A document's first element can come without startIndex/endIndex: the
+        # offset carried past an image must advance by its one index, or the
+        # bold run after it is read one position early and the probe misses it.
+        doc = {
+            "documentId": "doc1",
+            "body": {
+                "content": [
+                    {
+                        "paragraph": {
+                            "elements": [
+                                {
+                                    "inlineObjectElement": {
+                                        "inlineObjectId": "kix.img",
+                                        "textStyle": {},
+                                    }
+                                },
+                                {"textRun": {"content": "B", "textStyle": {"bold": True}}},
+                                {"textRun": {"content": " tail\n", "textStyle": {}}},
+                            ]
+                        },
+                    }
+                ]
+            },
+        }
+        # "B" sits at [2, 3); an insert at 3 inherits from it.
+        self._assert_restored(await self._requests(doc, 3), 3)
 
 
 class TestIsParagraphStart:
