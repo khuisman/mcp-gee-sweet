@@ -316,6 +316,12 @@ The stack was a new state model for `html_parser.py`, and every later round rewr
 
 Two rules came out of it, from Joy's retro: bar 1 now covers a root cause whose fix replaces the mechanism the ticket builds on, and step 3 escalates to the user when two rounds in a row each find a regression the previous fix introduced in the same mechanism. Neither adds a ticket path: the escalation files nothing until the user decides, so `decision-review-finding-ticket-bar.md`'s send-back default stands.
 
+### Probe every neighbour of a round-trip fix (2026-11-28)
+
+PR #1656 (#1325) made `get_doc_as_markdown` write an empty first sub-item as `- <!-- -->` so it reads back empty. Its tests and its live case, TC-MD513, covered the item followed by a sibling item and by a code block. Round 1's code review and Sky's script probes found that a paragraph after the comment came back pulled out of the sub-list, and that an empty task item lost its checkbox. Ash's fix put a blank line after the comment when a block follows it. Round 2's probes then found that an empty task item followed by its own nested item still lost its checkbox, so the PR took a third round for the next neighbour over. A script that ran the changed node against every kind of follower in round 1 (sibling, nested item, block, nothing, at two depths, quoted and ordered) would have found the third one in round 1 too, alongside the other two. Each probe takes a second in a fresh interpreter, against the minutes a QA round costs.
+
+The same pass hit `gh pr checks --watch` exiting 1 with `no checks reported` right after Sky pushed its Result entry, before GitHub had registered the new head's checks. A second watch a moment later showed every check.
+
 ## `rio.md`
 
 ### Why a non-lane QA role exists
