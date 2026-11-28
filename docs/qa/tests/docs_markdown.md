@@ -1846,6 +1846,8 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 
 **Cleanup:** trash both Docs.
 
+**Result (2026-11-28, PR #1656 QA round 1 @ fc69b1ba, Sky) ✅ PASS — steps 1–4, one run.** Step 2: "a" (0), empty (1), "c" (1) in one list; "x" (0), empty (1), "y" (1) in one list; unbulleted "Between."; empty item (0), unbulleted "code", "b" (0) sharing the empty item's `listId`; no heading. Step 3: `- a\n  - <!-- -->\n  - c\n1. x\n   1. <!-- -->\n   2. y\n\nBetween.\n\n1. \n   ```\n   code\n   ```\n\n2. b\n\n`, with no bare `  - ` or `   1. ` line. Step 4: same paragraphs, levels and list grouping as step 2, no heading. Also checked outside the case: the step 3 Markdown's lists, uploaded with `upload_local_file(convert=True)` (Drive's own import), keep both empty sub-items empty, with no comment text. An empty sub-item holding a paragraph (`- a\n  - <!-- -->\n    p`) does not round-trip: the Doc reads "a" (0), empty (1), empty (0), "p" (0), a send-back in the round's comment. All Docs trashed.
+
 ---
 
 ## Known gaps and not-applicable
