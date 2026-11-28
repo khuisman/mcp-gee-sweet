@@ -3755,3 +3755,31 @@ Run via `mcp-gee-sweet-kit` (OAuth) in `TEST_FOLDER_ID` on the Shared Drive, at 
 Re-run at head `56895d03` (the round-1 fixes plus a `develop` merge bringing #1180's `dropped_links`) via `mcp-gee-sweet-kit` (OAuth) on the Shared Drive. Calls 1 to 6 matched round 1 exactly: `shared: false` image outcomes, levels 0/1/2 in one `listId`, `☐`/`☑` tasks, the linked URL, an inline-image run, three exports identical once the `docs-images-rt` URLs are normalized, and a nested `<ul>` plus `<a href="https://example.com">` in the raw HTML. Not part of this case: `auto_downscale=True` with a 6000x5000 PNG returned `downscaled: true`, and a no-scheme link came back under `dropped_links` (`reason: no_scheme`).
 
 **Result (2026-11-08) ✅ PASS — ornithomimus release pass, shard F2 on `kai-sa`** — SA in the Shared Drive run folder (tag is personal-Drive quota); image at my scratch `F2/qa-302/red.png`. Call 1: fileId, name qa-302-run1.md, parent, web_link, images[0] {fileId, shared: false}, no error. Structure: top/nested/deeper at levels 0/1/2 in one listId, tasks `☐ open task`/`☑ done task` bulleted, `https://example.com` run linked, one inline-image run. The three exports are identical apart from the docs-images-rt URL, each with three-level list, `- [ ] open task`/`- [x] done task`, `` `code span` ``, linked URL, fenced code. Raw HTML: `<li>nested item` in a nested `<ul>`, `<a href="https://example.com">`.
+
+### TC-D304: Converted uploads in a batch all keep the local mtime: the restamp waits for the conversion's own write (#1415) ⚠️ local-filesystem
+
+**Background:** A converted upload's `modifiedTime` restamp used to go out as soon as `create()` returned. Drive's conversion finishes a second or two later, and its write at the file's next `version` moved `modifiedTime` to just after the import's revision, over a restamp that had already landed. It happened to a fraction of a batch: 3 of 16 Sheets in the ornithomimus release pass (TC-D267's Result), and 3 of 24 under OAuth and 6 of 24 under a service account when probed. The restamp now waits until the file's `version` passes the one `create()` returned (`_await_import_write`, `docs/design/converted-upload-restamp.md`). One file can't show it, so this case uploads 24 at once, which is where it showed.
+
+**Setup**
+Create a scratch Drive folder `{FOLDER_ID}` on the Shared Drive (a service account identity reproduced the old drift most often). Locally, create `/tmp/qa-304/` holding 24 CSVs: `row01.csv` … `row21.csv`, each `a,b\n<n>,2\n`, plus `報告書.csv`, `データ.csv` and `表格.csv`, each `a,b\n1,2\n` (TC-D265's drift hit a CJK name). Set every file's mtime to 2023-01-01: `touch -t 202301010000 /tmp/qa-304/*.csv`.
+
+**Tool calls**
+1. `upload_local_folder(local_path="/tmp/qa-304", parent_folder_id={FOLDER_ID}, convert=True)`
+2. Wait at least 60 seconds, then `refresh_cache(folder_id={FOLDER_ID})` and `list_files(folder_id={FOLDER_ID})`
+3. `sync_folder(folder_id={FOLDER_ID}, local_path="/tmp/qa-304", direction="bidirectional", export_format="csv", dry_run=True)`
+4. Run calls 1 to 3 twice more, each time into a fresh `{FOLDER_ID}`.
+
+**Checks**
+- Call 1: all 24 names in `uploaded`; `failed` and `skipped_unverified` are empty. `upload_local_folder` uploads one file at a time, about 6 s per converted file under OAuth, so the call takes two to three minutes and the MCP client may move it to the background. The wait for each import adds up to about a second per file on top of that (about 0.2 s on average, measured in PR #1648 QA round 1), never 15 seconds per file.
+- Call 2: 24 Google Sheets, each named without `.csv`, and every one's `modified_time` is the local mtime in UTC (`2023-01-01T08:00:00.000Z` on a machine in Pacific time). None is today's date. Before the fix, some of them were.
+- Call 3: 24 `actions`, every one `skip` with reason "in sync". None is `download` ("drive newer by …") or `conflict`.
+- All three runs pass: 72 Sheets, none drifted.
+
+**Teardown**
+Trash each `{FOLDER_ID}` with its contents, then `rm -rf /tmp/qa-304`.
+
+**Result (2026-11-27) ✅ PASS — PR #1648 QA round 1, head `e4b43b88`, via `mcp-gee-sweet-sky` (OAuth) in `TEST_FOLDER_ID` on the Shared Drive.** All three runs: call 1 uploaded all 24 with `failed` and `skipped_unverified` empty, taking 120–154 s (moved to the background by the client after 120 s). Call 2: 24 Sheets named without `.csv`, every `modified_time` `2023-01-01T08:00:00.000Z`. Call 3: 24 `skip` "in sync". 72 Sheets, none drifted. Not part of this case: a fresh interpreter running this head's `_upload_local_file` under the service account (`service_account.json`), 24 files 8 at a time, uploaded 24 and none had drifted at +60 s; and timing 6 sequential OAuth uploads with and without `_await_import_write` gave 6.23 s and 6.00 s per file, so the wait added about 0.2 s on average. A `sync_folder(convert_markdown=True, direction="upload")` of two `.md` files also kept `2023-01-01T08:00:00.000Z` and planned both "in sync".
+
+**Result (2026-11-27) ✅ PASS — PR #1648 QA round 2, head `16d465a1`, via `mcp-gee-sweet-sky` (OAuth) in `TEST_FOLDER_ID` on the Shared Drive.** One run after the shielded-restamp fix: call 1 uploaded all 24 with `failed` and `skipped_unverified` empty; call 3 planned all 24 `skip` "in sync". Not part of this case: a fresh interpreter running this head's `_upload_local_file(convert=True)` was cancelled while `_await_import_write` ran. The call raised its cancellation after 6.7 s, once the shielded wait and restamp finished, and the Sheet read `2023-01-01T08:00:00.000Z` at +60 s.
+
+**Result (2026-11-27) ✅ PASS (happy path only) — PR #1648 QA round 3, head `6fe1d92e`, via `mcp-gee-sweet-sky` (OAuth) on the Shared Drive.** The fix touches only the poll's error path (a rate-limit 403 keeps polling), so this round ran one converted upload instead of the 24-file batch: `upload_local_file(convert=True)` of a 2023-01-01 CSV gave a Sheet whose `modified_time` was `2023-01-01T08:00:00.000Z`, and `sync_folder(export_format="csv", dry_run=True)` planned it "in sync". A live rate-limit 403 can't be produced on demand, so the new path is covered by `TestRestampWaitsForImportWrite::test_rate_limit_403_keeps_polling` and `tests/test_http_errors.py::TestIsRateLimit403`.

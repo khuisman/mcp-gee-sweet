@@ -20,6 +20,17 @@ def http_error_has_reason(e: BaseException, status: int, reason: str) -> bool:
     )
 
 
+RATE_LIMIT_REASONS = ("rateLimitExceeded", "userRateLimitExceeded")
+
+
+def is_rate_limit_403(e: BaseException) -> bool:
+    """True for Drive's rate-limit refusal sent as a 403 instead of a 429
+    (`rateLimitExceeded`, `userRateLimitExceeded`). It's a refusal for now,
+    not an answer about the file, so a caller that waits or retries on a 429
+    treats it the same."""
+    return any(http_error_has_reason(e, 403, reason) for reason in RATE_LIMIT_REASONS)
+
+
 def is_storage_quota_error(e: BaseException) -> bool:
     """True for Drive's storageQuotaExceeded HttpError (403): a service account
     with no personal storage on a non-Shared-Drive target, or a user identity

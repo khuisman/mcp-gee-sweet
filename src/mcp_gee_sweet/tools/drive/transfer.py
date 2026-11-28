@@ -12,12 +12,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, BinaryIO, Literal
 
+import anyio
+import anyio.lowlevel
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload, MediaInMemoryUpload, MediaIoBaseDownload
 from mcp.server.mcpserver import Context
 from mcp.types import ToolAnnotations
 
 from ...auth import execute_in_thread, invalidating, thread_http
+from ...cache import _is_transient
 from ...local_files import (
     LocalFileAccessError,
     check_read,
@@ -27,7 +30,7 @@ from ...local_files import (
 )
 from ..atomic_write import _check_destination, _is_partial_download, _write_atomically
 from ..front_matter import strip_front_matter
-from ..http_errors import is_storage_quota_error
+from ..http_errors import is_rate_limit_403, is_storage_quota_error
 from ..mime_types import guess_mime_type
 from ..pagination import PageLimitExceeded, iter_pages
 from ..response_limits import (
@@ -126,6 +129,14 @@ _CONVERTED_MD_IMPORT_REV_PROP = "geeSweetImportRevision"
 # to absorb. _SYNC_MTIME_TOLERANCE's 5s would hide a local save made within 5s
 # of the upload (PR #854 QA round 1). This only absorbs float rounding.
 _CONVERTED_MD_STAMP_TOLERANCE = 0.001
+
+# How long a converted upload's restamp waits for the import's own write
+# (_await_import_write, #1415), and how often it checks. The longest wait
+# measured was 5.2s, under a service account with 8 uploads in flight. The
+# bound only matters if Drive stops making that write, and then the restamp
+# goes out as it did before the wait existed.
+_IMPORT_WRITE_WAIT_SECONDS = 15.0
+_IMPORT_WRITE_POLL_SECONDS = 0.5
 
 # An import's revision appears seconds after the upload. A candidate import
 # revision timestamped later than this after the upload isn't the import: Drive
@@ -539,8 +550,67 @@ async def _upload_media(
     return MediaFileUpload(str(path), mimetype=mime, resumable=True)
 
 
+async def _await_import_write(drive_service: Any, file_id: str, created_version: Any) -> None:
+    """Wait for Drive's import conversion to make its first write after
+    create(), seen as the file's `version` moving past `created_version`, the
+    one create() returned. That write is the one that moves modifiedTime to
+    just after the import's revision, so a restamp sent before it is
+    overwritten (#1415).
+
+    Measured live on Sheets, Slides and Docs (2026-11-27,
+    docs/design/converted-upload-restamp.md): the import's write that moves
+    modifiedTime was always version 5, and no later write moved it. create()
+    returns version 4, sometimes 5, so once the version is past create()'s,
+    that write has landed. Sent then, the restamp held on every file.
+
+    Bounded by _IMPORT_WRITE_WAIT_SECONDS. A transient poll failure (5xx,
+    429, transport: cache._is_transient) or a rate-limit 403
+    (http_errors.is_rate_limit_403) keeps polling to that bound. Returns
+    without waiting when create() reported no version, and stops waiting on
+    any other poll failure: either way the restamp goes out as it did before
+    #1415, so nothing is worse than without the wait. A failure that matters
+    (the file gone, a quota refusal) surfaces from the restamp itself, with
+    its fileId."""
+    if created_version is None:
+        return
+    try:
+        baseline = int(created_version)
+    except (TypeError, ValueError):
+        return
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + _IMPORT_WRITE_WAIT_SECONDS
+    while True:
+        try:
+            current = await execute_in_thread(
+                drive_service.files()
+                .get(fileId=file_id, fields="version", supportsAllDrives=True)
+                .execute,
+                drive_service,
+            )
+            if int(current["version"]) > baseline:
+                return
+        except Exception as e:
+            # A 5xx, a 429, Drive's rate-limit 403 or a transport failure says
+            # nothing about the import, so keep polling: under quota pressure,
+            # restamping early is exactly what loses (PR #1648 QA rounds 1-2).
+            # Anything else (a 404, another 403, a RefreshError, a malformed
+            # reply) won't improve with time.
+            if not (_is_transient(e) or is_rate_limit_403(e)):
+                logger.debug("Restamping %s without waiting for its import: %s", file_id, e)
+                return
+            logger.debug("Version read for %s failed, polling again: %s", file_id, e)
+        if loop.time() + _IMPORT_WRITE_POLL_SECONDS > deadline:
+            logger.debug(
+                "Import of %s made no write within %ss; restamping anyway",
+                file_id,
+                _IMPORT_WRITE_WAIT_SECONDS,
+            )
+            return
+        await asyncio.sleep(_IMPORT_WRITE_POLL_SECONDS)
+
+
 async def _restamp_modified_time(
-    drive_service: Any, file_id: str, lmtime_str: str
+    drive_service: Any, file_id: str, lmtime_str: str, created_version: Any
 ) -> dict[str, Any] | None:
     """Re-apply modifiedTime to a file that create() just produced via Drive's
     native import conversion. Under conversion, create() doesn't keep the
@@ -549,12 +619,18 @@ async def _restamp_modified_time(
     trigger reconversion. No single call can do both, so every conversion costs
     this second call (#421 finding #5).
 
-    The restamp doesn't reliably stick, though. For a Google Doc, Drive updates
-    modifiedTime from the Docs backend asynchronously, minutes behind, and that
-    late update can land after this one and overwrite it (#814; it held 40s+ in
-    PR #817 QA round 1, but drifted up to 29s in TC-D266). So sync_folder no
-    longer relies on it for a convert_markdown Doc: that Doc's change detection
-    runs off properties and revision history instead (see
+    The import finishes asynchronously, a second or two after create()
+    returns, and its last step moves modifiedTime to just after the import's
+    revision. A restamp sent before that write was overwritten by it, on any
+    conversion type (#1415: 3 of 24 Sheets under OAuth, 6 of 24 under a
+    service account). So the restamp waits for it first
+    (_await_import_write), which needs create()'s `version`: request it in
+    create()'s fields and pass it as `created_version`.
+
+    For a Google Doc, Drive also updates modifiedTime from the Docs backend
+    asynchronously, minutes behind, after an edit (#814). sync_folder doesn't
+    rely on modifiedTime for a convert_markdown Doc: that Doc's change
+    detection runs off properties and revision history instead (see
     _CONVERTED_MD_SOURCE_MTIME_PROP). For such a Doc the restamp is cosmetic,
     keeping Drive's displayed "last modified" near the source mtime.
 
@@ -564,29 +640,36 @@ async def _restamp_modified_time(
     from a converted Sheet's display name, so export_format='csv' maps it
     straight back to the local file. An unrestamped CSV → Sheet would read as
     "Drive newer" on the next sync exactly the way an unrestamped .md → Doc
-    would (#435 declined gating this on .md for that reason). Those types still
-    compare modifiedTime and so can still hit the race; see #818.
+    would (#435 declined gating this on .md for that reason).
 
     Returns None on success, or _restamp_failure_result's {"error", "fileId"}
     on failure — create() already succeeded, so the file is real and its ID
     must not be lost (#420). Shared by _upload_local_file and
     _sync_level._run_one so a future change to this workaround lands in both
     (#435)."""
-    try:
-        await execute_in_thread(
-            drive_service.files()
-            .update(
-                fileId=file_id,
-                body={"modifiedTime": lmtime_str},
-                supportsAllDrives=True,
-                fields="id",
+    # Shielded: the file already exists, and a cancellation during the wait
+    # would otherwise drop the restamp and leave it on its upload time, the
+    # #1415 symptom (PR #1648 QA round 1). Bounded by the wait's own bound
+    # plus one request. The checkpoint after it delivers a held-off cancel.
+    failure: dict[str, Any] | None = None
+    with anyio.CancelScope(shield=True):
+        await _await_import_write(drive_service, file_id, created_version)
+        try:
+            await execute_in_thread(
+                drive_service.files()
+                .update(
+                    fileId=file_id,
+                    body={"modifiedTime": lmtime_str},
+                    supportsAllDrives=True,
+                    fields="id",
+                )
+                .execute,
+                drive_service,
             )
-            .execute,
-            drive_service,
-        )
-    except Exception as e:
-        return _restamp_failure_result(file_id, e, drive_service)
-    return None
+        except Exception as e:
+            failure = _restamp_failure_result(file_id, e, drive_service)
+    await anyio.lowlevel.checkpoint()
+    return failure
 
 
 def _format_bytes_note(so_far: int, total: int | None) -> str:
@@ -951,7 +1034,8 @@ async def _upload_local_file(
                 supportsAllDrives=True,
                 # webContentLink saves an image-embedding caller a follow-up
                 # files().get() (#511); it's absent for a converted Workspace file.
-                fields="id, name, webViewLink, webContentLink"
+                # version is what a conversion's restamp waits past (#1415).
+                fields="id, name, webViewLink, webContentLink, version"
                 + (", permissionIds" if include_permission_ids else ""),
             )
             .execute,
@@ -972,7 +1056,9 @@ async def _upload_local_file(
         # See _restamp_modified_time for why every conversion type needs this.
         # A plain (non-converting) upload has no such override — the create()
         # body's modifiedTime above already sticks, no restamp needed.
-        restamp_failure = await _restamp_modified_time(drive_service, result["id"], lmtime_str)
+        restamp_failure = await _restamp_modified_time(
+            drive_service, result["id"], lmtime_str, result.get("version")
+        )
         if restamp_failure is not None:
             return restamp_failure
 
@@ -2281,7 +2367,8 @@ async def _sync_level(
                                 body=body,
                                 media_body=media,
                                 supportsAllDrives=True,
-                                fields="id",
+                                # version: what the restamp waits past (#1415).
+                                fields="id, version" if convert_this else "id",
                             )
                             .execute,
                             drive_service,
@@ -2291,7 +2378,7 @@ async def _sync_level(
                             # runs off the properties above, not modifiedTime.
                             # See _restamp_modified_time.
                             restamp_failure = await _restamp_modified_time(
-                                drive_service, created["id"], lmtime_str
+                                drive_service, created["id"], lmtime_str, created.get("version")
                             )
                             if restamp_failure is not None:
                                 return {"kind": "upload_fail", "name": name, **restamp_failure}
