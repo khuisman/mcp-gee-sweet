@@ -28,3 +28,9 @@ docs/qa/results/*-partial.md
 # Generated, machine-specific (absolute paths)
 .claude/mcp-configs/*.json
 .mcp.json
+
+# Dev-team and ad hoc worktrees (scripts/setup_team.sh, start-worktree); each is its own checkout
+.claude/worktrees/
+
+# Local tool artifacts, which can hold secrets (the server's own logs go wherever LOG_FILE says)
+logs/
