@@ -3242,8 +3242,8 @@ class TestOrderedListNumbering:
     def test_sublist_starting_past_one_stays_a_list_in_commonmark(self, parent_ordered, quoted):
         """PR #1234 QA round 1: CommonMark doesn't let a list starting at N != 1
         interrupt a paragraph, so "- a\\n  5. a1" read "5. a1" as the parent's
-        text. The sublist's first item writes "1."; its later items keep their
-        numbers, which CommonMark ignores after the first."""
+        text. An HTML comment line can interrupt it, so the sublist after it keeps
+        its start number (#1370), and the parent list stays tight."""
         nodes = [
             BulletItem(
                 runs=[Run(text="a")],
@@ -3259,10 +3259,11 @@ class TestOrderedListNumbering:
             ),
         ]
         md = ast_to_markdown(nodes)
-        assert "1. a1\n" in md
+        assert "<!-- -->\n" in md
+        assert "5. a1\n" in md
         assert "6. a2\n" in md
         html = "".join(_COMMONMARK.render(md).split())
-        assert "<li>a<ol><li>a1</li><li>a2</li></ol></li>" in html
+        assert '<li>a<!----><olstart="5"><li>a1</li><li>a2</li></ol></li>' in html
 
     def test_item_at_same_or_shallower_depth_keeps_its_number(self):
         """Only an item deeper than the one before it starts a sublist mid-item.
@@ -4384,8 +4385,20 @@ class TestTaskItemContentColumn:
         assert md == "- [ ] a\n  - [x] b\n    1. c\n"
         assert "<li>[]a<ul><li>[x]b<ol><li>c</li></ol></li></ul></li>" in _tight_html(md)
 
-    def test_ordered_task_item_keeps_a_dash_marker(self):
-        assert ast_to_markdown([_bullet("a", ordered=True, checked=False)]) == "- [ ] a\n"
+    def test_ordered_task_item_keeps_its_number(self):
+        """#1370: "- [ ]" lost the item's number and the list's type."""
+        assert ast_to_markdown([_bullet("a", ordered=True, checked=False)]) == "1. [ ] a\n"
+
+    def test_block_inside_an_ordered_task_item_is_at_the_number_s_column(self):
+        nodes = [
+            _bullet("a", ordered=True, number=10, checked=True),
+            Paragraph(runs=[Run(text="more")], list_depth=0),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "10. [x] a\n\n    more\n"
+        html = _tight_html(md)
+        assert "<pre>" not in html
+        assert '<olstart="10"><li><p>[x]a</p><p>more</p></li></ol>' in html
 
 
 def _empty_bullet(depth=0, ordered=False, number=None, **kwargs):
@@ -4678,3 +4691,240 @@ class TestNestedListParsesTheSameEverywhere:
         ours = "".join(md_to_html._md_to_html(md).split())
         assert plain == ours
         assert _shape(_reimported(md)) == _shape(nodes)
+
+
+def _rendered_numbers(markdown_text):
+    """The number CommonMark renders each ordered item with, in order, from the
+    token stream: a list's `start` counting up, item by item."""
+    numbers, counters = [], []
+    for token in MarkdownIt("commonmark").parse(markdown_text):
+        if token.type == "ordered_list_open":
+            start = token.attrGet("start")
+            counters.append(1 if start is None else int(start))
+        elif token.type == "bullet_list_open":
+            counters.append(None)
+        elif token.type in ("ordered_list_close", "bullet_list_close"):
+            counters.pop()
+        elif token.type == "list_item_open" and counters[-1] is not None:
+            numbers.append(counters[-1])
+            counters[-1] += 1
+    return numbers
+
+
+class TestOrderedNumbersRenderAsWritten:
+    """#1370: an exported ordered list renders with the numbers the Doc shows,
+    under plain CommonMark and through our own import."""
+
+    def test_sublist_starting_past_one_keeps_its_numbers(self):
+        """The issue's first case: literal "c.", "d." under a parent exported "1.",
+        "4.", which rendered 1, 2."""
+        nodes = [
+            _bullet("Parent"),
+            _bullet("Child three", 1, ordered=True, number=3),
+            _bullet("Child four", 1, ordered=True, number=4),
+            _bullet("Next"),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "- Parent\n  <!-- -->\n  3. Child three\n  4. Child four\n- Next\n"
+        assert _rendered_numbers(md) == [3, 4]
+        # Still tight: no item's text is wrapped in <p>.
+        assert "<p>" not in _COMMONMARK.render(md)
+        reimported = _reimported(md)
+        assert _shape(reimported) == _shape(nodes)
+        assert [n.number for n in reimported] == [None, 3, 4, None]
+
+    @pytest.mark.parametrize("parent_ordered", [False, True])
+    @pytest.mark.parametrize("quote", [0, 1, 2])
+    def test_sublist_break_line_sits_in_the_parent_and_its_quote(self, parent_ordered, quote):
+        nodes = [
+            _bullet("p", ordered=parent_ordered, blockquote_depth=quote),
+            _bullet("c", 1, ordered=True, number=7, blockquote_depth=quote),
+        ]
+        md = ast_to_markdown(nodes)
+        assert _rendered_numbers(md) == ([1, 7] if parent_ordered else [7])
+        assert _shape(_reimported(md)) == _shape(nodes)
+        assert "".join(MarkdownIt("commonmark").render(md).split()) == "".join(
+            md_to_html._md_to_html(md).split()
+        )
+
+    @pytest.mark.parametrize("number", [0, 2, 10])
+    def test_any_start_past_one_gets_the_break_line(self, number):
+        nodes = [_bullet("p"), _bullet("c", 1, ordered=True, number=number)]
+        assert _rendered_numbers(ast_to_markdown(nodes)) == [number]
+
+    def test_sublist_starting_at_one_needs_no_break_line(self):
+        nodes = [_bullet("p"), _bullet("c", 1, ordered=True, number=1)]
+        assert ast_to_markdown(nodes) == "- p\n  1. c\n"
+
+    def test_empty_parent_needs_no_break_line(self):
+        """An empty parent has no paragraph to interrupt, so the sublist after it
+        can start past 1, under a bare marker or the empty-item comment."""
+        nodes = [_empty_bullet(), _bullet("c", 1, ordered=True, number=3)]
+        md = ast_to_markdown(nodes)
+        assert md == "- \n  3. c\n"
+        assert _rendered_numbers(md) == [3]
+        assert _shape(_reimported(md)) == _shape(nodes)
+
+        nodes = [
+            _bullet("p"),
+            _empty_bullet(1),
+            _bullet("c", 2, ordered=True, number=3),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "- p\n  - <!-- -->\n\n    3. c\n"
+        assert _rendered_numbers(md) == [3]
+        assert _shape(_reimported(md)) == _shape(nodes)
+
+    @pytest.mark.parametrize("checked", [False, True])
+    def test_ordered_task_items_keep_their_numbers(self, checked):
+        """The issue's second case: "3. [x] Done" exported "- [x] Done"."""
+        nodes = [
+            _bullet("Done", ordered=True, number=3, checked=checked),
+            _bullet("Next", ordered=True, number=4, checked=not checked),
+        ]
+        md = ast_to_markdown(nodes)
+        box, other = ("[x]", "[ ]") if checked else ("[ ]", "[x]")
+        assert md == f"3. {box} Done\n4. {other} Next\n"
+        assert _rendered_numbers(md) == [3, 4]
+        reimported = _reimported(md)
+        assert _shape(reimported) == _shape(nodes)
+        assert all(n.ordered for n in reimported)
+
+    def test_adjacent_lists_stay_apart(self):
+        """The issue's third case: "3. a" right above "7. b" rendered 3, 4."""
+        nodes = [_bullet("a", ordered=True, number=3), _bullet("b", ordered=True, number=7)]
+        md = ast_to_markdown(nodes)
+        assert md == "3. a\n7) b\n"
+        assert _rendered_numbers(md) == [3, 7]
+        assert [n.number for n in _reimported(md)] == [3, 7]
+
+    def test_delimiter_alternates_across_several_lists(self):
+        """A reversed list: every item starts a list of its own."""
+        nodes = [_bullet(t, ordered=True, number=n) for t, n in (("a", 3), ("b", 2), ("c", 1))]
+        md = ast_to_markdown(nodes)
+        assert md == "3. a\n2) b\n1. c\n"
+        assert _rendered_numbers(md) == [3, 2, 1]
+
+    def test_a_list_counting_up_keeps_one_delimiter(self):
+        nodes = [_bullet(t, ordered=True, number=n) for t, n in (("a", 5), ("b", 6), ("c", 9))]
+        md = ast_to_markdown(nodes)
+        assert md == "5. a\n6. b\n9) c\n"
+        assert _rendered_numbers(md) == [5, 6, 9]
+
+    def test_adjacent_sublists_stay_apart(self):
+        nodes = [
+            _bullet("p"),
+            _bullet("x", 1, ordered=True, number=1),
+            _bullet("y", 1, ordered=True, number=5),
+            _bullet("z", 1, ordered=True, number=6),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "- p\n  1. x\n  5) y\n  6) z\n"
+        assert _rendered_numbers(md) == [1, 5, 6]
+        assert _shape(_reimported(md)) == _shape(nodes)
+
+    def test_list_continues_across_a_sublist_and_a_block_in_its_item(self):
+        """The open list at a depth outlives a deeper list and a block inside its
+        item, so the item after them continues it with the same delimiter."""
+        nodes = [
+            _bullet("a", ordered=True, number=1),
+            _bullet("a1", 1),
+            Paragraph(runs=[Run(text="more")], list_depth=0),
+            _bullet("b", ordered=True, number=2),
+            _bullet("d", ordered=True, number=4),
+        ]
+        md = ast_to_markdown(nodes)
+        assert "\n2. b\n4) d\n" in md
+        assert _rendered_numbers(md) == [1, 2, 4]
+
+    def test_list_after_a_margin_block_starts_fresh(self):
+        """A block at the margin ends the Markdown list, so the next one needs no
+        delimiter switch."""
+        nodes = [
+            _bullet("a", ordered=True, number=1),
+            Paragraph(runs=[Run(text="between")]),
+            _bullet("b", ordered=True, number=7),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md.endswith("\n\n7. b\n")
+        assert _rendered_numbers(md) == [1, 7]
+
+    def test_unknown_numbers_continue_the_open_list(self):
+        nodes = [
+            _bullet("a", ordered=True, number=4),
+            BulletItem(runs=[Run(text="b")], ordered=True),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "4. a\n1. b\n"
+        assert _rendered_numbers(md) == [4, 5]
+
+    def test_quoted_list_after_an_unquoted_one_starts_fresh(self):
+        nodes = [
+            _bullet("a", ordered=True, number=1),
+            _bullet("b", ordered=True, number=5, blockquote_depth=1),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "1. a\n\n> 5. b\n"
+        assert _rendered_numbers(md) == [1, 5]
+
+    @pytest.mark.parametrize("number", [-1, -20, 1_000_000_000, 1234567890])
+    def test_number_no_marker_holds_is_a_paragraph(self, number):
+        """The issue's comment: "-1. c" and "1234567890. x" aren't CommonMark
+        markers, so as items they joined the item before them."""
+        nodes = [_bullet("a", ordered=True, number=1), _bullet("c", ordered=True, number=number)]
+        md = ast_to_markdown(nodes)
+        assert md == f"1. a\n\n{number}. c\n"
+        assert _rendered_numbers(md) == [1]
+        assert _shape(_reimported(md))[-1] == (
+            "Paragraph",
+            f"{number}. c",
+            None,
+            None,
+            0,
+            None,
+            None,
+        )
+
+    def test_largest_marker_number_is_still_an_item(self):
+        md = ast_to_markdown([_bullet("x", ordered=True, number=999_999_999)])
+        assert md == "999999999. x\n"
+        assert _rendered_numbers(md) == [999_999_999]
+
+    def test_nested_number_no_marker_holds_is_a_block_in_its_parent(self):
+        """A reversed sublist under "1. p" that counts past zero: its negative
+        item is a paragraph inside "p", and "2. q" still continues p's list."""
+        nodes = [
+            _bullet("p", ordered=True, number=1),
+            _bullet("c", 1, ordered=True, number=0),
+            _bullet("d", 1, ordered=True, number=-1, checked=True),
+            _bullet("q", ordered=True, number=2),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "1. p\n   <!-- -->\n   0. c\n\n   -1. \\[x\\] d\n\n2. q\n"
+        assert _rendered_numbers(md) == [1, 0, 2]
+        assert _shape(_reimported(md)) == [
+            ("BulletItem", "p", 0, None, 0, None, None),
+            ("BulletItem", "c", 1, None, 0, None, None),
+            ("Paragraph", "-1. [x] d", None, 0, 0, None, None),
+            ("BulletItem", "q", 0, None, 0, None, None),
+        ]
+
+    def test_heading_item_no_marker_holds_stays_a_heading(self):
+        nodes = [_bullet("T", ordered=True, number=-1, heading_level=2)]
+        md = ast_to_markdown(nodes)
+        assert md == "## -1. T\n"
+        assert _shape(_reimported(md)) == [("Heading", "-1. T", None, None, 0, None, None)]
+
+    def test_issue_examples_parse_the_same_everywhere(self):
+        nodes = [
+            _bullet("Parent"),
+            _bullet("Child three", 1, ordered=True, number=3),
+            _bullet("Child four", 1, ordered=True, number=4),
+            _bullet("Done", ordered=True, number=3, checked=True),
+            _bullet("b", ordered=True, number=7),
+        ]
+        md = ast_to_markdown(nodes)
+        plain = "".join(MarkdownIt("commonmark").render(md).split())
+        ours = "".join(md_to_html._md_to_html(md).split())
+        assert plain == ours
+        assert _rendered_numbers(md) == [3, 4, 3, 7]
