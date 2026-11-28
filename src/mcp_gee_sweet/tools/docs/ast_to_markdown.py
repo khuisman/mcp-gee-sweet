@@ -86,8 +86,10 @@ _FIRST_LINE_RULE = "***"
 # parent item's text, and CommonMark lets an item interrupt a paragraph only when
 # it has content: "- a\n  - " reads the bare "-" as a setext underline (a heading),
 # and "1. a\n   1. " as more of the parent's text. An HTML comment is content that
-# shows nothing, and html_parser ignores it, so the item reads back empty.
-_EMPTY_SUBLIST_ITEM_TEXT = "<!-- -->"
+# shows nothing, and html_parser ignores it, so the item reads back empty. An empty
+# task item gets it too, anywhere: GFM reads "[ ]" as a checkbox only with text
+# after it, and "- [ ] " came back as a plain item with the text "[ ]".
+_EMPTY_ITEM_TEXT = "<!-- -->"
 
 _NESTED_TABLE_PLACEHOLDER = (
     "*(nested table omitted — Markdown tables can't contain a table; "
@@ -155,11 +157,18 @@ class _OpenItems:
         # For a block inside an item: (list_depth, content column, the quote levels it
         # writes inside the item's indent). None for anything else.
         self._inner_quote: tuple[int, int, int] | None = None
+        # Whether the last node was an item written with `_EMPTY_ITEM_TEXT`.
+        self._wrote_empty_item_text = False
         self.separator = "\n\n"
 
     def render(self, node: DocNode, prev_node: DocNode | None) -> str:
         prev_quote = self._margin_quote
         prev_inner = self._inner_quote
+        # An item written with the comment has content, so it doesn't start blank:
+        # its first block takes the usual blank line. A newline there made a paragraph
+        # right after the comment the item's text with the line breaks around the
+        # comment kept, which the import wrote as extra paragraphs (PR #1656 QA round 1).
+        prev_has_text = self._wrote_empty_item_text
         rendered = self._render(node, prev_node)
         same_list = (
             isinstance(node, BulletItem)
@@ -167,7 +176,7 @@ class _OpenItems:
             and node.blockquote_depth == prev_node.blockquote_depth
         )
         shared = min(prev_quote, self._margin_quote)
-        if same_list or _starts_empty_item(prev_node, node):
+        if same_list or (not prev_has_text and _starts_empty_item(prev_node, node)):
             self.separator = "\n"
         elif (
             prev_inner is not None
@@ -206,6 +215,7 @@ class _OpenItems:
         return 0
 
     def _render(self, node: DocNode, prev_node: DocNode | None) -> str:
+        self._wrote_empty_item_text = False
         if isinstance(node, BulletItem):
             opens_sublist = _opens_sublist(node, prev_node)
             quote = node.blockquote_depth
@@ -219,7 +229,9 @@ class _OpenItems:
             self._items.append((len(prefix), quote))
             self._margin_quote = quote
             self._inner_quote = None
-            return _render_block(node, item_prefix=prefix, opens_sublist=opens_sublist)
+            text = _item_text(node, opens_sublist)
+            self._wrote_empty_item_text = text == _EMPTY_ITEM_TEXT
+            return _render_block(node, item_prefix=prefix, item_text=text)
         list_depth = node.list_depth
         if list_depth is None or list_depth >= len(self._items):
             self._items.clear()
@@ -371,14 +383,13 @@ def _render_block(
     node: Heading | Paragraph | BulletItem | NamedBlock,
     blockquote_depth: int | None = None,
     item_prefix: str = "",
-    opens_sublist: bool = False,
+    item_text: str = "",
 ) -> str:
     """`blockquote_depth` overrides the node's own, for a block whose outer quote
     levels its caller writes (see `_OpenItems`). `item_prefix` is a list item's
     indent and marker, from `_item_prefix`, whose length `_OpenItems` records as
-    the column the item's children nest under. `opens_sublist` (`_opens_sublist`)
-    says the item's line follows its parent's text, where an item with no text
-    is written as `_EMPTY_SUBLIST_ITEM_TEXT` (#1323)."""
+    the column the item's children nest under. `item_text` is the item's text,
+    from `_item_text`."""
     if isinstance(node, Paragraph) and node.rule:
         body = _RULE
     elif isinstance(node, Paragraph) and _is_code_block(node):
@@ -391,17 +402,7 @@ def _render_block(
         level = 1 if node.style_type == "TITLE" else 2
         body = f"{'#' * level} {_render_inline(node.runs)}".rstrip()
     elif isinstance(node, BulletItem):
-        text = _render_inline(node.runs)
-        if node.heading_level:
-            # An item whose text is a heading (#1302): "- # Title".
-            text = f"{'#' * node.heading_level} {text}".rstrip()
-        else:
-            # Text after the marker starts the item's first block, so "# a" or
-            # "> a" there would read as a heading or quote inside the item.
-            text = _escape_leading_block_marker(text)
-            if opens_sublist and not text and node.checked is None:
-                text = _EMPTY_SUBLIST_ITEM_TEXT
-        body = f"{item_prefix}{_checkbox(node)}{text}"
+        body = f"{item_prefix}{_checkbox(node)}{item_text}"
     else:
         body = _escape_leading_block_marker(_render_inline(node.runs))
 
@@ -409,6 +410,24 @@ def _render_block(
     if depth:
         body = _blockquote(body, depth)
     return body
+
+
+def _item_text(node: BulletItem, opens_sublist: bool) -> str:
+    """A list item's text, after its marker and any checkbox. An item with none is
+    written as `_EMPTY_ITEM_TEXT` where a bare marker wouldn't read back as an empty
+    item: right under its parent's text (`opens_sublist`, #1323), or after a
+    checkbox (PR #1656 QA round 1). Literal text "<!-- -->" is escaped ("\\<!"), so
+    the comment is never mistaken for an item's own text."""
+    text = _render_inline(node.runs)
+    if node.heading_level:
+        # An item whose text is a heading (#1302): "- # Title".
+        return f"{'#' * node.heading_level} {text}".rstrip()
+    # Text after the marker starts the item's first block, so "# a" or "> a"
+    # there would read as a heading or quote inside the item.
+    text = _escape_leading_block_marker(text)
+    if not text and (opens_sublist or node.checked is not None):
+        return _EMPTY_ITEM_TEXT
+    return text
 
 
 def _blockquote(body: str, depth: int) -> str:

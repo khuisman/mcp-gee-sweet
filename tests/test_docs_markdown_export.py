@@ -4400,7 +4400,7 @@ def _code_block(text, list_depth):
 
 def _shape(nodes):
     """What a round trip has to keep: each node's type, text, item depth, the
-    item it's inside, and its quote depth."""
+    item it's inside, its quote depth, its checkbox and its heading level."""
     return [
         (
             type(n).__name__,
@@ -4408,6 +4408,8 @@ def _shape(nodes):
             getattr(n, "depth", None),
             getattr(n, "list_depth", None),
             n.blockquote_depth,
+            getattr(n, "checked", None),
+            getattr(n, "heading_level", None),
         )
         for n in nodes
     ]
@@ -4479,8 +4481,23 @@ class TestEmptyFirstSubItem:
             ),
             pytest.param(
                 [_bullet("a"), _empty_bullet(1), _code_block("x", 1), _bullet("b")],
-                "- a\n  - <!-- -->\n    ```\n    x\n    ```\n\n- b\n",
+                "- a\n  - <!-- -->\n\n    ```\n    x\n    ```\n\n- b\n",
                 id="holding-a-code-block",
+            ),
+            pytest.param(
+                [
+                    _bullet("a"),
+                    _empty_bullet(1),
+                    Paragraph(runs=[Run(text="q")], list_depth=1, blockquote_depth=1),
+                    _bullet("b"),
+                ],
+                "- a\n  - <!-- -->\n\n    > q\n\n- b\n",
+                id="holding-a-quote",
+            ),
+            pytest.param(
+                [_bullet("a"), _empty_bullet(1), Paragraph(runs=[], rule=True, list_depth=1)],
+                "- a\n  - <!-- -->\n\n    ---\n",
+                id="holding-a-rule",
             ),
         ],
     )
@@ -4498,6 +4515,28 @@ class TestEmptyFirstSubItem:
         assert md == "- a\n  - <!-- -->\n  - c\n"
         assert "<h2>" not in _tight_html(md)
 
+    @pytest.mark.parametrize("heading", [False, True])
+    def test_paragraph_or_heading_under_it_comes_back_no_worse_than_1658(self, heading):
+        """A paragraph or heading as the empty item's first block can't round-trip:
+        Markdown can't tell it from the item's own text (#1658). It comes back as
+        that text, at the item's depth, with nothing else. A newline after the
+        comment made it the item's text with the comment's line breaks kept, which
+        the import wrote as an extra empty top-level item (PR #1656 QA round 1)."""
+        block = (
+            Heading(level=2, runs=[Run(text="h")], list_depth=1)
+            if heading
+            else Paragraph(runs=[Run(text="p")], list_depth=1)
+        )
+        md = ast_to_markdown([_bullet("a"), _empty_bullet(1), block, _bullet("b")])
+        text = "## h" if heading else "p"
+        assert md == f"- a\n  - <!-- -->\n\n    {text}\n\n- b\n"
+        expected = [
+            _bullet("a"),
+            _bullet(text[-1], 1, heading_level=2 if heading else None),
+            _bullet("b"),
+        ]
+        assert _shape(_reimported(md)) == _shape(expected)
+
     @pytest.mark.parametrize(
         "nodes, expected",
         [
@@ -4505,15 +4544,48 @@ class TestEmptyFirstSubItem:
                 [_bullet("a"), _empty_bullet(), _bullet("c")], "- a\n- \n- c\n", id="sibling"
             ),
             pytest.param([_empty_bullet()], "- \n", id="alone"),
-            pytest.param(
-                [_bullet("a"), _empty_bullet(1, checked=False)], "- a\n  - [ ] \n", id="task"
-            ),
         ],
     )
     def test_an_empty_item_that_interrupts_nothing_stays_bare(self, nodes, expected):
-        """A sibling item doesn't interrupt the paragraph before it, and a task
-        item's box is its text, so neither needs the comment."""
-        assert ast_to_markdown(nodes) == expected
+        """A sibling item doesn't interrupt the paragraph before it, so it needs no
+        comment."""
+        md = ast_to_markdown(nodes)
+        assert md == expected
+        assert _shape(_reimported(md)) == _shape(nodes)
+
+
+class TestEmptyTaskItem:
+    """GFM reads "[ ]" as a checkbox only with text after it, so an empty task item
+    exported as "- [ ] " came back as a plain item with the text "[ ]" (PR #1656 QA
+    round 1). It gets the same comment as an empty first sub-item."""
+
+    @pytest.mark.parametrize("checked", [False, True])
+    @pytest.mark.parametrize(
+        "make_nodes, expected",
+        [
+            pytest.param(lambda c: [_empty_bullet(checked=c)], "- {box} <!-- -->\n", id="alone"),
+            pytest.param(
+                lambda c: [_bullet("a"), _empty_bullet(checked=c), _bullet("b")],
+                "- a\n- {box} <!-- -->\n- b\n",
+                id="sibling",
+            ),
+            pytest.param(
+                lambda c: [_bullet("a"), _empty_bullet(1, checked=c), _bullet("c", 1)],
+                "- a\n  - {box} <!-- -->\n  - c\n",
+                id="first-sub-item",
+            ),
+            pytest.param(
+                lambda c: [_empty_bullet(checked=c), _code_block("x", 0)],
+                "- {box} <!-- -->\n\n  ```\n  x\n  ```\n",
+                id="holding-a-code-block",
+            ),
+        ],
+    )
+    def test_keeps_its_checkbox(self, make_nodes, expected, checked):
+        nodes = make_nodes(checked)
+        md = ast_to_markdown(nodes)
+        assert md == expected.format(box="[x]" if checked else "[ ]")
+        assert _shape(_reimported(md)) == _shape(nodes)
 
 
 class TestEmptyItemHoldingOnlyABlock:
