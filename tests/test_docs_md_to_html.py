@@ -897,6 +897,41 @@ class TestHiddenBlockAfterItemText:
         assert item.checked is True
         assert _text(item) == "Ship it"
 
+    def test_a_paragraph_holding_only_whitespace_around_a_comment_stays(self):
+        # #1625 review: the armed pop removed every whitespace-only run, so a
+        # fresh <p> holding only whitespace around the comment — a blank
+        # spacer paragraph on develop, as <p> </p> is — ended up empty and
+        # wasn't emitted. The trim stands aside when it would empty a freshly-
+        # closed <p> (#402's blank-line-spacer rule), and the paragraph keeps
+        # its whitespace: a space either side of the comment, and the source
+        # line breaks around one too.
+        nodes = html_to_ast("<p> <!-- spacer --> </p>")
+        assert [type(n).__name__ for n in nodes] == ["Paragraph"]
+        assert _text(nodes[0]) == "  "
+        nodes = html_to_ast("<p>\n<!-- x -->\n</p>")
+        assert [type(n).__name__ for n in nodes] == ["Paragraph"]
+        assert _text(nodes[0]) == "\n\n"
+        # The pop still trims a fresh <p>'s padding when the paragraph has
+        # real content before it.
+        nodes = html_to_ast("<p>a\n<!-- x -->\n</p>")
+        assert [type(n).__name__ for n in nodes] == ["Paragraph"]
+        assert _text(nodes[0]) == "a"
+
+    def test_the_armed_trim_strips_a_trailing_space_from_the_last_kept_run(self):
+        # #1625 review: "item " ends in whitespace, so the arm's flush put it
+        # in pending runs on its own, and neither the pop (whitespace-only
+        # runs) nor the line-break trim (an edge holding a break) reached its
+        # trailing space — the item read "item " where develop reads "item".
+        # The trim now strips the trailing formatting whitespace of the last
+        # kept run; an authored "&nbsp;" beside the comment still isn't ASCII
+        # formatting whitespace and stays.
+        md = "- item <!-- markdownlint-disable-line -->\n  - x\n"
+        assert _outline(md) == [("UL", 0, "item"), ("UL", 1, "x")]
+        nodes = html_to_ast("<ul><li><p>a</p> </li></ul>")
+        assert [_text(n) for n in nodes] == ["a"]
+        md = "- item\u00a0<!-- x -->\n  - x\n"
+        assert _outline(md) == [("UL", 0, "item\u00a0"), ("UL", 1, "x")]
+
 
 class TestLooseListsAfter1164:
     """With #1164 in, CommonMark's loose lists (`<li><p>…</p></li>`) keep their bullets

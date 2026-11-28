@@ -898,16 +898,42 @@ class _AstParser(HTMLParser):
             # the emitter. _is_formatting_whitespace, not str.strip(): an authored
             # "&nbsp;" is a deliberate spacer and stays (#402's fresh-`<p>` rule,
             # which this item's text may still have arrived through).
-            while runs and isinstance(runs[-1], Run) and _is_formatting_whitespace(runs[-1].text):
-                runs.pop()
-            # The break before the boundary is source formatting too, but the
-            # arm's flush put it in _pending_runs where _trim_source_line_break
-            # — which reads only _run_buf — can't reach it (#1625 review):
-            # `<li>c\n<!-- … -->\n<ul>` kept `c\n` and drew the empty bullet
-            # #1619 took out. Only a trailing line-break edge of the last kept
-            # run goes; text after the boundary is content and ends the run
-            # where the edge isn't one.
-            runs = _without_trailing_line_break(runs)
+            #
+            # A fresh `<p>` holding nothing but that padding keeps it (#1625
+            # review): `<p> <!-- spacer --> </p>` is a blank spacer paragraph
+            # on develop, as `<p> </p>` is — the #402 fresh-`<p>` rule again,
+            # unconditional on preserve_if_empty. The pop would empty it, so
+            # the whole trim stands aside while the runs strip to nothing and
+            # the block is a freshly-closed `<p>`, and the paragraph survives.
+            if not (
+                self._block_tag == "p"
+                and not self._block_resumed
+                and runs
+                and all(isinstance(r, Run) and _is_formatting_whitespace(r.text) for r in runs)
+            ):
+                while (
+                    runs and isinstance(runs[-1], Run) and _is_formatting_whitespace(runs[-1].text)
+                ):
+                    runs.pop()
+                # The break before the boundary is source formatting too, but the
+                # arm's flush put it in _pending_runs where _trim_source_line_break
+                # — which reads only _run_buf — can't reach it (#1625 review):
+                # `<li>c\n<!-- … -->\n<ul>` kept `c\n` and drew the empty bullet
+                # #1619 took out. Only a trailing line-break edge of the last kept
+                # run goes; text after the boundary is content and ends the run
+                # where the edge isn't one.
+                runs = _without_trailing_line_break(runs)
+                # The padding can also be the trailing edge of a run with content
+                # (#1625 review): `item ` before the comment flushed on its own —
+                # it ends in whitespace — and neither the pop (whole-run) nor the
+                # line-break trim (an edge holding a break) reached its trailing
+                # space. Strip the trailing formatting whitespace of the last kept
+                # run; an authored "&nbsp;" still isn't ASCII formatting whitespace
+                # and stays.
+                if runs and isinstance(runs[-1], Run):
+                    stripped = runs[-1].text.rstrip(_ASCII_FORMATTING_WHITESPACE)
+                    if stripped != runs[-1].text:
+                        runs[-1] = replace(runs[-1], text=stripped)
             # One shot: it describes the padding right after that boundary, not
             # every flush for the rest of the document.
             self._trailing_padding = False
