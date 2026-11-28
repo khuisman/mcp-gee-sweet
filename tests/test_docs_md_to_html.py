@@ -833,6 +833,106 @@ class TestHtmlShapesFromMarkdownIt:
         ]
 
 
+class TestHiddenBlockAfterItemText:
+    """#1619: a raw HTML comment, <script> or <style> block after a list item's
+    text, and the line break markdown-it writes after it, draw no empty bullet."""
+
+    @pytest.mark.parametrize(
+        "md",
+        [
+            "- c\n  <!-- markdownlint-disable-line -->\n- d\n",
+            "- c\n  <!-- multi\n  line -->\n- d\n",
+            "- c\n  <script>x</script>\n- d\n",
+            "- c\n  <style>s</style>\n- d\n",
+        ],
+    )
+    def test_hidden_block_after_item_text_draws_no_empty_bullet(self, md):
+        # A browser shows nothing for the block or the break after it; the item
+        # held ["c\n"], and an item's "\n" is a paragraph break — the extra
+        # empty bullet. Under markdown-it-py 4.2.0 the same shapes reached the
+        # same runs.
+        assert _outline(md) == [("UL", 0, "c"), ("UL", 0, "d")]
+
+    def test_hidden_attribute_element_after_item_text(self):
+        # The same boundary for an element hidden by attribute, whose end tag
+        # arrives where a comment's never does.
+        nodes = html_to_ast("<ul><li>c<span hidden>x</span>\n</li><li>d</li></ul>")
+        assert [_text(n) for n in nodes] == ["c", "d"]
+
+    def test_text_after_a_hidden_block_keeps_its_paragraph(self):
+        # A blank line still ends the item's paragraph: the comment is a block
+        # boundary, and the text after it is the item's own second paragraph.
+        md = "- c\n  <!-- x -->\n\n  tail text\n- d\n"
+        assert _outline(md) == [("UL", 0, "c"), ("P", 0, "tail text"), ("UL", 0, "d")]
+
+    def test_a_break_before_the_comment_does_not_survive_a_nested_block(self):
+        # #1625 review: the arm's flush moved `c\n` into pending runs, where
+        # _trim_source_line_break — which reads only the run buffer — can't
+        # reach it, and the armed pop kept it because it isn't all
+        # whitespace: `c\n` and the extra empty bullet under it, where
+        # develop trims the same break. The armed trim now cuts a trailing
+        # line-break edge from the last kept run.
+        nodes = html_to_ast("<ul><li>c\n<!-- note -->\n<ul><li>n</li></ul></li></ul>")
+        assert [_text(n) for n in nodes] == ["c", "n"]
+
+    def test_a_break_before_the_comment_does_not_survive_a_rule(self):
+        # The same shape above a rule, the review's second example.
+        nodes = html_to_ast("<p>Intro\n<!-- x -->\n<hr>")
+        assert [_text(n) for n in nodes] == ["Intro", ""]
+
+    def test_a_pretty_printed_break_before_the_comment_draws_no_empty_bullet(self):
+        # The tight close: no nested block follows, so the break before the
+        # comment reaches the item only through the armed trim.
+        nodes = html_to_ast("<ul><li>c\n<!-- lint -->\n</li></ul>")
+        assert [_text(n) for n in nodes] == ["c"]
+
+    def test_a_comment_right_after_a_task_marker_keeps_the_checkbox(self):
+        # #1625 review: flushing at a boundary mid-text split "[x]" from
+        # " Ship it", and the marker check on the item's first run missed
+        # the checkbox — the Doc read a plain bullet "[x] Ship it". The
+        # flush now waits for a formatting-whitespace edge, so the item's
+        # text stays one run and the checkbox reads.
+        md = "- [x]<!-- done --> Ship it\n"
+        [item] = _ast(md)
+        assert item.checked is True
+        assert _text(item) == "Ship it"
+
+    def test_a_paragraph_holding_only_whitespace_around_a_comment_stays(self):
+        # #1625 review: the armed pop removed every whitespace-only run, so a
+        # fresh <p> holding only whitespace around the comment — a blank
+        # spacer paragraph on develop, as <p> </p> is — ended up empty and
+        # wasn't emitted. The trim stands aside when it would empty a freshly-
+        # closed <p> (#402's blank-line-spacer rule), and the paragraph keeps
+        # its whitespace: a space either side of the comment, and the source
+        # line breaks around one too.
+        nodes = html_to_ast("<p> <!-- spacer --> </p>")
+        assert [type(n).__name__ for n in nodes] == ["Paragraph"]
+        assert _text(nodes[0]) == "  "
+        nodes = html_to_ast("<p>\n<!-- x -->\n</p>")
+        assert [type(n).__name__ for n in nodes] == ["Paragraph"]
+        assert _text(nodes[0]) == "\n\n"
+        # The pop still trims a fresh <p>'s padding when the paragraph has
+        # real content before it.
+        nodes = html_to_ast("<p>a\n<!-- x -->\n</p>")
+        assert [type(n).__name__ for n in nodes] == ["Paragraph"]
+        assert _text(nodes[0]) == "a"
+
+    def test_the_armed_trim_strips_a_trailing_space_from_the_last_kept_run(self):
+        # #1625 review: "item " ends in whitespace, so the arm's flush put it
+        # in pending runs on its own, and neither the pop (whitespace-only
+        # runs) nor the line-break trim (an edge holding a break) reached its
+        # trailing space — the item read "item " where develop reads "item".
+        # The trim now strips the trailing formatting whitespace of the last
+        # kept run; an authored "&nbsp;" beside the comment still isn't ASCII
+        # formatting whitespace and stays.
+        md = "- item <!-- markdownlint-disable-line -->\n  - x\n"
+        assert _outline(md) == [("UL", 0, "item"), ("UL", 1, "x")]
+        nodes = html_to_ast("<ul><li><p>a</p> </li></ul>")
+        assert [_text(n) for n in nodes] == ["a"]
+        md = "- item\u00a0<!-- x -->\n  - x\n"
+        assert _outline(md) == [("UL", 0, "item\u00a0"), ("UL", 1, "x")]
+
+
 class TestLooseListsAfter1164:
     """With #1164 in, CommonMark's loose lists (`<li><p>…</p></li>`) keep their bullets
     (#1111), and a block inside a numbered item leaves the parser's one `<ol>` intact."""
