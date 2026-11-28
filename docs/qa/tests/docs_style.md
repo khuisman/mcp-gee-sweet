@@ -875,6 +875,147 @@ Cleanup: run folder QA-orn-D-2026-11-08 trashed (not permanent), along with ever
 
 ---
 
+## `create_paragraph_bullets`/`delete_paragraph_bullets`: what sits inside an item, adjacent lists, quotes (#1339)
+
+Each case runs on a throwaway doc made with `create_doc(content_format="markdown")` and trashed afterward. Read `nestingLevel`, `listId` and the indents through a raw `documents().get()` (`get_doc_structure` has no indents), or through `get_doc_structure` where only levels and `listId`s are checked.
+
+### TC-DOC280: Re-bulleting an item after a nested list of the other type keeps the numbering (#1288) ⚠️ destructive ⚠️ requires-oauth
+
+**Background:** #1288. The converter writes `1. A` / `- a1` / `2. B` / `3. C` as one numbered list (A, B, C share a `listId`) with a bullet list (a1) inside A. The tool's same-list expansion stopped at a1, so re-bulleting B made B and C a new list showing 1., 2. It now takes in everything inside the item (a1), bullets A..C in one call, and takes a1 back out as its own bullet list.
+
+**Prompt**
+**Playwright: required**
+> "Make a doc with this Markdown: '1. A\n    - a1\n2. B\n3. C\n'. Then re-bullet B without changing anything."
+
+Tool calls: `create_doc(title="TC-DOC280", content="1. A\n    - a1\n2. B\n3. C\n", content_format="markdown")`, `get_doc_structure(doc_id=<id>)` (note B's indices and every `listId`), `create_paragraph_bullets(doc_id=<id>, ranges=[{"start_index": <B start>, "end_index": <B end>}])`, `get_doc_structure(doc_id=<id>)`, `get_doc_as_markdown(doc_id=<id>)`.
+
+**Checks**
+- Before and after: A, B and C share one `listId` at level 0; a1 has a different `listId` at level 1.
+- `get_doc_as_markdown` reads `1. A`, `   - a1`, `2. B`, `3. C`.
+- On screen: the doc shows 1. A, ○ a1, 2. B, 3. C.
+- Repeat the call on C, then on A: the same structure after each.
+
+**Cleanup:** trash the doc.
+
+**Result (2026-11-28) 🟡 PARTIAL — Kit, QA round 1 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `9201ff8c`, reconnected after the reset**
+Before: A, B, C on one `listId` at level 0 and a1 on its own at level 1, at (18, 36) / (54, 72). After re-bulleting B, then C, then A (a raw `documents().get()` after each): the same grouping, levels and indents each time. `get_doc_as_markdown`: `1. A` / `   - a1` / `2. B` / `3. C`. Not run: the on-screen check (Playwright not connected). Doc trashed.
+Extra probes: (1) a native checklist (`BULLET_CHECKBOX`, made with this tool) nested under A comes back a decimal numbered list when B is re-bulleted; before this PR a nested list wasn't touched. (2) A list item whose `borderLeft` was set to width 0 (Docs keeps the key, `width: {unit: PT}`) moves from (18, 36) to (54, 72) when a neighbour is re-bulleted. (3) `1. A1` / `- B1` / `- B2` / `- B3` / `2. A2`, requesting A1 and B2 (level 1) in one call: B2 moves into A's numbered list (export `1. B2`) and B1 and B3 become two lists. All three sent back.
+
+**Result (2026-11-28) 🟡 PARTIAL — Kit, QA round 2 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `32e4d53e`, reconnected after the reset**
+Re-bulleting B, then C, then A: A, B, C on one `listId` at level 0 after each, and a1 on its own at level 1 (the converter's bullet list passes `_exact_preset`). `get_doc_as_markdown`: `1. A` / `   - a1` / `2. B` / `3. C`. Not run: the on-screen check (Playwright not connected). Round 1's probes are TC-DOC284 now. Doc trashed.
+
+### TC-DOC281: Re-bulleting an item after a paragraph inside the item above keeps the numbering (#1339) ⚠️ destructive ⚠️ requires-oauth
+
+**Background:** found while fixing #1288 (live, 2026-11-28): the expansion also stopped at an unlisted paragraph inside an item (#1094's block in an item, indented to the item's text), with the same restart. It now takes the block in and gives it back: bullet removed, its own indents restored.
+
+**Prompt**
+**Playwright: required**
+> "Make a doc with this Markdown: '1. A\n\n   inside A\n\n2. B\n    - b1\n\n    inside b1\n\n    - b2\n3. C\n'. Then re-bullet C without changing anything."
+
+Tool calls: `create_doc(title="TC-DOC281", content=<above>, content_format="markdown")`, raw `documents().get()` (note every paragraph's `listId`, level and indents), `create_paragraph_bullets(doc_id=<id>, ranges=[{"start_index": <C start>, "end_index": <C end>}])`, raw `documents().get()`, `get_doc_as_markdown(doc_id=<id>)`.
+
+**Checks**
+- After: A, B and C share one `listId`; b1 and b2 each keep a list of their own at level 1; "inside A" and "inside b1" have no bullet and keep the indents they had before (36/36).
+- `get_doc_as_markdown` matches its output before the call.
+- On screen: C shows 3.
+
+**Cleanup:** trash the doc.
+
+**Result (2026-11-28) 🟡 PARTIAL — Kit, QA round 1 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `9201ff8c`, reconnected after the reset**
+After re-bulleting C: A, B, C share one `listId`; b1 and b2 keep their own lists at level 1; "inside A" and "inside b1" are unlisted at (36, 36), as before. `get_doc_as_markdown` reads the input back. Not run: the on-screen check (Playwright not connected). Doc trashed.
+Extra probe, a block inside a *nested* item: `1. A` / `    - b1` / `      inside b1` (72, 72) / `2. B`. Re-bulleting A gave A a new `listId` and left B on the old one, so B restarts at 1: the walk stops at a block inside the sublist's item. Sent back.
+
+**Result (2026-11-28) 🟡 PARTIAL — Kit, QA round 2 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `32e4d53e`, reconnected after the reset**
+After re-bulleting C: A, B, C on one `listId`; b1 and b2 on lists of their own at level 1; "inside A" and "inside b1" unlisted at (36, 36). Not run: the on-screen check (Playwright not connected). The nested-item block probe from round 1 is TC-DOC284 step 4 now, which passed. Doc trashed.
+
+### TC-DOC282: A paragraph bulleted right after a same-style list starts its own list, at the requested level (#1297) ⚠️ destructive ⚠️ requires-oauth
+
+**Background:** #1297, option B (maintainer, 2026-11-01). `createParagraphBullets` joins a range to the list of the paragraph just before it when the presets match, counting levels from that paragraph's. So a level-1 numbered Z after `1. P` / `1. a` landed in P's list at level 2, and re-bulleting "Paren one" (its own numbered list, right after another) moved it into the list above as 3. Every span after a listed paragraph now goes through the anchor wrap with a barrier.
+
+**Prompt**
+**Playwright: required**
+> "Make a doc with this Markdown: '1. P\n    1. a\n\nZ\n\n1. Dot one\n2. Dot two\n\n1) Paren one\n'. Re-bullet 'Paren one' without changing anything, then make Z a numbered item at level 1."
+
+Tool calls: `create_doc(title="TC-DOC282", content=<above>, content_format="markdown")`, `get_doc_structure(doc_id=<id>)`, `create_paragraph_bullets(doc_id=<id>, ranges=[{"start_index": <Paren one start>, "end_index": <Paren one end>}])`, `get_doc_structure(doc_id=<id>)`, `create_paragraph_bullets(doc_id=<id>, ranges=[{"start_index": <Z start>, "end_index": <Z end>, "nesting_level": 1, "bullet_preset": "NUMBERED_DECIMAL_ALPHA_ROMAN"}])`, `get_doc_structure(doc_id=<id>)`.
+
+**Checks**
+- After the first call: "Paren one" has a `listId` of its own, not Dot one's, at level 0.
+- After the second: Z has a `listId` of its own, not P's, at `nestingLevel` 1. Dot one's list is unchanged.
+- No leaked tab or extra empty paragraph anywhere.
+- On screen: "Paren one" shows 1.; Z shows a. indented one level.
+
+**Cleanup:** trash the doc.
+
+**Result (2026-11-28) 🟡 PARTIAL — Kit, QA round 1 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `9201ff8c`, reconnected after the reset**
+After the first call: "Paren one" on a `listId` of its own at level 0, Dot one's list unchanged. After the second: Z on a `listId` of its own at level 1, (54, 72); P's and Dot one's lists unchanged. No leaked tab or extra paragraph. Not run: the on-screen check (Playwright didn't connect in this session: `npx` not on PATH). Doc trashed.
+
+### TC-DOC283: Quoted paragraphs keep their quote's indent through both bullet tools (#1090) ⚠️ destructive ⚠️ requires-oauth
+
+**Background:** #1090. `createParagraphBullets` sets a list level's own indents and `deleteParagraphBullets` sets 36pt per level (both confirmed live), so a quoted paragraph lost its quote's 36pt: it kept the gray bar but sat where an unquoted one would, and after a delete the export dropped the `>`. Both tools now read each paragraph's quote depth before their requests and put the quote's indent back on top.
+
+**Prompt**
+> "Make a doc with this Markdown: '> - Quoted item one\n>     - Quoted nested\n> - Quoted item two\n\nPlain\n\n> Quoted plain\n\n> 1. QA\n>     - qa1\n> 2. QB\n'. Re-bullet 'Quoted item one', bullet 'Quoted plain', re-bullet QB, then remove the bullets from 'Quoted item one' and 'Quoted nested'."
+
+Tool calls: `create_doc(title="TC-DOC283", content=<above>, content_format="markdown")`, raw `documents().get()`, then `create_paragraph_bullets` on each of "Quoted item one", "Quoted plain" and QB in turn (no level or preset), raw `documents().get()` after each, then `delete_paragraph_bullets(doc_id=<id>, ranges=[{"start_index": <Quoted item one start>, "end_index": <Quoted nested end>}])`, raw `documents().get()`, `get_doc_as_markdown(doc_id=<id>)`.
+
+**Checks**
+- After each `create_paragraph_bullets`: every quoted item reads (`indentFirstLine`, `indentStart`) = (54, 72) at level 0 and (90, 108) at level 1, with its `borderLeft`; "Quoted plain" is a level-0 item at (54, 72). qa1 keeps a bullet list of its own between QA and QB.
+- After the delete: "Quoted item one" and "Quoted nested" are both at (36, 36), their quote's indent alone, unlisted, with their `borderLeft`. `get_doc_as_markdown` writes both as `> ` one quote deep, not `> > Quoted nested` (PR #1662 QA round 1).
+- Then re-bullet both in one call (`create_paragraph_bullets` with "Quoted item one" at `nesting_level` 0 and "Quoted nested" at 1): (54, 72) and (90, 108) again, not (126, 144).
+
+**Cleanup:** trash the doc.
+
+**Result (2026-11-28) ✅ PASS — Kit, QA round 1 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `9201ff8c`, reconnected after the reset**
+Before: quoted items at (54, 72) / (90, 108), "Quoted plain" unlisted at (36, 36), all with a 3pt `borderLeft`. After each `create_paragraph_bullets`: "Quoted item one" (54, 72), "Quoted nested" (90, 108), "Quoted plain" a level-0 item at (54, 72), QB (54, 72) with qa1 still on its own bullet list at (90, 108), every border kept. After the delete: (36, 36) and (72, 72), unlisted, borders kept; the export writes `> Quoted item one` and `> > Quoted nested`. Doc trashed.
+Extra probe, re-bulleting the two deleted items in one call (item one at level 0, nested at level 1): "Quoted nested" lands at (126, 144), not (90, 108). Its leftover 36pt level indent reads as a second quote level. Sent back.
+
+**Result (2026-11-28) ✅ PASS — Kit, QA round 2 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `32e4d53e`, reconnected after the reset**
+After each `create_paragraph_bullets`: "Quoted item one" (54, 72), "Quoted nested" (90, 108), "Quoted plain" a level-0 item at (54, 72), QB (54, 72) with qa1 on its own bullet list at (90, 108), every border kept. After the delete: both items unlisted at (36, 36) with their borders; the export writes `> Quoted item one` / `>` / `> Quoted nested`, one quote deep. The re-bullet round trip gives (54, 72) and (90, 108). Doc trashed.
+Extra probes, a quoted paragraph beside a list: (1) `- A` / `> x` (x at (36, 36), touching A) and `1. N1` / `    1. n2` / `> y`: `create_paragraph_bullets` on x, then on y, leaves each at (18, 36) with its border, the #1090 symptom (expected (54, 72), which round 1's head gave). `_item_holding` reads each as a block inside the item above it and takes that item's quote depth of 0. (2) `- A` / `  > q` (72, 72) / `- B`, bulleting q: (90, 108), a quote two deep, not (54, 72). (3) `1. A` / `   > q` / `2. B`, re-bulleting B: B on a new `listId`, and the export reads `1. B`; the walk doesn't take in a quoted block inside an unquoted item. All three sent back.
+
+### TC-DOC284: What the walk keeps out, and what it keeps in its own list (PR #1662 QA round 1) ⚠️ destructive ⚠️ requires-oauth
+
+**Background:** PR #1662's QA round 1. The walk past what sits inside an item re-created a nested list with one of the two presets, so a nested checklist came back numbered; it stopped at a block inside a nested item; it moved a requested paragraph of a nested list into the outer list, splitting its own; and a zero-width left border read as a quote. Now a nested list goes back out only when a preset remakes it exactly (else the walk stops, as before #1288's fix), a block is checked against the listed paragraph just before it, a requested paragraph kept deeper than its item stays in its own list, and a quote needs a border with a width.
+
+**Prompt**
+> "Make a doc with this Markdown: '1. A\n    - a1\n2. B\n\nX\n\n1. A1\n    - B1\n    - B2\n    - B3\n2. A2\n\nY\n\n1. P\n    - p1\n\n      inside p1\n\n2. Q\n\nZ\n\n- edge\n'. Make a1 a checklist item, then work on each list."
+
+Tool calls: `create_doc(title="TC-DOC284", content=<above>, content_format="markdown")`, raw `documents().get()`. Make a1 a checklist with a raw `batchUpdate`: `deleteParagraphBullets` over a1, zero its `indentStart`/`indentFirstLine`, insert `"\t"` then `"\n\n"` at its start, `createParagraphBullets` with `BULLET_CHECKBOX` from its start + 1 to its end + 3, `deleteContentRange` the two inserted newlines. Set "edge"'s `borderLeft` to width 0 with a raw `updateParagraphStyle` (`fields: "borderLeft"`). Then, each followed by a raw `documents().get()`:
+1. `create_paragraph_bullets` on B.
+2. `create_paragraph_bullets` on A1 and on B2 with `nesting_level` 1, in one call.
+3. The same call with B2's range also given `"bullet_preset": "NUMBERED_DECIMAL_ALPHA_ROMAN"`.
+4. `create_paragraph_bullets` on Q.
+5. `create_paragraph_bullets` on "edge".
+
+**Checks**
+- 1: a1 is still a checklist item (its level's `glyphType` `GLYPH_TYPE_UNSPECIFIED`) on its own `listId`. B is on a new `listId`, apart from A's: the walk stopped at the checklist, as before #1288's fix.
+- 2: A1 and A2 share one `listId`; B1, B2 and B3 share another, all at level 1 with the ○ glyph.
+- 3: returns `{"error"}` and changes nothing.
+- 4: P and Q share one `listId`; p1 keeps a list of its own; "inside p1" has no bullet and keeps (72, 72).
+- 5: "edge" stays at (18, 36).
+
+**Cleanup:** trash the doc.
+
+**Result (2026-11-28) ✅ PASS — Kit, QA round 2 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `32e4d53e`, reconnected after the reset**
+Setup as written: a1 became a checklist item (`GLYPH_TYPE_UNSPECIFIED` at every level) on its own `listId`, and "edge" kept a `borderLeft` with `width: {unit: PT}`. 1: a1 kept its checklist and its `listId`; B moved to a new `listId`, apart from A's. 2: A1 and A2 on one new `listId`; B1, B2 and B3 on another at level 1, ● / ○ bullet list. 3: `{"error": "the paragraph at index 16 is in a list nested in another list's item; …"}`, with the `listId`s from step 2 unchanged. 4: P and Q on one `listId`, p1 on its own, "inside p1" unlisted at (72, 72). 5: "edge" at (18, 36). Doc trashed.
+
+### TC-DOC285: A quote beside a list reads its depth as `get_doc_as_markdown` does (PR #1662 QA round 2) ⚠️ destructive ⚠️ requires-oauth
+
+**Background:** PR #1662's QA round 2. A quote right after a list, at an item's text indent, was read as a block inside the item and lost its quote indent when bulleted (a regression from round 1's fix). A quoted block inside an unquoted item was read one quote too deep, and stopped the walk, so re-bulleting the next item restarted the list. Now a block's own quote levels count on top of its item's text indent, and a quote counts as inside the item only when the list goes on after it, as `doc_to_ast` reads it.
+
+**Prompt**
+> "Make a doc with this Markdown: '- A\n> x\n\nGap\n\n1. N1\n    1. n2\n> y\n\nGap\n\n- QA\n  > q\n- QB\n\nGap\n\n1. RA\n   > r\n2. RB\n'. Re-bullet RB, then bullet q, y and x, in that order."
+
+Tool calls: `create_doc(title="TC-DOC285", content=<above>, content_format="markdown")`, raw `documents().get()` (x and y at (36, 36), q and r at (72, 72), all with a `borderLeft`). Then `create_paragraph_bullets` on RB, then on q, then on y, then on x, each alone with no level or preset, and a raw `documents().get()` after each.
+
+**Checks**
+- After RB: RA and RB share one `listId`; r has no bullet and keeps (72, 72). `get_doc_as_markdown` writes RB as `2.`.
+- q, y and x each become a level-0 item at (54, 72), one quote deep, with their `borderLeft`.
+
+**Cleanup:** trash the doc.
+
+---
+
 ## `get_doc_theme(source=)` (#1527)
 
 ### TC-DOC264: `get_doc_theme` reads the body, the named styles, or both ⚠️ destructive
