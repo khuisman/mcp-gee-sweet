@@ -1875,11 +1875,13 @@ How our converter (EP-1 to EP-4 and EP-8) renders a soft break (a space) and a h
 > 2. `get_doc_as_markdown(doc_id)` on the source Doc.
 > 3. Render step 2's markdown with a plain CommonMark parser (`uv run python -c` with `markdown_it.MarkdownIt("commonmark").render(...)`) and note the number each list item renders with.
 > 4. `create_doc(title="TC-MD514 round trip", content=<step 2's markdown>, content_format="markdown")`, then `get_doc_as_markdown` on it.
+> 5. PR #1661 QA round 1's two shapes. `create_doc(title="TC-MD514 shapes", content='<ul><li>a<ol start="3"><li>x</li></ol><ol start="-1"><li>y</li></ol><ol start="7"><li>z</li></ol></li><li>b</li></ul><p>sep</p><ol><ol><li>x</li></ol><li>y</li><li>z</li></ol>')` (a sublist item numbered -1 between two sublists, then a list whose first item is at nesting level 1), then `get_doc_as_markdown` on it, and render that markdown with plain CommonMark as in step 3.
 
 **Checks**
 - Step 2 contains `- Parent\n  <!-- -->\n  3. Child three\n  4. Child four\n- Next`, `3. [x] Done\n4. [ ] Not done`, `3. a\n7) b`, `1. r one\n0) r zero`, then `-1. r minus one` and `1234567890. huge` each as a paragraph of its own (a blank line before it). It contains no `1. Child three`, no `- [x]`, and no `\[x\]`.
 - Step 3: the items render as 3, 4 (under "Parent", inside its bulleted item, with no `<p>` in that list), 3, 4 (the task items), 3, 7, 1, 0, and the `-1.` and `1234567890.` lines render as `<p>` paragraphs, not list items. The `<!-- -->` line comes out as an HTML comment, not as text.
 - Step 4: the copy's export is the same as step 2's, character for character.
+- Step 5: the export starts `- a\n  <!-- -->\n  3. x\n  <!-- -->\n  -1. y\n  <!-- -->\n  7. z\n- b`, with no blank line inside "a"'s item, and ends `1. x\n1) y\n2) z`. CommonMark renders 3, 7 inside "a"'s item with no `<p>` in that list and `-1. y` as its text, then 1, 1, 2.
 
 **Cleanup:** trash every Doc the case created.
 

@@ -4900,14 +4900,149 @@ class TestOrderedNumbersRenderAsWritten:
             _bullet("q", ordered=True, number=2),
         ]
         md = ast_to_markdown(nodes)
-        assert md == "1. p\n   <!-- -->\n   0. c\n\n   -1. \\[x\\] d\n\n2. q\n"
+        assert md == "1. p\n   <!-- -->\n   0. c\n   <!-- -->\n   -1. \\[x\\] d\n2. q\n"
         assert _rendered_numbers(md) == [1, 0, 2]
+        assert "<p>" not in _COMMONMARK.render(md)
         assert _shape(_reimported(md)) == [
             ("BulletItem", "p", 0, None, 0, None, None),
             ("BulletItem", "c", 1, None, 0, None, None),
             ("Paragraph", "-1. [x] d", None, 0, 0, None, None),
             ("BulletItem", "q", 0, None, 0, None, None),
         ]
+
+    def test_item_paragraph_between_sublists_keeps_the_list_tight(self):
+        """PR #1661 QA round 1: an item written as a paragraph after a list in its
+        parent item follows it with a comment line, not a blank line, and the sublist
+        after it starts past 1 under another one."""
+        nodes = [
+            _bullet("a"),
+            _bullet("x", 1, ordered=True, number=3),
+            _bullet("y", 1, ordered=True, number=-1),
+            _bullet("z", 1, ordered=True, number=7),
+            _bullet("b"),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "- a\n  <!-- -->\n  3. x\n  <!-- -->\n  -1. y\n  <!-- -->\n  7. z\n- b\n"
+        assert _rendered_numbers(md) == [3, 7]
+        assert "<p>" not in _COMMONMARK.render(md)
+        assert _shape(_reimported(md)) == [
+            ("BulletItem", "a", 0, None, 0, None, None),
+            ("BulletItem", "x", 1, None, 0, None, None),
+            ("Paragraph", "-1. y", None, 0, 0, None, None),
+            ("BulletItem", "z", 1, None, 0, None, None),
+            ("BulletItem", "b", 0, None, 0, None, None),
+        ]
+
+    def test_item_paragraph_after_its_parent_s_text_takes_a_blank_line(self):
+        """A tight item draws no break between its text and a paragraph after it, so
+        "a" and "-1. y" would show as one line: the list goes loose there."""
+        nodes = [_bullet("a"), _bullet("y", 1, ordered=True, number=-1), _bullet("b")]
+        md = ast_to_markdown(nodes)
+        assert md == "- a\n\n  -1. y\n- b\n"
+        assert "<li><p>a</p><p>-1.y</p></li>" in _tight_html(md)
+
+    def test_consecutive_item_paragraphs_take_a_blank_line(self):
+        nodes = [
+            _bullet("a"),
+            _bullet("x", 1, ordered=True, number=1),
+            _bullet("y", 1, ordered=True, number=-1),
+            _bullet("w", 1, ordered=True, number=-2),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "- a\n  1. x\n  <!-- -->\n  -1. y\n\n  -2. w\n"
+        assert "<p>-1.y</p><p>-2.w</p>" in _tight_html(md)
+
+    @pytest.mark.parametrize("number", [1, 4])
+    def test_item_after_an_item_paragraph_needs_a_comment_unless_it_can_interrupt(self, number):
+        nodes = [
+            _bullet("a"),
+            _bullet("x", 1, ordered=True, number=1),
+            _bullet("y", 1, ordered=True, number=-1),
+            _bullet("z", 1, ordered=True, number=number),
+        ]
+        md = ast_to_markdown(nodes)
+        lead = "" if number == 1 else "  <!-- -->\n"
+        assert md.endswith(f"  -1. y\n{lead}  {number}. z\n")
+        assert _rendered_numbers(md) == [1, number]
+        assert _shape(_reimported(md))[-1] == ("BulletItem", "z", 1, None, 0, None, None)
+
+    def test_empty_item_after_an_item_paragraph_gets_a_comment(self):
+        """A bare "- " can't interrupt a paragraph: it would read as a setext
+        underline under "-1. y"."""
+        nodes = [
+            _bullet("a"),
+            _bullet("x", 1, ordered=True, number=1),
+            _bullet("y", 1, ordered=True, number=-1),
+            _empty_bullet(1),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md.endswith("  -1. y\n  <!-- -->\n  - \n")
+        assert "<h2>" not in _COMMONMARK.render(md)
+        assert _shape(_reimported(md))[-1] == ("BulletItem", "", 1, None, 0, None, None)
+
+    def test_children_of_an_item_paragraph_lose_a_level(self):
+        """PR #1661 QA round 1, a documented loss: Markdown has no item to nest
+        "5. y" under, and indenting it further makes an indented code block."""
+        nodes = [
+            _bullet("a"),
+            _bullet("x0", 1),
+            _bullet("x", 1, ordered=True, number=-3),
+            _bullet("y", 2, ordered=True, number=5),
+        ]
+        md = ast_to_markdown(nodes)
+        assert md == "- a\n  - x0\n  <!-- -->\n  -3. x\n  <!-- -->\n  5. y\n"
+        assert "<pre>" not in _COMMONMARK.render(md)
+        assert _rendered_numbers(md) == [5]
+        assert _shape(_reimported(md))[-1] == ("BulletItem", "y", 1, None, 0, None, None)
+
+    @pytest.mark.parametrize(
+        ("nodes", "numbers"),
+        [
+            # PR #1661 QA round 1's live case: "x" at level 1 with no parent, then
+            # "y" and "z" at level 0, all written at the margin.
+            (
+                [
+                    _bullet("x", 1, ordered=True, number=1),
+                    _bullet("y", ordered=True, number=1),
+                    _bullet("z", ordered=True, number=2),
+                ],
+                [1, 1, 2],
+            ),
+            # A skipped level: "x" at level 2 is written at "y"'s column.
+            (
+                [
+                    _bullet("a", ordered=True, number=1),
+                    _bullet("x", 2, ordered=True, number=1),
+                    _bullet("y", 1, ordered=True, number=7),
+                ],
+                [1, 1, 7],
+            ),
+            # A quote change writes the nested item at the margin.
+            (
+                [
+                    _bullet("a", ordered=True, number=1),
+                    _bullet("x", 1, ordered=True, number=4, blockquote_depth=1),
+                    _bullet("y", 1, ordered=True, number=9, blockquote_depth=1),
+                ],
+                [1, 4, 9],
+            ),
+        ],
+    )
+    def test_lists_at_one_column_stay_apart_whatever_their_depths(self, nodes, numbers):
+        """PR #1661 QA round 1: the open list was read by AST depth, so an item at a
+        placeholder depth joined a list written at the same column."""
+        md = ast_to_markdown(nodes)
+        assert _rendered_numbers(md) == numbers
+        assert "".join(MarkdownIt("commonmark").render(md).split()) == "".join(
+            md_to_html._md_to_html(md).split()
+        )
+
+    def test_heading_item_needs_no_comment_before_its_sublist(self):
+        """An item whose text is a heading leaves no paragraph to interrupt."""
+        nodes = [_bullet("T", heading_level=2), _bullet("c", 1, ordered=True, number=3)]
+        md = ast_to_markdown(nodes)
+        assert md == "- ## T\n  3. c\n"
+        assert _rendered_numbers(md) == [3]
 
     def test_heading_item_no_marker_holds_stays_a_heading(self):
         nodes = [_bullet("T", ordered=True, number=-1, heading_level=2)]

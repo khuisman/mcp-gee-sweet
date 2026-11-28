@@ -88,16 +88,28 @@ Three gaps were kept **as documented limitations, not implementation shortcuts**
     shows nothing, and keeps the list tight. Until #1370 that item wrote `1.` instead
     (PR #1234). An empty parent has no paragraph to interrupt and gets no comment line.
   - A Markdown list renders as its first number counting up, and two lists in a row with one
-    delimiter are one list. So `_OpenItems` records, per depth, the delimiter and next number of
-    the ordered list Markdown still holds open there, and an item whose number isn't that next
-    one starts a new list with the other delimiter (`3. a` then `7) b`; a reversed list
-    alternates on every item). A block at the margin ends the list, so the item after it needs
-    no switch.
+    delimiter are one list. So `_OpenItems` records the delimiter and next number of each
+    ordered list Markdown still holds open, by the column its items start at, and an item
+    whose number isn't that next one starts a new list with the other delimiter (`3. a` then
+    `7) b`; a reversed list alternates on every item). A block at the margin ends every list,
+    a block in an item ends the lists in it, and an item ends the lists deeper than it, so the
+    item after any of those needs no switch. The record is by column, not AST depth: an item at
+    a skipped depth, or written at the margin after a quote change, is in the list at its
+    column. Keying it by depth let `<ol><ol><li>x</li></ol><li>y</li><li>z</li></ol>` export as
+    `1. x\n1. y\n2. z` (PR #1661 QA round 1).
   - A task item keeps its number (`3. [x] Done`); it used to write `- [x]`, losing the number
     and the list's type.
   - A number no marker holds (a negative one, from `<ol reversed>`, or 10+ digits) is written
     as a paragraph that opens with it (`-1. c`), inside its parent item, or at the margin for a
-    top-level item. As an item it read as the text of the item before it.
+    top-level item. As an item it read as the text of the item before it. Right after a list in
+    its parent item, the paragraph follows a comment line, which ends that list and can't be
+    read as its last item's text, so the parent's list stays tight (PR #1661 QA round 1).
+    Right after its parent's text or another such paragraph it takes a blank line instead: a
+    tight item draws no break between two paragraphs, so they'd show as one line. An item
+    after the paragraph, at its column, gets the comment line when it couldn't interrupt a
+    paragraph (one starting past 1, or an empty one, which would be a setext underline). The
+    paragraph's own children land one level up, in its parent's item: no item is there to nest
+    them under, and indenting them further makes an indented code block.
 
   An AST built by the write side has no number and renders `1.`. Writing a resumed list back
   still restarts it at 1 when a paragraph interrupts it, because the write side ignores a list's

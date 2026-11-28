@@ -282,7 +282,8 @@ reads back as a list item.
 Markdown has no marker for a negative number or one of 10 or more digits, so
 `get_doc_as_markdown` exports such an item (`<ol reversed>` counting past zero) as a paragraph
 that opens with its number (`-1. c`), inside its parent item, and writing that back gives a
-paragraph, not a list item. It exports a nested list starting past 1 under a `<!-- -->` line,
+paragraph, not a list item. Items nested under such an item are exported one level up, as items
+of its parent, since Markdown has no list item there to nest them under. It exports a nested list starting past 1 under a `<!-- -->` line,
 which renders as nothing, so the list keeps its numbers.
 
 A marker too wide for a list's 18pt gap (`100.`, or `10.` in a heading) starts further left, so
