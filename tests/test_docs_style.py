@@ -2084,16 +2084,75 @@ class TestCreateParagraphBulletsTool:
 
     async def test_quoted_block_in_an_item_reads_the_items_quote(self):
         # A quoted block inside a quoted item sits at the item's text indent plus
-        # the quote (72, 72); bulleted, it's one quote deep, not two.
+        # the quote (72, 72); bulleted, it's one quote deep, not two. It's inside
+        # the item because the list goes on after it, as doc_to_ast reads it.
         doc = self._doc(
             [
                 (1, 6, "Item\n", {"listId": "L1"}, self._indents(54, 72, border=True)),
                 (6, 13, "block\n", None, self._indents(72, 72, border=True)),
+                (13, 18, "Next\n", {"listId": "L1"}, self._indents(54, 72, border=True)),
             ],
             lists={"L1": self._preset_entry("BULLET_DISC_CIRCLE_SQUARE")},
         )
         reqs = await self._requests(doc, [{"start_index": 6, "end_index": 13}])
         assert reqs[-1]["updateParagraphStyle"]["paragraphStyle"] == self._indents(54, 72)
+
+    @pytest.mark.parametrize(
+        "before",
+        [
+            # `- A` / `> x`: x at A's text indent.
+            [(1, 4, "A\n", {"listId": "L1"}, None)],
+            # `1. N1` / `    1. n2` / `> y`: y at n2's level-0 text indent.
+            [
+                (1, 4, "N1\n", {"listId": "L1"}, None),
+                (4, 7, "n2\n", {"listId": "L1", "nestingLevel": 1}, None),
+            ],
+        ],
+    )
+    async def test_quote_after_a_list_is_not_a_block_in_its_last_item(self, before):
+        # PR #1662 QA round 2: a quote right after a list, at an item's text
+        # indent, read as a block inside the item and lost its quote indent.
+        start = before[-1][1]
+        doc = self._doc(
+            [
+                *[(s, e, t, b, self._indents(18, 36)) for s, e, t, b, _ in before],
+                (start, start + 3, "x\n", None, self._indents(36, 36, border=True)),
+            ],
+            lists={"L1": self._preset_entry("NUMBERED_DECIMAL_ALPHA_ROMAN")},
+        )
+        reqs = await self._requests(doc, [{"start_index": start, "end_index": start + 3}])
+        assert reqs[-1]["updateParagraphStyle"]["paragraphStyle"] == self._indents(54, 72)
+
+    def _quoted_block_doc(self):
+        # `- A` / `  > q` (72, 72) / `- B`: a quote inside unquoted item A.
+        return self._doc(
+            [
+                (1, 4, "A\n", {"listId": "L1"}, self._indents(18, 36)),
+                (4, 7, "q\n", None, self._indents(72, 72, border=True)),
+                (7, 10, "B\n", {"listId": "L1"}, self._indents(18, 36)),
+            ],
+            lists={"L1": self._preset_entry("BULLET_DISC_CIRCLE_SQUARE")},
+        )
+
+    async def test_quoted_block_in_an_unquoted_item_is_one_quote_deep(self):
+        # PR #1662 QA round 2: q came out (90, 108), a quote two deep.
+        reqs = await self._requests(self._quoted_block_doc(), [{"start_index": 4, "end_index": 7}])
+        assert reqs[-1]["updateParagraphStyle"]["paragraphStyle"] == self._indents(54, 72)
+
+    async def test_run_continues_past_a_quoted_block_in_an_item(self):
+        # PR #1662 QA round 2: re-bulleting B restarted the list at q.
+        reqs = await self._requests(self._quoted_block_doc(), [{"start_index": 7, "end_index": 10}])
+        assert reqs[0] == {"deleteParagraphBullets": {"range": {"startIndex": 1, "endIndex": 10}}}
+        assert reqs[-2:] == [
+            {"deleteParagraphBullets": {"range": {"startIndex": 4, "endIndex": 7}}},
+            {
+                "updateParagraphStyle": {
+                    "range": {"startIndex": 4, "endIndex": 7},
+                    "paragraphStyle": self._indents(72, 72),
+                    "fields": "indentStart,indentFirstLine",
+                }
+            },
+        ]
 
     async def test_get_doc_error_returns_error_dict(self):
         tools = self._setup()

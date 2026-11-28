@@ -999,6 +999,21 @@ Tool calls: `create_doc(title="TC-DOC284", content=<above>, content_format="mark
 **Result (2026-11-28) ✅ PASS — Kit, QA round 2 of PR #1662, on `mcp-gee-sweet-kit` (OAuth, Shared Drive default folder) at `32e4d53e`, reconnected after the reset**
 Setup as written: a1 became a checklist item (`GLYPH_TYPE_UNSPECIFIED` at every level) on its own `listId`, and "edge" kept a `borderLeft` with `width: {unit: PT}`. 1: a1 kept its checklist and its `listId`; B moved to a new `listId`, apart from A's. 2: A1 and A2 on one new `listId`; B1, B2 and B3 on another at level 1, ● / ○ bullet list. 3: `{"error": "the paragraph at index 16 is in a list nested in another list's item; …"}`, with the `listId`s from step 2 unchanged. 4: P and Q on one `listId`, p1 on its own, "inside p1" unlisted at (72, 72). 5: "edge" at (18, 36). Doc trashed.
 
+### TC-DOC285: A quote beside a list reads its depth as `get_doc_as_markdown` does (PR #1662 QA round 2) ⚠️ destructive ⚠️ requires-oauth
+
+**Background:** PR #1662's QA round 2. A quote right after a list, at an item's text indent, was read as a block inside the item and lost its quote indent when bulleted (a regression from round 1's fix). A quoted block inside an unquoted item was read one quote too deep, and stopped the walk, so re-bulleting the next item restarted the list. Now a block's own quote levels count on top of its item's text indent, and a quote counts as inside the item only when the list goes on after it, as `doc_to_ast` reads it.
+
+**Prompt**
+> "Make a doc with this Markdown: '- A\n> x\n\nGap\n\n1. N1\n    1. n2\n> y\n\nGap\n\n- QA\n  > q\n- QB\n\nGap\n\n1. RA\n   > r\n2. RB\n'. Re-bullet RB, then bullet q, y and x, in that order."
+
+Tool calls: `create_doc(title="TC-DOC285", content=<above>, content_format="markdown")`, raw `documents().get()` (x and y at (36, 36), q and r at (72, 72), all with a `borderLeft`). Then `create_paragraph_bullets` on RB, then on q, then on y, then on x, each alone with no level or preset, and a raw `documents().get()` after each.
+
+**Checks**
+- After RB: RA and RB share one `listId`; r has no bullet and keeps (72, 72). `get_doc_as_markdown` writes RB as `2.`.
+- q, y and x each become a level-0 item at (54, 72), one quote deep, with their `borderLeft`.
+
+**Cleanup:** trash the doc.
+
 ---
 
 ## `get_doc_theme(source=)` (#1527)

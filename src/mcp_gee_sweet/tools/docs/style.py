@@ -700,8 +700,9 @@ def _body_paragraphs(doc: dict) -> list[dict]:
     indents (#1090).
 
     A quote needs a left border with a width: Docs keeps the key when a border is set
-    to width 0 (checked live). An unlisted quoted paragraph inside a list item reads
-    its quote from the item, since its own indent also holds the item's text indent."""
+    to width 0 (checked live). An unlisted quoted paragraph inside a list item counts
+    its quote from the item's text indent, since its own indent holds that too
+    (`_inside_quote_depth`)."""
     doc_lists = doc.get("lists", {})
     paragraphs: list[dict] = []
     for elem in doc.get("body", {}).get("content", []):
@@ -727,34 +728,60 @@ def _body_paragraphs(doc: dict) -> list[dict]:
             "bullet": bullet,
             "preset": preset,
             "text_indents": text_indents,
+            "quoted": quoted,
             "quote_depth": 0,
             "indents": (
                 _magnitude(style, "indentFirstLine") or 0,
                 _magnitude(style, "indentStart") or 0,
             ),
             "leading_tab": "".join(runs).startswith("\t"),
+            "style": style,
         }
-        if quoted:
-            item = _item_holding(paragraphs, paragraph) if not bullet else None
-            if item is not None:
-                paragraph["quote_depth"] = item["quote_depth"]
-            else:
-                base = text_indents[-1] if bullet else 0
-                paragraph["quote_depth"] = _infer_blockquote_depth(style, base)
+        if quoted and bullet:
+            paragraph["quote_depth"] = _infer_blockquote_depth(style, text_indents[-1])
         paragraphs.append(paragraph)
+    # An unlisted one goes second, since it can read its quote from an item before it.
+    for i, paragraph in enumerate(paragraphs):
+        if paragraph["quoted"] and not paragraph["bullet"]:
+            depth = _inside_quote_depth(paragraphs, i)
+            if depth is None:
+                depth = _infer_blockquote_depth(paragraph["style"], 0)
+            paragraph["quote_depth"] = depth
     return paragraphs
 
 
-def _item_holding(before: list[dict], block: dict) -> dict | None:
-    """The list item unlisted paragraph `block` sits inside, when it follows one
-    through touching unlisted paragraphs and reads as inside it, else None."""
-    end = block["start"]
-    for paragraph in reversed(before):
-        if paragraph["end"] != end:
+def _inside_quote_depth(paragraphs: list[dict], i: int) -> int | None:
+    """The quote depth of unlisted quoted paragraph `i` when it reads as a block inside
+    the list item it follows (through touching unlisted paragraphs), else None. As
+    doc_to_ast._ListItemContext reads a quote at an item's text indent, it's inside
+    only when the list goes on after it (PR #1662 QA round 2: `- A` / `> x` is a quote
+    after the list, not a block in A): the next touching listed paragraph past the
+    blocks inside the same item is in a list open at the item, or nested deeper."""
+    item = None
+    open_lists: set = set()
+    for j in range(i - 1, -1, -1):
+        if paragraphs[j]["end"] != paragraphs[j + 1]["start"]:
+            break
+        if paragraphs[j]["bullet"]:
+            if item is None:
+                item = paragraphs[j]
+            open_lists.add(paragraphs[j]["bullet"].get("listId"))
+        elif item is not None and _block_quote_depth(paragraphs[j], item) is None:
+            break
+    if item is None:
+        return None
+    depth = _block_quote_depth(paragraphs[i], item)
+    if depth is None:
+        return None
+    for k in range(i + 1, len(paragraphs)):
+        if paragraphs[k - 1]["end"] != paragraphs[k]["start"]:
             return None
-        if paragraph["bullet"]:
-            return paragraph if _in_item(block, paragraph) else None
-        end = paragraph["start"]
+        after = paragraphs[k]
+        if after["bullet"]:
+            continues = after["bullet"].get("listId") in open_lists
+            return depth if continues or _nesting_level(after) > _nesting_level(item) else None
+        if _block_quote_depth(after, item) is None:
+            return None
     return None
 
 
@@ -762,16 +789,32 @@ def _nesting_level(paragraph: dict) -> int:
     return (paragraph["bullet"] or {}).get("nestingLevel", 0)
 
 
-def _in_item(block: dict, item: dict) -> bool:
-    """Whether unlisted paragraph `block` reads as a block inside list item `item`
-    (#1094), as doc_to_ast._ListItemContext reads one: both lines at the text indent
-    of the item's level or a shallower one, plus the item's quote. Its text mustn't
-    open with a tab, which createParagraphBullets would consume as depth."""
+def _block_quote_depth(block: dict, item: dict) -> int | None:
+    """The quote depth unlisted paragraph `block` has as a block inside list item
+    `item` (#1094), or None when it doesn't read as one. As doc_to_ast._ListItemContext
+    reads one: both lines at the text indent of the item's level or a shallower one,
+    plus 36pt per quote level, the item's own and any the block adds (PR #1662 QA round
+    2). A quoted block has at least one; an unquoted one is at the text indent plus the
+    item's quote exactly. Its text mustn't open with a tab, which createParagraphBullets
+    would consume as depth."""
     first_line, start = block["indents"]
     if block["leading_tab"] or first_line != start:
-        return False
-    quote_indent = _block_indents(item["quote_depth"])[1]
-    return any(start == indent + quote_indent for indent in item["text_indents"])
+        return None
+    step = _block_indents(1)[1]
+    for indent in item["text_indents"]:
+        quote_levels, remainder = divmod(start - indent, step)
+        if remainder or quote_levels < item["quote_depth"]:
+            continue
+        if block["quoted"] and quote_levels >= 1:
+            return int(quote_levels)
+        if not block["quoted"] and quote_levels == item["quote_depth"]:
+            return 0
+    return None
+
+
+def _in_item(block: dict, item: dict) -> bool:
+    """Whether unlisted paragraph `block` reads as a block inside list item `item`."""
+    return _block_quote_depth(block, item) is not None
 
 
 def _inside_item(paragraphs: list[dict], gap: list[int], parent: dict) -> bool:
